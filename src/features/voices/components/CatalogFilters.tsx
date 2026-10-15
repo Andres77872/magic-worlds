@@ -11,11 +11,11 @@
  * loaded results. Use case is not offered: the catalog items carry no use-case
  * value to offer. Accent and works-in-calls are not offered (04 curation, S-15).
  */
-import type { Ref } from 'react'
+import { useId, useState, type ReactNode, type Ref } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Search } from 'lucide-react'
+import { Search, SlidersHorizontal, X } from 'lucide-react'
 import type { VoiceAgeBucket, VoiceGender } from '@/shared'
-import { Chip, Icon, Input, SwitchRow } from '@/ui/primitives'
+import { Badge, Button, Chip, Icon, Input, SwitchRow } from '@/ui/primitives'
 import { CATALOG_MAX_TAGS, type CatalogFilters as CatalogFilterValues } from '../hooks/useCatalogBrowser'
 import { languageLabel } from './VoiceBadges'
 
@@ -31,6 +31,10 @@ interface CatalogFiltersProps {
     onRecommendedChange?: (value: boolean) => void
     /** The search input, for a host that sends the user there ("Choose a voice"). */
     searchRef?: Ref<HTMLInputElement>
+    /** A note under the language chips (the language-scope notice). */
+    languageNote?: ReactNode
+    /** Shown at the end of the filter toolbar (the result count). */
+    summary?: ReactNode
 }
 
 /** The catalog's gender enum, in the 05 §7.3 order. */
@@ -51,7 +55,7 @@ function FacetChips({ label, values, labelOf, selected, onSelect }: {
 }) {
     const offered = selected && !values.includes(selected) ? [...values, selected] : values
     return (
-        <div className="flex flex-wrap items-center gap-2" role="group" aria-label={label}>
+        <FilterRow label={label}>
             {offered.map((value) => {
                 const active = selected === value
                 return (
@@ -60,18 +64,42 @@ function FacetChips({ label, values, labelOf, selected, onSelect }: {
                     </Chip>
                 )
             })}
+        </FilterRow>
+    )
+}
+
+/** One filter group: a visible label that names the chip group, then its chips. */
+function FilterRow({ label, children }: { label: string; children: ReactNode }) {
+    const labelId = useId()
+    return (
+        <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
+            <span id={labelId} className="shrink-0 font-ui text-caption font-semibold text-parchment-300 sm:w-20">{label}</span>
+            <div className="flex flex-wrap items-center gap-2" role="group" aria-labelledby={labelId}>
+                {children}
+            </div>
         </div>
     )
 }
 
-export function CatalogFilters({ filters, onChange, languages, tags, canRecommend = false, recommended = false, onRecommendedChange, searchRef }: CatalogFiltersProps) {
+export function CatalogFilters({ filters, onChange, languages, tags, canRecommend = false, recommended = false, onRecommendedChange, searchRef, languageNote, summary }: CatalogFiltersProps) {
     const { t, i18n } = useTranslation()
     const selectedTags = filters.tags ?? []
+    const [expanded, setExpanded] = useState(() => Boolean(filters.gender || filters.age || selectedTags.length || filters.include_locked === false))
+    const detailsId = useId()
     const toggleTag = (tag: string) => {
         const next = selectedTags.includes(tag) ? selectedTags.filter((value) => value !== tag) : [...selectedTags, tag]
         onChange({ tags: next.slice(0, CATALOG_MAX_TAGS) })
     }
     const offeredTags = [...new Set([...selectedTags, ...tags])]
+    // The filters folded under "More filters" that narrow the list, so a closed panel still says so.
+    const hiddenActive = [filters.gender, filters.age, filters.include_locked === false, recommended].filter(Boolean).length + selectedTags.length
+    // "Clear filters" resets everything but the language, which keeps its own "Any" chip.
+    const narrowed = hiddenActive > 0 || Boolean(filters.q?.trim()) || Boolean(filters.provider)
+    const toggleLabel = t(expanded ? 'voices.catalog.hideFilters' : 'voices.catalog.moreFilters')
+    const clear = () => {
+        onChange({ q: '', provider: undefined, gender: undefined, age: undefined, tags: [], include_locked: undefined })
+        if (recommended) onRecommendedChange?.(false)
+    }
     return (
         <div className="flex flex-col gap-3">
             <div className="relative flex items-center">
@@ -88,8 +116,19 @@ export function CatalogFilters({ filters, onChange, languages, tags, canRecommen
                     className="pl-10"
                 />
             </div>
+            <FilterRow label={t('voices.catalog.filters.provider')}>
+                <Chip active={!filters.provider} aria-pressed={!filters.provider} onClick={() => onChange({ provider: undefined })}>
+                    {t('voices.providers.all')}
+                </Chip>
+                {(['elevenlabs', 'fish_audio'] as const).map((provider) => (
+                    <Chip key={provider} active={filters.provider === provider} aria-pressed={filters.provider === provider}
+                        onClick={() => onChange({ provider: filters.provider === provider ? undefined : provider })}>
+                        {provider === 'fish_audio' ? 'Fish Audio' : 'ElevenLabs'}
+                    </Chip>
+                ))}
+            </FilterRow>
             {languages.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t('voices.catalog.filters.language')}>
+                <FilterRow label={t('voices.catalog.filters.language')}>
                     <Chip active={!filters.language} aria-pressed={!filters.language} onClick={() => onChange({ language: undefined })}>
                         {t('voices.catalog.filters.any')}
                     </Chip>
@@ -103,50 +142,68 @@ export function CatalogFilters({ filters, onChange, languages, tags, canRecommen
                             {languageLabel(code, i18n.language)}
                         </Chip>
                     ))}
-                </div>
+                </FilterRow>
             )}
-            <FacetChips
-                label={t('voices.catalog.filters.gender')}
-                values={CATALOG_GENDERS}
-                labelOf={(value) => t(`voices.catalog.gender.${value}`, { defaultValue: value })}
-                selected={filters.gender}
-                onSelect={(gender) => onChange({ gender })}
-            />
-            <FacetChips
-                label={t('voices.catalog.filters.age')}
-                values={CATALOG_AGES}
-                labelOf={(value) => t(`voices.catalog.age.${value}`, { defaultValue: value })}
-                selected={filters.age}
-                onSelect={(age) => onChange({ age })}
-            />
-            {offeredTags.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t('voices.catalog.tags')}>
-                    {offeredTags.map((tag) => {
-                        const active = selectedTags.includes(tag)
-                        return (
-                            <Chip
-                                key={tag}
-                                active={active}
-                                aria-pressed={active}
-                                disabled={!active && selectedTags.length >= CATALOG_MAX_TAGS}
-                                onClick={() => toggleTag(tag)}
-                            >
-                                {tag}
-                            </Chip>
-                        )
-                    })}
-                </div>
-            )}
-            {canRecommend && onRecommendedChange && (
-                <SwitchRow variant="plain" label={t('voices.catalog.recommended')} checked={recommended} onChange={onRecommendedChange} />
-            )}
-            {/* 05 §7.3: `include_locked` defaults to true, so only "off" is sent. */}
-            <SwitchRow
-                variant="plain"
-                label={t('voices.catalog.filters.showLocked')}
-                checked={filters.include_locked !== false}
-                onChange={(checked) => onChange({ include_locked: checked ? undefined : false })}
-            />
+            {languageNote && <div className="sm:pl-[92px]">{languageNote}</div>}
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-line-faint pt-2">
+                <Button variant="ghost" size="sm" aria-expanded={expanded} aria-controls={detailsId}
+                    aria-label={hiddenActive > 0 ? `${toggleLabel} ${t('voices.catalog.activeFilters', { count: hiddenActive })}` : undefined}
+                    iconLeft={<Icon icon={SlidersHorizontal} size={14} />}
+                    onClick={() => setExpanded((value) => !value)}>
+                    {toggleLabel}
+                    {hiddenActive > 0 && <Badge tone="ember" aria-hidden="true" className="ml-1">{hiddenActive}</Badge>}
+                </Button>
+                {narrowed && (
+                    <Button variant="ghost" size="sm" iconLeft={<Icon icon={X} size={14} />} onClick={clear}>
+                        {t('voices.catalog.clearFilters')}
+                    </Button>
+                )}
+                {summary && <div className="ml-auto">{summary}</div>}
+            </div>
+            <div id={detailsId} hidden={!expanded} className="flex flex-col gap-3">
+                    <FacetChips
+                        label={t('voices.catalog.filters.gender')}
+                        values={CATALOG_GENDERS}
+                        labelOf={(value) => t(`voices.catalog.gender.${value}`, { defaultValue: value })}
+                        selected={filters.gender}
+                        onSelect={(gender) => onChange({ gender })}
+                    />
+                    <FacetChips
+                        label={t('voices.catalog.filters.age')}
+                        values={CATALOG_AGES}
+                        labelOf={(value) => t(`voices.catalog.age.${value}`, { defaultValue: value })}
+                        selected={filters.age}
+                        onSelect={(age) => onChange({ age })}
+                    />
+                    {offeredTags.length > 0 && (
+                        <FilterRow label={t('voices.catalog.tags')}>
+                            {offeredTags.map((tag) => {
+                                const active = selectedTags.includes(tag)
+                                return (
+                                    <Chip
+                                        key={tag}
+                                        active={active}
+                                        aria-pressed={active}
+                                        disabled={!active && selectedTags.length >= CATALOG_MAX_TAGS}
+                                        onClick={() => toggleTag(tag)}
+                                    >
+                                        {tag}
+                                    </Chip>
+                                )
+                            })}
+                        </FilterRow>
+                    )}
+                    {canRecommend && onRecommendedChange && (
+                        <SwitchRow variant="plain" label={t('voices.catalog.recommended')} checked={recommended} onChange={onRecommendedChange} />
+                    )}
+                    {/* 05 §7.3: `include_locked` defaults to true, so only "off" is sent. */}
+                    <SwitchRow
+                        variant="plain"
+                        label={t('voices.catalog.filters.showLocked')}
+                        checked={filters.include_locked !== false}
+                        onChange={(checked) => onChange({ include_locked: checked ? undefined : false })}
+                    />
+            </div>
         </div>
     )
 }

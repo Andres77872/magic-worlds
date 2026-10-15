@@ -3,10 +3,13 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { i18n } from '@/app/i18n'
 import { DocsPage } from './DocsPage'
 import { DOC_SECTION_IDS, getDocsContent } from './docsContent'
+import { ROADMAP_REVIEWED_DATE } from './roadmapContent'
 
 const setPage = vi.fn()
 const openLoginModal = vi.fn()
+const replaceHash = vi.fn()
 let authed = true
+let currentHash = '#/docs'
 let restoreIntersectionObserver = false
 const originalIntersectionObserver = globalThis.IntersectionObserver
 
@@ -26,11 +29,35 @@ function rectAt(top: number): DOMRect {
 
 vi.mock('@/app/hooks', () => ({
     useAuth: () => ({ isAuthenticated: authed, openLoginModal }),
-    useNavigation: () => ({ setPage }),
+    useNavigation: () => ({ setPage, currentHash, replaceHash }),
 }))
+
+/** Desktop (≥1024px) gets the sticky rail; narrower widths get the collapsible TOC. */
+function stubViewport(desktop: boolean) {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+        matches: desktop && query.includes('min-width: 1024px'),
+        media: query,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        addListener: () => {},
+        removeListener: () => {},
+        dispatchEvent: () => false,
+    }))
+}
+
+function roadmapPanel() {
+    return document.getElementById('docs-roadmap')!
+}
+
+function openRoadmapTab() {
+    fireEvent.click(screen.getByRole('tab', { name: i18n.getFixedT('en')('docs.views.roadmap') }))
+}
 
 beforeEach(async () => {
     authed = true
+    currentHash = '#/docs'
+    stubViewport(true)
     await i18n.changeLanguage('en')
 })
 
@@ -42,6 +69,7 @@ afterEach(() => {
     cleanup()
     vi.clearAllMocks()
     vi.unstubAllEnvs()
+    vi.unstubAllGlobals()
 })
 
 describe('DocsPage', () => {
@@ -162,7 +190,7 @@ describe('DocsPage', () => {
         expect(within(document.getElementById('map')!).queryByRole('button', { name: t('docs.map.items.resources.title') })).toBeNull()
     })
 
-    it('does not label one-on-one chat or calls disabled when only adventures and voice studio are off', () => {
+    it('keeps one-on-one chat available while the voices parent disables calls', () => {
         vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'false')
         vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'false')
         vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
@@ -170,7 +198,7 @@ describe('DocsPage', () => {
         render(<DocsPage />)
 
         expect(document.getElementById('voice-presets')!.textContent).toContain('WIP')
-        expect(document.getElementById('voice')!.textContent).not.toContain('WIP')
+        expect(document.getElementById('voice')!.textContent).toContain('WIP')
         expect(screen.getByText(t('docs.guides.play.oneOnOne.body')).textContent).not.toContain('WIP')
     })
 
@@ -181,9 +209,14 @@ describe('DocsPage', () => {
         const t = i18n.getFixedT(language)
         render(<DocsPage />)
 
-        const roadmap = document.getElementById('roadmap')!
-        expect(within(roadmap).getByRole('heading', { name: t('docs.sections.roadmap.title') })).toBeTruthy()
-        expect(roadmap.textContent).toContain(t('docs.roadmap.reviewed'))
+        const teaser = document.getElementById('roadmap')!
+        expect(within(teaser).getByRole('heading', { name: t('docs.sections.roadmap.title') })).toBeTruthy()
+        expect(teaser.textContent).toContain(t('docs.roadmap.reviewed'))
+
+        fireEvent.click(screen.getByRole('tab', { name: t('docs.views.roadmap') }))
+        const roadmap = roadmapPanel()
+        expect(within(roadmap).getByRole('heading', { name: t('docs.roadmap.title') })).toBeTruthy()
+        expect(roadmap.querySelector('time')?.getAttribute('datetime')).toBe(ROADMAP_REVIEWED_DATE)
         const novel = roadmap.querySelector('[data-roadmap-item="novels"]')!
         const chara = roadmap.querySelector('[data-roadmap-item="charaStudio"]')!
         const billing = roadmap.querySelector('[data-roadmap-item="billing"]')!
@@ -193,6 +226,8 @@ describe('DocsPage', () => {
         expect(chara.textContent).toContain(t('docs.roadmap.statuses.planned'))
         expect(chara.textContent).toContain(t('docs.roadmap.items.charaStudio.decision'))
         expect(billing.textContent).toContain(t('docs.roadmap.availability.disabled'))
+        expect(novel.querySelector('[data-stage]')?.getAttribute('data-stage')).toBe('off')
+        expect(chara.querySelector('[data-stage]')?.getAttribute('data-stage')).toBe('planned')
     })
 
     it('keeps unfinished scope visible when the novel feature is enabled', () => {
@@ -202,6 +237,7 @@ describe('DocsPage', () => {
         const novel = document.querySelector('[data-roadmap-item="novels"]')!
         expect(novel.textContent).toContain(t('docs.roadmap.availability.enabled'))
         expect(novel.textContent).toContain(t('docs.roadmap.statuses.partial'))
+        expect(novel.querySelector('[data-stage]')?.getAttribute('data-stage')).toBe('progress')
     })
 
     it('finds planned Chara Studio through docs search', () => {
@@ -388,7 +424,8 @@ describe('DocsPage', () => {
             target: { value: 'zzzzz-no-such-topic' },
         })
 
-        expect(screen.getByText(content.search.empty.title)).toBeTruthy()
+        const guide = screen.getByRole('tabpanel', { name: content.views.guide })
+        expect(within(guide).getByText(content.search.empty.title)).toBeTruthy()
         expect(screen.queryByRole('heading', { name: content.sections[0].title })).toBeNull()
     })
 
@@ -406,15 +443,230 @@ describe('DocsPage', () => {
         }
     })
 
-    it('focuses search when "/" is pressed', () => {
+    it('focuses search with Ctrl/⌘+K but not with a bare "/" (WCAG 2.1.4)', () => {
         const content = getDocsContent(i18n.getFixedT('en'))
         render(<DocsPage />)
 
         const search = screen.getByRole('searchbox', { name: content.search.label })
-        expect(document.activeElement).not.toBe(search)
+        expect(search).toHaveAttribute('aria-keyshortcuts', 'Control+K Meta+K')
 
         fireEvent.keyDown(document.body, { key: '/' })
+        expect(document.activeElement).not.toBe(search)
 
+        fireEvent.keyDown(window, { key: 'k', ctrlKey: true })
         expect(document.activeElement).toBe(search)
+    })
+
+    it('clears the search with Escape', () => {
+        const content = getDocsContent(i18n.getFixedT('en'))
+        render(<DocsPage />)
+        const search = screen.getByRole('searchbox', { name: content.search.label })
+
+        fireEvent.change(search, { target: { value: 'voice' } })
+        fireEvent.keyDown(search, { key: 'Escape' })
+
+        expect(search).toHaveValue('')
+    })
+
+    it('shows the match count and marks matches in place', () => {
+        render(<DocsPage />)
+        fireEvent.change(screen.getByRole('searchbox', { name: i18n.t('docs.search.label') }), { target: { value: 'Interrupt' } })
+
+        expect(screen.getByText(/sections? match/)).toBeTruthy()
+        const marks = [...document.querySelectorAll('#voice mark')]
+        expect(marks.length).toBeGreaterThan(0)
+        expect(marks.every((mark) => mark.textContent!.toLowerCase() === 'interrupt')).toBe(true)
+    })
+
+    it('renders inside the app shell main without adding a second main landmark', () => {
+        render(<DocsPage />)
+        expect(document.querySelector('main')).toBeNull()
+    })
+
+    it('renders WIP notes apart from the instructions they qualify', () => {
+        vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'false')
+        const t = i18n.getFixedT('en')
+        render(<DocsPage />)
+
+        const novelBody = screen.getByText(t('docs.guides.writing.novels.body'))
+        expect(novelBody.textContent).toBe(t('docs.guides.writing.novels.body'))
+        const notes = [...document.querySelectorAll('#writing [data-availability-note]')]
+        expect(notes.some((note) => note.textContent!.includes(t('docs.availability.features.novels')))).toBe(true)
+    })
+
+    it('records the selected guide section in the hash', () => {
+        const content = getDocsContent(i18n.getFixedT('en'))
+        render(<DocsPage />)
+        const voice = content.sections.find((section) => section.id === 'voice')!
+
+        fireEvent.click(within(screen.getByRole('navigation', { name: content.navAriaLabel })).getByRole('button', { name: voice.label }))
+
+        expect(replaceHash).toHaveBeenLastCalledWith('#/docs?section=voice')
+    })
+
+    it('uses a collapsible "On this page" list on narrow screens with back-to-top links', () => {
+        stubViewport(false)
+        const content = getDocsContent(i18n.getFixedT('en'))
+        render(<DocsPage />)
+
+        const nav = screen.getByRole('navigation', { name: content.navAriaLabel })
+        expect(nav.querySelector('details summary')?.textContent).toContain(content.nav.onThisPage)
+        expect(within(document.getElementById('voice')!).getByRole('button', { name: content.nav.backToTop })).toBeTruthy()
+    })
+
+    describe('roadmap view', () => {
+        it('switches views with tabs and records the view in the hash', () => {
+            const t = i18n.getFixedT('en')
+            render(<DocsPage />)
+
+            expect(screen.getByRole('tab', { name: t('docs.views.guide') })).toHaveAttribute('aria-selected', 'true')
+            openRoadmapTab()
+
+            expect(screen.getByRole('tab', { name: t('docs.views.roadmap') })).toHaveAttribute('aria-selected', 'true')
+            expect(replaceHash).toHaveBeenLastCalledWith('#/docs?view=roadmap')
+            expect(screen.getByRole('heading', { name: t('docs.roadmap.title') })).toBeTruthy()
+            expect(screen.queryByRole('heading', { name: t('docs.sections.start.title') })).toBeNull()
+            expect(screen.getByRole('searchbox', { name: t('docs.search.label') })).toHaveAttribute('placeholder', t('docs.search.placeholderRoadmap'))
+        })
+
+        it('opens directly from a linked hash', () => {
+            currentHash = '#/docs?view=roadmap&section=chara-studio'
+            const t = i18n.getFixedT('en')
+            render(<DocsPage />)
+
+            expect(screen.getByRole('tab', { name: t('docs.views.roadmap') })).toHaveAttribute('aria-selected', 'true')
+            const panelTitle = document.getElementById('chara-studio-title')!
+            expect(panelTitle.textContent).toBe(t('docs.roadmap.initiatives.charaStudio.title'))
+            expect(screen.getAllByRole('heading', { name: t('docs.roadmap.initiatives.charaStudio.title') })).toContain(panelTitle)
+        })
+
+        it('lays out Novel Studio phases in dependency order with the active step marked', () => {
+            const t = i18n.getFixedT('en')
+            render(<DocsPage />)
+            openRoadmapTab()
+
+            const novel = document.getElementById('novel-studio')!
+            const phases = within(novel).getAllByRole('listitem').filter((item) => item.hasAttribute('data-phase-status'))
+            expect(phases).toHaveLength(6)
+            expect(phases[0]).toHaveAttribute('aria-current', 'step')
+            expect(phases[0].textContent).toContain(t('docs.roadmap.initiatives.novels.phases.reliable.title'))
+            expect(phases.slice(1).every((phase) => !phase.hasAttribute('aria-current'))).toBe(true)
+            expect(phases[2].textContent).toContain(t('docs.roadmap.dependsOn', { count: 2, phases: `1 ${t('docs.roadmap.and')} 2` }))
+            expect(novel.textContent).toContain(t('docs.roadmap.progress.current', { current: 1, total: 6 }))
+            expect(novel.textContent).toContain(t('docs.roadmap.initiatives.novels.scope'))
+            expect(novel.textContent).toContain(t('docs.roadmap.initiatives.novels.today.codex'))
+        })
+
+        it('keeps Chara Studio planned with mask editing under consideration', () => {
+            const t = i18n.getFixedT('en')
+            render(<DocsPage />)
+            openRoadmapTab()
+
+            const chara = document.getElementById('chara-studio')!
+            expect(chara.querySelector('[aria-current="step"]')).toBeNull()
+            const statuses = [...chara.querySelectorAll('[data-phase-status]')].map((phase) => phase.getAttribute('data-phase-status'))
+            expect(statuses).toEqual(['planned', 'planned', 'planned', 'planned', 'considering'])
+            expect(chara.textContent).toContain(t('docs.roadmap.progress.notStarted', { count: 5 }))
+            expect(chara.querySelector('[data-stage]')?.getAttribute('data-stage')).toBe('planned')
+        })
+
+        it('filters areas by status with the legend toggles', () => {
+            const t = i18n.getFixedT('en')
+            render(<DocsPage />)
+            openRoadmapTab()
+
+            const filter = screen.getByRole('group', { name: t('docs.roadmap.labels.filter') })
+            const planned = within(filter).getByRole('button', { name: new RegExp(t('docs.roadmap.stages.planned.label')) })
+            fireEvent.click(planned)
+
+            expect(planned).toHaveAttribute('aria-pressed', 'true')
+            const shown = [...roadmapPanel().querySelectorAll('[data-roadmap-item]')].map((item) => item.getAttribute('data-roadmap-item'))
+            const total = getDocsContent(t).roadmap.items.length
+            expect(shown).toEqual(['charaStudio', 'patreon'])
+            expect(screen.getByText(t('docs.roadmap.showing', { shown: 2, total }))).toBeTruthy()
+
+            fireEvent.click(planned)
+            expect(planned).toHaveAttribute('aria-pressed', 'false')
+            expect(roadmapPanel().querySelectorAll('[data-roadmap-item]')).toHaveLength(total)
+        })
+
+        it('narrows the roadmap with the shared search and opens matching decisions', () => {
+            const t = i18n.getFixedT('en')
+            render(<DocsPage />)
+            openRoadmapTab()
+
+            fireEvent.change(screen.getByRole('searchbox', { name: t('docs.search.label') }), { target: { value: 'account linking' } })
+
+            const shown = [...roadmapPanel().querySelectorAll('[data-roadmap-item]')].map((item) => item.getAttribute('data-roadmap-item'))
+            expect(shown).toEqual(['patreon'])
+            expect(document.getElementById('novel-studio')).toHaveAttribute('hidden')
+            expect(roadmapPanel().querySelector('[data-roadmap-item="patreon"] details')).toHaveAttribute('open')
+            const search = screen.getByRole('searchbox', { name: t('docs.search.label') })
+            expect(document.getElementById(search.getAttribute('aria-describedby')!)!.textContent).toBe(t('docs.search.roadmapResults', { count: 1 }))
+        })
+
+        it('keeps legend counts in step with the search and offers a reset when a status hides every match', () => {
+            const t = i18n.getFixedT('en')
+            render(<DocsPage />)
+            openRoadmapTab()
+
+            const filter = screen.getByRole('group', { name: t('docs.roadmap.labels.filter') })
+            const planned = within(filter).getByRole('button', { name: new RegExp(t('docs.roadmap.stages.planned.label')) })
+            fireEvent.click(planned)
+            fireEvent.change(screen.getByRole('searchbox', { name: t('docs.search.label') }), { target: { value: 'consent' } })
+
+            expect(roadmapPanel().querySelectorAll('[data-roadmap-item]')).toHaveLength(0)
+            expect(planned).not.toBeDisabled()
+            expect(within(filter).getByRole('button', { name: new RegExp(t('docs.roadmap.labels.all')) }).textContent).toContain('1')
+            expect(screen.getByText(t('docs.roadmap.labels.noAreas'))).toBeTruthy()
+
+            fireEvent.click(screen.getByRole('button', { name: t('docs.roadmap.labels.showAll') }))
+            expect([...roadmapPanel().querySelectorAll('[data-roadmap-item]')].map((item) => item.getAttribute('data-roadmap-item'))).toEqual(['calls'])
+        })
+
+        it('lists recently completed work apart from the open areas and narrows it with the search', () => {
+            const t = i18n.getFixedT('en')
+            const { done } = getDocsContent(t).roadmap
+            render(<DocsPage />)
+            openRoadmapTab()
+
+            const section = document.getElementById('roadmap-done')!
+            expect(section).not.toHaveAttribute('hidden')
+            expect(within(section).getByRole('heading', { name: t('docs.roadmap.labels.done') })).toBeTruthy()
+            const entries = [...section.querySelectorAll('[data-roadmap-done]')]
+            expect(entries.map((entry) => entry.getAttribute('data-roadmap-done'))).toEqual(done.map((entry) => entry.id))
+            expect(entries[0].textContent).toContain(t('docs.roadmap.items.core.title'))
+            expect(within(screen.getByRole('navigation', { name: t('docs.roadmap.labels.jump') })).getByRole('button', { name: t('docs.roadmap.labels.done') })).toBeTruthy()
+
+            fireEvent.change(screen.getByRole('searchbox', { name: t('docs.search.label') }), { target: { value: 'call time' } })
+            const visible = [...section.querySelectorAll('[data-roadmap-done]')].filter((entry) => !entry.hasAttribute('hidden'))
+            expect(visible.map((entry) => entry.getAttribute('data-roadmap-done'))).toEqual(['planVoiceLimits'])
+            expect(screen.queryByText(t('docs.roadmap.labels.emptyTitle'))).toBeNull()
+
+            fireEvent.change(screen.getByRole('searchbox', { name: t('docs.search.label') }), { target: { value: 'account linking' } })
+            expect(section).toHaveAttribute('hidden')
+            expect(within(screen.getByRole('navigation', { name: t('docs.roadmap.labels.jump') })).queryByRole('button', { name: t('docs.roadmap.labels.done') })).toBeNull()
+        })
+
+        it('calls an off initiative\'s existing work built, not available', () => {
+            vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'false')
+            const t = i18n.getFixedT('en')
+            render(<DocsPage />)
+            openRoadmapTab()
+
+            expect(document.getElementById('novel-studio-today')!.textContent).toBe(t('docs.roadmap.labels.builtSoFar'))
+            expect(document.getElementById('chara-studio-today')!.textContent).toBe(t('docs.roadmap.labels.today'))
+        })
+
+        it('jumps from the guide summary to an initiative\'s phases', () => {
+            const t = i18n.getFixedT('en')
+            render(<DocsPage />)
+
+            const teaser = document.querySelector('[data-roadmap-teaser="charaStudio"]')!
+            fireEvent.click(within(teaser as HTMLElement).getByRole('button', { name: new RegExp(t('docs.roadmap.labels.viewPhases')) }))
+
+            expect(replaceHash).toHaveBeenLastCalledWith('#/docs?view=roadmap&section=chara-studio')
+            expect(screen.getByRole('tab', { name: t('docs.views.roadmap') })).toHaveAttribute('aria-selected', 'true')
+        })
     })
 })

@@ -134,7 +134,7 @@ export function RecipeControlsV2({ surface, settings, onChange, disabled = false
     }
 
     const controls = visibleControls(surface)
-    const speedHidden = !surface.supports_speed
+    const speedHidden = !surface.supports_speed && surface.controls.length > 0
     const flagOf = (key: VoiceControlKey) => flags.find((flag) => flag.key === key)
     const hiddenFlags = flags.filter((flag) => !controls.some((spec) => spec.key === flag.key))
     const change = (spec: VoiceControlSpec, raw: number) => {

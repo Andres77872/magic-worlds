@@ -1,3 +1,4 @@
+import { isOperationFeatureEnabled, isLlmFeatureEnabled } from '@/shared/featureFlags'
 import { useTranslation } from 'react-i18next'
 import { Activity } from 'lucide-react'
 import type { LlmCapacityUsage } from '@/shared/types/llmProfile.types'
@@ -27,9 +28,9 @@ export function LlmCapacityUsageView({ usage, loading = false, error = '' }: {
                                 {t(`llmProfiles.usage.columns.${payer}`)}
                             </th>)}
                         </tr></thead>
-                        <tbody>{usage.operations.map(row => <tr key={row.operation}>
+                        <tbody>{usage.operations.filter(row => isOperationFeatureEnabled(row.operation) && row.features.some(isLlmFeatureEnabled)).map(row => <tr key={row.operation}>
                             <th scope="row" className="border-b border-line-faint py-3 text-left font-normal">
-                                <span className="block text-parchment-100">{row.features.map(feature => t(`llmProfiles.features.${feature}`)).join(' · ')}</span>
+                                <span className="block text-parchment-100">{row.features.filter(isLlmFeatureEnabled).map(feature => t(`llmProfiles.features.${feature}`)).join(' · ')}</span>
                                 <span className="text-caption text-parchment-400">
                                     {t(row.app_credit_billed ? 'llmProfiles.usage.creditBilled' : 'llmProfiles.usage.noExtraCredits')}
                                 </span>

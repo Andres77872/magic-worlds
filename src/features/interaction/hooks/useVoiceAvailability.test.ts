@@ -8,6 +8,13 @@ import { FAIL_OPEN_VOICE_AVAILABILITY, useVoiceAvailability } from './useVoiceAv
 const off = toVoiceCapabilities({ surfaces: {}, status: { narration_available: false, calls_available: false, auto_narration_paused: true } })!
 
 describe('useVoiceAvailability', () => {
+    it('keeps Fish calls off when their provider capability is missing', async () => {
+        const api = { getVoiceCapabilities: vi.fn(async () => toVoiceCapabilities(BFF_R0_BODY)!) }
+        const { result } = renderHook(() => useVoiceAvailability(api, true, 0, 'fish_audio'))
+        expect(result.current.calls_available).toBe(false)
+        await waitFor(() => expect(api.getVoiceCapabilities).toHaveBeenCalled())
+        expect(result.current.calls_available).toBe(false)
+    })
     it('reads the server switches while active', async () => {
         const api = { getVoiceCapabilities: vi.fn(async () => off) }
         const { result } = renderHook(() => useVoiceAvailability(api, true))

@@ -4,7 +4,7 @@
  * drawer with publish, retire, replacement and provider delete. Root may see
  * the provider voice id only in the drawer.
  */
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle, ListChecks, RefreshCw } from 'lucide-react'
 import { apiService } from '@/infrastructure/api'
@@ -20,8 +20,10 @@ import { useLoadErrorMessage, useVoiceConsole } from '../shell/VoiceConsoleConte
 import { CatalogDetailDrawer } from './CatalogDetailDrawer'
 import { CatalogTable } from './CatalogTable'
 import { MassRemovalDialog } from './MassRemovalDialog'
+import { FishInventoryPanel } from './FishInventoryPanel'
 
 interface CatalogFilterState {
+    provider: string
     q: string
     status: string
     visibility: string
@@ -31,10 +33,11 @@ interface CatalogFilterState {
     acceptance: string
 }
 
-const EMPTY_FILTERS: CatalogFilterState = { q: '', status: '', visibility: '', source_kind: '', primary_language: '', call_eligible: '', acceptance: '' }
+const EMPTY_FILTERS: CatalogFilterState = { provider: '', q: '', status: '', visibility: '', source_kind: '', primary_language: '', call_eligible: '', acceptance: '' }
 
 function toQuery(filters: CatalogFilterState): AdminCatalogQuery {
     return {
+        provider: (filters.provider || undefined) as AdminCatalogQuery['provider'],
         q: filters.q.trim() || undefined,
         status: (filters.status || undefined) as AdminCatalogQuery['status'],
         visibility: (filters.visibility || undefined) as AdminCatalogQuery['visibility'],
@@ -46,17 +49,20 @@ function toQuery(filters: CatalogFilterState): AdminCatalogQuery {
 }
 
 
-export function CatalogManager() {
+/** `initialVoiceKey`: a deep link (`?module=catalog&voice=<key>`) opens that voice's drawer. */
+export function CatalogManager({ initialVoiceKey = null }: { initialVoiceKey?: string | null } = {}) {
     const { t } = useTranslation()
     const { catalog, limits, notify, reportError } = useVoiceConsole()
     const [filters, setFilters] = useState<CatalogFilterState>(EMPTY_FILTERS)
     const [textDraft, setTextDraft] = useState({ q: '', primary_language: '' })
     const query = useMemo(() => toQuery(filters), [filters])
     const key = JSON.stringify(query)
-    const first = useAbortableLoad<AdminCatalogPage>((signal) => apiService.listAdminCatalog({ ...query, limit: CATALOG_PAGE_SIZE }, signal), key)
-    const [more, setMore] = useState<{ key: string; items: AdminCatalogVoice[]; cursor: string | null } | null>(null)
-    const [loadingMore, setLoadingMore] = useState(false)
-    const [openKey, setOpenKey] = useState<string | null>(null)
+    const [revision, setRevision] = useState(0)
+    const requestKey = `${revision}:${key}`
+    const first = useAbortableLoad<AdminCatalogPage>((signal) => apiService.listAdminCatalog({ ...query, limit: CATALOG_PAGE_SIZE }, signal), requestKey)
+    const [more, setMore] = useState<{ key: string; items: AdminCatalogVoice[]; cursor: string | null; loading: boolean } | null>(null)
+    const moreRequest = useRef<AbortController | null>(null)
+    const [openKey, setOpenKey] = useState<string | null>(initialVoiceKey)
     const [syncJob, setSyncJob] = useState<VoiceSyncJob>('A')
     const [syncing, setSyncing] = useState(false)
     /** `replacement_orphans` of the last sync answer (I-34): voices left naming a removed voice as their replacement. */
@@ -65,32 +71,58 @@ export function CatalogManager() {
     const errorMessage = useLoadErrorMessage(first.error)
     const removalAbort = massRemovalAbort(limits.data)
 
-    const extra = more && more.key === key ? more : null
-    const items = [...(first.data?.items ?? []), ...(extra?.items ?? [])]
-    const cursor = extra ? extra.cursor : (first.data?.next_cursor ?? null)
+    // Old rows and cursors belong to the previous query until this first page settles.
+    const page = !first.loading && !first.error ? first.data : null
+    const extra = more && more.key === requestKey ? more : null
+    const items = [...new Map([...(page?.items ?? []), ...(page ? extra?.items ?? [] : [])].map((voice) => [voice.voice_key, voice])).values()]
+    const cursor = page ? (extra ? extra.cursor : page.next_cursor) : null
+    const loadingMore = extra?.loading ?? false
     const openVoice = openKey ? (items.find((voice) => voice.voice_key === openKey) ?? catalog.byKey.get(openKey)) : undefined
+
+    useEffect(() => () => {
+        moreRequest.current?.abort()
+        moreRequest.current = null
+    }, [requestKey])
+
+    const resetPages = () => {
+        moreRequest.current?.abort()
+        moreRequest.current = null
+        setMore(null)
+    }
+
+    const reloadList = () => {
+        resetPages()
+        setRevision((value) => value + 1)
+    }
 
     const setFilter = (name: keyof CatalogFilterState, value: string) => {
         setFilters((previous) => ({ ...previous, [name]: value }))
-        setMore(null)
+        resetPages()
     }
 
     const applyText = (event: FormEvent) => {
         event.preventDefault()
         setFilters((previous) => ({ ...previous, ...textDraft }))
-        setMore(null)
+        resetPages()
     }
 
     const loadMore = async () => {
-        if (!cursor) return
-        setLoadingMore(true)
+        if (!cursor || first.loading || moreRequest.current) return
+        const controller = new AbortController()
+        moreRequest.current = controller
+        const previousItems = extra?.items ?? []
+        setMore({ key: requestKey, items: previousItems, cursor, loading: true })
         try {
-            const page = await apiService.listAdminCatalog({ ...query, limit: CATALOG_PAGE_SIZE, after: cursor })
-            setMore({ key, items: [...(extra?.items ?? []), ...page.items], cursor: page.next_cursor })
+            const next = await apiService.listAdminCatalog({ ...query, limit: CATALOG_PAGE_SIZE, after: cursor }, controller.signal)
+            if (controller.signal.aborted) return
+            setMore({ key: requestKey, items: [...previousItems, ...next.items], cursor: next.next_cursor, loading: false })
         } catch (error) {
-            notify(reportError(error), 'error')
+            if (!controller.signal.aborted) {
+                setMore((previous) => previous ? { ...previous, loading: false } : previous)
+                notify(reportError(error), 'error')
+            }
         } finally {
-            setLoadingMore(false)
+            if (moreRequest.current === controller) moreRequest.current = null
         }
     }
 
@@ -103,7 +135,7 @@ export function CatalogManager() {
 
     /** A re-point moved voices the client cannot list exactly (I-34): refetch the page and the index. */
     const refetchAfterRepoint = () => {
-        first.reload()
+        reloadList()
         catalog.reload()
     }
 
@@ -162,6 +194,7 @@ export function CatalogManager() {
                 </div>
             }
         >
+            <FishInventoryPanel onImported={refetchAfterRepoint} />
             <div role="search" aria-label={t('admin.voices.catalog.filters.label')} className="flex flex-col gap-3 rounded-lg border border-line-faint bg-ink-800/70 p-4">
                 <form onSubmit={applyText} className="grid gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_auto] sm:items-end">
                     <Field label={t('admin.voices.catalog.filters.search')}>
@@ -184,7 +217,14 @@ export function CatalogManager() {
                         {t('admin.voices.library.filters.apply')}
                     </Button>
                 </form>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    <Field label={t('voices.providers.filter')}>
+                        <Select size="sm" options={[
+                            { value: '', label: t('voices.providers.all') },
+                            { value: 'elevenlabs', label: 'ElevenLabs' },
+                            { value: 'fish_audio', label: 'Fish Audio' },
+                        ]} value={filters.provider} onChange={(value) => setFilter('provider', value)} />
+                    </Field>
                     <Field label={t('admin.voices.catalog.filters.status')}>
                         <Select size="sm" options={filterOptions(CATALOG_STATUSES, 'admin.voices.status')} value={filters.status} onChange={(value) => setFilter('status', value)} />
                     </Field>
@@ -222,7 +262,7 @@ export function CatalogManager() {
                         onClick={() => {
                             setFilters(EMPTY_FILTERS)
                             setTextDraft({ q: '', primary_language: '' })
-                            setMore(null)
+                            resetPages()
                         }}
                     >
                         {t('admin.voices.catalog.filters.clear')}
@@ -231,7 +271,7 @@ export function CatalogManager() {
             </div>
 
             <p aria-live="polite" className="font-ui text-sm text-parchment-300">
-                {first.loading ? t('admin.voices.catalog.loading') : first.data ? t('admin.voices.catalog.count', { count: items.length }) : null}
+                {first.loading ? t('admin.voices.catalog.loading') : page ? t('admin.voices.catalog.count', { count: items.length }) : null}
             </p>
 
             {removalAbort && (
@@ -263,12 +303,12 @@ export function CatalogManager() {
             )}
 
             {errorMessage && (
-                <Callout tone="danger" role="alert" action={<Button variant="secondary" size="sm" onClick={first.reload}>{t('admin.voices.common.retry')}</Button>}>
+                <Callout tone="danger" role="alert" action={<Button variant="secondary" size="sm" onClick={reloadList}>{t('admin.voices.common.retry')}</Button>}>
                     {errorMessage}
                 </Callout>
             )}
 
-            {first.data && items.length === 0 ? (
+            {page && items.length === 0 ? (
                 <EmptyState message={t('admin.voices.catalog.empty')} secondaryText={t('admin.voices.catalog.emptyHint')} />
             ) : (
                 items.length > 0 && <CatalogTable voices={items} onManage={setOpenKey} />

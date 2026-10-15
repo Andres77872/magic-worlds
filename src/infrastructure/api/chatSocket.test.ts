@@ -79,6 +79,7 @@ describe('ChatSocket auth recovery', () => {
     })
 
     afterEach(() => {
+        vi.unstubAllEnvs()
         configureChatSocketAuthRefresh(null)
         vi.unstubAllGlobals()
         vi.restoreAllMocks()
@@ -387,6 +388,20 @@ describe('ChatSocket auth recovery', () => {
         expect(MockWebSocket.instances).toHaveLength(1)
         expect(expired).toHaveBeenCalledTimes(1)
         expect(onMessage).toHaveBeenCalledWith(expect.objectContaining({ category: 'auth' }))
+    })
+
+    it('keeps text frames but drops narration frames with voices off and calls on', async () => {
+        vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'false')
+        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
+        const socket = new ChatSocket(7, WORKSPACE_ID, { onMessage: vi.fn() }, 'character-chats')
+        socket.connect()
+        const ws = MockWebSocket.instances[0]
+        ws.emitOpen()
+        socket.sendTts(101, 'turn', 'tts-request')
+        socket.sendChat('hello')
+        await flushPromises()
+        expect(ws.send.mock.calls.map(([value]) => JSON.parse(String(value)).type)).toEqual(['chat'])
+        socket.close()
     })
 
     it('keeps character text chat on /ws with text-only control frame types', async () => {

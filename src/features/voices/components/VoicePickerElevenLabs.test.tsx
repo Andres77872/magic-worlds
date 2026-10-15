@@ -211,6 +211,26 @@ describe('VoicePickerDialog (R1-FE-01)', () => {
         })
     })
 
+    it('previews a Fish preset with the version-3 Fish body', async () => {
+        const gabriel = catalogVoice({
+            voice_key: VOICE_KEY_IDRIS, display_name: 'Gabriel', provider: 'fish_audio', primary_language: 'es',
+            languages: [{ language: 'es', native: true, accent: null, accepted_models: ['standard'], sample_url: `/voices/catalog/${VOICE_KEY_IDRIS}/preview.mp3` }],
+        })
+        api.listVoicePresets.mockResolvedValue([{
+            preset_id: 'fish-1', name: 'Gabriel · Español', description: null, voice_key: VOICE_KEY_IDRIS,
+            voice_name: 'Gabriel', settings: null, emotion: 'calm', language_code: 'es', is_global: false,
+            schema_version: 3, provider: 'fish_audio',
+        }])
+        api.getVoiceCatalogByKeys.mockResolvedValue([gabriel])
+        render(<VoicePickerDialog open onSelect={vi.fn()} onClose={vi.fn()} />)
+        await screen.findByText('Gabriel · Español')
+        fireEvent.click(within(rowOf('Gabriel · Español')).getByRole('button', { name: /^Preview/ }))
+        await waitFor(() => expect(api.previewVoice).toHaveBeenCalledTimes(1))
+        expect(api.previewVoice.mock.calls[0][0]).toEqual(expect.objectContaining({
+            schema_version: 3, provider: 'fish_audio', voice_key: VOICE_KEY_IDRIS, emotion: 'calm', language: 'es',
+        }))
+    })
+
     describe('preset previews: credits, free samples and language (AC-P5, AC-P2, 05 §6.3, §10)', () => {
         /** A Pro account (hard limit 20) with `left` renders left today: 3 free, then 1 credit each. */
         const proWith = (left: number) => ({ membership: { plan_code: 'pro', previews_left: left, limits: { voice_preview: { daily_limit: 20 } } } })
@@ -625,16 +645,16 @@ describe('VoicePickerDialog (R1-FE-01)', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Voice catalog' }))
         const catalog = screen.getByTestId('voice-picker-catalog')
         await within(catalog).findByText('Eldrin')
-        expect(within(catalog).getByRole('button', { name: 'Play sample of Maren, English' })).toHaveAttribute('aria-pressed', 'false')
-        const eldrinPlay = within(catalog).getByRole('button', { name: 'Play sample of Eldrin, English' })
+        expect(within(catalog).getByRole('button', { name: 'Listen to Maren, English' })).toBeEnabled()
+        const eldrinPlay = within(catalog).getByRole('button', { name: 'Listen to Eldrin, English' })
         fireEvent.click(eldrinPlay)
-        await waitFor(() => expect(eldrinPlay).toHaveAttribute('aria-pressed', 'true'))
+        await waitFor(() => expect(eldrinPlay).toHaveAccessibleName('Stop the sample of Eldrin'))
         expect(currentPlay).toHaveAttribute('aria-pressed', 'false')
 
         // Back on the current row, the catalog row stops.
         fireEvent.click(currentPlay)
         await waitFor(() => expect(currentPlay).toHaveAttribute('aria-pressed', 'true'))
-        expect(eldrinPlay).toHaveAttribute('aria-pressed', 'false')
+        expect(eldrinPlay).toHaveAccessibleName('Listen to Eldrin, English')
     })
 
     it('auditions a stored V2 voice in the card language, and offers no sample or prompt without a catalog voice', async () => {

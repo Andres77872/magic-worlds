@@ -17,7 +17,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useData } from '@/app/hooks'
 import { useWorkspace } from '@/app/hooks/useWorkspace'
 import type { Lorebook, LorebookAttachment, LorebookTargetKind } from '@/shared'
-import { isLorebookResourcesFeatureEnabled } from '@/shared/featureFlags'
+import { isLorebookResourcesFeatureEnabled, isLorebooksFeatureEnabled } from '@/shared/featureFlags'
 import { useScopedApi } from '@/shared/hooks/useScopedApi'
 import { normalizeLorebook, normalizeLorebookAttachment } from '../lorebookTransforms'
 import { lorebookResourceActivationEntries } from '../lorebookResources'
@@ -42,6 +42,7 @@ export function useSessionLorebookEntries(
     const api = useScopedApi(workspaceId)
     const { selectedWorkspaceId } = useWorkspace()
     const lorebooks = !workspaceId || workspaceId === selectedWorkspaceId ? data.lorebooks : NO_LOREBOOKS
+    const lorebooksEnabled = isLorebooksFeatureEnabled()
     const resourceFeaturesEnabled = isLorebookResourcesFeatureEnabled()
     const [attachments, setAttachments] = useState<LorebookAttachment[]>([])
     const [fetched, setFetched] = useState<Record<string, Lorebook>>({})
@@ -60,7 +61,7 @@ export function useSessionLorebookEntries(
     useEffect(() => {
         // No session id or workspace yet → nothing to load; `attachments` stays empty
         // (a session's id is stable for the panel's lifetime).
-        if (!normalizedTargetId || !api) return
+        if (!lorebooksEnabled || !normalizedTargetId || !api) return
         // A new scope may resolve linked books the previous one could not.
         attemptedRef.current = new Set()
         let mounted = true
@@ -75,13 +76,13 @@ export function useSessionLorebookEntries(
         return () => {
             mounted = false
         }
-    }, [api, normalizedTargetId, targetKind])
+    }, [api, normalizedTargetId, targetKind, lorebooksEnabled])
 
     const lorebookById = useMemo(() => new Map(lorebooks.map((book) => [book.id, book])), [lorebooks])
 
     // Fetch any linked book the global cache hasn't loaded. Snapshots are self-contained.
     useEffect(() => {
-        if (!api) return
+        if (!lorebooksEnabled || !api) return
         const missing = attachments
             .filter(
                 (a) =>
@@ -110,9 +111,10 @@ export function useSessionLorebookEntries(
         return () => {
             mounted = false
         }
-    }, [api, attachments, lorebookById])
+    }, [api, attachments, lorebookById, lorebooksEnabled])
 
     const entries = useMemo<SessionLoreEntry[]>(() => {
+        if (!lorebooksEnabled) return []
         const flat: SessionLoreEntry[] = []
         for (const attachment of attachments) {
             const book =
@@ -126,7 +128,7 @@ export function useSessionLorebookEntries(
             }
         }
         return flat
-    }, [attachments, lorebookById, fetched, resourceFeaturesEnabled])
+    }, [attachments, lorebookById, fetched, resourceFeaturesEnabled, lorebooksEnabled])
 
     const matcher = useMemo<TriggerMatcher | null>(() => {
         const built = buildTriggerMatcher(entries)

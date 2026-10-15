@@ -16,10 +16,11 @@ interface SaveDesignFormProps {
     saving: boolean
     error: string | null
     onSave: (values: SaveDesignValues) => void
+    provider?: 'elevenlabs' | 'fish_audio'
 }
 
 /** Name and labels for the chosen preview; shows the slot cost before saving (05 §8.8). */
-export function SaveDesignForm({ defaultLanguage, saving, error, onSave }: SaveDesignFormProps) {
+export function SaveDesignForm({ defaultLanguage, saving, error, onSave, provider = 'elevenlabs' }: SaveDesignFormProps) {
     const { t } = useTranslation()
     const { languageName, limits } = useVoiceConsole()
     const [name, setName] = useState('')
@@ -52,10 +53,10 @@ export function SaveDesignForm({ defaultLanguage, saving, error, onSave }: SaveD
             <h4 className="font-display text-base font-semibold text-fg">{t('admin.voices.design.save.title')}</h4>
             <div className="grid gap-3 sm:grid-cols-2">
                 <Field label={t('admin.voices.design.save.name')}>
-                    <Input value={name} onChange={(event) => setName(event.target.value)} required maxLength={255} />
+                    <Input value={name} onChange={(event) => setName(event.target.value)} required maxLength={100} />
                 </Field>
                 <Field label={t('admin.voices.design.save.language')}>
-                    <Select options={CONSOLE_LANGUAGES.map((code) => ({ value: code, label: languageName(code) }))} value={language} onChange={setLanguage} />
+                    <Select options={(provider === 'fish_audio' ? [defaultLanguage ?? 'en'] : CONSOLE_LANGUAGES).map((code) => ({ value: code, label: languageName(code) }))} value={language} onChange={setLanguage} disabled={provider === 'fish_audio'} />
                 </Field>
                 <Field label={t('admin.voices.design.save.accent')}>
                     <Input value={accent} onChange={(event) => setAccent(event.target.value)} />
@@ -68,7 +69,7 @@ export function SaveDesignForm({ defaultLanguage, saving, error, onSave }: SaveD
                 </Field>
             </div>
             <p className="font-ui text-caption text-fg-muted">
-                {slotsUsed !== null && slotLimit !== null
+                {provider === 'fish_audio' ? t('admin.voices.fish.designPrivateSave') : slotsUsed !== null && slotLimit !== null
                     ? t('admin.voices.design.save.slotCost', { used: slotsUsed, limit: slotLimit })
                     : t('admin.voices.design.save.slotCostUnknown')}
             </p>

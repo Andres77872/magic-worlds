@@ -15,7 +15,7 @@ interface DesignPreviewGridProps {
     filenameBase: string
 }
 
-/** The three design or remix previews: labelled players, duration, language, download, choose. */
+/** Design or remix previews: labelled players, duration, language, download, choose. */
 export function DesignPreviewGrid({ previews, chosenId, onChoose, languageName, filenameBase }: DesignPreviewGridProps) {
     const { t } = useTranslation()
     return (

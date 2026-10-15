@@ -1,3 +1,4 @@
+import { isVoicesFeatureEnabled } from '@/shared/featureFlags'
 import { memo, useCallback, useEffect, useRef } from 'react'
 import type { KeyboardEvent, ReactNode, RefObject } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -149,7 +150,7 @@ export const ChatComposer = memo(function ChatComposer({
 
                 <div className="flex items-center justify-between gap-2 px-2 pb-2 pt-1">
                     <div className="flex items-center gap-1">
-                        <IconButton
+                        {isVoicesFeatureEnabled() && <IconButton
                             label={
                                 autoNarrate
                                     ? t('interaction.composer.autoNarrateOn')
@@ -162,7 +163,7 @@ export const ChatComposer = memo(function ChatComposer({
                             disabled={isMutating}
                         >
                             <Volume2 size={17} strokeWidth={1.75} />
-                        </IconButton>
+                        </IconButton>}
                         <IconButton
                             label={t('interaction.composer.clearMessages')}
                             size="sm"

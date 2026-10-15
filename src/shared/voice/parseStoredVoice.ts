@@ -5,7 +5,7 @@
  * returned as the SAME object — no copy, no whitelist, no trim — so an
  * unchanged save re-sends it byte-identical.
  */
-import type { CharacterVoiceV2, StoredCharacterVoice } from '@/shared/types'
+import type { StoredCharacterVoice } from '@/shared/types'
 
 /**
  * The stored voice when `schema_version === 2` with a non-empty `voice_key`.
@@ -15,7 +15,8 @@ import type { CharacterVoiceV2, StoredCharacterVoice } from '@/shared/types'
 export function parseStoredVoice(raw: unknown): StoredCharacterVoice | null {
     if (!raw || typeof raw !== 'object') return null
     const v = raw as Record<string, unknown>
-    return v.schema_version === 2 && typeof v.voice_key === 'string' && v.voice_key ? (raw as CharacterVoiceV2) : null
+    const known = v.schema_version === 2 || (v.schema_version === 3 && v.provider === 'fish_audio')
+    return known && typeof v.voice_key === 'string' && v.voice_key ? (raw as StoredCharacterVoice) : null
 }
 
 /**

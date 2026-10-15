@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { hasAssignedVoice } from '@/shared/voice'
 import { CATALOG_ELDRIN, V2_VOICE, VOICE_KEY_ELDRIN, VOICE_KEY_MAREN } from './fixtures'
 import { voiceFromCatalog, voiceWithReplacement } from './voiceFromCatalog'
+import { CATALOG_FISH } from './fishFixtures'
 
 describe('voiceFromCatalog (R1-FE-01)', () => {
     it('builds the exact V2 shape, with no preset linkage', () => {
@@ -16,6 +17,12 @@ describe('voiceFromCatalog (R1-FE-01)', () => {
             language_code: null,
         })
         expect(voice).not.toHaveProperty('preset_id')
+        expect(hasAssignedVoice(voice)).toBe(true)
+    })
+
+    it('keeps Fish provider identity when a catalog voice becomes a stored voice', () => {
+        const voice = voiceFromCatalog(CATALOG_FISH)
+        expect(voice).toMatchObject({ schema_version: 3, provider: 'fish_audio', voice_key: CATALOG_FISH.voice_key, settings: null })
         expect(hasAssignedVoice(voice)).toBe(true)
     })
 })

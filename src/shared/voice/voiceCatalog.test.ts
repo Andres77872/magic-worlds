@@ -22,6 +22,10 @@ const ITEM = {
 }
 
 describe('catalog readers', () => {
+    it('keeps existing ElevenLabs voices when the backend serializes its optional provider as null', () => {
+        expect(toCatalogVoice({ ...ITEM, provider: null })).toEqual(toCatalogVoice(ITEM))
+        expect(toCatalogVoice({ ...ITEM, provider: 'unknown' })).toBeNull()
+    })
     it('reads a 03 §5.12 item, keeping tier names only', () => {
         const voice = toCatalogVoice(ITEM)!
         expect(voice.voice_key).toBe(ITEM.voice_key)

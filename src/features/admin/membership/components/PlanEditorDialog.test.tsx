@@ -1,8 +1,62 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
-import type { MembershipPlan, MembershipPlanUpdateRequest } from '@/shared'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { MembershipPlan, MembershipPlanUpdateRequest, MembershipPlanCreateRequest } from '@/shared'
+import { FRONTEND_FEATURE_ENV, isOperationFeatureEnabled } from '@/shared/featureFlags'
 import { PlanEditorDialog } from './PlanEditorDialog'
 import { MEMBERSHIP_OPERATIONS, freePlan, uniformLimits } from '../membership.fixtures'
+
+afterEach(() => vi.unstubAllEnvs())
+
+describe('PlanEditorDialog disabled operations', () => {
+    const cappedDefault: MembershipPlan = {
+        ...freePlan,
+        limits: Object.fromEntries(Object.entries(freePlan.limits).map(([operation, limit]) => [operation, {
+            ...limit, daily_quantity_limit: operation === 'tts_generation' ? 2500 : operation === 'voice_call' ? 180 : null,
+        }])),
+    }
+
+    it.each([
+        { voices: false, calls: true, lorebooks: true, lorebookResources: false },
+        { voices: true, calls: false, lorebooks: false, lorebookResources: true },
+        { voices: false, calls: false, lorebooks: false, lorebookResources: false },
+    ])('creates a complete plan while hiding unavailable operations: %j', (flags) => {
+        for (const env of Object.values(FRONTEND_FEATURE_ENV)) vi.stubEnv(env, 'true')
+        for (const [feature, enabled] of Object.entries(flags)) vi.stubEnv(FRONTEND_FEATURE_ENV[feature as keyof typeof flags], String(enabled))
+        const onCreate = vi.fn<(body: MembershipPlanCreateRequest) => void>()
+        render(<PlanEditorDialog open mode="create" plan={null} plans={[cappedDefault]} operations={[...MEMBERSHIP_OPERATIONS]} saving={false}
+            onCreate={onCreate} onUpdate={vi.fn()} onClose={vi.fn()} />)
+        const dialog = screen.getByRole('dialog')
+        fireEvent.change(within(dialog).getByRole('textbox', { name: /Plan code/ }), { target: { value: 'audit' } })
+        fireEvent.change(within(dialog).getByRole('textbox', { name: /Display name/ }), { target: { value: 'Audit' } })
+        fireEvent.change(within(dialog).getByRole('spinbutton', { name: 'Included daily credits' }), { target: { value: '100' } })
+        fireEvent.click(within(dialog).getByRole('combobox'))
+        fireEvent.click(screen.getByRole('option', { name: /Free/ }))
+        for (const operation of MEMBERSHIP_OPERATIONS.filter(operation => !isOperationFeatureEnabled(operation))) {
+            expect(within(dialog).queryByText(operation)).not.toBeInTheDocument()
+        }
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Create plan' }))
+        expect(onCreate).toHaveBeenCalledOnce()
+        expect(Object.keys(onCreate.mock.calls[0][0].limits).sort()).toEqual([...MEMBERSHIP_OPERATIONS].sort())
+        expect(onCreate.mock.calls[0][0].limits).toEqual(cappedDefault.limits)
+    })
+
+    it('seeds hidden limits from the default even when creating without a preset', () => {
+        vi.stubEnv(FRONTEND_FEATURE_ENV.voices, 'false')
+        vi.stubEnv(FRONTEND_FEATURE_ENV.lorebookResources, 'false')
+        const onCreate = vi.fn<(body: MembershipPlanCreateRequest) => void>()
+        render(<PlanEditorDialog open mode="create" plan={null} plans={[cappedDefault]} operations={[...MEMBERSHIP_OPERATIONS]} saving={false}
+            onCreate={onCreate} onUpdate={vi.fn()} onClose={vi.fn()} />)
+        const dialog = screen.getByRole('dialog')
+        fireEvent.change(within(dialog).getByRole('textbox', { name: /Plan code/ }), { target: { value: 'manual' } })
+        fireEvent.change(within(dialog).getByRole('textbox', { name: /Display name/ }), { target: { value: 'Manual' } })
+        for (const input of within(dialog).getAllByRole('spinbutton')) fireEvent.change(input, { target: { value: '10' } })
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Create plan' }))
+        expect(onCreate).toHaveBeenCalledOnce()
+        expect(onCreate.mock.calls[0][0].limits.tts_generation).toEqual(cappedDefault.limits.tts_generation)
+        expect(onCreate.mock.calls[0][0].limits.voice_call).toEqual(cappedDefault.limits.voice_call)
+        expect(onCreate.mock.calls[0][0].limits.lorebook_resource_extraction).toEqual(cappedDefault.limits.lorebook_resource_extraction)
+    })
+})
 
 // Image operations carry a stored plan credit cost that billing ignores (images
 // are priced per image profile); give them a distinct value to prove it rides
@@ -38,6 +92,22 @@ function renderEditor(plans: MembershipPlan[] = [freePlan, customPlan]) {
 }
 
 describe('PlanEditorDialog image pricing', () => {
+    it('hides voice limits and preserves them when another limit changes', () => {
+        vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'false')
+        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
+        const { dialog, onUpdate } = renderEditor()
+
+        expect(within(dialog).queryByRole('spinbutton', { name: /TTS|Call mode/ })).toBeNull()
+        fireEvent.change(within(dialog).getByRole('spinbutton', { name: 'Chat · Daily limit' }), { target: { value: '40' } })
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }))
+
+        expect(onUpdate).toHaveBeenCalledTimes(1)
+        const [, body] = onUpdate.mock.calls[0]
+        expect(body.limits?.chat_interaction.daily_request_limit).toBe(40)
+        expect(body.limits?.tts_generation).toEqual(customPlan.limits.tts_generation)
+        expect(body.limits?.voice_call).toEqual(customPlan.limits.voice_call)
+    })
+
     it('does not offer a plan credit cost for image operations and points to image profiles', () => {
         const { dialog } = renderEditor()
 

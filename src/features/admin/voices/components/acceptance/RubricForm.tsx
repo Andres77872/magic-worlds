@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next'
 import { AlertTriangle, PhoneCall, PhoneOff } from 'lucide-react'
 import type { AcceptanceScoreKey, AcceptanceScores, AcceptanceVerdict, AdminCatalogAcceptance, AcceptanceVerdictRequest } from '@/shared'
 import { Badge, Button, Callout, Field, Icon, Input, cx } from '@/ui/primitives'
-import { FLASH_MODEL_ID, LOW_SCORE_WARNING, MAX_ATTENUATION_DB, SCORE_KEYS, SCORE_VALUES, TARGET_LUFS } from '../../constants'
+import { STANDARD_MODEL_ID, LOW_SCORE_WARNING, MAX_ATTENUATION_DB, SCORE_KEYS, SCORE_VALUES, TARGET_LUFS } from '../../constants'
 import { MAX_PASS_LUFS, callEligibleFrom, loudnessFlags, verdictBlocker } from '../../consoleRules'
 import { formatDate, formatDb } from '../../format'
 
@@ -46,7 +46,7 @@ export function RubricForm({ modelId, modelLabel, stored, measuredLufs, locale, 
     const complete = SCORE_KEYS.every((key) => typeof scores[key] === 'number') && verdict !== null
     const blocker = verdictBlocker(verdict, parsedLufs)
     const lowScore = SCORE_KEYS.some((key) => typeof scores[key] === 'number' && (scores[key] as number) < LOW_SCORE_WARNING)
-    const isFlash = modelId === FLASH_MODEL_ID
+    const isStandard = modelId === STANDARD_MODEL_ID
     const callEligible = callEligibleFrom(modelId, verdict, scores)
     const passRefused = verdict === 'pass' && loudness.tooLoud
     const blockerText =
@@ -91,7 +91,9 @@ export function RubricForm({ modelId, modelLabel, stored, measuredLufs, locale, 
                 {SCORE_KEYS.map((key) => (
                     <fieldset key={key} className="flex flex-col gap-1.5">
                         <legend className="mb-1 font-ui text-label font-semibold text-fg">
-                            {t('admin.voices.acceptance.rubric.scoreLegend', { label: t(`admin.voices.acceptance.rubric.${key}`) })}
+                            {t('admin.voices.acceptance.rubric.scoreLegend', { label: t(modelId === 'drama-3' && key === 'consistency_vs_v4'
+                                ? 'admin.voices.fish.reviewConsistency' : modelId === 'drama-3' && key === 'emotion_tags'
+                                  ? 'admin.voices.fish.reviewEmotion' : `admin.voices.acceptance.rubric.${key}`) })}
                         </legend>
                         <div className="flex gap-1.5">
                             {SCORE_VALUES.map((value) => {
@@ -198,13 +200,13 @@ export function RubricForm({ modelId, modelLabel, stored, measuredLufs, locale, 
                 {loudness.tooQuiet && <p className="font-ui text-caption text-fg-muted">{t('admin.voices.acceptance.loudness.tooQuiet')}</p>}
             </div>
 
-            <p className={cx('flex items-center gap-2 font-ui text-sm', isFlash ? (callEligible ? 'text-verdant-500' : 'text-parchment-300') : 'text-fg-muted')}>
-                <Icon icon={isFlash && callEligible ? PhoneCall : PhoneOff} size={14} />
-                {isFlash
+            <p className={cx('flex items-center gap-2 font-ui text-sm', isStandard ? (callEligible ? 'text-verdant-500' : 'text-parchment-300') : 'text-fg-muted')}>
+                <Icon icon={isStandard && callEligible ? PhoneCall : PhoneOff} size={14} />
+                {isStandard
                     ? callEligible
                         ? t('admin.voices.acceptance.callEligible.yes')
                         : t('admin.voices.acceptance.callEligible.no')
-                    : t('admin.voices.acceptance.callEligible.notApplicable')}
+                    : t(modelId === 'drama-3' ? 'admin.voices.fish.narrationOnly' : 'admin.voices.acceptance.callEligible.notApplicable')}
             </p>
 
             {attempted && !complete && (

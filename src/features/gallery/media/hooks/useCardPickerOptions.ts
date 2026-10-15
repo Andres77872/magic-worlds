@@ -7,6 +7,7 @@
  * route. Both go through the committed workspace's scoped client, and results
  * that arrive after a workspace switch are ignored.
  */
+import { isContentTypeFeatureEnabled } from '@/shared/featureFlags'
 
 import { useEffect, useRef, useState } from 'react'
 import { i18n } from '@/app/i18n'
@@ -48,6 +49,7 @@ function toOptions(raw: unknown, type: CardMediaTargetType): CardPickerOption[] 
 
 /** A mixed-library entry as a picker option (`null` when the card has no id). */
 export function libraryItemToOption(item: LibraryItem): CardPickerOption | null {
+    if (!isContentTypeFeatureEnabled(item.card_type)) return null
     const option = toOption(item.card as RawCardRow, item.card_type)
     return option.id ? option : null
 }
@@ -59,6 +61,7 @@ async function fetchCardOptions(
     q?: string,
     limit = OPTIONS_PER_TYPE,
 ): Promise<CardPickerOption[]> {
+    if (!isContentTypeFeatureEnabled(cardType)) return []
     if (cardType === 'all') {
         const page = await api.listLibraryCards(workspaceId, { q, limit: Math.min(limit * CARD_TYPE_COUNT, 100) })
         return page.items.map(libraryItemToOption).filter((option) => option !== null)

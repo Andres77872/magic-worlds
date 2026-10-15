@@ -75,6 +75,23 @@ describe('session voice API (EP-1, EP-2)', () => {
         expect(bodyOf(1)).toEqual({ tier_override: null })
     })
 
+    it.each(['adventure-sessions', 'character-chats'] as const)('keeps %s scene reads and explicit generation on the session workspace', async basePath => {
+        const scoped = apiService.withWorkspace(WS_A)
+        const turn = { assistant_message_id: 42, turn_id: 'reply-42' }
+        await scoped.getSceneNarration(basePath, 12, turn)
+        expect(pathOf()).toBe(`/${basePath}/12/scene-narration?assistant_message_id=42&turn_id=reply-42`)
+        expect(call()[1].method).toBe('GET')
+        await scoped.generateSceneNarration(basePath, 12, turn)
+        expect(pathOf(1)).toBe(`/${basePath}/12/scene-narration`)
+        expect(call(1)[1].method).toBe('POST')
+        expect(bodyOf(1)).toEqual(turn)
+        for (const index of [0, 1]) {
+            expect(headersOf(index)['X-Workspace-Id']).toBe(WS_A)
+            expect(headersOf(index).Authorization).toBe('Bearer user-token')
+            expect(headersOf(index)['X-MW-Voice-Contract']).toBe('4')
+        }
+    })
+
     it('refreshes a 1:1 chat voice with an empty body', async () => {
         fetchMock.mockImplementationOnce(async () => jsonResponse({ id: 4, kind: 'character' }))
         expect(await apiService.withWorkspace(WS_A).refreshChatVoice(4)).toEqual({ id: 4, kind: 'character' })

@@ -4,6 +4,7 @@
  * The caller imports through the destination's scoped client, so the copy
  * lands in this workspace (and the open collection, when there is one).
  */
+import { isContentTypeFeatureEnabled } from '@/shared/featureFlags'
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Import } from 'lucide-react'
@@ -61,7 +62,7 @@ export function ImportCardDialog({ open, destination, onClose, onResolved }: Imp
             // Shared previews are public: no workspace header.
             const resource = await apiService.getSharedCard(token)
             const item = publicItems(resource)[0]
-            if (!item) throw new Error('No card in this link')
+            if (!item || !isContentTypeFeatureEnabled(item.galleryType)) throw new Error('Card unavailable')
             onResolved(token, item)
         } catch {
             setError(t('library.import.failed'))

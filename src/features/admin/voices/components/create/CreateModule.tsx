@@ -19,6 +19,12 @@ export function CreateModule() {
     ]
     return (
         <ConsoleSection icon={Sparkles} title={t('admin.voices.create.title')}>
+            <p className="font-ui text-body text-parchment-300">{t('admin.voices.workspace.createHelp')}</p>
+            <ol aria-label={t('admin.voices.workspace.createSteps')} className="grid gap-3 font-ui text-label text-parchment-200 sm:grid-cols-3">
+                {(['describe', 'compare', 'save'] as const).map((step, index) => <li key={step} className="rounded-lg border border-line-faint bg-surface-raised p-3">
+                    <span className="mr-2 font-semibold text-ember-400">{index + 1}.</span>{t(`admin.voices.workspace.${step}`)}
+                </li>)}
+            </ol>
             <Tabs options={options} value={mode} onChange={setMode} idBase={ID_BASE} aria-label={t('admin.voices.create.modeAria')} size="sm" />
             <TabPanel value="design" idBase={ID_BASE} active={mode}>
                 <VoiceDesignPanel />

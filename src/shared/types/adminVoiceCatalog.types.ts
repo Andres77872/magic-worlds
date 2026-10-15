@@ -25,7 +25,7 @@
  * base64 or a Blob — never hex.
  */
 import type { NarrationTier } from './auth.types'
-import type { VoiceEmotion, VoicePresetV2, VoiceSettingsV2 } from './voicePreset.types'
+import type { VoiceEmotion, VoicePreset, VoiceSettingsV2 } from './voicePreset.types'
 
 // The root metrics envelopes (`/admin/voices/metrics/*`) ride on this module's barrel export.
 export * from './adminVoiceMetrics.types'
@@ -40,6 +40,27 @@ export type VoiceSourceKind =
     | 'library_perpetual'
     | 'library_noticed'
     | 'premade_deprecated'
+    | 'owned_reference'
+    | 'licensed_reference'
+
+export interface FishInventoryResponse {
+    provider: 'fish_audio'
+    items: { provider_voice_id: string; display_name: string; languages: string[]; licensed: boolean; available: boolean }[]
+    operations: string[]
+}
+
+export interface FishReferencePage extends FishInventoryResponse {
+    total: number
+    next_page: number | null
+}
+
+export interface FishReferenceImport {
+    provider_voice_id: string
+    display_name: string
+    primary_language: string
+    source_kind: 'owned_reference' | 'licensed_reference'
+    rights_reference: string
+}
 
 export type VoiceCatalogStatus = 'draft' | 'active' | 'hidden' | 'deprecating' | 'removed' | 'blocked' | 'failed'
 
@@ -62,7 +83,7 @@ export type AcceptanceVerdict = 'pass' | 'fail'
 export type AcceptanceScriptKind = 'narration' | 'dialogue' | 'thought' | 'numbers'
 
 export interface AdminCatalogAcceptance {
-    /** Provider model id as stored (`eleven_flash_v2_5`, `eleven_v4`). */
+    /** Provider model id as stored (`eleven_v4`, `eleven_v4_turbo`). */
     model_id: string
     language: string
     verdict: AcceptanceVerdict
@@ -143,6 +164,7 @@ export interface AdminCatalogVoice {
 export type AdminAcceptanceFilter = 'untested' | 'accepted' | 'failed'
 
 export interface AdminCatalogQuery {
+    provider?: 'elevenlabs' | 'fish_audio'
     status?: VoiceCatalogStatus
     visibility?: VoiceVisibility
     source_kind?: VoiceSourceKind
@@ -159,8 +181,8 @@ export interface AdminCatalogQuery {
  * (≥ 40 published, ≥ 16 per curated language; D09), counted over the whole
  * catalog, not the page.
  * - `published_total`: rows with `status = 'active'` and `visibility <> 'admin'`.
- * - `published_by_language`: the same rows counted once per language with a Flash
- *   (`eleven_flash_v2_5`) `pass` in `voice_catalog_acceptance`; keys are ISO 639-1.
+ * - `published_by_language`: the same rows counted once per language with a v4
+ *   (`eleven_v4`) `pass` in `voice_catalog_acceptance`; keys are ISO 639-1.
  * Missing or null: the console counts the loaded rows itself (`publishProgress`).
  */
 export interface AdminCatalogSummary {
@@ -181,6 +203,8 @@ export interface AdminCatalogPage {
  * replacement, `visibility`, `min_plan` and `sort_rank`.
  */
 export interface AdminCatalogUpdate {
+    /** Fish only: explicit approval after the native call release and language acceptance. */
+    call_eligible?: boolean
     display_name?: string
     description?: string | null
     gender?: VoiceGender | null
@@ -536,11 +560,31 @@ export interface VoiceDesignPreview {
     media_type: string
     duration_secs: number | null
     language: string | null
+    save_supported?: boolean
 }
 
 export interface VoiceDesignResponse {
     previews: VoiceDesignPreview[]
     text: string | null
+    provider?: 'elevenlabs' | 'fish_audio'
+}
+
+export interface FishDesignCapabilities {
+    provider: 'fish_audio'
+    available: boolean
+    languages: string[]
+    model_id: string
+    max_text_chars: number
+    max_candidates: number
+    request_price_usd_micros: number | null
+}
+
+export interface FishDesignRequest {
+    voice_description: string
+    text: string
+    language: 'en' | 'es'
+    candidate_count: number
+    attest_original_voice: true
 }
 
 export type RemixPromptStrength = 'low' | 'medium' | 'high' | 'max'
@@ -579,7 +623,7 @@ export interface VoiceDesignSaveRequest {
  * The four aliases the console knows (R0), widened so a model listed only by
  * `GET /admin/voices/test/models` (A4) is still selectable (R1-FE-06).
  */
-export type LabModelAlias = 'el_flash_v2_5' | 'el_v4' | 'el_multilingual_v2' | 'el_v3' | (string & {})
+export type LabModelAlias = 'el_v4' | 'fish_drama_3' | (string & {})
 export type LabMarkupMode = 'app' | 'native'
 export type LabTextNormalization = 'auto' | 'on' | 'off'
 
@@ -600,7 +644,7 @@ export interface AdminLabSynthesisRequest {
     language_code: string | null
     seed: number | null
     apply_text_normalization: LabTextNormalization
-    voice_settings: VoiceSettingsV2
+    voice_settings: VoiceSettingsV2 | null
 }
 
 /**
@@ -733,7 +777,7 @@ export interface AdminGlobalPresetInput {
  * `voice_public` is null when the catalog visibility is unknown (the BFF's
  * catalog read failed).
  */
-export type AdminGlobalPresetRow = VoicePresetV2 & {
+export type AdminGlobalPresetRow = VoicePreset & {
     voice_public: boolean | null
     seed_key: string | null
 }

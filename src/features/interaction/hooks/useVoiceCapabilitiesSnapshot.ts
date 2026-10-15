@@ -1,3 +1,4 @@
+import { isVoicesFeatureEnabled } from '@/shared/featureFlags'
 import { useEffect, useState } from 'react'
 import type { ApiService } from '@/infrastructure/api'
 import type { VoiceCapabilities } from '@/shared/types/voiceCatalog.types'
@@ -13,9 +14,10 @@ import type { VoiceCapabilities } from '@/shared/types/voiceCatalog.types'
  */
 export function useVoiceCapabilitiesSnapshot(
     api: Partial<Pick<ApiService, 'getVoiceCapabilities'>> | null | undefined,
-    active: boolean,
+    requestedActive: boolean,
     refreshKey: unknown = 0,
 ): VoiceCapabilities | null {
+    const active = requestedActive && isVoicesFeatureEnabled()
     const [capabilities, setCapabilities] = useState<VoiceCapabilities | null>(null)
 
     useEffect(() => {

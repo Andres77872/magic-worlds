@@ -50,11 +50,20 @@ interface ToastState {
     id: number
 }
 
-export function VoiceConsoleProvider({ children, initialModule = 'catalog' }: { children: ReactNode; initialModule?: ConsoleModule }) {
+export function VoiceConsoleProvider({ children, initialModule = 'catalog', onModuleChange }: {
+    children: ReactNode
+    initialModule?: ConsoleModule
+    /** The open module changed (the page keeps it in the URL). */
+    onModuleChange?: (module: ConsoleModule) => void
+}) {
     const { t, i18n } = useTranslation()
     const catalog = useCatalogIndex()
     const limits = useAbortableLoad(loadLimits, 'limits')
-    const [module, setModule] = useState<ConsoleModule>(initialModule)
+    const [module, setModuleState] = useState<ConsoleModule>(initialModule)
+    const setModule = useCallback((next: ConsoleModule) => {
+        setModuleState(next)
+        onModuleChange?.(next)
+    }, [onModuleChange])
     const [labHandoff, setLabHandoff] = useState<ConsoleHandoff>({ voiceKey: null, nonce: 0 })
     const [acceptanceHandoff, setAcceptanceHandoff] = useState<ConsoleHandoff>({ voiceKey: null, nonce: 0 })
     const [toast, setToast] = useState<ToastState | null>(null)
@@ -79,12 +88,12 @@ export function VoiceConsoleProvider({ children, initialModule = 'catalog' }: { 
     const sendToLab = useCallback((voiceKey: string) => {
         setLabHandoff((previous) => ({ voiceKey, nonce: previous.nonce + 1 }))
         setModule('lab')
-    }, [])
+    }, [setModule])
 
     const sendToAcceptance = useCallback((voiceKey: string) => {
         setAcceptanceHandoff((previous) => ({ voiceKey, nonce: previous.nonce + 1 }))
         setModule('acceptance')
-    }, [])
+    }, [setModule])
 
     const value = useMemo<VoiceConsoleValue>(
         () => ({
@@ -104,7 +113,7 @@ export function VoiceConsoleProvider({ children, initialModule = 'catalog' }: { 
             locale,
             languageName,
         }),
-        [catalog, limits, module, labHandoff, acceptanceHandoff, sendToLab, sendToAcceptance, notify, reportError, configIssue, locale, languageName],
+        [catalog, limits, module, setModule, labHandoff, acceptanceHandoff, sendToLab, sendToAcceptance, notify, reportError, configIssue, locale, languageName],
     )
 
     return (

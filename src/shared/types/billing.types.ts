@@ -235,8 +235,10 @@ export interface BillingCreditPackCatalogItem {
 }
 
 /**
- * Catalog response. `enabled` is false when billing is turned off server-side —
- * the SPA should render pricing read-only and disable purchase actions.
+ * Catalog response. The BFF returns it only while billing is on (`enabled: true`);
+ * billing turned off server-side answers `GET /billing/plans` with 503 instead.
+ * The SPA still treats a missing catalog or `enabled: false` as off and disables
+ * purchase actions.
  */
 export interface BillingPlanCatalogResponse {
     enabled: boolean

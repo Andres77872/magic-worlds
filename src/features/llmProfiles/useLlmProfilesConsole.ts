@@ -3,6 +3,7 @@
  * profiles" and root's "LLM profiles"). The view renders whatever this returns,
  * so Storybook can feed it fixtures instead.
  */
+import { isLlmFeatureEnabled } from '@/shared/featureFlags'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/app/hooks'
@@ -174,7 +175,7 @@ export function useLlmProfilesConsole(systemAdmin: boolean): LlmProfilesConsole 
             ])
             if (epoch !== generation.current) return
             setProfiles(page.items); setTotal(page.total); setModels(catalog.items); setModelsTotal(catalog.total)
-            setFeatures(featureList.features); setPreferences(prefs); setAssignments(toAssignments(prefs)); setAssignmentIssues(null)
+            setFeatures(featureList.features.filter(feature => isLlmFeatureEnabled(feature.feature_key))); setPreferences(prefs); setAssignments(toAssignments(prefs)); setAssignmentIssues(null)
             setConnections(connectionList.connections); setAudit(events.items)
             setCapacityUsage(capacity.usage); setCapacityError(capacity.error)
             // Card facts (model, version, props, impact) come from each profile's detail; a failure only hides them.
@@ -322,7 +323,7 @@ export function useLlmProfilesConsole(systemAdmin: boolean): LlmProfilesConsole 
     }
 
     // Personal profiles can only test contracts that accept their own key.
-    const testable = features.filter(feature => systemAdmin || feature.user_selection_enabled && feature.byok_enabled)
+    const testable = features.filter(feature => isLlmFeatureEnabled(feature.feature_key) && (systemAdmin || feature.user_selection_enabled && feature.byok_enabled))
     const feature = testable.some(item => item.feature_key === testFeature) ? testFeature : testable[0]?.feature_key
     // A draft test runs the saved draft version on the server, never local edits.
     const draftUnsaved = Boolean(systemAdmin && editing && draft && JSON.stringify({ name: draft.name, description: draft.description, config: draft.config })

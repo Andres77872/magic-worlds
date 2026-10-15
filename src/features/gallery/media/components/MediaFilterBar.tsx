@@ -5,6 +5,7 @@
  * scope to the card's own; switching type clears the picked card (enforced by
  * useMediaGallery — this bar is purely presentational).
  */
+import { isContentTypeFeatureEnabled } from '@/shared/featureFlags'
 
 import { Gem, Globe, Image as ImageIcon, Music2, Swords, Users } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -57,7 +58,7 @@ export function MediaFilterBar({ filters, onMediaType, onCardType, onCard }: Med
                 <span className="mx-1 hidden h-5 w-px bg-parchment-50/10 sm:block" aria-hidden="true" />
 
                 <div role="group" aria-label={t('mediaGallery.filters.cardType')} className="flex flex-wrap items-center gap-2">
-                    {CARD_TYPE_CHIPS.map((chip) => (
+                    {CARD_TYPE_CHIPS.filter((chip) => isContentTypeFeatureEnabled(chip.key)).map((chip) => (
                         <Chip
                             key={chip.key}
                             active={filters.cardType === chip.key}

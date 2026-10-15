@@ -9,6 +9,7 @@
  * While that workspace is archived (`readOnly`) lorebooks stay browsable, but
  * nothing can be picked or cloned.
  */
+import { isLorebooksFeatureEnabled } from '@/shared/featureFlags'
 
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -51,7 +52,7 @@ export function CodexLorebookPickerDrawer({ open, workspaceId, busy, readOnly = 
     const seqRef = useRef(0)
 
     useEffect(() => {
-        if (!open || !api) return
+        if (!isLorebooksFeatureEnabled() || !open || !api) return
         const seq = ++seqRef.current
         const scope = capture()
         // eslint-disable-next-line react-hooks/set-state-in-effect

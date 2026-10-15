@@ -14,6 +14,7 @@ import { Icon, cx } from '@/ui/primitives'
 import { FOCUS_ICONS } from '../components/knowledgeIcons'
 import { parseHoverCardHref, type HoverCardRef } from './hoverCardModel'
 import { HoverCardsContext } from './hoverCardsContext'
+import { isAssistantLinkFeatureEnabled } from '../replyLinks'
 
 export interface HoverCardLinkProps extends MarkdownLinkProps {
     /**
@@ -46,6 +47,8 @@ export function HoverCardLink({ href, className, children, onActivate, showIcon 
     const { t } = useTranslation()
     const context = useContext(HoverCardsContext)
     const ref = useMemo(() => parseHoverCardHref(href), [href])
+
+    if (!isAssistantLinkFeatureEnabled(href)) return <>{children}</>
 
     if (!context || !ref) {
         return <a href={href} className={className} onClick={onClick} {...rest}>{children}</a>

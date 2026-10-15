@@ -130,7 +130,6 @@ const CHAT_ROW = {
             snapshot: { name: 'Moon Gate', description: 'A city under silver weather.' },
         },
     ],
-    last_turn: JSON.stringify({ turns: [{ id: 't1', type: 'ai', content: 'Well met.', timestamp: '' }] }),
     created_at: '2026-06-09T00:00:00',
     updated_at: '2026-06-09T00:00:00',
 }
@@ -217,7 +216,6 @@ describe('DataProvider character chats', () => {
             character_id: 'c1',
             persona_id: 'p1',
             persona: CHAT_PERSONA,
-            last_turn: '{}',
             created_at: '2026-06-10T00:00:00',
             updated_at: '2026-06-10T00:00:00',
         })
@@ -254,7 +252,6 @@ describe('DataProvider character chats', () => {
             persona_id: 'p1',
             persona: CHAT_PERSONA,
             title: 'Lyra, Dorn',
-            last_turn: '{}',
             created_at: '2026-06-10T00:00:00',
             updated_at: '2026-06-10T00:00:00',
         })
@@ -474,7 +471,6 @@ describe('DataProvider adventure starts', () => {
         vi.mocked(apiService.createAdventureSession).mockResolvedValue({
             adventure_id: 11,
             adventure_template: 't1',
-            adventure_last_turn: '{}',
             template_snapshot: {
                 schema_version: 2,
                 source: 'resolved_library_clone',

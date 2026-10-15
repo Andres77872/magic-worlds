@@ -7,6 +7,23 @@
  * BFF `VoiceGender` / `VoiceAgeBucket`). es drafts await LOC review.
  */
 export const voiceCatalogEn = {
+    providerTag: 'Voice provider: {{provider}}',
+    listen: 'Listen',
+    listenSample: 'Listen to {{name}}',
+    listenSampleIn: 'Listen to {{name}}, {{language}}',
+    stopNamedSample: 'Stop the sample of {{name}}',
+    stopSample: 'Stop',
+    forCalls: 'Narration and calls',
+    forNarration: 'Narration',
+    moreFilters: 'More filters',
+    hideFilters: 'Fewer filters',
+    /** Screen-reader count after "More filters" of the folded filters that narrow the list. */
+    activeFilters_one: '({{count}} active)',
+    activeFilters_other: '({{count}} active)',
+    clearFilters: 'Clear filters',
+    /** Next to a locked voice: the plans page, in a new tab so a draft survives. */
+    seePlans: 'See plans',
+    opensInNewTab: '(opens in a new tab)',
     tab: 'Voice catalog',
     search: 'Search voices',
     /** 05 §7.3 catalog enum `male|female|neutral`. */
@@ -42,6 +59,7 @@ export const voiceCatalogEn = {
     languageTiers: '{{language}}: {{tiers}}',
     languages: 'Languages',
     filters: {
+        provider: 'Provider',
         language: 'Language',
         gender: 'Gender',
         age: 'Age',
@@ -51,6 +69,21 @@ export const voiceCatalogEn = {
 }
 
 export const voiceCatalogEs = {
+    providerTag: 'Proveedor de voz: {{provider}}',
+    listen: 'Escuchar',
+    listenSample: 'Escuchar a {{name}}',
+    listenSampleIn: 'Escuchar a {{name}}, {{language}}',
+    stopNamedSample: 'Detener la muestra de {{name}}',
+    stopSample: 'Detener',
+    forCalls: 'Narración y llamadas',
+    forNarration: 'Narración',
+    moreFilters: 'Más filtros',
+    hideFilters: 'Menos filtros',
+    activeFilters_one: '({{count}} activo)',
+    activeFilters_other: '({{count}} activos)',
+    clearFilters: 'Quitar filtros',
+    seePlans: 'Ver planes',
+    opensInNewTab: '(se abre en una pestaña nueva)',
     tab: 'Catálogo de voces',
     search: 'Buscar voces',
     gender: {
@@ -79,6 +112,7 @@ export const voiceCatalogEs = {
     languageTiers: '{{language}}: {{tiers}}',
     languages: 'Idiomas',
     filters: {
+        provider: 'Proveedor',
         language: 'Idioma',
         gender: 'Género',
         age: 'Edad',

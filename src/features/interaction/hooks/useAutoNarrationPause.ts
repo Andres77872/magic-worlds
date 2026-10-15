@@ -1,3 +1,4 @@
+import { isVoicesFeatureEnabled } from '@/shared/featureFlags'
 import { useCallback, useEffect, useState } from 'react'
 import type { ApiService } from '@/infrastructure/api'
 
@@ -23,9 +24,10 @@ export interface AutoNarrationPause {
  */
 export function useAutoNarrationPause(
     api: Pick<ApiService, 'getVoiceCapabilities'>,
-    active: boolean,
+    requestedActive: boolean,
     refreshKey: number,
 ): AutoNarrationPause {
+    const active = requestedActive && isVoicesFeatureEnabled()
     const [capabilityPaused, setCapabilityPaused] = useState(false)
     const [heldUntil, setHeldUntil] = useState<number | null>(null)
 

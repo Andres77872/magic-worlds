@@ -1,3 +1,4 @@
+import { isTaskFeatureEnabled } from '@/shared/featureFlags'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { apiService } from '@/infrastructure/api'
@@ -156,7 +157,7 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
                     items.push(...fresh)
                     page += 1
                     hasMore = response.next_offset != null
-                    if (!hasMore || response.items.length === 0 || fresh.length === 0) break
+                    if (!hasMore || response.next_offset! <= offset) break
                     offset = response.next_offset!
                 }
                 return { items, hasMore }
@@ -169,7 +170,7 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
             // Running tasks of other workspaces keep finishing: poll each where it was submitted.
             const foreignActive = tasksRef.current.filter((task) => {
                 const origin = taskWorkspaceId(task)
-                return isActiveTask(task) && origin !== null && origin !== owner.workspaceId
+                return isTaskFeatureEnabled(task) && isActiveTask(task) && origin !== null && origin !== owner.workspaceId
             })
             const foreignRequest = Promise.allSettled(foreignActive.map(async (task) => {
                 const origin = taskWorkspaceId(task)!
@@ -198,7 +199,7 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
                 return next.completed === current.completed && next.failed === current.failed ? current : next
             })
             const refreshedStatuses = new Set(fulfilled.flatMap((item) => item.statuses))
-            const nextTasks = mergeTaskLists([...fulfilled.map((item) => item.response.items), foreignTasks])
+            const nextTasks = mergeTaskLists([...fulfilled.map((item) => item.response.items), foreignTasks]).filter(isTaskFeatureEnabled)
             const replaced = new Set(nextTasks.map(taskKey))
             const previous = previousStatusesRef.current
             let completedActiveTask = false
@@ -261,6 +262,7 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
      * (the workspace the job was submitted in), else the selected workspace.
      */
     const registerTask = useCallback((task: BackgroundTaskPublic, workspaceId?: string | null) => {
+        if (!isTaskFeatureEnabled(task)) return
         const tracked = withOrigin(task, workspaceId ?? authOwnerRef.current.workspaceId)
         previousStatusesRef.current.set(taskKey(tracked), tracked.status)
         setTasks((prev) => upsertTask(prev, tracked))
@@ -292,7 +294,7 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
     }, [registerTask])
 
     /**
-     * Persistently archive the entire server bucket of the selected workspace
+     * Persistently archive the available server bucket of the selected workspace
      * (including pages not loaded in the drawer) plus the listed tasks of other
      * workspaces in that bucket, each in its own workspace.
      */
@@ -304,22 +306,28 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
         const current = authOwnerRef.current.workspaceId
         if (!current) throw new Error('No workspace is selected.')
         const api = apiService.withWorkspace(current)
-        const foreign = tasksRef.current.filter((task) => statuses.has(task.status) && taskWorkspaceId(task) !== null && taskWorkspaceId(task) !== current)
+        const foreign = tasksRef.current.filter((task) => isTaskFeatureEnabled(task) && statuses.has(task.status) && taskWorkspaceId(task) !== null && taskWorkspaceId(task) !== current)
         const foreignResults = await Promise.allSettled(foreign.map((task) => apiService.withWorkspace(taskWorkspaceId(task)!).archiveTask(task.operation, task.task_id)))
         foreign.forEach((task, index) => {
             if (foreignResults[index].status === 'fulfilled') archived.add(taskKey(task))
             else failed = true
         })
+        let offset = 0
         while (true) {
             const response = await api.listTasks({
                 state: 'terminal',
                 operation: 'all',
                 statuses: [...statuses] as BackgroundTaskPublic['status'][],
                 limit: TASK_PAGE_SIZE,
-                offset: 0,
+                offset,
             })
-            if (response.items.length === 0) break
-            const freshItems = response.items.filter((task) => !attempted.has(taskKey(task)))
+            const availableItems = response.items.filter(isTaskFeatureEnabled)
+            if (availableItems.length === 0) {
+                if (response.next_offset == null || response.next_offset <= offset) break
+                offset = response.next_offset
+                continue
+            }
+            const freshItems = availableItems.filter((task) => !attempted.has(taskKey(task)))
             if (freshItems.length === 0) {
                 failed = true
                 break
@@ -331,6 +339,8 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
                 else failed = true
             })
             if (failed) break
+            // Archiving changes raw offsets; restart while retaining hidden jobs.
+            offset = 0
         }
         setTasks((current) => current.filter((task) => !archived.has(taskKey(task))))
         for (const key of archived) previousStatusesRef.current.delete(key)
@@ -393,7 +403,7 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
         return () => window.clearTimeout(timer)
     }, [catchUpTick, isAuthenticated, pageFocused, refreshTasks])
 
-    const visibleTasks = useMemo(() => (isAuthenticated ? tasks : []), [isAuthenticated, tasks])
+    const visibleTasks = useMemo(() => (isAuthenticated ? tasks.filter(isTaskFeatureEnabled) : []), [isAuthenticated, tasks])
     const activeTasks = useMemo(() => visibleTasks.filter(isActiveTask), [visibleTasks])
     const taskBuckets = useMemo(
         () => ({

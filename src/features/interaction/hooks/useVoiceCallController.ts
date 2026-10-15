@@ -19,6 +19,7 @@ import { VoicePlaybackBuffer, type VoicePlaybackState } from '../audio/voicePlay
 import { DEFAULT_CALL_AUDIO_FORMAT, isPlayableCallChunk } from '../audio/audioFormat'
 import type { CapturedVoiceSegment } from '../audio/voiceVadWorklet'
 import { segmentUploadVad } from '../audio/speechEndLag'
+import { CallPlaybackTiming } from '../audio/callPlaybackTiming'
 import { isFrontendVoiceModeEnabled } from '@/shared/voiceFeatureFlag'
 import { type MicrophoneCaptureApi, type MicrophoneCaptureStatus, type VoiceVadTuning, useMicrophoneCapture } from './useMicrophoneCapture'
 import { type VoiceCallSocketApi, useVoiceCallSocket } from './useVoiceCallSocket'
@@ -61,6 +62,7 @@ export interface UseVoiceCallControllerOptions {
     ensureSession?: () => Promise<number>
     authKey?: string | null
     consentGranted: boolean
+    consentVersion?: 'voice-v2' | 'voice-v3'
     enabled?: boolean
     clientCallId?: string
     autoBargeIn?: boolean
@@ -234,7 +236,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
     useEffect(() => { sessionIdRef.current = sessionId }, [sessionId])
     const optionsRef = useRef(options)
     useEffect(() => { optionsRef.current = options })
-    const featureEnabled = options.enabled ?? isFrontendVoiceModeEnabled()
+    const featureEnabled = isFrontendVoiceModeEnabled() && (options.enabled ?? true)
     const mountedRef = useRef(true)
     // Workspace R1: every request of this call rides the chat's own workspace.
     const callWorkspace = useSessionWorkspace(options.workspaceId)
@@ -260,6 +262,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
     const playbackTurnIdRef = useRef<string | null>(null)
     /** Turn whose audio has actually been heard; a later stall in that turn is still "speaking". */
     const audibleTurnIdRef = useRef<string | null>(null)
+    const playbackTimingRef = useRef(new CallPlaybackTiming())
     const bargingInRef = useRef(false)
     const reconnectingRef = useRef(false)
     const stateRef = useRef<VoiceCallState>(featureEnabled ? 'idle' : 'disabled')
@@ -485,6 +488,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
     }, [stopPlaybackProgress])
 
     const stopLocalResources = useCallback((stopOptions?: { closeSocket?: boolean; cancelPlayback?: boolean }) => {
+        playbackTimingRef.current.clear()
         stopPlaybackProgress()
         captureRef.current?.stop()
         abortUploads()
@@ -555,6 +559,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         }
 
         socketRef.current?.noteSegmentSeq(segment.seq)
+        playbackTimingRef.current.segmentSent(currentVoiceSessionId, segment.seq, segment.speech_end_perf_ms)
         const controller = new AbortController()
         inFlightUploadsRef.current.set(segment.seq, controller)
         updateUploadQueueDepth()
@@ -630,6 +635,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         // WS-C1: name the interrupted turn and how much of it played, read before the
         // cancel resets the player. With no turn playing the frame is the bare one.
         const interruptedTurnId = activeTurnIdRef.current
+        if (interruptedTurnId) playbackTimingRef.current.cancelled(currentVoiceSessionId, interruptedTurnId)
         const frame: Extract<VoiceSocketClientFrame, { type: 'voice_barge_in' }> = { type: 'voice_barge_in', reason: 'barge_in' }
         if (interruptedTurnId) {
             frame.turn_id = interruptedTurnId
@@ -673,6 +679,9 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         else if (playbackState.status === 'idle') audibleTurnIdRef.current = null
         if (mountedRef.current) setAutoplayBlocked(playbackState.status === 'blocked')
         if (playbackState.status === 'playing' && playbackState.turnId) {
+            if (playbackState.voiceSessionId) {
+                playbackTimingRef.current.playing(playbackState.voiceSessionId, playbackState.turnId, performance.now())
+            }
             if (previous !== 'playing' || !playbackProgressRef.current) startPlaybackProgress(playbackState.turnId)
         } else if (playbackState.status !== 'playing') {
             stopPlaybackProgress()
@@ -758,6 +767,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
     }, [clearNotice, setTurnPhase])
 
     const handleTurnStart = useCallback((frame: VoiceTurnStartFrame) => {
+        playbackTimingRef.current.turnStarted(frame.voice_session_id, frame.turn_id, frame.segment_seq, performance.now())
         serverTurnActiveRef.current = true
         serverTurnIdRef.current = frame.turn_id
         activeTurnIdRef.current = frame.turn_id
@@ -826,6 +836,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
     }, [clearBargeIn, setNoticeUnlessShowing, settleTurnPhase, truncateCaption])
 
     const handleCancelled = useCallback((frame: VoiceCancelledFrame) => {
+        if (frame.turn_id) playbackTimingRef.current.cancelled(frame.voice_session_id, frame.turn_id)
         truncateCaption(frame.turn_id, frame.truncated, frame.kept_chars)
         playbackRef.current?.cancel(frame)
         if (!frame.turn_id || frame.turn_id === activeTurnIdRef.current) {
@@ -1014,7 +1025,9 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
             }
             // A 428 (D26) opens the attestation prompt and retries the consent once.
             const consentSessionId = currentSessionId
-            const saveConsent = () => api.saveVoiceConsent(consentSessionId)
+            const saveConsent = () => options.consentVersion === 'voice-v3'
+                ? api.saveVoiceConsent(consentSessionId, { consentVersion: 'voice-v3' })
+                : api.saveVoiceConsent(consentSessionId)
             const consent = await (attestationRef.current?.withAttestation(saveConsent) ?? saveConsent())
             if (!mountedRef.current || lifecycleRef.current !== 'requesting_permission') { stopLocalResources({ closeSocket: true }); return false }
             setLimits(consent.limits)
@@ -1046,7 +1059,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
             setLifecycle('error')
         }, VOICE_READY_TIMEOUT_MS)
         return true
-    }, [applySegmentLimit, clearReadyTimeout, featureEnabled, mapError, options.authKey, options.clientCallId, options.consentGranted, options.ensureSession, sessionId, setControllerError, setLifecycle, stopLocalResources])
+    }, [applySegmentLimit, clearReadyTimeout, featureEnabled, mapError, options.authKey, options.clientCallId, options.consentGranted, options.consentVersion, options.ensureSession, sessionId, setControllerError, setLifecycle, stopLocalResources])
 
     /** Local teardown of a call the user (or a workspace switch) ends; false when it already ended. */
     const teardownForEnd = useCallback((): boolean => {

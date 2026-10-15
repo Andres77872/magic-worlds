@@ -10,6 +10,7 @@
  * workspace is still the committed one (`capture`/`isCurrent`). `readOnly`
  * (an archived workspace) leaves only the read actions.
  */
+import { isContentTypeFeatureEnabled } from '@/shared/featureFlags'
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { BookOpenText, Copy, Download, Globe2, History, Link2, Loader2, MessageCircle, Pencil, Phone, Play, Star, Trash2 } from 'lucide-react'
@@ -18,7 +19,7 @@ import { useWorkspace } from '@/app/hooks/useWorkspace'
 import type { ApiService } from '@/infrastructure/api'
 import type { Adventure, Character, Item, VersionableCardType, World } from '@/shared'
 import { VersionHistoryDrawer } from '@/features/creation/common/components'
-import { useStartCall } from '@/features/call'
+import { CallStartErrorToast, useStartCall } from '@/features/call'
 import { PersonaPickerDialog, type CardOption } from '@/ui/components'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
 import { writeClipboardText } from '@/ui/components/common/clipboard'
@@ -151,6 +152,7 @@ export function useGalleryCardActions({ api, readOnly = false, onItemChanged, on
 
     /** Open the matching card editor (where draft/publish/restore are managed). */
     const openEditorForItem = (item: GalleryItem) => {
+        if (!isContentTypeFeatureEnabled(item.galleryType)) return
         if (item.galleryType === 'character' || item.galleryType === 'persona') {
             editCharacter(item.source as Character)
             setPage('character', { hash: buildCardEditHash('character', item.id) })
@@ -196,6 +198,7 @@ export function useGalleryCardActions({ api, readOnly = false, onItemChanged, on
 
     /** The card's primary action: edit, or begin an adventure (open it when read-only). */
     const primaryAction = (item: GalleryItem) => {
+        if (!isContentTypeFeatureEnabled(item.galleryType)) return
         requireAuth(() => {
             if (item.galleryType === 'adventure' && !readOnly) {
                 setPersonaPickError(null)
@@ -406,7 +409,7 @@ export function useGalleryCardActions({ api, readOnly = false, onItemChanged, on
             }).then(() => setPage('story'))
         })
 
-    const shareOptionsFor = (item: GalleryItem): CardOption[] => [
+    const shareOptionsFor = (item: GalleryItem): CardOption[] => !isContentTypeFeatureEnabled(item.galleryType) ? [] : [
         ...(communityCardsEnabled && !readOnly
             ? [
                   {
@@ -436,6 +439,7 @@ export function useGalleryCardActions({ api, readOnly = false, onItemChanged, on
     ]
 
     const optionsFor = (item: GalleryItem): CardOption[] => {
+        if (!isContentTypeFeatureEnabled(item.galleryType)) return []
         const options: CardOption[] = []
         if (novelsEnabled && !readOnly) {
             options.push({
@@ -729,6 +733,7 @@ export function useGalleryCardActions({ api, readOnly = false, onItemChanged, on
                 onConfirm={callControls.confirmPersonaPick}
                 onClose={callControls.closePersonaPick}
             />
+            <CallStartErrorToast error={callControls.error} onClose={callControls.clearError} />
         </>
     )
 

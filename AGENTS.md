@@ -6,28 +6,40 @@ React 19 + Vite + Tailwind CSS v4 + TypeScript SPA (AI roleplay frontend) with S
 
 ```
 src/
-├── app/                    # App shell. App.tsx = <AppProvider><AppRouter/></AppProvider>
-│   ├── providers/          # 6 nested React contexts (see nesting order below) + reducers
-│   ├── hooks/              # useAuth, useData, useNavigation, useApiStatus, useBackgroundTasks, usePlaylist
+├── app/                    # App shell. App.tsx = <ErrorBoundary><AppProvider><AppRouter/></AppProvider></ErrorBoundary>
+│   ├── providers/          # App-level React contexts + reducers; AppProvider.tsx nests 14 providers (order below)
+│   ├── hooks/              # useAuth, useData, useNavigation, useApiStatus, useBackgroundTasks, usePlaylist,
+│   │                       #   useLanguage, useWorkspace, useCookieConsent, useFloatingWindows, usePageFocus, …
+│   ├── i18n/               # i18next setup, supported languages (en, es), per-domain locales/
+│   ├── bootstrap/          # Pre-render bootstrap (api.auth email deep links)
 │   └── router/             # AppRouter.tsx — hand-rolled router (no React Router), switches on Navigation page state
 ├── features/               # Feature modules (one folder each):
-│   │                       #   cards (preview modal), characterChat (1:1 chat), creation (character/world/item/
-│   │                       #   adventure creators + shared engine), gallery (+ media), interaction (adventure
-│   │                       #   play loop), landing, legal, lorebook, novel (Story Studio, TipTap), profile,
-│   │                       #   tasks (background-job drawer), docs, admin (root consoles: voices, agents,
-│   │                       #   creditCodes = credit tokens, membership = plans / members / usage)
+│   │                       #   admin (root consoles: voices, agents, creditCodes = credit tokens, membership =
+│   │                       #   plans / members / usage), appAssistant (in-app assistant), auth (email verify,
+│   │                       #   password reset, Google callback), billing (plans & credits), call (voice calls),
+│   │                       #   cards (preview modal), characterChat (1:1 chat), codex (codex card picker),
+│   │                       #   creation (character/world/item/adventure creators + shared engine), docs (guide +
+│   │                       #   roadmap), errorPages, floatingWindows, gallery (+ media), imageProfiles,
+│   │                       #   interaction (adventure play loop), landing, legal (+ 18+/Terms attestation),
+│   │                       #   library (+ collections, creation origin), llmProfiles (+ LlmSession), lorebook,
+│   │                       #   notifications, novel (Story Studio, TipTap), profile, safety (crisis resources,
+│   │                       #   break nudges), tasks (background-job drawer), voices (voice studio, presets,
+│   │                       #   catalog), workspaces (workspace switching, origin navigation)
 ├── infrastructure/api/     # Backend layer: index.ts (apiService singleton), chatSocket.ts (per-session
-│   │                       #   WebSocket), baseUrl.ts (env resolution), useAuthenticatedMediaUrl.ts, __tests__/
-├── shared/                 # types/ (per-domain *.types.ts + barrel index.ts) and cross-feature hooks/
+│   │                       #   WebSocket), voiceSocket.ts (voice-call WebSocket), sse.ts, baseUrl.ts (env
+│   │                       #   resolution), *Contract.ts (wire parsers), useAuthenticatedMediaUrl.ts, __tests__/
+├── shared/                 # types/ (per-domain *.types.ts + barrel index.ts), cross-feature hooks/, voice/
+│   │                       #   helpers, feature flags (featureFlags.ts, *FeatureFlag.ts), workspaceStorage.ts
 ├── ui/                     # Design system: primitives/, components/ (Sidebar, modals, audio/PlaylistDock),
 │   │                       #   styles/theme.css (Reverie tokens), docs/ (Storybook MDX)
-├── utils/                  # cardTransforms, time, turnState, uuid, download, characterRoles
-├── assets/brand/           # Brand assets
-├── test/setup.ts           # Vitest/testing-library setup
+├── utils/                  # cardTransforms, characterRoles, chatSegments, chatTitle, displayName, download,
+│   │                       #   errors, frameBatch, motion, time, uuid
+├── assets/                 # brand/ (logo, wordmark) + marketing/ (page imagery)
+├── test/                   # setup.ts (Vitest/testing-library setup) + shared fixtures; helpers in test-utils/
 └── main.tsx                # Entry point (createRoot → <App/>)
 ```
 
-Provider nesting (outermost → innermost, `src/app/providers/AppProvider.tsx`): **ApiStatus → Auth → Navigation → Data → BackgroundTasks → AudioPlaylist**. State is React-context only — no Redux/Zustand.
+Provider nesting (outermost → innermost, `src/app/providers/AppProvider.tsx`): **ApiStatus → Auth → LlmSession → Language → Workspace → Navigation → OriginNavigation → CreationOrigin → CookieConsent → Data → BackgroundTasks → AudioPlaylist → FloatingWindows → Attestation**. Four of them live in feature folders: LlmSession (`features/llmProfiles`), OriginNavigation (`features/workspaces`), CreationOrigin (`features/library`), Attestation (`features/legal/attestation`). State is React-context only — no Redux/Zustand.
 
 ## Commands
 

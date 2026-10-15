@@ -1,0 +1,129 @@
+{
+  "date": "2026-10-15",
+  "milestone": "M5 scene codec follow-up",
+  "release_r3_accepted": false,
+  "entire_integration_goal_complete": false,
+  "renderer_version": "pcm_s16le_44100_lame_128_v1",
+  "compiler_version": 1,
+  "native_contract_source": "https://docs.fish.audio/api-reference/endpoint/openapi-v1/text-to-speech",
+  "native_scene_format": "pcm_s16le_44100_mono",
+  "owned_asset_format": "mp3_44100_128_mono",
+  "unchanged_native_mp3_surfaces": [
+    "fixed previews",
+    "per-segment narration",
+    "timestamp calls"
+  ],
+  "catalogue_changes": 0,
+  "supplier_models_created": 0,
+  "native_generations_this_increment": 3,
+  "wav_probe": {
+    "state": "uncertain",
+    "http_status": 200,
+    "content_type": "audio/wav",
+    "speakers": 4,
+    "compiled_code_points": 1200,
+    "actual_bytes": 10125356,
+    "riff_declared_bytes": 4294967084,
+    "data_declared_bytes": 4294967040,
+    "strict_valid": false,
+    "header_rewritten": false,
+    "spend_retained_uncertain": true,
+    "replayed": false
+  },
+  "pcm_boundary": {
+    "state": "succeeded",
+    "http_status": 200,
+    "content_type": "audio/pcm",
+    "speakers": 4,
+    "compiled_code_points": 1200,
+    "compiled_utf8_bytes": 1228,
+    "elapsed_ms": 11182,
+    "pcm": {
+      "bytes": 7258112,
+      "sample_rate": 44100,
+      "channels": 1,
+      "sample_width": 2,
+      "sample_aligned": true,
+      "duration_ms": 82292
+    },
+    "mp3": {
+      "bytes": 1317407,
+      "frames": 3152,
+      "duration_ms": 82338,
+      "sha256": "aeac4d0cbae86da9cc0faabbef4ab77101b51ebec34ea3114f1773ebf6080881",
+      "complete_frames": true,
+      "sample_rate": 44100,
+      "channels": 1,
+      "bitrate": 128000
+    }
+  },
+  "native_application": {
+    "state": "succeeded",
+    "speakers": 2,
+    "compiled_code_points": 130,
+    "audio_sha256": "9099c2b9bdfbe02804c5245a5dfe073bbe83b2f1c491821fbda5c945b6992c98",
+    "native_generations": 1,
+    "additional_fake_generations": 3,
+    "shared_account_admission": true,
+    "owned_asset": true,
+    "reuse_without_generation_or_charge": true,
+    "failure_refund_and_explicit_recovery": true,
+    "fragment_assets_metadata_preserved": true,
+    "owner_isolation_archive_playback": true,
+    "auth_moderation_voice_acceptance": "synthetic isolated fixtures",
+    "test_database_removed": true
+  },
+  "failure_contract": {
+    "automatic_format_fallback": false,
+    "partial_sample_dropped": false,
+    "partial_mp3_tail_stripped": false,
+    "exact_mime": "audio/pcm",
+    "successful_http_eof_required": true,
+    "max_response_bytes": 20971520,
+    "total_deadline_seconds": 60,
+    "cancel_or_disconnect_encodes_partial_audio": false,
+    "mp3_every_frame_validated": true,
+    "renderer_in_cache_identity": true,
+    "earlier_assets_readable": true
+  },
+  "tests": {
+    "focused_backend_passed": 64,
+    "backend_full_passed": 14062,
+    "backend_full_skipped": 754,
+    "backend_live_deselected": 11,
+    "native_isolated_mysql_application": "1 passed",
+    "prior_frontend_full_passed": 4194,
+    "frontend_code_changed_in_increment": false,
+    "latest_full_scope": "scene PCM renderer and catalogue version-4 negotiation fix"
+  },
+  "listening_or_device_acceptance": false,
+  "actual_supplier_debit_reconciled": false,
+  "development_readiness": {
+    "schema": "2026_10_fish_calls",
+    "schema_verified": true,
+    "active_supplier_leases": 0,
+    "public_active_fish_voices": 1,
+    "call_eligible_fish_voices": 0,
+    "remaining_scene_test_databases": 0,
+    "flags": {
+      "enabled": true,
+      "preview_enabled": true,
+      "narration_enabled": true,
+      "design_enabled": true,
+      "performance_enabled": false,
+      "scene_enabled": false,
+      "calls_enabled": false
+    },
+    "languages": [
+      "es"
+    ],
+    "http_ready_status": 200
+  },
+  "remaining": [
+    "Reviewed scene identity/order and words",
+    "Supported-device playback",
+    "R2 advanced-performance acoustic acceptance",
+    "Full authenticated real-profile call flow and R4 latency/device/debit acceptance",
+    "Production account and processing-copy approval"
+  ]
+}

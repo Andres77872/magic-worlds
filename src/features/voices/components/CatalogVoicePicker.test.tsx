@@ -4,6 +4,7 @@ import { i18n } from '@/app/i18n'
 import { CATALOG_ELDRIN, CATALOG_MAREN_HOUSE, CATALOG_ORRIN_UNTESTED, CATALOG_SELA_LEAVING, CATALOG_TOBIAS_LOCKED, VOICE_KEY_SELA } from '../fixtures'
 import { clearPreferredLanguageCache } from '../hooks/usePreferredLanguage'
 import { CatalogVoicePicker } from './CatalogVoicePicker'
+import { CAPABILITIES_FISH, CATALOG_FISH } from '../fishFixtures'
 
 const listVoiceCatalog = vi.fn()
 const fetchProtectedMediaBlob = vi.fn()
@@ -42,6 +43,18 @@ describe('CatalogVoicePicker (R1-FE-01)', () => {
         getUserPreferences.mockReset().mockResolvedValue({ preferred_language: 'en', has_preference: false, narration_tier: 'standard' })
     })
 
+    it('can show both languages initially without hiding Spanish voices behind the account preference', async () => {
+        getUserPreferences.mockResolvedValue({ preferred_language: 'en', has_preference: true, narration_tier: 'standard' })
+        render(<CatalogVoicePicker allLanguagesInitially onPick={vi.fn()} />)
+        await screen.findByText('Eldrin')
+        expect(firstQuery()).not.toHaveProperty('language')
+        expect(getUserPreferences).not.toHaveBeenCalled()
+        expect(within(screen.getByRole('group', { name: 'Language' })).getByRole('button', { name: 'Any' })).toHaveAttribute('aria-pressed', 'true')
+        fireEvent.click(within(screen.getByRole('group', { name: 'Language' })).getByRole('button', { name: 'Spanish' }))
+        await waitFor(() => expect(listVoiceCatalog.mock.lastCall?.[0]).toMatchObject({ language: 'es' }))
+        expect(within(rowOf('Orrin')).getByText(/^Not tested in Spanish/)).toBeInTheDocument()
+    })
+
     it('starts the language filter on the preferred language, not the interface one, and "Any" clears it (05 §7.3)', async () => {
         getUserPreferences.mockResolvedValue({ preferred_language: 'es', has_preference: true, narration_tier: 'standard' })
         render(<CatalogVoicePicker onPick={vi.fn()} />)
@@ -71,6 +84,7 @@ describe('CatalogVoicePicker (R1-FE-01)', () => {
         render(<CatalogVoicePicker onPick={vi.fn()} />)
         await screen.findByText('Eldrin')
         expect(firstQuery()).not.toHaveProperty('include_locked')
+        fireEvent.click(screen.getByRole('button', { name: 'More filters' }))
         const toggle = screen.getByRole('switch', { name: 'Show locked voices' })
         expect(toggle).toHaveAttribute('aria-checked', 'true')
         fireEvent.click(toggle)
@@ -78,6 +92,36 @@ describe('CatalogVoicePicker (R1-FE-01)', () => {
         await screen.findByText('Eldrin')
         fireEvent.click(screen.getByRole('switch', { name: 'Show locked voices' }))
         await waitFor(() => expect(listVoiceCatalog.mock.lastCall?.[0]).not.toHaveProperty('include_locked'))
+    })
+
+    it('keeps provider and language visible and expands optional filters on demand', async () => {
+        render(<CatalogVoicePicker onPick={vi.fn()} />)
+        await screen.findByText('Eldrin')
+        expect(screen.getByRole('group', { name: 'Provider' })).toBeVisible()
+        expect(screen.getByRole('group', { name: 'Language' })).toBeVisible()
+        expect(screen.queryByRole('group', { name: 'Gender' })).not.toBeInTheDocument()
+        const toggle = screen.getByRole('button', { name: 'More filters' })
+        expect(toggle).toHaveAttribute('aria-expanded', 'false')
+        fireEvent.click(toggle)
+        expect(screen.getByRole('group', { name: 'Gender' })).toBeVisible()
+        fireEvent.click(screen.getByRole('button', { name: 'Fewer filters' }))
+        expect(screen.queryByRole('group', { name: 'Gender' })).not.toBeInTheDocument()
+    })
+
+    it('identifies both providers on their rows and filters Fish voices on the server', async () => {
+        const onPick = vi.fn()
+        listVoiceCatalog.mockResolvedValue({ items: [CATALOG_ELDRIN, CATALOG_FISH], next_cursor: null })
+        render(<CatalogVoicePicker onPick={onPick} capabilities={CAPABILITIES_FISH} />)
+        await screen.findByText('Lantern')
+        expect(within(rowOf('Eldrin')).getByTitle('Voice provider: ElevenLabs')).toHaveAttribute('data-voice-provider', 'elevenlabs')
+        expect(within(rowOf('Lantern')).getByTitle('Voice provider: Fish Audio')).toHaveAttribute('data-voice-provider', 'fish_audio')
+
+        fireEvent.click(within(screen.getByRole('group', { name: 'Provider' })).getByRole('button', { name: 'Fish Audio' }))
+        await waitFor(() => expect(listVoiceCatalog).toHaveBeenLastCalledWith(expect.objectContaining({ provider: 'fish_audio' }), null, withSignal))
+        await screen.findByText('Lantern')
+        fireEvent.click(within(rowOf('Lantern')).getByRole('button', { name: 'Use' }))
+        expect(onPick).toHaveBeenCalledWith(CATALOG_FISH)
+        expect(es('voices.catalog.providerTag', { provider: 'Fish Audio' })).toBe('Proveedor de voz: Fish Audio')
     })
 
     it('shows each language with its tiers, and the plan on a lock (05 §7.4, 03 §5.12)', async () => {
@@ -127,18 +171,18 @@ describe('CatalogVoicePicker (R1-FE-01)', () => {
         expect(onPick).toHaveBeenCalledWith(CATALOG_ELDRIN)
     })
 
-    it('plays the free sample in the card language as an authed blob; the button names the language and toggles aria-pressed (05 §10)', async () => {
+    it('plays the free sample in the card language as an authed blob; the button names the language and offers a named Stop action (05 §10)', async () => {
         render(<CatalogVoicePicker language="es" onPick={vi.fn()} />)
         await screen.findByText('Eldrin')
-        const play = screen.getByRole('button', { name: 'Play sample of Eldrin, Spanish' })
-        expect(play).toHaveAttribute('aria-pressed', 'false')
+        const play = screen.getByRole('button', { name: 'Listen to Eldrin, Spanish' })
+        expect(play).toHaveAccessibleName('Listen to Eldrin, Spanish')
         // A voice without a sample in the card language plays (and names) its primary one.
-        expect(within(rowOf('Maren')).getByRole('button', { name: 'Play sample of Maren, English' })).toBeInTheDocument()
+        expect(within(rowOf('Maren')).getByRole('button', { name: 'Listen to Maren, English' })).toBeInTheDocument()
         fireEvent.click(play)
         await waitFor(() => expect(fetchProtectedMediaBlob).toHaveBeenCalledWith(CATALOG_ELDRIN.languages[1].sample_url, 'audio/mpeg'))
-        await waitFor(() => expect(play).toHaveAttribute('aria-pressed', 'true'))
+        await waitFor(() => expect(play).toHaveAccessibleName('Stop the sample of Eldrin'))
         fireEvent.click(play)
-        await waitFor(() => expect(play).toHaveAttribute('aria-pressed', 'false'))
+        await waitFor(() => expect(play).toHaveAccessibleName('Listen to Eldrin, Spanish'))
         expect(es('voices.catalog.playSampleIn', { name: 'Eldrin', language: 'español' })).toBe('Reproducir muestra de Eldrin, español')
     })
 
@@ -148,6 +192,7 @@ describe('CatalogVoicePicker (R1-FE-01)', () => {
         fireEvent.click(within(screen.getByRole('group', { name: 'Language' })).getByRole('button', { name: 'Spanish' }))
         await waitFor(() => expect(listVoiceCatalog).toHaveBeenLastCalledWith(expect.objectContaining({ language: 'es' }), null, withSignal))
         await screen.findByText('Eldrin')
+        fireEvent.click(screen.getByRole('button', { name: 'More filters' }))
         fireEvent.click(within(screen.getByRole('group', { name: 'Tags' })).getByRole('button', { name: 'calm' }))
         await waitFor(() => expect(listVoiceCatalog).toHaveBeenLastCalledWith(expect.objectContaining({ tags: ['calm'] }), null, withSignal))
         await screen.findByText('Eldrin')
@@ -170,6 +215,7 @@ describe('CatalogVoicePicker (R1-FE-01)', () => {
         // The page carries only male/female and young/middle_aged voices.
         render(<CatalogVoicePicker onPick={vi.fn()} />)
         await screen.findByText('Eldrin')
+        fireEvent.click(screen.getByRole('button', { name: 'More filters' }))
         const chips = (name: string) => within(screen.getByRole('group', { name })).getAllByRole('button')
         expect(chips('Gender').map((chip) => [chip.getAttribute('data-value'), chip.textContent])).toEqual([
             ['male', 'Male'],
@@ -207,6 +253,47 @@ describe('CatalogVoicePicker (R1-FE-01)', () => {
         render(<CatalogVoicePicker onPick={vi.fn()} />)
         fireEvent.click(await screen.findByRole('button', { name: 'Try again' }))
         expect(await screen.findByText('Eldrin')).toBeInTheDocument()
+    })
+
+    it('counts the folded filters on "More filters" and clears every filter but the language', async () => {
+        render(<CatalogVoicePicker onPick={vi.fn()} />)
+        await screen.findByText('Eldrin')
+        expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument()
+        fireEvent.click(within(screen.getByRole('group', { name: 'Language' })).getByRole('button', { name: 'Spanish' }))
+        fireEvent.click(within(screen.getByRole('group', { name: 'Provider' })).getByRole('button', { name: 'ElevenLabs' }))
+        fireEvent.click(screen.getByRole('button', { name: 'More filters' }))
+        fireEvent.click(within(screen.getByRole('group', { name: 'Gender' })).getByRole('button', { name: 'Female' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Fewer filters (1 active)' }))
+        expect(screen.getByRole('button', { name: 'More filters (1 active)' })).toHaveAttribute('aria-expanded', 'false')
+        await waitFor(() => expect(listVoiceCatalog).toHaveBeenLastCalledWith(
+            expect.objectContaining({ language: 'es', provider: 'elevenlabs', gender: 'female' }), null, withSignal))
+
+        fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
+        await waitFor(() => expect(listVoiceCatalog.mock.lastCall?.[0]).not.toHaveProperty('gender', 'female'))
+        const query = listVoiceCatalog.mock.lastCall?.[0] as Record<string, unknown>
+        expect(query.provider).toBeUndefined()
+        expect(query.language).toBe('es')
+        expect(screen.getByRole('button', { name: 'More filters' })).toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument()
+    })
+
+    it('shows the result count above the list and a failed sample on its own row', async () => {
+        fetchProtectedMediaBlob.mockRejectedValueOnce(Object.assign(new Error('busy'), { status: 429 }))
+        render(<CatalogVoicePicker onPick={vi.fn()} />)
+        await screen.findByText('Eldrin')
+        expect(screen.getByRole('status')).toHaveTextContent('5 voices shown')
+        fireEvent.click(within(rowOf('Maren')).getByRole('button', { name: /^Listen to Maren/ }))
+        expect(await within(rowOf('Maren')).findByRole('alert')).toBeInTheDocument()
+        expect(within(rowOf('Eldrin')).queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    it('links a locked voice to the plans page in a new tab', async () => {
+        render(<CatalogVoicePicker onPick={vi.fn()} />)
+        await screen.findByText('Tobias')
+        const plans = within(rowOf('Tobias')).getByRole('link', { name: 'See plans (opens in a new tab)' })
+        expect(plans).toHaveAttribute('href', '#/billing')
+        expect(plans).toHaveAttribute('target', '_blank')
+        expect(within(rowOf('Eldrin')).queryByRole('link', { name: /See plans/ })).not.toBeInTheDocument()
     })
 
     it('shows the empty state', async () => {

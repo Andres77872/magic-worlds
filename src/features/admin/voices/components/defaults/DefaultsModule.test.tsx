@@ -47,7 +47,7 @@ describe('DefaultsModule (AC-R4)', () => {
         // A voice ready in English is still not ready in Spanish.
         pick(spanish, 'Narrator', /Maren/)
         fireEvent.click(within(spanish).getByRole('button', { name: 'Save Narrator' }))
-        expect(await within(spanish).findByRole('alert')).toHaveTextContent('Maren cannot be saved: Accepted on Flash in Spanish')
+        expect(await within(spanish).findByRole('alert')).toHaveTextContent('Maren cannot be saved: Accepted on v4 in Spanish')
         expect(mock().putVoiceDefaults).not.toHaveBeenCalled()
     })
 

@@ -80,6 +80,19 @@ describe('CodexCardPickerDrawer', () => {
 
     afterEach(() => {
         vi.restoreAllMocks()
+        vi.unstubAllEnvs()
+    })
+
+    it('browses cards without collection UI or requests when workspaces and adventures are off', async () => {
+        vi.stubEnv('VITE_FEATURE_WORKSPACES_ENABLED', 'false')
+        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'false')
+        render(picker({ workspaceId: undefined }))
+        expect(await screen.findByText('Lyra')).toBeInTheDocument()
+        expect(listCollections).not.toHaveBeenCalled()
+        expect(screen.queryByText('Act one')).not.toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: 'Adventures' })).not.toBeInTheDocument()
+        fireEvent.click(screen.getByText('Lyra'))
+        expect(screen.getByTestId('codex-add-cards-submit')).toBeEnabled()
     })
 
     it("browses the host's workspace with complete paging and adds only the explicit selection", async () => {

@@ -58,6 +58,11 @@ export const ConsentGate: Story = {
     args: { state: 'idle', consentOpen: true, elapsedSeconds: 0, inputLevel: 0 },
 }
 
+export const FishDevelopmentConsent: Story = {
+    name: 'Fish processing disclosure (development draft)',
+    args: { state: 'idle', consentOpen: true, consentVersion: 'voice-v3', elapsedSeconds: 0, inputLevel: 0 },
+}
+
 export const Listening: Story = {
     args: { state: 'listening', inputLevel: 0.3, transcript: null },
 }

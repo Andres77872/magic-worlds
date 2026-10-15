@@ -9,6 +9,7 @@ import { Folder } from 'lucide-react'
 import type { Collection } from '@/shared/types'
 import { CardOptions, type CardOption } from '@/ui/components'
 import { IconTile, cx } from '@/ui/primitives'
+import { isLibraryCardCountAvailable } from '@/shared/featureFlags'
 
 interface CollectionFolderProps {
     collection: Pick<Collection, 'id' | 'name' | 'description' | 'card_count'>
@@ -41,7 +42,7 @@ export function CollectionFolder({ collection, view = 'card', onOpen, options = 
                 <span className="min-w-0 flex-1">
                     <span className="block truncate font-ui text-sm font-semibold text-fg">{collection.name}</span>
                     <span className="block truncate font-ui text-caption text-fg-muted">
-                        {t('library.folder.kind')} · {count}
+                        {t('library.folder.kind')}{isLibraryCardCountAvailable() ? ` · ${count}` : ''}
                     </span>
                     {view === 'row' && collection.description && (
                         <span className="block truncate font-ui text-caption text-fg-faint">{collection.description}</span>

@@ -41,7 +41,7 @@ describe('LimitsWidget (AC-R12)', () => {
     it('shows per-key usage with an unknown unit and the sync runs with a mass-miss abort', async () => {
         const drawer = await openLimits()
         const perKey = within(drawer).getByRole('table', { name: 'Usage per provider key' })
-        expect(within(perKey).getAllByText('unit unknown until S-28')).toHaveLength(2)
+        expect(within(perKey).getAllByText('unit not confirmed yet (S-28)')).toHaveLength(2)
         const runs = within(drawer).getByRole('table', { name: 'Last catalog sync runs' })
         expect(within(runs).getByText('Mass-miss abort')).toBeInTheDocument()
         expect(within(runs).getByText('Aborted')).toBeInTheDocument()

@@ -1,0 +1,53 @@
+# Card enrichment: current implementation and backlog
+
+**Lifecycle: active reference and backlog. Reviewed 2026-10-15.** Core cards and item creation are implemented in source. Advanced enrichment and adventure item state remain planned. This review checked the frontend and sibling BFF source; it did not run card/media flows or establish deployed/model-quality acceptance. Named owners and target dates remain unassigned.
+
+## Actual implementation status
+
+This is the current capability register. Proposed field schemas are not accepted request contracts until they land in source.
+
+| Area | Actual source status | Gap / release condition |
+|---|---|---|
+| Character/persona, world, adventure-template and item library cards | Implemented, including creators and API models | Adventure surfaces are **WIP / disabled** wherever `VITE_FEATURE_ADVENTURES_ENABLED` is false; local `.env` enabled it while `.env.example` defaults it off |
+| First-class items | Implemented: `name`, `alias`, `type`, `rarity`, `description`, `effects`, `requirements`, `limitations`, `origin`, `value`, `category`, `triggers`, cover/theme | Owner/location/condition/use/cost/story details are guided `category` data, not independent relational inventory state |
+| Item assistant and media | Implemented: `AssistantCardType` includes `item`; starter actions create, balance and add lore; media accepts `item` | Further quality grading/extraction/actions remain proposed |
+| Items in character-chat Codex | Implemented as enabled/disabled frozen card snapshots; shared context assembly reads enabled items | No claim of automated inventory changes, equipment rules or charges; attached context does not create those systems |
+| Adventure snapshots | Implemented for persona, cast, worlds and scenario with pinned source versions | No dedicated item collection in `AdventureTemplate` / `SnapshotTemplate`; attaching and evolving item state in adventures remains **WIP** |
+| Card triggering and model context | Implemented: session-authorized card index, overview, triggered detail and read-card context tool; metadata carries `matched_card_ids` / `matched_triggers` | Full user-facing per-card included/skipped reason, token accounting and field trace remain **WIP** |
+| GM/director cards | **WIP — reusable card type proposed** | Adventure Direction already stores tone, pacing, narration style and player agency in `category`; a separate reusable GM card and policy precedence remain TBD |
+| Card versions, drafts, publishing and sharing | Versions, drafts and publish exist for character, world and item only; adventure templates are saved in place with no version history (the BFF schema forbids adventure-template versions). Sharing, public and clone routes are generic across card types | The item draft/version schema concern (parent/child `card_type` enum ordering under the composite FK) is open as [WS-02](../ROADMAP.md) / [W-03](../workspace_r1/04_gaps_and_priorities.md). Per-session evolution timelines and portable Character Card V2 compatibility are separate proposed work |
+| Guided enrichment | Implemented as `category` groups: character motivation/fear/secret, example dialogue and ties; persona agency/boundaries; world sensory/factions/conflict/reveal; adventure opening/stakes/opposition/direction. Advisory, non-blocking quality hints exist: broad or missing triggers (all four creators), item effects with no requirement, limitation or cost, a world or item secret without a reveal, a non-persona character with a long description but no drive (motivation/fear/secret), and an adventure premise without an opening scene | Quality grading, an agreed rubric, mechanical enforcement and richer trace remain WIP |
+| Aliases | Backend models accept singular `alias`; item UI/type exposes it | Plural `aliases` with dedicated matching rules remains a schema decision; do not add `aliases` or `object_type` to strict request bodies |
+
+Current context assembly includes an overview of all authorized session cards
+with descriptions and details; matching a trigger adds a focused detail block
+for the matched cards. It is not a whole-library scan or a rule that unmatched
+attached cards vanish from the base prompt. The detail builder includes
+`race`, `type`, `rarity`, `origin`, `value`, item effect/requirement/limit lists
+and category summaries. Media/owner transport fields are sanitized from
+read-card snapshots. Full per-card token budgeting is not established by this
+implementation.
+
+There is no `cardsEnrich` or `items` page gate in [featureFlags.ts](../../src/shared/featureFlags.ts). WIP enrichment work is missing behavior, not an existing switch that can be turned on. Any independently gated adventure/community/lorebook surface must still be described as **WIP / disabled** in configurations where its flag is false. Local flags do not prove production rollout. See the [project roadmap](../ROADMAP.md).
+
+Evidence: [Item types](../../src/shared/types/item.types.ts), [ItemCreator](../../src/features/creation/item/components/ItemCreator.tsx), [item guided fields](../../src/features/creation/item/fields.ts), [character guided fields](../../src/features/creation/character/fields.ts), [world guided fields](../../src/features/creation/world/fields.ts), [adventure guided fields](../../src/features/creation/adventure/fields.ts), [item creator tests](../../src/features/creation/item/components/ItemCreator.test.tsx), [assistant suggestions](../../src/features/creation/common/components/assistant/suggestions.ts), [quality hints](../../src/features/creation/common/components/QualityHint.tsx), [broad-trigger check](../../src/features/creation/common/components/triggerQuality.ts), [character-chat Codex](../../src/features/characterChat/components/CharacterChatCodexPanel.tsx), [adventure types](../../src/shared/types/adventure.types.ts), [backend item model](../../../../PycharmProjects/magic-worlds-api/src/models/item.py), [item routes](../../../../PycharmProjects/magic-worlds-api/src/routes/cards/route_item.py), [adventure-template routes](../../../../PycharmProjects/magic-worlds-api/src/routes/cards/route_adventure_template.py), [card sharing routes](../../../../PycharmProjects/magic-worlds-api/src/routes/card_sharing.py), [card schema](../../../../PycharmProjects/magic-worlds-api/src/database/mysql/db.sql) (`chk_tb_card_latest_version_pair`, `tb_card_version` / `tb_card_draft` enums), [card context](../../../../PycharmProjects/magic-worlds-api/src/services/card_context.py), [trigger matching](../../../../PycharmProjects/magic-worlds-api/src/services/triggers.py), [card-context tests](../../../../PycharmProjects/magic-worlds-api/tests/test_card_context.py).
+
+## Roadmap and unresolved gaps
+
+All rows below are **WIP**; CARD-1 is partially implemented and builds on the existing advisory hints, and the others are proposals. Owners and dates are **TBD**. Dependency order is a recommendation, not a schedule.
+
+| ID | Priority | Next work | Concrete completion evidence |
+|---|---|---|---|
+| CARD-1 | P1 | Agreed quality rubric beyond the existing advisory hints (partially implemented) | Agreed warning rubric and thresholds, including vague-behavior detection; close the missing-description gap (character and world creators show no hint for an empty description, and the no-triggers hint is suppressed then); warnings stay advisory and actionable, with tests for the hints on actual saved drafts (no tests reference them today) |
+| CARD-2 | P1 | Complete context explainability | Extend existing safe trigger metadata with agreed included/skipped source reasons; document baseline overview versus triggered details; UI shows useful attribution without private prompts; token/field trace scope TBD |
+| CARD-3 | P2 | Item attachments and state in adventures | Add a strict versioned snapshot contract, creator/picker and in-session editor; preserve library isolation; tests cover source-version pinning, owner/location/state and restart persistence |
+| CARD-4 | P2 | Reusable GM/director policy | Build on the existing Direction category; decide a reusable card and precedence against adventure/persona rules; document fields entering prompt assembly and validate observed agency/pacing/consequences |
+| CARD-5 | P2 | More focused enrichment/extraction actions | Build on current item balance/lore and adventure stakes actions; define a preview/apply contract for extracting new cards from play and avoid overwriting session/library originals |
+| CARD-6 | P3 | Dialogue contract/aliases and compatibility | Example Dialogue already exists in a guided Voice category; decide whether a dedicated portable dialogue field is needed and define plural alias semantics; retain current `type` and singular `alias` until a versioned migration; define native format versus portable Character Card V2 and preserve supported extensions |
+| CARD-7 | P3 | Session evolution and clocks | Define a history/clock model distinct from library card versions; persist divergence and reveal state explicitly and test reload/history behavior |
+
+**CARD-1 rubric input (June proposal, not agreed):** 0 empty shell (name only) → 1 displayable (identity and image/tag metadata, weak behavior) → 2 promptable (description and enough facts for basic questions) → 3 playable (motivation, interaction hooks, triggers, constraints) → 4 scene-ready (opening situation, stakes, relationships, state hooks) → 5 campaign-ready (activation rules, session-state model, conflicts, secrets, evolution paths). Proposed warnings not implemented today: missing description (character and world), appearance-only description with no behavior, trigger not mentioned in the description, world with atmosphere but no conflict or playable affordances, GM/director card with tone but no turn procedure, a character secret with no reveal rule (only world and item secrets are checked today), and an informational note when a session snapshot diverges from its library card.
+
+Decisions still TBD: whether item state is in snapshot categories or dedicated fields; item transfer/equip/charge semantics; whether aliases match independently of triggers; quality-warning thresholds; per-card token tracing; GM policy precedence; portable-format support. Guided category fields can express content today, but they do not execute state transitions or enforce game mechanics.
+
+This October 15 cleanup rechecked item DTOs/guided fields, adventure snapshots, character-chat Codex, context assembly and triggers against current source. Existing source tests describe controlled coverage; no application tests or provider flows were run during this cleanup.

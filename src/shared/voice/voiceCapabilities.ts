@@ -29,6 +29,8 @@ import type {
     VoiceControlSpec,
     VoiceSurface,
     VoiceSurfaceCapabilities,
+    VoiceProvider,
+    VoiceProviderCapabilities,
 } from '@/shared/types'
 
 const CONTROL_KEYS: readonly VoiceControlKey[] = ['stability', 'similarity_boost', 'style', 'use_speaker_boost', 'speed']
@@ -122,7 +124,7 @@ function controlSpec(key: VoiceControlKey, tier: WireRecord): VoiceControlSpec |
     }
 }
 
-function surfaceCapabilities(surface: VoiceSurface, tier: NarrationTier | null, wire: WireRecord): VoiceSurfaceCapabilities {
+function surfaceCapabilities(surface: VoiceSurface, tier: NarrationTier | null, wire: WireRecord, failClosed = false): VoiceSurfaceCapabilities {
     const keys = Array.isArray(wire.controls) ? wire.controls.filter(isControlKey) : []
     const controls = [...new Set(keys)]
         .map((key) => controlSpec(key, wire))
@@ -138,12 +140,12 @@ function surfaceCapabilities(surface: VoiceSurface, tier: NarrationTier | null, 
         supports_speed: typeof wire.supports_speed === 'boolean' ? wire.supports_speed : speedListed,
         max_chars: count(wire.max_chars),
         max_turn_chars: count(wire.max_turn_chars),
-        healthy: wire.healthy !== false,
+        healthy: failClosed ? wire.healthy === true : wire.healthy !== false,
     }
 }
 
 /** A surface is either `{tier: caps}` or, for `preview`, an envelope that may nest `tiers`. */
-function surfaceEntries(surface: VoiceSurface, wire: WireRecord): VoiceSurfaceCapabilities[] {
+function surfaceEntries(surface: VoiceSurface, wire: WireRecord, failClosed = false): VoiceSurfaceCapabilities[] {
     const nested = record(wire.tiers)
     const byTier = nested ?? wire
     // An envelope's own text limit (preview: the fixed-text length, 08 §5.6) wins over the tier's.
@@ -151,12 +153,38 @@ function surfaceEntries(surface: VoiceSurface, wire: WireRecord): VoiceSurfaceCa
     const tiers = TIERS.flatMap((tier) => {
         const caps = record(byTier[tier])
         if (!caps) return []
-        const entry = surfaceCapabilities(surface, tier, caps)
+        const entry = surfaceCapabilities(surface, tier, caps, failClosed)
         return [envelopeMax !== null ? { ...entry, max_chars: envelopeMax } : entry]
     })
     if (tiers.length > 0) return tiers
     // No tiers on the wire (08's preview sketch): one tierless entry with its text limit.
-    return 'controls' in wire || 'max_chars' in wire ? [surfaceCapabilities(surface, null, wire)] : []
+    return 'controls' in wire || 'max_chars' in wire ? [surfaceCapabilities(surface, null, wire, failClosed)] : []
+}
+
+function providerEntries(raw: unknown): VoiceProviderCapabilities[] {
+    if (!Array.isArray(raw)) return []
+    return raw.flatMap((item) => {
+        const entry = record(item)
+        if (!entry || (entry.provider !== 'elevenlabs' && entry.provider !== 'fish_audio')) return []
+        if (typeof entry.profile_id !== 'string' || !entry.profile_id) return []
+        if (entry.provider === 'fish_audio' && entry.profile_id !== 'fish_drama_3') return []
+        const wire = record(entry.surfaces)
+        return [{
+            provider: entry.provider,
+            profile_id: entry.profile_id,
+            label: typeof entry.label === 'string' ? entry.label : entry.provider,
+            surfaces: SURFACES.flatMap((surface) => {
+                if (entry.provider === 'fish_audio' && surface === 'call'
+                    && (!Array.isArray(entry.operations) || !entry.operations.includes('call'))) return []
+                const caps = record(wire?.[surface])
+                return caps ? surfaceEntries(surface, caps, entry.provider === 'fish_audio') : []
+            }),
+            tiers_allowed: Array.isArray(entry.tiers_allowed) ? entry.tiers_allowed.filter(isTier) : [],
+            languages: Array.isArray(entry.languages) ? entry.languages.filter((v): v is string => typeof v === 'string') : [],
+            output_format: typeof entry.output_format === 'string' ? entry.output_format : '',
+            operations: Array.isArray(entry.operations) ? entry.operations.filter((v): v is string => typeof v === 'string') : [],
+        }]
+    })
 }
 
 function status(value: unknown): VoiceCapabilityStatus {
@@ -194,10 +222,11 @@ export function toVoiceCapabilities(raw: unknown): VoiceCapabilities | null {
     const companionSafeguards = safeguards(body.safeguards)
     return {
         surfaces,
+        ...(body.contract_version === 3 ? { contract_version: 3 as const, providers: providerEntries(body.providers) } : {}),
         provider_route: 'elevenlabs',
         tiers_allowed: tiersAllowed,
         narration_tier: narrationTier,
-        consent_version_required: 'voice-v2',
+        consent_version_required: body.contract_version === 3 && body.consent_version_required === 'voice-v3' ? 'voice-v3' : 'voice-v2',
         status: status(body.status),
         ...(companionSafeguards ? { safeguards: companionSafeguards } : {}),
     }
@@ -208,7 +237,13 @@ export function surfaceCapabilitiesFor(
     capabilities: VoiceCapabilities | null | undefined,
     surface: VoiceSurface,
     tier: NarrationTier | null = null,
+    provider: VoiceProvider = 'elevenlabs',
 ): VoiceSurfaceCapabilities | null {
+    if (provider !== 'elevenlabs') {
+        const entry = capabilities?.providers?.find((item) => item.provider === provider)
+        return entry?.surfaces.find((item) => item.surface === surface && item.tier === tier)
+            ?? entry?.surfaces.find((item) => item.surface === surface && item.tier === 'standard') ?? null
+    }
     return capabilities?.surfaces.find((entry) => entry.surface === surface && entry.tier === tier) ?? null
 }
 

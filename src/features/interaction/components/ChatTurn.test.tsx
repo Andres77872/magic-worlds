@@ -240,3 +240,17 @@ describe('ChatTurn memoization', () => {
     expect(screen.getByText('The gate breaks.')).toBeInTheDocument()
   })
 })
+
+
+it('hides playback for stored narration with voices disabled and calls enabled', () => {
+    vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'false')
+    vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
+    try {
+        render(<ChatTurn {...baseProps} turn={{ id: 'narrated', type: 'ai', content: 'A readable reply.',
+            timestamp: '2026-10-15T00:00:00Z', ttsStatus: 'completed', ttsUrl: '/tts/assets/stored.mp3',
+            assistantMessageId: 1, turnId: 'turn-1' }} onRequestNarration={vi.fn()} />)
+        expect(screen.getByText('A readable reply.')).toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: /narrat/i })).not.toBeInTheDocument()
+        expect(document.querySelector('audio')).toBeNull()
+    } finally { vi.unstubAllEnvs() }
+})

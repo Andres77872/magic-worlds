@@ -6,13 +6,15 @@
  * {@link BillingPage}). It is intentionally conservative: while the catalog is
  * loading, when the request fails, or when the user is signed out, `enabled`
  * stays `false` so the UI never advertises billing it can't actually offer (no
- * show-then-hide flash). Billing turned off server-side still resolves
- * successfully with `{ enabled: false, ... }`.
+ * show-then-hide flash). Billing turned off server-side does not resolve: the
+ * BFF answers `GET /billing/plans` with 503, which takes the failure path, so
+ * `enabled` stays `false` and `error` carries the server message.
  *
  * The frontend env kill-switch ({@link isBillingFeatureEnabled}) gates this
  * entirely: when off (the default) the hook short-circuits to `enabled: false`
  * without fetching the catalog, so no purchase UI is offered and no network call
- * fires. When on, the server `enabled` flag still has the final say.
+ * fires. When on, the server still has the final say: only a catalog it returns
+ * with `enabled: true` turns billing on.
  *
  * The promo-credit features (redeem code, email-grant claim, the admin Credit
  * Codes console) are independent of this flag — they work without billing.

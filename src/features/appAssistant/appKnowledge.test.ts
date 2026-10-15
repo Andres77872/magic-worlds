@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { i18n } from '@/app/i18n'
 import type { Adventure, Character, Item, Lorebook, LorebookResource, Story, World } from '@/shared'
 import { isPageFeatureEnabled } from '@/shared/featureFlags'
-import { getDocsContent } from '@/features/docs/components/docsContent'
+import { getDocsContent, withNote } from '@/features/docs/components/docsContent'
 import {
     KNOWLEDGE_LIMITS,
     buildGuideSection,
@@ -97,7 +97,7 @@ describe('buildGuideSection', () => {
         vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'false')
         const translate = i18n.getFixedT(language)
         const docs = getDocsContent(translate)
-        const novelBody = docs.writingGuide.find((item) => item.title === translate('docs.guides.writing.novels.title'))!.body
+        const novelBody = withNote(docs.writingGuide.find((item) => item.title === translate('docs.guides.writing.novels.title'))!)
         const guide = buildGuideSection(translate, isPageFeatureEnabled)
 
         expect(novelBody).toContain('WIP')

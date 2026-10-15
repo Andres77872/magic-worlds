@@ -3,6 +3,7 @@
  * where a profile is used, stable config comparison, custom provider props
  * validation (mirrors the server rules) and assignment-error mapping.
  */
+import { isLlmFeatureEnabled } from '@/shared/featureFlags'
 import type { TFunction } from 'i18next'
 import { ApiError } from '@/infrastructure/api'
 import type { LlmFeature } from '@/shared/types/llm.types'
@@ -45,11 +46,11 @@ const GROUPS: { key: Exclude<FeatureGroupKey, 'other'>; features: LlmFeature[] }
 
 /** Features in reading order, grouped by what they do. Unknown future features land in `other`. */
 export function groupFeatures(features: LlmFeatureView[]): { key: FeatureGroupKey; features: LlmFeatureView[] }[] {
-    const byKey = new Map(features.map(feature => [feature.feature_key, feature]))
+    const byKey = new Map(features.filter(feature => isLlmFeatureEnabled(feature.feature_key)).map(feature => [feature.feature_key, feature]))
     const known = new Set(GROUPS.flatMap(group => group.features))
     const groups: { key: FeatureGroupKey; features: LlmFeatureView[] }[] = GROUPS
         .map(group => ({ key: group.key, features: group.features.flatMap(key => byKey.get(key) ?? []) }))
-    groups.push({ key: 'other', features: features.filter(feature => !known.has(feature.feature_key)) })
+    groups.push({ key: 'other', features: features.filter(feature => isLlmFeatureEnabled(feature.feature_key) && !known.has(feature.feature_key)) })
     return groups.filter(group => group.features.length > 0)
 }
 
@@ -66,7 +67,7 @@ export function profileUsage(profileId: string, preferences: LlmPreferences | nu
     return {
         isDefault: preferences.default_profile_id === profileId,
         features: (Object.entries(preferences.feature_profiles) as [LlmFeature, string | undefined][])
-            .filter(([, id]) => id === profileId).map(([feature]) => feature),
+            .filter(([feature, id]) => isLlmFeatureEnabled(feature) && id === profileId).map(([feature]) => feature),
     }
 }
 

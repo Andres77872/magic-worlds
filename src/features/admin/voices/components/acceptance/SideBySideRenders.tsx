@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import type { AcceptanceRender } from '@/shared'
-import { EXPRESSIVE_MODEL_ID, FLASH_MODEL_ID, SCRIPT_KINDS } from '../../constants'
+import { STANDARD_MODEL_ID, SCRIPT_KINDS } from '../../constants'
 import { ConsoleAudioPlayer } from '../shell/ConsoleAudioPlayer'
 
 interface SideBySideRendersProps {
@@ -16,12 +16,11 @@ const FAILED_RENDER_KEYS: Readonly<Record<string, string>> = {
 }
 
 const COLUMNS = [
-    { modelId: FLASH_MODEL_ID, titleKey: 'admin.voices.acceptance.review.flashRender' },
-    { modelId: EXPRESSIVE_MODEL_ID, titleKey: 'admin.voices.acceptance.review.expressiveRender' },
+    { modelId: STANDARD_MODEL_ID, titleKey: 'admin.voices.acceptance.review.flashRender' },
 ] as const
 
 /**
- * Flash and v4 renders of the same voice and script, side by side (05 §8.4 step 3).
+ * v4 renders of the same voice and script (05 §8.4 step 3).
  * Each render names its script version: per item (`acc-v1-<lang>` for a light
  * language), else the batch's.
  */
@@ -29,7 +28,7 @@ export function SideBySideRenders({ renders, language, scriptVersion = null }: S
     const { t } = useTranslation()
     return (
         <div className="grid gap-4 lg:grid-cols-2">
-            {COLUMNS.map((column) => {
+            {(renders.some((item) => item.model_id === 'drama-3') ? [{ modelId: 'drama-3', titleKey: 'admin.voices.acceptance.review.flashRender' }] : COLUMNS).map((column) => {
                 const items = renders
                     .filter((render) => render.model_id === column.modelId)
                     .sort((a, b) => SCRIPT_KINDS.indexOf(a.script_kind) - SCRIPT_KINDS.indexOf(b.script_kind))

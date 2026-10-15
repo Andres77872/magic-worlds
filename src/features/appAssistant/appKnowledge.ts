@@ -13,7 +13,7 @@
 
 import type { TFunction } from 'i18next'
 import type { Adventure, Character, Item, Lorebook, LorebookResource, PageType, Story, World } from '@/shared'
-import { getDocsContent } from '@/features/docs/components/docsContent'
+import { getDocsContent, guideItemsFor, withNote } from '@/features/docs/components/docsContent'
 import { buildGalleryCardHash, buildLinkedEditorHash, buildResourceHash, pageHash } from '@/features/gallery/galleryLinks'
 import { estimateTokens } from '@/features/lorebook/lorebookTransforms'
 import { isPersonaCard } from '@/utils/characterRoles'
@@ -198,24 +198,13 @@ export function buildGuideSection(t: TFunction, isPageVisible: (page: PageType) 
     const docs = getDocsContent(t)
     const visible = isPageVisible
     const lines: string[] = [`# ${docs.page.title}`, docs.page.subtitle, '']
-    const guides: Record<string, { title: string; body: string }[]> = {
-        start: docs.quickStart,
-        library: docs.libraryGuide,
-        cards: docs.cardGuide,
-        play: docs.playGuide,
-        'voice-presets': docs.voicePresetGuide,
-        voice: docs.voiceGuide,
-        writing: docs.writingGuide,
-        resources: docs.resourcesGuide,
-        media: docs.mediaGuide,
-    }
     for (const entry of docs.sections) {
-        lines.push(`## ${entry.title}`, entry.intro)
+        lines.push(`## ${entry.title}`, withNote({ body: entry.intro, note: entry.note }))
         if (entry.id === 'map') {
             lines.push(`### ${docs.mapHeadings.primaryWorkspaces}`)
             for (const item of docs.mapItems) {
                 if (!visible(item.page)) continue
-                lines.push(`- [${label(item.title, item.page)}](${pageHash(item.page)}) — ${clip(item.body, 400)}`)
+                lines.push(`- [${label(item.title, item.page)}](${pageHash(item.page)}) — ${clip(withNote(item), 400)}`)
             }
             lines.push(`### ${docs.mapHeadings.utilityRail}`)
             for (const item of docs.utilityItems) lines.push(`- ${item.title} — ${clip(item.body, 400)}`)
@@ -227,10 +216,16 @@ export function buildGuideSection(t: TFunction, isPageVisible: (page: PageType) 
                 lines.push(`- **${docs.roadmap.labels.next}** — ${item.next}`)
                 lines.push(`- **${docs.roadmap.labels.decision}** — ${item.decision}`)
             }
+            for (const initiative of docs.roadmap.initiatives) {
+                lines.push(`### ${initiative.title} — ${initiative.progress}`, initiative.tagline, initiative.scope)
+                for (const phase of initiative.phases) lines.push(`${phase.number}. **${phase.title}** (${phase.statusLabel}) — ${phase.body}`)
+            }
+            lines.push(`### ${docs.roadmap.labels.done}`)
+            for (const entry of docs.roadmap.done) lines.push(`- **${entry.title}** (${entry.areaTitle}) — ${entry.body}`)
         } else if (entry.id === 'best-practices') {
             for (const practice of docs.bestPractices) lines.push(`- ${clip(practice, 400)}`)
         } else {
-            for (const item of guides[entry.id] ?? []) lines.push(`- **${item.title}** — ${clip(item.body, 400)}`)
+            for (const item of guideItemsFor(docs, entry.id)) lines.push(`- **${item.title}** — ${clip(withNote(item), 400)}`)
         }
         lines.push('')
     }

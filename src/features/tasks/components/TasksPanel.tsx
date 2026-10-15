@@ -5,6 +5,7 @@
  * inline-expandable task rows and the attached-card modal, so both hosts stay
  * visually and behaviourally identical.
  */
+import { isTaskFeatureEnabled, isPageFeatureEnabled } from '@/shared/featureFlags'
 import { useMemo, useRef, useState } from 'react'
 import { AlertCircle, ArrowUpRight, BookOpen, CalendarClock, CheckCircle2, ChevronDown, Clock3, FileAudio, ListTodo, Loader2, Music2, RefreshCw, Trash2, XCircle } from 'lucide-react'
 import type { TFunction } from 'i18next'
@@ -259,12 +260,12 @@ export function TasksPanel({ dense = false }: { dense?: boolean }) {
         setOpenCardError(null)
         setTargetError(null)
     }
-    const visibleTasks = tabTasks(taskBuckets, activeTab)
+    const visibleTasks = tabTasks(taskBuckets, activeTab).filter(isTaskFeatureEnabled)
     const counts = useMemo(
         () => ({
-            active: taskBuckets.active.length,
-            completed: taskBuckets.completed.length,
-            failed: taskBuckets.failed.length,
+            active: taskBuckets.active.filter(isTaskFeatureEnabled).length,
+            completed: taskBuckets.completed.filter(isTaskFeatureEnabled).length,
+            failed: taskBuckets.failed.filter(isTaskFeatureEnabled).length,
         }),
         [taskBuckets],
     )
@@ -354,6 +355,7 @@ export function TasksPanel({ dense = false }: { dense?: boolean }) {
      * coordinator guards a switch); an unavailable workspace is reported here.
      */
     const openTaskPage = async (task: BackgroundTaskPublic, target: { page: PageType; hash: string }) => {
+        if (!isTaskFeatureEnabled(task) || !isPageFeatureEnabled(target.page)) return
         setTargetError(null)
         const scope = capture()
         const outcome = await navigateToOrigin({ workspaceId: taskOrigin(task) ?? selectedWorkspaceId, ...target })
@@ -363,7 +365,7 @@ export function TasksPanel({ dense = false }: { dense?: boolean }) {
 
     /** Opens the card's editor in its own workspace (the coordinator guards a switch). */
     const openCardInEditor = async (task: BackgroundTaskPublic) => {
-        if (!isCardTarget(task.target)) return
+        if (!isTaskFeatureEnabled(task) || !isCardTarget(task.target)) return
         setOpenCardError(null)
         setIsOpeningCard(true)
         try {

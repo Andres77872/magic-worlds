@@ -1,3 +1,4 @@
+import { isLlmFeatureEnabled } from '@/shared/featureFlags'
 import { useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AuthContext } from '@/app/providers/AuthProvider'
@@ -41,7 +42,7 @@ export function LlmFeatureControl({ feature, disabled = false }: { feature: LlmF
         authSession.getSnapshot().accountKey === accountKey && authSession.getSnapshot().sessionPhase === 'authenticated', [accountKey])
 
     const load = useCallback(async () => {
-        if (!accountKey || authSession.getSnapshot().sessionPhase !== 'authenticated') return
+        if (!isLlmFeatureEnabled(feature) || !accountKey || authSession.getSnapshot().sessionPhase !== 'authenticated') return
         const ticket = ++generation.current
         operation.current = false
         setState(before => ({ accountKey, feature, selectionKey, contract: null, effective: null, loading: true, error: '',
@@ -149,6 +150,7 @@ export function LlmFeatureControl({ feature, disabled = false }: { feature: LlmF
     useEffect(() => { if (autoChoices) void loadChoices() }, [autoChoices])
 
     if (!context || authSession.getSnapshot().sessionPhase !== 'authenticated') return null
+    if (!isLlmFeatureEnabled(feature)) return null
     return <LlmFeatureControlView feature={feature} selection={selection} effective={visible?.effective ?? null}
         editable={visible?.contract?.user_selection_enabled ?? false} loading={visible?.loading ?? true} disabled={disabled}
         error={visible?.error} choicesOpen={visible?.open} choices={visible?.choices} more={!!visible && visible.offset < visible.total}

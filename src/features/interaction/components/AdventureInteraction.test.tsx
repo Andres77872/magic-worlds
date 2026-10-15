@@ -1,4 +1,4 @@
-import type { ReactElement, ReactNode } from 'react'
+import { Children, isValidElement, type ReactElement, type ReactNode } from 'react'
 import { act, fireEvent, render as baseRender, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Adventure, AdventureSnapshot, TurnEntry } from '@/shared'
@@ -177,7 +177,8 @@ describe('AdventureInteraction narration voice wiring (ER-G1)', () => {
     })
 
     function tierSlot(): ReactElement<{ api: unknown; basePath: string; sessionId: number; readOnly?: boolean }> {
-        return mocks.leftPanel?.narrationTierSlot as ReactElement<{ api: unknown; basePath: string; sessionId: number; readOnly?: boolean }>
+        const slot = mocks.leftPanel?.narrationTierSlot as ReactElement<{ children: ReactNode }>
+        return Children.toArray(slot.props.children).find(child => isValidElement(child) && child.type === SessionNarrationTierToggle) as ReactElement<{ api: unknown; basePath: string; sessionId: number; readOnly?: boolean }>
     }
 
     it('mounts the session tier toggle on the session workspace client', async () => {

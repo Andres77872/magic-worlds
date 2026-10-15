@@ -1,3 +1,4 @@
+import { isCommunityCardsFeatureEnabled, isContentTypeFeatureEnabled } from '@/shared/featureFlags'
 import { useCallback, useContext, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth, useData, useNavigation } from '@/app/hooks'
@@ -65,6 +66,7 @@ export function useCardImport(options: CardImportOptions = {}) {
 
     const runImport = useCallback(
         async (source: ImportSource, force: boolean) => {
+            if (!isCommunityCardsFeatureEnabled() || !source.item || !isContentTypeFeatureEnabled(source.item.galleryType)) return
             const key = sourceKey(source)
             const title = (source.item?.title ?? '').slice(0, 80)
             const galleryType = source.item?.galleryType
@@ -109,6 +111,7 @@ export function useCardImport(options: CardImportOptions = {}) {
 
     const requestImport = useCallback(
         async (source: ImportSource) => {
+            if (!isCommunityCardsFeatureEnabled() || !source.item || !isContentTypeFeatureEnabled(source.item.galleryType)) return
             if (!isAuthenticated) {
                 openLoginModal()
                 return
@@ -138,6 +141,7 @@ export function useCardImport(options: CardImportOptions = {}) {
 
     const openExisting = useCallback(
         (cardId: string, galleryType: GalleryType) => {
+            if (!isContentTypeFeatureEnabled(galleryType)) return
             setPendingConfirm(null)
             setPage(galleryPageForType(galleryType), { hash: buildGalleryCardHash(galleryType, cardId) })
         },

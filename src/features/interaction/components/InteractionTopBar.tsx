@@ -1,3 +1,4 @@
+import { isVoicesFeatureEnabled } from '@/shared/featureFlags'
 import { useTranslation } from 'react-i18next'
 import { Menu, ScrollText } from 'lucide-react'
 import { cx, IconButton } from '@/ui/primitives'
@@ -74,9 +75,9 @@ export function InteractionTopBar({
     return (
         <>
             {header}
-            {mode === 'chat'
+            {isVoicesFeatureEnabled() && (mode === 'chat'
                 ? <ChatVoiceIndicator variant="bar" className={docked} />
-                : <AdventureCastVoiceStrip className={docked} />}
+                : <AdventureCastVoiceStrip className={docked} />)}
         </>
     )
 }

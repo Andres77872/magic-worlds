@@ -1,194 +1,133 @@
 /**
- * In-app product guide (#/docs) — a candlelit landing hero, an in-page search
- * that filters sections, illustrated section banners, and a sticky section nav.
- * All copy lives in `docsContent.ts`; this file lays it out with the shared
- * Reverie primitives (PageHeader / IconTile / Card / Illustration).
- * App-map panels navigate to their workspace through the same gated handler as
- * the header create buttons, so guests get the login modal instead of a dead end.
+ * In-app product docs (#/docs): a candlelit hero, a Guide / Roadmap view switch
+ * (WAI-ARIA tabs) with one search that narrows whichever view is open, and
+ * linkable state in the hash (`#/docs?view=roadmap&section=novel-studio`).
  *
- * Search filters by HIDING non-matching sections with the HTML `hidden`
- * attribute (they stay mounted), so the IntersectionObserver active-section
- * tracking and `getElementById` anchor scroll keep working untouched.
+ * - Guide: "On this page" nav + data-driven sections (GuideView).
+ * - Roadmap: featured initiatives with phases + every area by status (RoadmapView).
+ *
+ * All copy lives in `docsContent.ts` / `roadmapContent.ts`. Create buttons and
+ * App-map panels share one gated handler, so guests get the login modal
+ * instead of a dead end. The page renders inside the app shell's `<main>`, so
+ * it uses no landmark of its own beyond its navs.
  */
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { LucideIcon } from 'lucide-react'
-import {
-    AudioLines,
-    BookOpenText,
-    Compass,
-    FileText,
-    Images,
-    Info,
-    Mic,
-    Route,
-    Search,
-    Server,
-    ShieldCheck,
-    Swords,
-    Users,
-    X,
-} from 'lucide-react'
+import { BookOpenText, Info, Route } from 'lucide-react'
 import { useAuth, useNavigation } from '@/app/hooks'
 import { docsHeroArt } from '@/assets/marketing'
 import type { PageType } from '@/shared'
 import { isPageFeatureEnabled } from '@/shared/featureFlags'
-import {
-    Badge,
-    Button,
-    Card,
-    Icon,
-    IconTile,
-    Illustration,
-    PageHeader,
-    SectionHeader,
-    Tag,
-    cx,
-} from '@/ui/primitives'
-import {
-    DOC_SECTION_IDS,
-    getDocsContent,
-    sectionSearchText,
-    type GuideItem,
-} from './docsContent'
-import { scrollBehavior } from '@/utils/motion'
+import { Button, Icon, IconTile, PageHeader, TabPanel, Tabs, useIsDesktop, type TabOption } from '@/ui/primitives'
+import { DOC_SECTION_IDS, getDocsContent, sectionSearchText } from './docsContent'
+import { initiativeSearchText, roadmapDoneSearchText, roadmapItemSearchText, type RoadmapInitiativeId } from './roadmapContent'
+import { DocsQueryContext } from './docsQuery'
+import { DocsSearchField } from './DocsSearchField'
+import { focusDocsTarget, isAboveViewport, scrollDocsTargetIntoView } from './docsScroll'
+import { GuideView } from './guide/GuideView'
+import { RoadmapView } from './roadmap/RoadmapView'
+import { INITIATIVE_ANCHORS } from './roadmap/roadmapMeta'
+import { useDocsRoute, type DocsView } from '../hooks/useDocsRoute'
+import { modifierKeyLabel, useDocsSearch } from '../hooks/useDocsSearch'
+import { useScrollSpy } from '../hooks/useScrollSpy'
 
-function activateOnKey(handler: () => void) {
-    return (event: KeyboardEvent<HTMLDivElement>) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault()
-            handler()
-        }
-    }
-}
+const VIEW_ID = 'docs-view'
+const TOOLBAR_ID = 'docs-toolbar'
+const TOC_ID = 'docs-toc'
 
-function scrollDocsSectionIntoView(id: string) {
-    const target = document.getElementById(id)
-    if (!target) return
-
-    const behavior = scrollBehavior()
-    const scroller = document.querySelector<HTMLElement>('[data-app-main]')
-    if (!scroller) {
-        target.scrollIntoView({ behavior, block: 'start' })
-        return
-    }
-
-    const scrollerRect = scroller.getBoundingClientRect()
-    const targetRect = target.getBoundingClientRect()
-    const scrollMarginTop = Number.parseFloat(window.getComputedStyle(target).scrollMarginTop) || 0
-    const top = scroller.scrollTop + targetRect.top - scrollerRect.top - scrollMarginTop
-
-    scroller.scrollTo({ top: Math.max(0, top), left: 0, behavior })
-}
-
-function scrollNavButtonInlineIntoView(nav: HTMLElement | null, button: HTMLButtonElement | null) {
-    if (!nav || !button || nav.scrollWidth <= nav.clientWidth) return
-
-    const behavior = scrollBehavior()
-    const navRect = nav.getBoundingClientRect()
-    const buttonRect = button.getBoundingClientRect()
-    const overflowLeft = buttonRect.left - navRect.left
-    const overflowRight = buttonRect.right - navRect.right
-
-    if (overflowLeft < 0) {
-        nav.scrollTo({ left: nav.scrollLeft + overflowLeft, behavior })
-    } else if (overflowRight > 0) {
-        nav.scrollTo({ left: nav.scrollLeft + overflowRight, behavior })
-    }
+/** Scroll after React has committed the newly shown view/section. */
+function afterPaint(run: () => void) {
+    requestAnimationFrame(run)
 }
 
 export function DocsPage() {
     const { t } = useTranslation()
     const docs = useMemo(() => getDocsContent(t), [t])
-    const sectionById = useMemo(() => new Map(docs.sections.map((section) => [section.id, section])), [docs.sections])
-    const getSection = (id: string) => sectionById.get(id) ?? docs.sections[0]
     const { setPage } = useNavigation()
     const { isAuthenticated, openLoginModal } = useAuth()
-    const [activeSection, setActiveSection] = useState(DOC_SECTION_IDS[0])
-    const [query, setQuery] = useState('')
-    const visibleSections = useRef<Set<string>>(new Set())
-    const navRef = useRef<HTMLElement | null>(null)
-    const navButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({})
+    const desktop = useIsDesktop()
+    const { route, navigate } = useDocsRoute()
+    const view = route.view
     const searchRef = useRef<HTMLInputElement | null>(null)
+    const { query, setQuery, normalized, settled } = useDocsSearch(searchRef)
+    const [activeSection, setActiveSection] = useScrollSpy(DOC_SECTION_IDS, view === 'guide')
+    const [modifier] = useState(modifierKeyLabel)
 
-    // Per-section search haystack, rebuilt only when the language (docs) changes.
-    const searchIndex = useMemo(
-        () => docs.sections.map((section) => [section.id, sectionSearchText(docs, section.id)] as const),
-        [docs],
-    )
-    const q = query.trim().toLowerCase()
-    const filtering = q.length > 0
+    // Per-section haystacks, rebuilt only when the language (docs) changes.
+    const searchIndex = useMemo(() => docs.sections.map((section) => [section.id, sectionSearchText(docs, section.id)] as const), [docs])
+    const filtering = normalized.length > 0
     const matchedIds = useMemo(
-        () =>
-            filtering
-                ? new Set(searchIndex.filter(([, text]) => text.includes(q)).map(([id]) => id))
-                : new Set(DOC_SECTION_IDS),
-        [searchIndex, q, filtering],
+        () => (filtering ? new Set(searchIndex.filter(([, text]) => text.includes(normalized)).map(([id]) => id)) : null),
+        [searchIndex, normalized, filtering],
     )
-    const noMatches = filtering && matchedIds.size === 0
-    const isHidden = (id: string) => !matchedIds.has(id)
+    const isMatch = useCallback((id: string) => !matchedIds || matchedIds.has(id), [matchedIds])
+    const roadmapMatches = useMemo(() => {
+        if (!filtering) return 0
+        const items = docs.roadmap.items.filter((item) => roadmapItemSearchText(item).includes(normalized)).length
+        const initiatives = docs.roadmap.initiatives.filter((initiative) => initiativeSearchText(initiative).includes(normalized)).length
+        const done = docs.roadmap.done.filter((entry) => roadmapDoneSearchText(entry).includes(normalized)).length
+        return items + initiatives + done
+    }, [docs.roadmap, normalized, filtering])
 
+    const resultText = !filtering
+        ? ''
+        : view === 'guide'
+          ? t('docs.search.results', { count: matchedIds?.size ?? 0 })
+          : t('docs.search.roadmapResults', { count: roadmapMatches })
+
+    // A deep link (`section=`) lands on its target once, after first layout.
+    const [initialSection] = useState(route.section)
     useEffect(() => {
-        if (typeof IntersectionObserver === 'undefined') return
-
-        visibleSections.current = new Set()
-        const observer = new IntersectionObserver(
-            (entries) => {
-                for (const entry of entries) {
-                    if (entry.isIntersecting) visibleSections.current.add(entry.target.id)
-                    else visibleSections.current.delete(entry.target.id)
-                }
-
-                const topmostVisible = DOC_SECTION_IDS.find((id) => visibleSections.current.has(id))
-                if (topmostVisible) setActiveSection(topmostVisible)
-            },
-            { rootMargin: '-96px 0px -58% 0px', threshold: 0 },
-        )
-
-        for (const id of DOC_SECTION_IDS) {
-            const element = document.getElementById(id)
-            if (element) observer.observe(element)
-        }
-
-        return () => observer.disconnect()
-    }, [])
-
-    useEffect(() => {
-        scrollNavButtonInlineIntoView(navRef.current, navButtonRefs.current[activeSection])
-    }, [activeSection])
-
-    // `/` or Cmd/Ctrl+K focuses search (unless already typing); Esc clears it.
-    useEffect(() => {
-        const onKey = (event: globalThis.KeyboardEvent) => {
-            const el = document.activeElement
-            const typing =
-                el instanceof HTMLInputElement ||
-                el instanceof HTMLTextAreaElement ||
-                (el instanceof HTMLElement && el.isContentEditable)
-            if (event.key === '/' && !typing) {
-                event.preventDefault()
-                searchRef.current?.focus()
-            } else if ((event.key === 'k' || event.key === 'K') && (event.metaKey || event.ctrlKey)) {
-                event.preventDefault()
-                searchRef.current?.focus()
-            } else if (event.key === 'Escape' && el === searchRef.current) {
-                setQuery('')
-            }
-        }
-        window.addEventListener('keydown', onKey)
-        return () => window.removeEventListener('keydown', onKey)
-    }, [])
+        if (!initialSection) return
+        afterPaint(() => {
+            scrollDocsTargetIntoView(initialSection)
+            focusDocsTarget(initialSection)
+        })
+    }, [initialSection])
 
     const goToSection = (id: string) => {
         setActiveSection(id)
-        // Jumping to a filtered-out section clears the filter first so the target
-        // is laid out before we measure/scroll to it.
-        if (isHidden(id)) {
-            setQuery('')
-            requestAnimationFrame(() => scrollDocsSectionIntoView(id))
-        } else {
-            scrollDocsSectionIntoView(id)
+        navigate({ view: 'guide', section: id })
+        const land = () => {
+            scrollDocsTargetIntoView(id)
+            focusDocsTarget(id)
         }
+        // A filtered-out target is laid out only after the search clears.
+        if (!isMatch(id)) {
+            setQuery('')
+            afterPaint(land)
+        } else {
+            land()
+        }
+    }
+
+    const switchView = (next: DocsView) => {
+        navigate({ view: next, section: null })
+        if (isAboveViewport(TOOLBAR_ID)) afterPaint(() => scrollDocsTargetIntoView(TOOLBAR_ID))
+    }
+
+    const jumpInRoadmap = (anchor: string) => {
+        navigate({ view: 'roadmap', section: anchor })
+        // Like the Guide nav: a target the search hides is shown by clearing it.
+        if (document.getElementById(anchor)?.hidden) setQuery('')
+        afterPaint(() => {
+            scrollDocsTargetIntoView(anchor)
+            focusDocsTarget(anchor)
+        })
+    }
+
+    const openRoadmap = (initiative?: RoadmapInitiativeId) => {
+        if (initiative) {
+            jumpInRoadmap(INITIATIVE_ANCHORS[initiative])
+        } else {
+            navigate({ view: 'roadmap', section: null })
+            afterPaint(() => scrollDocsTargetIntoView(TOOLBAR_ID))
+        }
+    }
+
+    const backToToc = () => {
+        scrollDocsTargetIntoView(TOC_ID)
+        document.querySelector<HTMLElement>(`#${TOC_ID} summary`)?.focus({ preventScroll: true })
     }
 
     const goToPage = (page: PageType, gated?: boolean) => {
@@ -199,33 +138,35 @@ export function DocsPage() {
         setPage(page)
     }
 
+    const viewOptions: TabOption<DocsView>[] = [
+        { value: 'guide', label: docs.views.guide, icon: <Icon icon={BookOpenText} size={16} /> },
+        { value: 'roadmap', label: docs.views.roadmap, icon: <Icon icon={Route} size={16} /> },
+    ]
+    const actions = docs.primaryActions.filter((action) => isPageFeatureEnabled(action.page))
+    const primaryPage = actions.some((action) => action.page === 'adventure') ? 'adventure' : actions[0]?.page
+
     return (
-        <div className="relative w-full">
-            <div className="relative mx-auto flex w-full max-w-[1280px] flex-col gap-8 px-5 py-8 sm:px-8 sm:py-10">
-                <section className="relative overflow-hidden rounded-2xl border border-parchment-50/10">
-                    <img
-                        src={docsHeroArt}
-                        alt=""
-                        aria-hidden
-                        className="absolute inset-0 h-full w-full object-cover opacity-[.22]"
-                    />
+        <DocsQueryContext.Provider value={normalized}>
+            <div className="relative mx-auto flex w-full max-w-[1280px] flex-col gap-8 px-4 py-6 sm:px-8 sm:py-10">
+                <section aria-labelledby="docs-title" className="relative overflow-hidden rounded-2xl border border-line-faint">
+                    <img src={docsHeroArt} alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover opacity-[.22]" />
                     <div
                         aria-hidden
                         className="pointer-events-none absolute inset-0 bg-gradient-to-t from-ink-900 via-ink-900/85 to-ink-900/60"
                     />
-                    <div className="relative p-6 sm:p-8">
+                    <div className="relative p-5 sm:p-8">
                         <PageHeader
                             eyebrow={docs.page.eyebrow}
-                            title={docs.page.title}
+                            title={<span id="docs-title">{docs.page.title}</span>}
                             subtitle={docs.page.subtitle}
                             size="lg"
                             icon={<IconTile icon={Info} tone="arcane" size="md" />}
                             actions={
                                 <div className="flex flex-wrap gap-2">
-                                    {docs.primaryActions.filter((action) => isPageFeatureEnabled(action.page)).map((action, index) => (
+                                    {actions.map((action) => (
                                         <Button
                                             key={action.page}
-                                            variant={action.page === 'adventure' || (index === 0 && !isPageFeatureEnabled('adventure')) ? 'primary' : 'secondary'}
+                                            variant={action.page === primaryPage ? 'primary' : 'secondary'}
                                             size="sm"
                                             iconLeft={<Icon icon={action.icon} size={15} />}
                                             onClick={() => goToPage(action.page, action.gated)}
@@ -236,566 +177,54 @@ export function DocsPage() {
                                 </div>
                             }
                         />
-                        <div className="mt-5 max-w-[460px]">
-                            <div className="relative">
-                                <span
-                                    aria-hidden
-                                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle"
-                                >
-                                    <Icon icon={Search} size={16} />
-                                </span>
-                                <input
-                                    ref={searchRef}
-                                    type="search"
-                                    aria-label={docs.search.label}
-                                    placeholder={docs.search.placeholder}
-                                    value={query}
-                                    onChange={(event) => setQuery(event.target.value)}
-                                    className="h-11 w-full rounded-md border border-parchment-50/[.12] bg-ink-900/70 pl-9 pr-9 font-ui text-sm text-parchment-50 transition-colors placeholder:text-fg-subtle focus:border-ember-500/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ember-500"
-                                />
-                                {query && (
-                                    <button
-                                        type="button"
-                                        aria-label={docs.search.clear}
-                                        onClick={() => setQuery('')}
-                                        className="absolute right-2 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-fg-subtle transition-colors hover:bg-parchment-50/[.06] hover:text-parchment-50"
-                                    >
-                                        <Icon icon={X} size={15} />
-                                    </button>
-                                )}
-                            </div>
-                            <p className="mt-1.5 font-ui text-[12px] text-fg-subtle">{docs.search.shortcutHint}</p>
+                        <div
+                            id={TOOLBAR_ID}
+                            className="mt-6 flex scroll-mt-6 flex-col gap-4 border-t border-line-faint pt-5 md:flex-row md:items-start md:justify-between"
+                        >
+                            <Tabs
+                                options={viewOptions}
+                                value={view}
+                                onChange={switchView}
+                                idBase={VIEW_ID}
+                                aria-label={docs.views.label}
+                                variant="pill"
+                                className="self-start"
+                            />
+                            <DocsSearchField
+                                inputRef={searchRef}
+                                value={query}
+                                onChange={setQuery}
+                                label={docs.search.label}
+                                placeholder={view === 'guide' ? docs.search.placeholder : docs.search.placeholderRoadmap}
+                                clearLabel={docs.search.clear}
+                                shortcut={{ modifier, hint: docs.search.shortcutHint }}
+                                resultText={resultText}
+                                announcement={settled ? resultText : ''}
+                            />
                         </div>
                     </div>
                 </section>
 
-                <div className="grid min-w-0 grid-cols-1 gap-8 lg:grid-cols-[240px_minmax(0,1fr)]">
-                    <aside className="min-w-0 lg:sticky lg:top-6 lg:self-start">
-                        <nav
-                            ref={navRef}
-                            aria-label={docs.navAriaLabel}
-                            className="flex min-w-0 gap-2 overflow-x-auto border-b border-line-faint pb-2 lg:flex-col lg:overflow-visible lg:border-b-0 lg:border-l lg:pl-2"
-                        >
-                            {docs.sections.map((section) => {
-                                const active = activeSection === section.id
-                                const dim = filtering && isHidden(section.id)
-                                return (
-                                    <button
-                                        key={section.id}
-                                        type="button"
-                                        onClick={() => goToSection(section.id)}
-                                        ref={(element) => {
-                                            navButtonRefs.current[section.id] = element
-                                        }}
-                                        aria-current={active ? 'location' : undefined}
-                                        className={cx(
-                                            'inline-flex min-h-10 shrink-0 items-center gap-2 rounded-md px-3 text-left font-ui text-[13px] font-semibold transition-all',
-                                            active
-                                                ? 'bg-ember-500/20 text-ember-200 shadow-[inset_3px_0_0_var(--color-ember-400)]'
-                                                : 'text-parchment-300 hover:bg-parchment-50/[.05] hover:text-parchment-50',
-                                            dim && 'opacity-40',
-                                        )}
-                                    >
-                                        <Icon icon={section.icon} size={15} />
-                                        <span>{section.label}</span>
-                                    </button>
-                                )
-                            })}
-                        </nav>
-                    </aside>
-
-                    <main className="flex min-w-0 flex-col gap-8">
-                        {noMatches && (
-                            <Card className="p-8 text-center">
-                                <h2 className="m-0 font-display text-xl font-semibold text-parchment-50">
-                                    {docs.search.empty.title}
-                                </h2>
-                                <p className="mt-2 font-ui text-sm leading-relaxed text-parchment-300">
-                                    {docs.search.empty.body}
-                                </p>
-                            </Card>
-                        )}
-
-                        <GuideSection
-                            id="start"
-                            icon={Compass}
-                            eyebrow={getSection('start').eyebrow}
-                            title={getSection('start').title}
-                            intro={getSection('start').intro}
-                            hidden={isHidden('start')}
-                        >
-                            <div className="grid gap-4 md:grid-cols-2">
-                                {docs.quickStart.map((item, index) => (
-                                    <FeatureCard key={item.title} icon={item.icon} title={`${index + 1}. ${item.title}`}>
-                                        {item.body}
-                                    </FeatureCard>
-                                ))}
-                            </div>
-                        </GuideSection>
-
-                        <GuideSection
-                            id="roadmap"
-                            icon={Route}
-                            eyebrow={getSection('roadmap').eyebrow}
-                            title={getSection('roadmap').title}
-                            intro={getSection('roadmap').intro}
-                            hidden={isHidden('roadmap')}
-                        >
-                            <p className="m-0 font-mono text-caption text-fg-muted">{docs.roadmap.reviewed}</p>
-                            <LabeledCallout label={getSection('roadmap').label} icon={Route}>
-                                <p className="m-0 font-ui text-body text-fg-muted">{docs.roadmap.note}</p>
-                            </LabeledCallout>
-                            <div className="grid gap-4 md:grid-cols-2">
-                                {docs.roadmap.items.map((item) => (
-                                    <Card key={item.id} className="min-w-0 p-4" data-roadmap-item={item.id}>
-                                        <div className="mb-3 flex flex-wrap gap-2">
-                                            <Badge tone={item.state === 'implemented' ? 'neutral' : 'warning'} className="max-w-full whitespace-normal">
-                                                {item.status}
-                                            </Badge>
-                                            <Badge tone={item.state === 'planned' || item.enabled === false ? 'warning' : 'ember'} className="max-w-full whitespace-normal">
-                                                {item.availability}
-                                            </Badge>
-                                        </div>
-                                        <h3 className="m-0 font-display text-h3 font-semibold text-fg">{item.title}</h3>
-                                        <dl className="mb-0 mt-3 flex flex-col gap-3 font-ui text-body">
-                                            {(['current', 'next', 'decision'] as const).map((field) => (
-                                                <div key={field}>
-                                                    <dt className="font-semibold text-fg">{docs.roadmap.labels[field]}</dt>
-                                                    <dd className="m-0 text-fg-muted">{item[field]}</dd>
-                                                </div>
-                                            ))}
-                                        </dl>
-                                    </Card>
-                                ))}
-                            </div>
-                        </GuideSection>
-
-                        <GuideSection
-                            id="map"
-                            icon={Info}
-                            eyebrow={getSection('map').eyebrow}
-                            title={getSection('map').title}
-                            intro={getSection('map').intro}
-                            art={getSection('map').art}
-                            hidden={isHidden('map')}
-                        >
-                            <SectionHeader icon={Compass} title={docs.mapHeadings.primaryWorkspaces} />
-                            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                                {docs.mapItems.filter((item) => isPageFeatureEnabled(item.page)).map((item) => (
-                                    <MapPanel
-                                        key={item.title}
-                                        icon={item.icon}
-                                        title={item.title}
-                                        tone={item.tone}
-                                        tag={item.tag}
-                                        onOpen={() => goToPage(item.page, item.gated)}
-                                    >
-                                        {item.body}
-                                    </MapPanel>
-                                ))}
-                            </div>
-
-                            <SectionHeader icon={Server} title={docs.mapHeadings.utilityRail} />
-                            <div className="grid gap-3 sm:grid-cols-2">
-                                {docs.utilityItems.map((item) => (
-                                    <UtilityRow key={item.title} icon={item.icon} title={item.title} tone={item.tone} tag={item.tag}>
-                                        {item.body}
-                                    </UtilityRow>
-                                ))}
-                            </div>
-                        </GuideSection>
-
-                        <GuideSection
-                            id="library"
-                            icon={Search}
-                            eyebrow={getSection('library').eyebrow}
-                            title={getSection('library').title}
-                            intro={getSection('library').intro}
-                            art={getSection('library').art}
-                            hidden={isHidden('library')}
-                        >
-                            <div className="grid gap-4 md:grid-cols-2">
-                                {docs.libraryGuide.map((item) => (
-                                    <FeatureCard key={item.title} icon={item.icon} title={item.title}>
-                                        {item.body}
-                                    </FeatureCard>
-                                ))}
-                            </div>
-                        </GuideSection>
-
-                        <GuideSection
-                            id="cards"
-                            icon={Users}
-                            eyebrow={getSection('cards').eyebrow}
-                            title={getSection('cards').title}
-                            intro={getSection('cards').intro}
-                            art={getSection('cards').art}
-                            hidden={isHidden('cards')}
-                        >
-                            <div className="grid gap-4 md:grid-cols-2">
-                                {docs.cardGuide.map((item) => (
-                                    <FeatureCard
-                                        key={item.title}
-                                        icon={item.icon}
-                                        title={item.title}
-                                        badge={item.badge}
-                                        tone={item.tone}
-                                    >
-                                        {item.body}
-                                    </FeatureCard>
-                                ))}
-                            </div>
-                        </GuideSection>
-
-                        <GuideSection
-                            id="play"
-                            icon={Swords}
-                            eyebrow={getSection('play').eyebrow}
-                            title={getSection('play').title}
-                            intro={getSection('play').intro}
-                            art={getSection('play').art}
-                            hidden={isHidden('play')}
-                        >
-                            <div className="grid gap-4 lg:grid-cols-2">
-                                {docs.playGuide.map((item) => (
-                                    <FeatureCard
-                                        key={item.title}
-                                        icon={item.icon}
-                                        title={item.title}
-                                        badge={item.badge}
-                                        tone={item.tone}
-                                    >
-                                        {item.body}
-                                    </FeatureCard>
-                                ))}
-                            </div>
-                        </GuideSection>
-
-                        <GuideSection
-                            id="voice-presets"
-                            icon={AudioLines}
-                            eyebrow={getSection('voice-presets').eyebrow}
-                            title={getSection('voice-presets').title}
-                            intro={getSection('voice-presets').intro}
-                            art={getSection('voice-presets').art}
-                            hidden={isHidden('voice-presets')}
-                        >
-                            <div className="grid gap-4 md:grid-cols-2">
-                                {docs.voicePresetGuide.map((item) => (
-                                    <FeatureCard
-                                        key={item.title}
-                                        icon={item.icon}
-                                        title={item.title}
-                                        badge={item.badge}
-                                        tone={item.tone}
-                                    >
-                                        {item.body}
-                                    </FeatureCard>
-                                ))}
-                            </div>
-                        </GuideSection>
-
-                        <GuideSection
-                            id="voice"
-                            icon={Mic}
-                            eyebrow={getSection('voice').eyebrow}
-                            title={getSection('voice').title}
-                            intro={getSection('voice').intro}
-                            art={getSection('voice').art}
-                            hidden={isHidden('voice')}
-                        >
-                            <div className="grid gap-4 md:grid-cols-2">
-                                {docs.voiceGuide.map((item) => (
-                                    <FeatureCard
-                                        key={item.title}
-                                        icon={item.icon}
-                                        title={item.title}
-                                        badge={item.badge}
-                                        tone={item.tone}
-                                    >
-                                        {item.body}
-                                    </FeatureCard>
-                                ))}
-                            </div>
-                        </GuideSection>
-
-                        <GuideSection
-                            id="writing"
-                            icon={BookOpenText}
-                            eyebrow={getSection('writing').eyebrow}
-                            tone="arcane"
-                            title={getSection('writing').title}
-                            intro={getSection('writing').intro}
-                            art={getSection('writing').art}
-                            hidden={isHidden('writing')}
-                        >
-                            <div className="grid gap-4 md:grid-cols-2">
-                                {docs.writingGuide.map((item) => (
-                                    <FeatureCard key={item.title} icon={item.icon} title={item.title} tone="arcane">
-                                        {item.body}
-                                    </FeatureCard>
-                                ))}
-                            </div>
-                        </GuideSection>
-
-                        <GuideSection
-                            id="resources"
-                            icon={FileText}
-                            eyebrow={getSection('resources').eyebrow}
-                            tone="arcane"
-                            title={getSection('resources').title}
-                            intro={getSection('resources').intro}
-                            art={getSection('resources').art}
-                            hidden={isHidden('resources')}
-                        >
-                            <div className="grid gap-4 md:grid-cols-2">
-                                {docs.resourcesGuide.map((item) => (
-                                    <FeatureCard
-                                        key={item.title}
-                                        icon={item.icon}
-                                        title={item.title}
-                                        badge={item.badge}
-                                        tone={item.tone ?? 'arcane'}
-                                    >
-                                        {item.body}
-                                    </FeatureCard>
-                                ))}
-                            </div>
-                        </GuideSection>
-
-                        <GuideSection
-                            id="media"
-                            icon={Images}
-                            eyebrow={getSection('media').eyebrow}
-                            tone="arcane"
-                            title={getSection('media').title}
-                            intro={getSection('media').intro}
-                            art={getSection('media').art}
-                            hidden={isHidden('media')}
-                        >
-                            <div className="grid gap-4 md:grid-cols-2">
-                                {docs.mediaGuide.map((item) => (
-                                    <FeatureCard
-                                        key={item.title}
-                                        icon={item.icon}
-                                        title={item.title}
-                                        badge={item.badge}
-                                        tone="arcane"
-                                    >
-                                        {item.body}
-                                    </FeatureCard>
-                                ))}
-                            </div>
-                        </GuideSection>
-
-                        <GuideSection
-                            id="best-practices"
-                            icon={ShieldCheck}
-                            eyebrow={getSection('best-practices').eyebrow}
-                            title={getSection('best-practices').title}
-                            intro={getSection('best-practices').intro}
-                            art={getSection('best-practices').art}
-                            hidden={isHidden('best-practices')}
-                        >
-                            <LabeledCallout label={docs.callout.bestPracticesLabel} icon={ShieldCheck}>
-                                <ul className="m-0 grid list-none gap-3 p-0">
-                                    {docs.bestPractices.map((practice) => (
-                                        <li key={practice} className="flex gap-3">
-                                            <span className="mt-1 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-ember-500/15 text-ember-300">
-                                                <Icon icon={ShieldCheck} size={12} />
-                                            </span>
-                                            <span className="font-ui text-sm leading-relaxed text-parchment-200">
-                                                {practice}
-                                            </span>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </LabeledCallout>
-                        </GuideSection>
-                    </main>
-                </div>
+                <TabPanel value="guide" idBase={VIEW_ID} active={view}>
+                    <GuideView
+                        tocId={TOC_ID}
+                        docs={docs}
+                        activeId={activeSection}
+                        isMatch={isMatch}
+                        filtering={filtering}
+                        desktop={desktop}
+                        onSelectSection={goToSection}
+                        onBackToTop={backToToc}
+                        onOpenPage={goToPage}
+                        onOpenRoadmap={openRoadmap}
+                        roadmapMatches={roadmapMatches ? t('docs.search.roadmapResults', { count: roadmapMatches }) : undefined}
+                        empty={docs.search.empty}
+                    />
+                </TabPanel>
+                <TabPanel value="roadmap" idBase={VIEW_ID} active={view}>
+                    <RoadmapView roadmap={docs.roadmap} onJump={jumpInRoadmap} />
+                </TabPanel>
             </div>
-        </div>
-    )
-}
-
-function GuideSection({
-    id,
-    icon,
-    eyebrow,
-    tone = 'ember',
-    title,
-    intro,
-    art,
-    hidden,
-    children,
-}: {
-    id: string
-    icon: LucideIcon
-    eyebrow: string
-    tone?: 'ember' | 'arcane'
-    title: string
-    intro: string
-    art?: string
-    hidden?: boolean
-    children: ReactNode
-}) {
-    return (
-        <section id={id} hidden={hidden} className="scroll-mt-8 border-t border-line-faint pt-8 first:border-t-0 first:pt-0">
-            {art && (
-                <Illustration
-                    src={art}
-                    alt={title}
-                    aspect="aspect-[16/5]"
-                    ring={tone}
-                    vignette
-                    className="mb-5"
-                />
-            )}
-            <div className="mb-4">
-                <PageHeader
-                    as="h2"
-                    size="md"
-                    eyebrow={eyebrow}
-                    eyebrowTone={tone}
-                    title={title}
-                    subtitle={intro}
-                    icon={<IconTile icon={icon} tone={tone} size="sm" />}
-                />
-            </div>
-            <div className="flex flex-col gap-5">{children}</div>
-        </section>
-    )
-}
-
-function LabeledCallout({
-    label,
-    icon,
-    tone = 'ember',
-    children,
-}: {
-    label: string
-    icon: LucideIcon
-    tone?: 'ember' | 'arcane'
-    children: ReactNode
-}) {
-    const arcane = tone === 'arcane'
-    return (
-        <div
-            className={cx(
-                'rounded-xl border p-5',
-                arcane ? 'border-arcane-500/25 bg-arcane-500/[.06]' : 'border-ember-500/25 bg-ember-500/[.06]',
-            )}
-        >
-            <div className="mb-3 inline-flex items-center gap-2">
-                <span
-                    className={cx(
-                        'inline-flex h-6 w-6 items-center justify-center rounded-md',
-                        arcane ? 'bg-arcane-500/20 text-arcane-300' : 'bg-ember-500/20 text-ember-300',
-                    )}
-                >
-                    <Icon icon={icon} size={13} />
-                </span>
-                <span
-                    className={cx(
-                        'font-ui text-[12px] font-semibold uppercase tracking-[0.16em]',
-                        arcane ? 'text-arcane-300' : 'text-ember-300',
-                    )}
-                >
-                    {label}
-                </span>
-            </div>
-            {children}
-        </div>
-    )
-}
-
-function FeatureCard({
-    icon,
-    title,
-    badge,
-    tone = 'ember',
-    children,
-}: Pick<GuideItem, 'icon' | 'title' | 'badge' | 'tone'> & { children: ReactNode }) {
-    return (
-        <article className="min-w-0 border-t border-line-faint py-5">
-            <div className="mb-3 flex items-start justify-between gap-3">
-                <Icon icon={icon} size={20} className={tone === 'arcane' ? 'text-arcane-300' : 'text-ember-300'} />
-                {badge && <Badge tone={tone}>{badge}</Badge>}
-            </div>
-            <h3 className="m-0 font-display text-h3 font-semibold text-fg">{title}</h3>
-            <p className="mt-2 font-ui text-body text-fg-muted">{children}</p>
-        </article>
-    )
-}
-
-function MapPanel({
-    icon,
-    title,
-    tone = 'ember',
-    tag,
-    onOpen,
-    children,
-}: {
-    icon: LucideIcon
-    title: string
-    tone?: 'ember' | 'arcane'
-    tag?: string
-    onOpen: () => void
-    children: ReactNode
-}) {
-    return (
-        <Card
-            interactive
-            role="button"
-            tabIndex={0}
-            aria-label={title}
-            onClick={onOpen}
-            onKeyDown={activateOnKey(onOpen)}
-            className="group p-4"
-        >
-            <div className="mb-2 flex items-center gap-2.5">
-                <IconTile icon={icon} tone={tone} size="sm" glow />
-                <h3 className="m-0 font-ui text-sm font-semibold text-parchment-50">{title}</h3>
-                {tag && <Tag>{tag}</Tag>}
-            </div>
-            <p className="m-0 font-ui text-[13px] leading-relaxed text-parchment-300">{children}</p>
-        </Card>
-    )
-}
-
-function UtilityRow({
-    icon,
-    title,
-    tone = 'neutral',
-    tag,
-    children,
-}: {
-    icon: LucideIcon
-    title: string
-    tone?: 'live' | 'arcane' | 'neutral'
-    tag?: string
-    children: ReactNode
-}) {
-    const toneClass =
-        tone === 'live'
-            ? 'bg-verdant-500/12 text-verdant-500'
-            : tone === 'arcane'
-              ? 'bg-arcane-500/15 text-arcane-300'
-              : 'bg-parchment-50/[.06] text-parchment-200'
-
-    return (
-        <div className="flex min-w-0 gap-3 border-t border-line-faint py-4">
-            <span className={cx('inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md', toneClass)}>
-                <Icon icon={icon} size={16} />
-            </span>
-            <div className="min-w-0">
-                <div className="mb-1 flex items-center gap-2">
-                    <h3 className="m-0 font-ui text-sm font-semibold text-parchment-50">{title}</h3>
-                    {tag && <Tag>{tag}</Tag>}
-                </div>
-                <p className="m-0 font-ui text-[13px] leading-relaxed text-parchment-300">{children}</p>
-            </div>
-        </div>
+        </DocsQueryContext.Provider>
     )
 }

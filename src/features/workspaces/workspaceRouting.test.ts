@@ -24,6 +24,14 @@ describe('workspace routing helpers', () => {
         expect(stampWorkspaceHash('gallery-characters', '#/gallery/characters', TEST_WORKSPACE_ID)).toBe('#/gallery/characters')
     })
 
+    it('does not normalize a disabled adventure route into the enabled Library', () => {
+        vi.stubEnv('VITE_FEATURE_WORKSPACES_ENABLED', 'true')
+        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'false')
+        expect(normalizeRoute('gallery-adventures', '#/gallery/adventures?card=tpl_1')).toEqual({
+            page: 'gallery-adventures', hash: '#/gallery/adventures?card=tpl_1',
+        })
+    })
+
     it('maps owned type galleries to the Library with the type filter and a reveal', () => {
         vi.stubEnv('VITE_FEATURE_WORKSPACES_ENABLED', 'true')
         expect(normalizeRoute('gallery-worlds', '#/gallery/worlds')).toEqual({ page: 'library', hash: '#/library?card_type=world' })

@@ -11,7 +11,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    'Acceptance rubric for one voice, model and language: six 1–5 scores, an explicit pass or fail, integrated loudness with the attenuation-only gain, and the call-eligibility preview (Flash only).',
+                    'Acceptance rubric for one voice, model and language: six 1–5 scores, an explicit pass or fail, integrated loudness with the attenuation-only gain, and the call-eligibility preview (v4).',
             },
         },
     },
@@ -29,8 +29,8 @@ const meta = {
         measuredLufs: { control: 'number', description: 'Server-measured loudness of the latest renders.' },
     },
     args: {
-        modelId: 'eleven_flash_v2_5',
-        modelLabel: 'Flash v2.5 (Standard)',
+        modelId: 'eleven_v4',
+        modelLabel: 'v4',
         stored: null,
         measuredLufs: -19.2,
         locale: 'en',
@@ -45,12 +45,14 @@ type Story = StoryObj<typeof meta>
 
 export const NewReview: Story = {}
 
+export const FishDrama: Story = { args: { modelId: 'drama-3', modelLabel: 'Fish Audio · Drama 3' } }
+
 export const StoredPass: Story = {
     args: { stored: makeAcceptance({ integrated_lufs: -18.4, gain_db: -0.4 }) },
 }
 
 export const TooLoud: Story = {
-    args: { modelId: 'eleven_v4', modelLabel: 'v4 (Expressive)', measuredLufs: -10.5 },
+    args: { modelId: 'eleven_v4', modelLabel: 'v4', measuredLufs: -10.5 },
 }
 
 export const SaveFailed: Story = {

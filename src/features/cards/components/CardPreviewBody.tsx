@@ -5,6 +5,7 @@
  * states. Kept free of any modal/window chrome so both surfaces render an
  * identical preview.
  */
+import { isVoicesFeatureEnabled } from '@/shared/featureFlags'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import { resolveMediaUrl } from '@/infrastructure/api'
@@ -133,7 +134,7 @@ export function CardPreviewBody({
                         {card.description && (
                             <p className="font-narrative text-sm leading-relaxed text-parchment-400">{card.description}</p>
                         )}
-                        {card.type === 'character' && card.voice && isElevenLabsProjection(card.voice.effective) && (
+                        {isVoicesFeatureEnabled() && card.type === 'character' && card.voice && isElevenLabsProjection(card.voice.effective) && (
                             <CardVoiceLine voice={card.voice} />
                         )}
                         <CardMetadata card={card} showUsage={showUsage} />

@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { NavigationCoordinatorValue, SwitchFailure } from '../providers/NavigationProvider'
+import { FRONTEND_FEATURE_ENV } from '@/shared/featureFlags'
 
 const mocks = vi.hoisted(() => ({
     page: 'library' as string,
@@ -81,6 +82,27 @@ describe('AppRouter Library and workspace routing', () => {
     afterEach(() => {
         Element.prototype.scrollTo = originalScrollTo
         vi.unstubAllEnvs()
+    })
+
+    it.each(['community', 'shared-card', 'voice-studio', 'admin-voices', 'calls', 'gallery-lorebooks', 'lorebook',
+        'gallery-resources', 'gallery-stories', 'story', 'gallery-adventures', 'adventure', 'active-adventures', 'interaction', 'assistant', 'library'])(
+        'renders the actual unavailable route for %s with all product flags off', async (page) => {
+            for (const env of Object.values(FRONTEND_FEATURE_ENV)) vi.stubEnv(env, 'false')
+            mocks.page = page
+            renderRouter(coordinator())
+            expect(await screen.findByRole('heading', { name: 'Not found' })).toBeInTheDocument()
+        },
+    )
+
+    it.each([
+        ['calls', 'voices', 'calls'], ['gallery-resources', 'lorebooks', 'lorebookResources'],
+    ] as const)('keeps %s unavailable when its parent is off and child is on', async (page, parent, child) => {
+        for (const env of Object.values(FRONTEND_FEATURE_ENV)) vi.stubEnv(env, 'true')
+        vi.stubEnv(FRONTEND_FEATURE_ENV[parent], 'false')
+        vi.stubEnv(FRONTEND_FEATURE_ENV[child], 'true')
+        mocks.page = page
+        renderRouter(coordinator())
+        expect(await screen.findByRole('heading', { name: 'Not found' })).toBeInTheDocument()
     })
 
     it('renders the Library with the R1 UI on, and not found with it off', async () => {

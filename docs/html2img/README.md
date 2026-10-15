@@ -1,0 +1,33 @@
+# Card PNG export: current contract and acceptance
+
+**Lifecycle: active implementation reference. Reviewed 2026-10-15.** Card PNG export is implemented in source. Private-image fidelity, host acceptance and visual/resource baselines remain open. This review checked the frontend action and BFF route, URL policy, renderer and readiness code. No browser render or host/provider acceptance was executed. Named owners and delivery dates remain unassigned.
+
+## Actual Magic Worlds implementation
+
+Magic Worlds renders curated **card exports** with Playwright/Chromium. Arbitrary HTML/URL/PDF rendering is outside this product contract:
+
+| Piece | Current behavior | Evidence |
+|---|---|---|
+| Frontend action | Gallery Download PNG calls `exportCardImage(cardType, cardId)` and downloads a blob | [API client](../../src/infrastructure/api/index.ts), [gallery actions](../../src/features/gallery/hooks/useGalleryCardActions.tsx), [gallery tests](../../src/features/gallery/components/GalleryPage.test.tsx) |
+| Backend route | Authenticated `GET /cards/{card_type}/{card_id}/export.png`; resolves a source in the request workspace, including archived sources | [card export route](../../../../PycharmProjects/magic-worlds-api/src/routes/card_exports.py) |
+| Supported content | Character, world, item and adventure-template cards; curated content, escaping, truncation and no portable workspace organization | [content renderer](../../../../PycharmProjects/magic-worlds-api/src/services/card_export/content.py), [export package](../../../../PycharmProjects/magic-worlds-api/src/services/card_export/__init__.py) |
+| Pixel output | Chromium/Playwright element screenshot of a 1200×1600 CSS card at scale 2, giving 2400×3200 PNG | [constants](../../../../PycharmProjects/magic-worlds-api/src/services/card_export/model.py), [Playwright renderer](../../../../PycharmProjects/magic-worlds-api/src/services/card_export/playwright_renderer.py) |
+| Readiness | Waits for fonts, then images, then required `data-fit-done="1"`; font/image timeouts allow visual fallbacks, fit timeout fails the render | [readiness tests](../../../../PycharmProjects/magic-worlds-api/tests/services/test_card_export_playwright_waits.py) |
+| Runtime dependency | Backend `requirements.txt` declares `playwright>=1.57.0,<2.0.0`; install compatible Chromium on the API host (the backend Dockerfile runs `python -m playwright install --with-deps chromium`) or configure an absolute `CARD_EXPORT_CHROMIUM_EXECUTABLE` | [requirements](../../../../PycharmProjects/magic-worlds-api/requirements.txt), [Dockerfile](../../../../PycharmProjects/magic-worlds-api/Dockerfile), [configuration loader](../../../../PycharmProjects/magic-worlds-api/src/services/card_export/__init__.py) |
+| Unavailable renderer | Returns HTTP 503 with public unavailable copy; no Selenium, WeasyPrint or Pillow renderer fallback | [route tests](../../../../PycharmProjects/magic-worlds-api/tests/routes/test_card_exports.py), [renderer tests](../../../../PycharmProjects/magic-worlds-api/tests/services/test_card_export.py) |
+
+There is no card-export/HTML renderer flag in [featureFlags.ts](../../src/shared/featureFlags.ts). PNG export availability is a backend runtime condition. Exporting adventures through their product surfaces is **WIP / disabled** wherever the adventure gate is false; `.env.example` defaults it off, and local settings are recorded only as the dated local observation in [Feature availability](../FEATURE_STATUS.md#status-rules), which is not deployment evidence. In the working tree (uncommitted, 2026-10-15), the client also blocks export and share actions for card types whose content-type flag is off (`exportCardImage` asserts the flag and the gallery card actions omit those options), so adventure-template export requires the adventures flag; the BFF export route itself has no content-type gate. Actual deployed browser availability has not been checked.
+
+Exported PNGs are static images: character cards can include a text **Voice** section (example dialogue, speech style, catchphrase), but no narration or other audio.
+
+## Gaps, roadmap and TBD
+
+| ID | Priority | Actual status / gap | Work and completion evidence |
+|---|---|---|---|
+| HTML-1 | P1 | **WIP — private portrait fidelity.** The HTML builder permits protected `/images/assets/{id}` URLs, while a fresh Playwright context has no bearer header/cookie/authenticated asset loader. The asset route requires authentication. Source therefore indicates the private hero request can fail and render fallback art; this was not live reproduced. | Resolve the authorized image in the backend and embed it, or define a narrowly scoped authenticated loading path; preserve card/workspace access checks. Add an actual browser render with a private portrait and verify its pixels, plus missing-image behavior. |
+| HTML-2 | P1 | **TBD — host acceptance.** Source tests primarily validate templates, fake renderer output and readiness sequencing. | Install/verify the deployed Chromium/runtime dependencies, render a card with fonts and image, assert 2400×3200 output, and exercise renderer-unavailable 503. Confirm the renderer can reach `request.base_url`: the hero image URL is built from it, public `/images/public/{id}` URLs load without authentication and private `/images/assets/{id}` URLs do not (HTML-1). Record host/version/date evidence. |
+| HTML-3 | P2 | **TBD — concurrency and resource policy.** Each render creates a browser; the async dispatcher uses `asyncio.to_thread`, with no pool/queue policy in this module. | Measure expected concurrency/latency/memory before choosing pooling or a bounded queue; define timeout/failure behavior and run an appropriate load test. No performance defect is established by this audit. |
+| HTML-4 | P2 | **TBD — visual regression baseline.** Long/sparse content and font/image fallbacks have source tests, but this audit did not verify rendered golden images. | Record representative character/world/item/adventure output with short/long content, missing images and font fallback; decide a stable visual regression process and allowable clipping. |
+| HTML-5 | P3 | **Deferred — generic renderer.** No general arbitrary HTML/URL/PDF rendering service is part of the current card export contract. | Add only if a separate product need is approved; define controlled templates, asset policy, output limits and isolation. |
+
+Owners and target dates are **TBD**. See the [project roadmap](../ROADMAP.md). No tests, browser renders or deployment checks were executed for this documentation-only audit. Existing tests establish implemented coverage, not successful production rendering.

@@ -1,3 +1,4 @@
+import { isLlmFeatureEnabled } from '@/shared/featureFlags'
 import { useId } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CircleCheck, CircleSlash } from 'lucide-react'
@@ -26,8 +27,8 @@ export function LlmProfileCompatibilityPanel({ state }: { state: LlmCompatibilit
             ? t(`llmProfiles.compatibility.reasons.${issue.code}`, { role })
             : t('llmProfiles.compatibility.reasons.other', { code: issue.code })
     }
-    const works = state.status === 'ready' ? state.report.features.filter(row => row.compatible) : []
-    const blocked = state.status === 'ready' ? state.report.features.filter(row => !row.compatible) : []
+    const works = state.status === 'ready' ? state.report.features.filter(row => isLlmFeatureEnabled(row.feature) && row.compatible) : []
+    const blocked = state.status === 'ready' ? state.report.features.filter(row => isLlmFeatureEnabled(row.feature) && !row.compatible) : []
     return <section className="flex flex-col gap-3" role="group" aria-labelledby={`${id}-title`}>
         <div className="flex flex-col gap-0.5">
             <h3 id={`${id}-title`} className="font-ui text-sm font-semibold text-parchment-50">{t('llmProfiles.compatibility.title')}</h3>
@@ -37,7 +38,7 @@ export function LlmProfileCompatibilityPanel({ state }: { state: LlmCompatibilit
         {state.status === 'unavailable' && <p role="status" className="font-ui text-label text-parchment-300">{t('llmProfiles.compatibility.unavailable')}</p>}
         {state.status === 'ready' && state.report.configuration_issue && <Callout tone="danger" role="alert">
             {t('llmProfiles.compatibility.invalid', { reason: reason(state.report.configuration_issue) })}</Callout>}
-        {state.status === 'ready' && state.report.features.length > 0 && <div className="flex flex-col gap-3">
+        {state.status === 'ready' && (works.length > 0 || blocked.length > 0) && <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-1.5">
                 <h4 id={`${id}-works`} className="flex items-center gap-1.5 font-ui text-label font-semibold text-verdant-500">
                     <Icon icon={CircleCheck} size={14} />{t('llmProfiles.compatibility.worksFor')}

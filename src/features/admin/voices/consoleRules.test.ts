@@ -56,7 +56,7 @@ describe('publishChecklist (05 §8.3)', () => {
         ])
     })
 
-    it('requires an own sample for every Flash-accepted language', () => {
+    it('requires an own sample for every v4-accepted language', () => {
         const voice = {
             ...readyVoice,
             acceptance: [...readyVoice.acceptance, makeAcceptance({ language: 'es' }), makeAcceptance({ language: 'es', model_id: 'eleven_v4' })],
@@ -64,20 +64,14 @@ describe('publishChecklist (05 §8.3)', () => {
         expect(failing(publishChecklist(voice, { visibility: 'public' }))).toEqual(['samples'])
     })
 
-    it('requires a v4 pass and Flash consistency of at least 4 in every Flash-accepted language (P-13)', () => {
-        const withEs = (...rows: ReturnType<typeof makeAcceptance>[]) => ({
+    it('requires current v4 acceptance and consistency for every accepted language', () => {
+        const legacy = { ...readyVoice, acceptance: [makeAcceptance({ model_id: 'eleven_flash_v2_5' })] }
+        expect(failing(publishChecklist(legacy, { visibility: 'public' }))).toContain('flashAccepted')
+        const lowConsistency = {
             ...readyVoice,
             languages: [...readyVoice.languages, { ...readyVoice.languages[0], language: 'es' }],
-            acceptance: [...readyVoice.acceptance, ...rows],
-        })
-        const noV4 = withEs(makeAcceptance({ language: 'es' }))
-        expect(failing(publishChecklist(noV4, { visibility: 'public' }))).toEqual(['expressiveAccepted'])
-        const v4Failed = withEs(makeAcceptance({ language: 'es' }), makeAcceptance({ language: 'es', model_id: 'eleven_v4', verdict: 'fail' }))
-        expect(failing(publishChecklist(v4Failed, { visibility: 'public' }))).toEqual(['expressiveAccepted'])
-        const lowConsistency = withEs(
-            makeAcceptance({ language: 'es', scores: { timbre: 4, naturalness: 4, emotion_tags: 4, accent: 4, artefacts: 4, consistency_vs_v4: 3 } }),
-            makeAcceptance({ language: 'es', model_id: 'eleven_v4' }),
-        )
+            acceptance: [...readyVoice.acceptance, makeAcceptance({ language: 'es', scores: { timbre: 4, naturalness: 4, emotion_tags: 4, accent: 4, artefacts: 4, consistency_vs_v4: 3 } })],
+        }
         expect(failing(publishChecklist(lowConsistency, { visibility: 'public' }))).toEqual(['callConsistency'])
     })
 
@@ -138,11 +132,11 @@ describe('loudness (D16)', () => {
 })
 
 describe('callEligibleFrom (D09)', () => {
-    it('requires a Flash pass and consistency of at least 4', () => {
-        expect(callEligibleFrom('eleven_flash_v2_5', 'pass', { consistency_vs_v4: 4 })).toBe(true)
-        expect(callEligibleFrom('eleven_flash_v2_5', 'pass', { consistency_vs_v4: 3 })).toBe(false)
-        expect(callEligibleFrom('eleven_flash_v2_5', 'fail', { consistency_vs_v4: 5 })).toBe(false)
-        expect(callEligibleFrom('eleven_v4', 'pass', { consistency_vs_v4: 5 })).toBe(false)
+    it('requires a v4 pass and consistency of at least 4', () => {
+        expect(callEligibleFrom('eleven_v4', 'pass', { consistency_vs_v4: 4 })).toBe(true)
+        expect(callEligibleFrom('eleven_v4', 'pass', { consistency_vs_v4: 3 })).toBe(false)
+        expect(callEligibleFrom('eleven_v4', 'fail', { consistency_vs_v4: 5 })).toBe(false)
+        expect(callEligibleFrom('eleven_flash_v2_5', 'pass', { consistency_vs_v4: 5 })).toBe(false)
     })
 })
 
@@ -158,13 +152,13 @@ describe('remixEligibility (05 §8.9)', () => {
 })
 
 describe('readinessChecks (03 §5.11)', () => {
-    it('passes an active owned voice accepted on Flash and v4 with a sample', () => {
+    it('passes an active owned voice accepted on v4 and v4 with a sample', () => {
         expect(allPassed(readinessChecks(readyVoice, 'en', 'English'))).toBe(true)
     })
 
     it('fails on the missing v4 acceptance and sample for another language', () => {
         expect(failing(readinessChecks(readyVoice, 'es', 'Spanish'))).toEqual(['flashAccepted', 'expressiveAccepted', 'sample'])
-        expect(failing(readinessChecks(libraryVoice, 'en', 'English'))).toEqual(['sourceKind', 'active', 'expressiveAccepted'])
+        expect(failing(readinessChecks(libraryVoice, 'en', 'English'))).toEqual(['sourceKind', 'active'])
     })
 })
 
@@ -257,7 +251,7 @@ describe('replacementCandidates and progress', () => {
         expect(repointCandidates(changed, [], catalog).map((entry) => entry.voice_key)).toEqual(['vk_dep_a', 'vk_dep_b', 'vk_young', 'vk_cycle', 'vk_fits', 'vk_fits_admin'])
     })
 
-    it('counts published voices per Flash-accepted language, preferring the server summary', () => {
+    it('counts published voices per v4-accepted language, preferring the server summary', () => {
         expect(publishProgress([readyVoice, replacementVoice, draftVoice, libraryVoice])).toEqual({ total: 2, byLanguage: { en: 2 } })
         expect(publishProgress([], { published_total: 7, published_by_language: { es: 3 } })).toEqual({ total: 7, byLanguage: { es: 3 } })
     })

@@ -46,7 +46,7 @@ const tideSinger: LibraryVoice = {
     name: 'Tide singer',
     description: 'Light and lilting, made for sea shanties.',
     labels: { accent: 'scottish', age: 'young', gender: 'female' },
-    verified_languages: [{ language: 'en', locale: 'en-GB', accent: 'scottish', model_ids: ['eleven_flash_v2_5'] }],
+    verified_languages: [{ language: 'en', locale: 'en-GB', accent: 'scottish', model_ids: ['eleven_v4'] }],
 }
 
 const never = <T,>() => new Promise<T>(() => {})

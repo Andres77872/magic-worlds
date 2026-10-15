@@ -12,6 +12,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { useData } from '@/app/hooks'
+import { isContentTypeFeatureEnabled } from '@/shared/featureFlags'
 import type { SessionLoreEntry } from '@/features/lorebook/loreTriggers'
 import type { Lorebook, Story, StoryCardKind, StoryCardRef, StoryCardSnapshot } from '@/shared'
 import { useWorkspaceReadOnly } from '@/shared/hooks/useWorkspaceReadOnly'
@@ -100,13 +101,17 @@ export function useCodex({ story, workspace }: CodexOptions): CodexApi {
         }
     }, [readOnly, workspace])
 
-    const refs = useMemo(
+    // Keep every stored ref for precedence; availability only projects what
+    // this build can display or act on. Never rewrite hidden snapshots.
+    const storedRefs = useMemo(
         () =>
             (story?.activeCardRefs ?? [])
                 .filter((ref) => !ref.chapterId)
                 .sort((a, b) => a.precedence - b.precedence),
         [story?.activeCardRefs],
     )
+
+    const refs = useMemo(() => storedRefs.filter((ref) => isContentTypeFeatureEnabled(ref.kind)), [storedRefs])
 
     const entries = useMemo<CodexEntry[]>(
         () =>
@@ -135,13 +140,14 @@ export function useCodex({ story, workspace }: CodexOptions): CodexApi {
     const existingEntryIds = useMemo(() => clonedEntryIds(refs), [refs])
 
     const nextPrecedence = useCallback(
-        () => refs.reduce((max, ref) => Math.max(max, ref.precedence + 1), 0),
-        [refs],
+        () => storedRefs.reduce((max, ref) => Math.max(max, ref.precedence + 1), 0),
+        [storedRefs],
     )
 
     const addCards = useCallback(
         async (cards: Array<{ kind: StoryCardKind; cardId: string }>) => {
             if (!storyId || cards.length === 0) return
+            if (cards.some((card) => !isContentTypeFeatureEnabled(card.kind))) return
             let precedence = nextPrecedence()
             // No snapshot here: the backend clones the card itself on POST.
             const payloads = cards.map((card) => ({
@@ -160,6 +166,7 @@ export function useCodex({ story, workspace }: CodexOptions): CodexApi {
     const cloneLorebookEntries = useCallback(
         async (lorebook: Lorebook, entryIds: string[]) => {
             if (!storyId || entryIds.length === 0) return
+            if (!isContentTypeFeatureEnabled('lorebook_entry')) return
             let precedence = nextPrecedence()
             const selected = lorebook.entries.filter((entry) => entryIds.includes(entry.id))
             const payloads = selected.map((entry) => ({
@@ -178,7 +185,7 @@ export function useCodex({ story, workspace }: CodexOptions): CodexApi {
 
     const toggleEntry = useCallback(
         async (entry: CodexEntry) => {
-            if (!storyId) return
+            if (!storyId || !isContentTypeFeatureEnabled(entry.kind)) return
             await track(() => updateStoryCardRef(storyId, entry.id, { enabled: !entry.enabled }))
         },
         [storyId, track, updateStoryCardRef],
@@ -186,7 +193,7 @@ export function useCodex({ story, workspace }: CodexOptions): CodexApi {
 
     const saveSnapshot = useCallback(
         async (entry: CodexEntry, patch: { label: string; description: string }) => {
-            if (!storyId) return
+            if (!storyId || !isContentTypeFeatureEnabled(entry.kind)) return
             // Merge, never replace: card snapshots keep stored race/category/source pins.
             const snapshot: StoryCardSnapshot = {
                 ...entry.ref.snapshot,
@@ -200,7 +207,7 @@ export function useCodex({ story, workspace }: CodexOptions): CodexApi {
 
     const removeEntry = useCallback(
         async (entry: CodexEntry) => {
-            if (!storyId) return
+            if (!storyId || !isContentTypeFeatureEnabled(entry.kind)) return
             await track(() => deleteStoryCardRef(storyId, entry.id))
         },
         [deleteStoryCardRef, storyId, track],

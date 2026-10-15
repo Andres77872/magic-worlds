@@ -4,6 +4,7 @@ import type { VoicePresetV2 } from '@/shared'
 import {
     CAPABILITIES_EL_PLUS,
     CAPABILITIES_EL_PRO,
+    CATALOG_ELDRIN,
     PRESET_V2_GLOBAL,
     PRESET_V2_USER,
     VOICE_KEY_SELA,
@@ -11,6 +12,7 @@ import {
 import { VoiceStoryProviders } from '../storybook/VoiceStoryProviders'
 import { installVoiceStoryApi, type VoiceStoryApiOptions } from '../storybook/voiceStoryApi'
 import { VoiceStudioV2 } from './VoiceStudioV2'
+import { CAPABILITIES_FISH, CATALOG_FISH, PRESET_FISH } from '../fishFixtures'
 
 /** A preset on a leaving voice: its card offers "Switch to Maren" (05 §7.8). */
 const PRESET_LEAVING: VoicePresetV2 = {
@@ -25,6 +27,7 @@ const PRESET_LEAVING: VoicePresetV2 = {
 const STUDIO_API: VoiceStoryApiOptions = {
     capabilities: CAPABILITIES_EL_PLUS,
     presets: [PRESET_V2_USER, PRESET_LEAVING, PRESET_V2_GLOBAL],
+    catalog: [CATALOG_ELDRIN, CATALOG_FISH],
 }
 
 const withProviders: Decorator = function WithVoiceProviders(Story) {
@@ -47,7 +50,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    'The Voice studio (R1). My presets (preview, edit, delete, and the owner prompts of a leaving voice) and Global presets (read-only, duplicate), with the narration tier and the usage strip. Every story runs against local fakes; previews do not play in Storybook.',
+                    'Explore distinct voices first, listen, and save a voice for your characters. Saved settings have their own tab. Every story uses local API fixtures.',
             },
         },
     },
@@ -56,6 +59,10 @@ const meta = {
     argTypes: {
         capabilities: { control: false },
         onRetryCapabilities: { control: false },
+        onTabChange: { control: false },
+        onCreateVoice: { control: false, description: 'Root only: open the console on voice creation.' },
+        onManageVoices: { control: false, description: 'Root only: open the console catalog.' },
+        onManageVoice: { control: false, description: 'Root only: open one catalog voice in the console.' },
     },
     args: {
         capabilities: CAPABILITIES_EL_PLUS,
@@ -69,13 +76,31 @@ type Story = StoryObj<typeof meta>
 /** The account's presets (one on a leaving voice) and a global preset. */
 export const Default: Story = {}
 
+export const SavedSettings: Story = { args: { initialTab: 'saved' } }
+
+/** Fish uses the shared studio with curated moods and narration-only eligibility. */
+export const FishAudio: Story = {
+    parameters: { voiceApi: { capabilities: CAPABILITIES_FISH, presets: [PRESET_FISH], catalog: [CATALOG_FISH] } },
+    args: { capabilities: CAPABILITIES_FISH },
+}
+
+/**
+ * A root account: the header opens the voice console (manage the catalog,
+ * create a voice), and each catalog voice has a "Manage" shortcut to its
+ * console drawer. Consumers see none of these.
+ */
+export const RootTools: Story = {
+    args: { onCreateVoice: fn(), onManageVoices: fn(), onManageVoice: fn(), onTabChange: fn() },
+}
+
 /** A Pro account: previews offer Expressive. */
 export const ProPlan: Story = {
     parameters: { voiceApi: { ...STUDIO_API, capabilities: CAPABILITIES_EL_PRO } },
-    args: { capabilities: CAPABILITIES_EL_PRO },
+    args: { capabilities: CAPABILITIES_EL_PRO, initialTab: 'saved' },
 }
 
 export const Empty: Story = {
+    args: { initialTab: 'saved' },
     parameters: { voiceApi: { capabilities: CAPABILITIES_EL_PLUS, presets: [] } },
 }
 
@@ -90,6 +115,7 @@ export const CapabilitiesUnavailable: Story = {
  * "Preview · 1 credit" and the first paid render asks once per session.
  */
 export const UsageAndCredits: Story = {
+    args: { initialTab: 'saved' },
     parameters: {
         voiceApi: {
             ...STUDIO_API,
@@ -108,6 +134,7 @@ export const UsageAndCredits: Story = {
 
 /** 05 §7.7: no narration left today, so the usage strip carries the danger `daily_limit` badge. */
 export const NarrationSpent: Story = {
+    args: { initialTab: 'saved' },
     parameters: {
         voiceApi: {
             ...STUDIO_API,

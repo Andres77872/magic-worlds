@@ -1,4 +1,4 @@
-import type { PageType } from './types'
+import type { BackgroundTaskPublic, LlmFeature, PageType } from './types'
 
 export type FrontendFeatureFlag =
     | 'communityCards'
@@ -12,45 +12,65 @@ export type FrontendFeatureFlag =
     | 'appAssistant'
     | 'workspaces'
 
-function envFlag(name: string): boolean {
-    return import.meta.env[name] === 'true'
+/** Frontend product availability. Transport (including workspace scoping) stays independent. */
+export const FRONTEND_FEATURE_ENV = {
+    communityCards: 'VITE_FEATURE_COMMUNITY_CARDS_ENABLED',
+    lorebooks: 'VITE_FEATURE_LOREBOOKS_ENABLED',
+    lorebookResources: 'VITE_FEATURE_LOREBOOK_RESOURCES_ENABLED',
+    voices: 'VITE_FEATURE_VOICES_ENABLED',
+    calls: 'VITE_FEATURE_CALLS_ENABLED',
+    novels: 'VITE_FEATURE_NOVELS_ENABLED',
+    groupChats: 'VITE_FEATURE_GROUP_CHATS_ENABLED',
+    adventures: 'VITE_FEATURE_ADVENTURES_ENABLED',
+    appAssistant: 'VITE_FEATURE_APP_ASSISTANT_ENABLED',
+    workspaces: 'VITE_FEATURE_WORKSPACES_ENABLED',
+} as const satisfies Record<FrontendFeatureFlag, string>
+
+const FEATURE_DEPENDENCIES: Partial<Record<FrontendFeatureFlag, FrontendFeatureFlag>> = {
+    calls: 'voices',
+    lorebookResources: 'lorebooks',
+}
+
+export function isFeatureEnabled(feature: FrontendFeatureFlag): boolean {
+    const parent = FEATURE_DEPENDENCIES[feature]
+    return import.meta.env[FRONTEND_FEATURE_ENV[feature]] === 'true' && (!parent || isFeatureEnabled(parent))
 }
 
 export function isCommunityCardsFeatureEnabled(): boolean {
-    return envFlag('VITE_FEATURE_COMMUNITY_CARDS_ENABLED')
+    return isFeatureEnabled('communityCards')
 }
 
 export function isLorebooksFeatureEnabled(): boolean {
-    return envFlag('VITE_FEATURE_LOREBOOKS_ENABLED')
+    return isFeatureEnabled('lorebooks')
 }
 
 export function isLorebookResourcesFeatureEnabled(): boolean {
-    return isLorebooksFeatureEnabled() && envFlag('VITE_FEATURE_LOREBOOK_RESOURCES_ENABLED')
+    return isFeatureEnabled('lorebookResources')
 }
 
 export function isVoicesFeatureEnabled(): boolean {
-    return envFlag('VITE_FEATURE_VOICES_ENABLED')
+    return isFeatureEnabled('voices')
 }
 
 export function isCallsFeatureEnabled(): boolean {
-    return envFlag('VITE_FEATURE_CALLS_ENABLED')
+    return isFeatureEnabled('calls')
 }
 
 export function isNovelsFeatureEnabled(): boolean {
-    return envFlag('VITE_FEATURE_NOVELS_ENABLED')
+    return isFeatureEnabled('novels')
 }
 
 export function isGroupChatsFeatureEnabled(): boolean {
-    return envFlag('VITE_FEATURE_GROUP_CHATS_ENABLED')
+    return isFeatureEnabled('groupChats')
 }
 
 export function isAdventuresFeatureEnabled(): boolean {
-    return envFlag('VITE_FEATURE_ADVENTURES_ENABLED')
+    return isFeatureEnabled('adventures')
 }
 
 /** The app-wide assistant chat (`#/assistant`); off until the BFF serves the `app` kind of `/assistant/conversations`. */
 export function isAppAssistantFeatureEnabled(): boolean {
-    return envFlag('VITE_FEATURE_APP_ASSISTANT_ENABLED')
+    return isFeatureEnabled('appAssistant')
 }
 
 /**
@@ -61,32 +81,82 @@ export function isAppAssistantFeatureEnabled(): boolean {
  * sees a notice that their content is safe.
  */
 export function isWorkspacesFeatureEnabled(): boolean {
-    return envFlag('VITE_FEATURE_WORKSPACES_ENABLED')
+    return isFeatureEnabled('workspaces')
 }
 
-export function isFeatureEnabled(feature: FrontendFeatureFlag): boolean {
-    switch (feature) {
-        case 'communityCards':
-            return isCommunityCardsFeatureEnabled()
-        case 'lorebooks':
-            return isLorebooksFeatureEnabled()
-        case 'lorebookResources':
-            return isLorebookResourcesFeatureEnabled()
-        case 'voices':
-            return isVoicesFeatureEnabled()
-        case 'calls':
-            return isCallsFeatureEnabled()
-        case 'novels':
-            return isNovelsFeatureEnabled()
-        case 'groupChats':
-            return isGroupChatsFeatureEnabled()
-        case 'adventures':
-            return isAdventuresFeatureEnabled()
-        case 'appAssistant':
-            return isAppAssistantFeatureEnabled()
-        case 'workspaces':
-            return isWorkspacesFeatureEnabled()
-    }
+const CONTENT_FEATURES: Record<string, FrontendFeatureFlag> = {
+    adventure: 'adventures', adventure_template: 'adventures', adventure_session: 'adventures',
+    lorebook: 'lorebooks', lorebook_entry: 'lorebooks',
+    resource: 'lorebookResources',
+    story: 'novels', novel: 'novels',
+    character_group: 'groupChats',
+}
+
+/** Shared by mixed listings, card pickers, imports and generic card actions. */
+export function isContentTypeFeatureEnabled(type: string): boolean {
+    const feature = Object.prototype.hasOwnProperty.call(CONTENT_FEATURES, type) ? CONTENT_FEATURES[type] : undefined
+    return !feature || isFeatureEnabled(feature)
+}
+
+export const LIBRARY_CARD_TYPES = ['character', 'world', 'item', 'adventure_template'] as const
+
+/** Raw collection totals are displayable only when every counted kind is available. */
+export function isLibraryCardCountAvailable(): boolean {
+    return LIBRARY_CARD_TYPES.every(isContentTypeFeatureEnabled)
+}
+
+/** The usage DTO combines adventures and all chat kinds without a breakdown. */
+export function isSessionUsageCountAvailable(): boolean {
+    return isAdventuresFeatureEnabled() && isGroupChatsFeatureEnabled()
+}
+
+const LLM_FEATURES: Partial<Record<LlmFeature, FrontendFeatureFlag>> = {
+    novel: 'novels', chat_adventure: 'adventures', chat_group: 'groupChats',
+    lorebook_assistant: 'lorebooks', lorebook_extraction: 'lorebookResources',
+    app_assistant: 'appAssistant', callbot: 'calls', moderation: 'voices',
+}
+
+export function isLlmFeatureEnabled(feature: LlmFeature): boolean {
+    const owner = LLM_FEATURES[feature]
+    return !owner || isFeatureEnabled(owner)
+}
+
+/** Task and membership-operation names use different transport vocabularies. */
+const OPERATION_FEATURES: Record<string, FrontendFeatureFlag> = {
+    tts: 'voices', tts_job: 'voices', text_to_speech: 'voices', tts_generation: 'voices', voice_preview: 'voices', voice_call: 'calls',
+    pdf_import: 'lorebookResources', lorebook_extraction: 'lorebookResources',
+    lorebook_resource_extraction: 'lorebookResources',
+}
+
+export function isOperationFeatureEnabled(operation: string): boolean {
+    const feature = Object.prototype.hasOwnProperty.call(OPERATION_FEATURES, operation) ? OPERATION_FEATURES[operation] : undefined
+    return !feature || isFeatureEnabled(feature)
+}
+
+export function isTaskFeatureEnabled(task: Pick<BackgroundTaskPublic, 'operation' | 'target'>): boolean {
+    return isOperationFeatureEnabled(task.operation) && isContentTypeFeatureEnabled(task.target.type)
+}
+
+export function assertFeatureEnabled(feature: FrontendFeatureFlag): void {
+    if (!isFeatureEnabled(feature)) throw new Error(FEATURE_DISABLED_MESSAGES[feature])
+}
+
+const FEATURE_DISABLED_MESSAGES: Record<FrontendFeatureFlag, string> = {
+    communityCards: 'Community card sharing is disabled.', lorebooks: 'Lorebooks are disabled.',
+    lorebookResources: 'Lorebook resources are disabled.', voices: 'Voices are disabled.',
+    calls: 'Calls are disabled.', novels: 'Novels are disabled.', groupChats: 'Group chats are disabled.',
+    adventures: 'Adventures are disabled.', appAssistant: 'The app assistant is disabled.',
+    workspaces: 'Workspaces are disabled.',
+}
+
+export function assertContentTypeFeatureEnabled(type: string): void {
+    const feature = Object.prototype.hasOwnProperty.call(CONTENT_FEATURES, type) ? CONTENT_FEATURES[type] : undefined
+    if (feature) assertFeatureEnabled(feature)
+}
+
+export function assertLlmFeatureEnabled(feature: LlmFeature): void {
+    const owner = LLM_FEATURES[feature]
+    if (owner) assertFeatureEnabled(owner)
 }
 
 export function isPageFeatureEnabled(page: PageType): boolean {

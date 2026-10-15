@@ -34,17 +34,23 @@ import { apiService } from '@/infrastructure/api'
 import { useAttestation } from '@/features/legal/attestation/attestationContext'
 import type {
     NarrationTier,
+    VoiceProvider,
     PreviewTextId,
     VoiceEmotion,
     VoicePresetPreviewRequestV2,
     VoicePresetPreviewResponse,
     VoiceSettingsV2,
+    VoicePerformance,
+    UtterancePerformance,
 } from '@/shared'
 import { clipVolume } from '@/shared/voice/clipVolume'
 import { readVoiceUsage, type VoiceUsageView } from '@/shared/voice/voiceUsage'
 
 /** The recipe preview (EP-6): a catalog voice, its V2 settings and a narration tier. */
 export interface RecipePreviewInput {
+    performance?: VoicePerformance | UtterancePerformance | null
+    authoredText?: string
+    provider?: VoiceProvider
     voiceKey: string
     settings: VoiceSettingsV2 | null
     emotion: VoiceEmotion | null
@@ -246,6 +252,8 @@ export function previewAudioUrl(response: VoicePresetPreviewResponse | null | un
 export function previewRequestBody(input: RecipePreviewInput): VoicePresetPreviewRequestV2 {
     return {
         voice_key: input.voiceKey,
+        ...(input.provider === 'fish_audio' ? { schema_version: 3 as const, provider: 'fish_audio' as const } : {}),
+        ...(input.provider === 'fish_audio' && input.performance ? { performance: input.performance } : {}),
         settings: input.settings ?? null,
         emotion: input.emotion ?? null,
         text_id: input.textId,
@@ -329,7 +337,11 @@ export function useRecipePreview({ enabled = true }: UseRecipePreviewOptions = {
         const mine = ++seq.current
         setState((current) => ({ ...current, status: 'loading', problem: null }))
 
-        const once = () => apiService.previewVoice(previewRequestBody(input), { signal: abort.signal })
+        const once = () => input.authoredText !== undefined
+            ? apiService.previewVoicePerformance({ voice_key: input.voiceKey, text: input.authoredText,
+                language: input.language as 'en' | 'es', kind: input.textId, emotion: input.emotion,
+                performance: input.performance as UtterancePerformance }, abort.signal)
+            : apiService.previewVoice(previewRequestBody(input), { signal: abort.signal })
         // 05 §6.4: a token-bucket 429 shows its copy, waits its Retry-After and retries once.
         let bucketRetried = false
         const request = async () => {

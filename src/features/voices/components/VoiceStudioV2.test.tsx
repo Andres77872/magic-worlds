@@ -18,8 +18,11 @@ import {
 import { clearPreferredLanguageCache } from '../hooks/usePreferredLanguage'
 import { resetPreviewCreditConfirmation } from '../usePreviewCreditConfirm'
 import { clearPreviewTextsCache } from '../usePreviewTexts'
+import { NavigationContext } from '@/app/providers/NavigationProvider'
+import type { ComponentProps } from 'react'
 import { PresetCardV2 } from './PresetCardV2'
 import { VoiceStudioPage } from './VoiceStudioPage'
+import { CAPABILITIES_FISH, CATALOG_FISH, PRESET_FISH } from '../fishFixtures'
 
 const mockUseAuth = vi.fn()
 const api = {
@@ -64,6 +67,8 @@ const NIGHT_FERRY_PREVIEW = 'Preview Night ferry, Sela, English'
 
 describe('VoiceStudioPage (R1-FE-02)', () => {
     beforeEach(() => {
+        window.history.replaceState(null, '', '/#/voices?view=saved')
+        api.listVoiceCatalog.mockReset().mockResolvedValue({ items: [], next_cursor: null })
         mockUseAuth.mockReturnValue({ isAuthenticated: true, openLoginModal: vi.fn(), userHash: 'user-a' })
         api.listVoicePresets.mockReset().mockResolvedValue([PRESET_V2_USER])
         api.getUserProfile.mockReset().mockResolvedValue({ membership: {} })
@@ -99,18 +104,18 @@ describe('VoiceStudioPage (R1-FE-02)', () => {
         api.getUserPreferences.mockReset().mockResolvedValue({ preferred_language: 'en', has_preference: false, narration_tier: 'standard' })
         render(<VoiceStudioPage />)
         await screen.findByText('Harbour master')
-        fireEvent.click(screen.getByRole('button', { name: 'New preset' }))
-        fireEvent.change(await screen.findByLabelText('Preset name'), { target: { value: 'My draft' } })
+        fireEvent.click(screen.getByRole('button', { name: 'New voice setting' }))
+        fireEvent.change(await screen.findByLabelText('Name for these settings'), { target: { value: 'My draft' } })
         // The failed read leaves the recipe read-only, with its retry.
         fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
         await waitFor(() => expect(api.getVoiceCapabilities).toHaveBeenLastCalledWith({ fresh: true }))
         // In flight: no page spinner, the studio and the draft stay.
         expect(screen.getByTestId('voice-studio-v2')).toBeInTheDocument()
-        expect(screen.getByLabelText('Preset name')).toHaveValue('My draft')
+        expect(screen.getByLabelText('Name for these settings')).toHaveValue('My draft')
         release(CAPABILITIES_EL_PRO)
         // The read lands in the open editor: the recipe controls appear, the draft is untouched.
         expect(await screen.findByRole('slider', { name: /Stability/ })).toBeInTheDocument()
-        expect(screen.getByLabelText('Preset name')).toHaveValue('My draft')
+        expect(screen.getByLabelText('Name for these settings')).toHaveValue('My draft')
     })
 })
 
@@ -120,7 +125,7 @@ describe('VoiceStudioV2 (R1-FE-02)', () => {
         clearPreviewTextsCache()
         resetPreviewCreditConfirmation()
         localStorage.clear()
-        window.history.replaceState(null, '', '/')
+        window.history.replaceState(null, '', '/#/voices?view=saved')
         mockUseAuth.mockReturnValue({ isAuthenticated: true, openLoginModal: vi.fn(), userHash: 'user-a' })
         api.getVoiceCapabilities.mockReset().mockResolvedValue(CAPABILITIES_EL_PRO)
         api.listVoicePresets.mockReset().mockResolvedValue([PRESET_V2_USER, PRESET_V2_GLOBAL])
@@ -141,12 +146,97 @@ describe('VoiceStudioV2 (R1-FE-02)', () => {
         window.history.replaceState(null, '', '/')
     })
 
-    it('lays out the header, the tier setting, the language note and both sections', async () => {
+    it('opens on distinct voices in both languages and saves a selected Fish voice without searching again', async () => {
+        window.history.replaceState(null, '', '/#/voices')
+        const gabriel = { ...CATALOG_FISH, display_name: 'Gabriel', primary_language: 'es',
+            languages: [{ ...CATALOG_FISH.languages[0], language: 'es', sample_url: '/voices/catalog/gabriel/sample.mp3' }] }
+        api.getVoiceCapabilities.mockResolvedValue(CAPABILITIES_FISH)
+        api.listVoiceCatalog.mockResolvedValue({ items: [CATALOG_ELDRIN, gabriel], next_cursor: null })
+        const saved = { ...PRESET_FISH, name: 'Gabriel', voice_name: 'Gabriel' }
+        api.createVoicePreset.mockResolvedValue(saved)
         render(<VoiceStudioPage />)
-        expect(await screen.findByRole('heading', { name: 'My presets' })).toBeInTheDocument()
-        expect(screen.getByRole('heading', { name: 'Global presets' })).toBeInTheDocument()
+
+        expect(await screen.findByRole('tab', { name: 'Explore voices' })).toHaveAttribute('aria-selected', 'true')
+        const catalogue = screen.getByRole('tabpanel', { name: 'Explore voices' })
+        await within(catalogue).findByText('Gabriel')
+        expect(api.listVoiceCatalog.mock.calls[0][0]).not.toHaveProperty('language')
+        expect(within(catalogue).getByText('Eldrin')).toBeVisible()
+        expect(screen.queryByRole('button', { name: 'New voice setting' })).not.toBeInTheDocument()
+        expect(screen.getByTestId('narration-tier-setting')).not.toBeVisible()
+
+        const row = within(catalogue).getAllByTestId('catalog-voice-row').find((item) => within(item).queryByText('Gabriel'))!
+        expect(within(row).getByRole('button', { name: 'Listen to Gabriel, Spanish' })).toHaveTextContent('Listen')
+        fireEvent.click(within(row).getByRole('button', { name: 'Use this voice' }))
+        expect(await screen.findByLabelText('Name for these settings')).toHaveValue('Gabriel')
+        expect(screen.queryByRole('slider', { name: /Stability/ })).not.toBeInTheDocument()
+        expect(within(screen.getByRole('dialog')).queryByRole('searchbox', { name: 'Search voices' })).not.toBeInTheDocument()
+        api.listVoicePresets.mockResolvedValue([saved])
+        fireEvent.click(screen.getByRole('button', { name: 'Save settings' }))
+        await waitFor(() => expect(api.createVoicePreset).toHaveBeenCalledWith(expect.objectContaining({
+            name: 'Gabriel', voice_key: gabriel.voice_key, provider: 'fish_audio', schema_version: 3,
+        })))
+        expect(screen.getByRole('tab', { name: 'Saved settings' })).toHaveAttribute('aria-selected', 'true')
+        expect(await within(screen.getByRole('tabpanel', { name: 'Saved settings' })).findByRole('button', { name: 'Edit Gabriel' })).toBeVisible()
+    })
+
+    describe('navigation and root tools', () => {
+        type Nav = NonNullable<ComponentProps<typeof NavigationContext.Provider>['value']>
+        const navigation = () => ({ setPage: vi.fn(), replaceHash: vi.fn() })
+        const renderWith = (nav: ReturnType<typeof navigation>) => render(
+            <NavigationContext.Provider value={nav as unknown as Nav}><VoiceStudioPage /></NavigationContext.Provider>,
+        )
+
+        it('keeps the open tab in the URL and the header free of tab actions', async () => {
+            const nav = navigation()
+            renderWith(nav)
+            await screen.findByText('Harbour master')
+            // The saved list's own toolbar refreshes it; the header carries no consumer actions.
+            expect(screen.getByRole('button', { name: 'Refresh saved settings' })).toBeVisible()
+            expect(screen.queryByRole('button', { name: 'Refresh' })).not.toBeInTheDocument()
+            expect(screen.queryByRole('button', { name: 'Manage catalog' })).not.toBeInTheDocument()
+            expect(screen.queryByRole('button', { name: 'Create a voice' })).not.toBeInTheDocument()
+            fireEvent.click(screen.getByRole('tab', { name: 'Explore voices' }))
+            expect(nav.replaceHash).toHaveBeenLastCalledWith('#/voices')
+            fireEvent.click(screen.getByRole('tab', { name: 'Saved settings' }))
+            expect(nav.replaceHash).toHaveBeenLastCalledWith('#/voices?view=saved')
+            // The tab shows how many saved settings there are, without changing its name.
+            expect(within(screen.getByRole('tab', { name: 'Saved settings' })).getByText('2')).toBeInTheDocument()
+        })
+
+        it('offers root the console: the catalog, voice creation and one voice', async () => {
+            window.history.replaceState(null, '', '/#/voices')
+            mockUseAuth.mockReturnValue({ isAuthenticated: true, openLoginModal: vi.fn(), userHash: 'root-a', user: { user_type: 'root' } })
+            const nav = navigation()
+            renderWith(nav)
+            fireEvent.click(await screen.findByRole('button', { name: 'Manage Eldrin in the voice console' }))
+            expect(nav.setPage).toHaveBeenLastCalledWith('admin-voices', { hash: `#/admin/voices?module=catalog&voice=${VOICE_KEY_ELDRIN}` })
+            fireEvent.click(screen.getByRole('button', { name: 'Manage catalog' }))
+            expect(nav.setPage).toHaveBeenLastCalledWith('admin-voices', { hash: '#/admin/voices?module=catalog' })
+            fireEvent.click(screen.getByRole('button', { name: 'Create a voice' }))
+            expect(nav.setPage).toHaveBeenLastCalledWith('admin-voices', { hash: '#/admin/voices?module=create&provider=fish_audio' })
+        })
+
+        it('shows a consumer no console shortcut on catalog voices', async () => {
+            window.history.replaceState(null, '', '/#/voices')
+            renderWith(navigation())
+            await screen.findByRole('button', { name: /^Listen to Eldrin/ })
+            expect(screen.queryByRole('button', { name: /in the voice console/ })).not.toBeInTheDocument()
+        })
+
+        it('sends an account with no saved settings to the catalog', async () => {
+            api.listVoicePresets.mockResolvedValue([])
+            renderWith(navigation())
+            fireEvent.click(await screen.findByRole('button', { name: 'Explore voices' }))
+            expect(screen.getByRole('tab', { name: 'Explore voices' })).toHaveAttribute('aria-selected', 'true')
+        })
+    })
+
+    it('keeps saved settings and ElevenLabs quality in their own section', async () => {
+        render(<VoiceStudioPage />)
+        expect(await screen.findByRole('heading', { name: 'My saved settings' })).toBeInTheDocument()
+        expect(screen.getByRole('heading', { name: 'Shared settings' })).toBeInTheDocument()
         expect(screen.getByTestId('narration-tier-setting')).toBeInTheDocument()
-        expect(screen.getByText(/tuned for English and Spanish/)).toBeInTheDocument()
+        expect(screen.getByText('Fish Audio uses its own voice model; this setting applies to ElevenLabs.')).toBeVisible()
     })
 
     it('offers the actions of each row kind', async () => {
@@ -171,7 +261,7 @@ describe('VoiceStudioV2 (R1-FE-02)', () => {
         await screen.findByText('Harbour master')
         fireEvent.click(within(cardOf('Harbour master')).getByRole('button', { name: 'Edit Harbour master' }))
         expect(await screen.findByRole('heading', { name: 'Edit “Harbour master”' })).toBeInTheDocument()
-        fireEvent.click(screen.getByRole('button', { name: 'Save preset' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Save settings' }))
         await waitFor(() => expect(api.updateVoicePreset).toHaveBeenCalledWith('user-v2', expect.objectContaining({ voice_key: VOICE_KEY_ELDRIN })))
         await waitFor(() => expect(screen.queryByRole('heading', { name: 'Edit “Harbour master”' })).not.toBeInTheDocument())
         fireEvent.click(within(cardOf('Fireside narrator')).getByRole('button', { name: 'Duplicate Fireside narrator' }))
@@ -200,7 +290,7 @@ describe('VoiceStudioV2 (R1-FE-02)', () => {
         render(<VoiceStudioPage />)
         await screen.findByText('Harbour master')
         fireEvent.click(within(cardOf('Harbour master')).getByRole('button', { name: 'Delete Harbour master' }))
-        fireEvent.click(within(screen.getByRole('dialog', { name: 'Delete preset' })).getByRole('button', { name: 'Delete' }))
+        fireEvent.click(within(screen.getByRole('dialog', { name: 'Delete voice settings' })).getByRole('button', { name: 'Delete' }))
         await waitFor(() => expect(api.deleteVoicePreset).toHaveBeenCalledWith('user-v2'))
         await waitFor(() => expect(screen.getAllByTestId('preset-card-v2').some((card) => card.getAttribute('data-preset-id') === 'user-v2')).toBe(false))
     })
@@ -432,7 +522,7 @@ describe('VoiceStudioV2 (R1-FE-02)', () => {
             await screen.findByText('Fireside narrator')
             await waitFor(() => expect(within(cardOf('Harbour master')).getByRole('button', { name: HARBOUR_PREVIEW })).toBeDisabled())
             const sample = within(cardOf('Fireside narrator')).getByRole('button', { name: FIRESIDE_PREVIEW })
-            expect(sample).toBeEnabled()
+            await waitFor(() => expect(sample).toBeEnabled())
             expect(within(cardOf('Fireside narrator')).getByTestId('preset-card-free-sample')).toHaveTextContent('Free: voice sample')
             expect(screen.getByText('Daily preview limit reached. Previews reset tomorrow.')).toBeInTheDocument()
 
@@ -457,7 +547,7 @@ describe('VoiceStudioV2 (R1-FE-02)', () => {
             api.listVoicePresets.mockResolvedValue([updated, PRESET_V2_GLOBAL])
             const maren = (await screen.findAllByTestId('catalog-voice-row')).find((row) => within(row).queryByText('Maren')) as HTMLElement
             fireEvent.click(within(maren).getByRole('button', { name: 'Use' }))
-            fireEvent.click(screen.getByRole('button', { name: 'Save preset' }))
+            fireEvent.click(screen.getByRole('button', { name: 'Save settings' }))
             await waitFor(() => expect(screen.queryByRole('heading', { name: 'Edit “Harbour master”' })).not.toBeInTheDocument())
             await waitFor(() => expect(api.listVoicePresets).toHaveBeenCalledTimes(2))
             const card = cardOf('Harbour master')
@@ -485,7 +575,7 @@ describe('VoiceStudioV2 (R1-FE-02)', () => {
             expect(await within(cardOf('Night ferry')).findByRole('alert')).toHaveTextContent('This voice is not available right now.')
             fireEvent.click(within(cardOf('Harbour master')).getByRole('button', { name: 'Edit Harbour master' }))
             await screen.findByRole('heading', { name: 'Edit “Harbour master”' })
-            fireEvent.click(screen.getByRole('button', { name: 'Save preset' }))
+            fireEvent.click(screen.getByRole('button', { name: 'Save settings' }))
             await waitFor(() => expect(screen.queryByRole('heading', { name: 'Edit “Harbour master”' })).not.toBeInTheDocument())
             expect(within(cardOf('Night ferry')).getByRole('alert')).toHaveTextContent('This voice is not available right now.')
         })
@@ -494,6 +584,7 @@ describe('VoiceStudioV2 (R1-FE-02)', () => {
 
 describe('Studio card Preview button (R1-FE-02, 05 §10 audio controls)', () => {
     beforeEach(() => {
+        window.history.replaceState(null, '', '/#/voices?view=saved')
         vi.stubGlobal('URL', { ...URL, createObjectURL: vi.fn(() => 'blob:clip'), revokeObjectURL: vi.fn() })
         clearPreviewTextsCache()
         resetPreviewCreditConfirmation()

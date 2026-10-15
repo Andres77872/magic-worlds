@@ -25,15 +25,17 @@ export function PreviewSessionView({ state, filenameBase }: { state: ReturnType<
                     role="status"
                     action={
                         <Button variant="secondary" size="sm" iconLeft={<Icon icon={Star} size={14} />} onClick={() => sendToAcceptance(state.saved!.voice_key)}>
-                            {t('admin.voices.catalog.actions.sendToAcceptance')}
+                            {t('admin.voices.workspace.reviewVoice')}
                         </Button>
                     }
                 >
                     {t('admin.voices.toasts.designSaved')}: {state.saved.display_name}
+                    <p>{t('admin.voices.workspace.savedHelp')}</p>
                 </Callout>
             )}
             {state.session && (
                 <>
+                    <p className="font-ui text-caption text-fg-muted">{state.session.provider === 'fish_audio' ? 'Fish Audio' : 'ElevenLabs'}</p>
                     <Callout tone="warning" role="note" icon={<Icon icon={Clock} size={16} />}>
                         {t('admin.voices.design.sessionOnly')}
                     </Callout>
@@ -44,12 +46,14 @@ export function PreviewSessionView({ state, filenameBase }: { state: ReturnType<
                         languageName={languageName}
                         filenameBase={filenameBase}
                     />
-                    {state.chosen && (
+                    {state.chosen?.save_supported === false && <Callout tone="warning">{t('admin.voices.fish.designSignatureMissing')}</Callout>}
+                    {state.chosen && state.chosen.save_supported !== false && (
                         <SaveDesignForm
                             key={state.chosen.generated_voice_id}
                             defaultLanguage={state.chosen.language}
                             saving={state.saving}
                             error={state.saveError}
+                            provider={state.session.provider}
                             onSave={(values) => void state.save(values)}
                         />
                     )}

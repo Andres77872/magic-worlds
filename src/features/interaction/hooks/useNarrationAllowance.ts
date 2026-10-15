@@ -1,3 +1,4 @@
+import { isVoicesFeatureEnabled } from '@/shared/featureFlags'
 import { useEffect, useMemo, useState } from 'react'
 import type { ApiService } from '@/infrastructure/api'
 import type { TurnEntry, TtsLifecycleStatus } from '@/shared/types'
@@ -35,8 +36,9 @@ function hitDailyLimit(turns: readonly TurnEntry[]): boolean {
 export function useNarrationAllowance(
     api: Pick<ApiService, 'getUserProfile'>,
     turns: readonly TurnEntry[],
-    active: boolean,
+    requestedActive: boolean,
 ): NarrationAllowance {
+    const active = requestedActive && isVoicesFeatureEnabled()
     const [meter, setMeter] = useState<VoiceUsageMeter | null>(null)
     const settled = settledNarrations(turns)
     const limitHit = useMemo(() => hitDailyLimit(turns), [turns])

@@ -1,3 +1,4 @@
+import { isVoicesFeatureEnabled } from '@/shared/featureFlags'
 import { frameBatch } from '@/utils/frameBatch'
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useTranslation} from 'react-i18next'
@@ -166,6 +167,7 @@ function storedMessageId(turn?: TurnEntry | null): number | undefined {
 
 export function InteractionCenterPanel({sessionId: initialSessionId, ensureSession, turns, setTurns, config, speakerRoster, llmFeature, onEditNarratorVoice, isGroupChat = false}: InteractionCenterPanelProps) {
     const { t } = useTranslation()
+    const voicesEnabled = isVoicesFeatureEnabled()
     const [createdSessionId, setCreatedSessionId] = useState<number | null>(null)
     const sessionId = createdSessionId ?? initialSessionId
     const firstMessageRef = useRef<string | null>(null)
@@ -230,7 +232,7 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
     const autoNarrateKey = `${config.autoNarrateKeyPrefix}${sessionId}`
     const [autoNarrate, setAutoNarrate] = useState<boolean>(() => {
         try {
-            return localStorage.getItem(autoNarrateKey) === '1'
+            return voicesEnabled && localStorage.getItem(autoNarrateKey) === '1'
         } catch {
             return false
         }
@@ -271,23 +273,26 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
     // not a render) so it always sees the latest toggle value.
     const autoNarrateRef = useRef(autoNarrate)
     useEffect(() => {
-        autoNarrateRef.current = autoNarrate
+        autoNarrateRef.current = voicesEnabled && autoNarrate
+        if (!voicesEnabled) return
         try {
             localStorage.setItem(autoNarrateKey, autoNarrate ? '1' : '0')
         } catch {
             // ignore storage failures (private mode / quota)
         }
-    }, [autoNarrate, autoNarrateKey])
+    }, [autoNarrate, autoNarrateKey, voicesEnabled])
     // Stable composer-toolbar callbacks (memoized ChatComposer props).
-    const handleToggleAutoNarrate = useCallback(() => setAutoNarrate((on) => !on), [])
+    const handleToggleAutoNarrate = useCallback(() => {
+        if (isVoicesFeatureEnabled()) setAutoNarrate((on) => !on)
+    }, [])
     // Today's narration allowance (D24), read only once narration is in use here.
     const [narrationRequested, setNarrationRequested] = useState(false)
-    const narrationAllowance = useNarrationAllowance(config.api, turns, isAuthenticated && (autoNarrate || narrationRequested))
+    const narrationAllowance = useNarrationAllowance(config.api, turns, voicesEnabled && isAuthenticated && (autoNarrate || narrationRequested))
     // D37: the server can pause auto-narration (budget circuit, operator). Auto sends stop and a
     // notice shows; manual play is untouched (09 §4.5).
-    const autoNarrationPause = useAutoNarrationPause(config.api, isAuthenticated && autoNarrate && !readOnly, turns.length)
+    const autoNarrationPause = useAutoNarrationPause(config.api, voicesEnabled && isAuthenticated && autoNarrate && !readOnly, turns.length)
     // Companion safeguards (EP-11): always sent; all off when the read fails or is pending.
-    const voiceCapabilities = useVoiceCapabilitiesSnapshot(config.api, isAuthenticated && !readOnly, turns.length)
+    const voiceCapabilities = useVoiceCapabilitiesSnapshot(config.api, voicesEnabled && isAuthenticated && !readOnly, turns.length)
     // R2-BE-01 (ER-H1): the chat socket's `voice_safety_notice` pauses voice. While
     // paused, narration controls are disabled and nothing new is requested; the
     // notice modal shows until dismissed. A pause the server already reports (`safeguards.paused_until`) seeds it without
@@ -299,17 +304,17 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
     // as switched off too, so the reading is refreshed when the pause starts or ends.
     const narrationUnavailable = !useVoiceAvailability(
         config.api,
-        isAuthenticated && !readOnly,
+        voicesEnabled && isAuthenticated && !readOnly,
         `${turns.length}:${safetyPause.isPaused}`,
     ).narration_available
-    const narrationBlocked = narrationUnavailable || safetyPause.isPaused
+    const narrationBlocked = !voicesEnabled || narrationUnavailable || safetyPause.isPaused
     // R1-FE-04: "Voice replaced" actions on narrated turns. Refreshes ride the session's
     // client and store the returned DTO through DataProvider; they are offered disabled
     // while read-only, while a reply streams, and until the capabilities read succeeds.
     const { refreshAdventureVoices, refreshCharacterChatVoice } = useData()
     const refreshVoiceDisabled = readOnly || isLoading || !voiceCapabilities
     const handleRefreshVoice = useMemo(() => {
-        if (Number.isNaN(sessionId)) return undefined
+        if (!voicesEnabled || Number.isNaN(sessionId)) return undefined
         if (config.kind === 'adventure' && typeof refreshAdventureVoices === 'function') {
             // A targeted refresh sends the clip's speaker card (R-30).
             return (target: VoiceRefreshTarget) => refreshAdventureVoices(String(sessionId), target.cardId ? [target.cardId] : null, config.api)
@@ -318,7 +323,7 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
             return () => refreshCharacterChatVoice(String(sessionId), config.api)
         }
         return undefined
-    }, [config.api, config.kind, isGroupChat, refreshAdventureVoices, refreshCharacterChatVoice, sessionId])
+    }, [config.api, config.kind, isGroupChat, refreshAdventureVoices, refreshCharacterChatVoice, sessionId, voicesEnabled])
     // The break nudge counts time while narration plays here (13 §2.7): the turns
     // report each playing stretch.
     const playingTurnsRef = useRef(new Set<string>())
@@ -497,7 +502,7 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
 
     const ttsPollInFlightRef = useRef(false)
     const pollNonTerminalTtsJobs = useCallback(async (snapshot: TurnEntry[] = turnsRef.current) => {
-        if (!isPageFocused() || ttsPollInFlightRef.current || !sessionActiveRef.current) return
+        if (!isVoicesFeatureEnabled() || !isPageFocused() || ttsPollInFlightRef.current || !sessionActiveRef.current) return
         ttsPollInFlightRef.current = true
         try {
             const jobs = snapshot.filter(hasNonTerminalTtsJob)
@@ -521,6 +526,7 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
     }, [config.api, setTurnState])
 
     const applyTtsFrame = useCallback((frame: Parameters<typeof upsertChatTtsFrame>[1]) => {
+        if (!isVoicesFeatureEnabled()) return
         if (frame.assistant_message_id) {
             const timer = ttsWatchdogsRef.current.get(frame.assistant_message_id)
             if (timer !== undefined) {
@@ -693,7 +699,7 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
                 // Auto-narrate: request TTS for the just-finished GM turn. The audio
                 // streams back over the same socket; playback still needs a tap (see
                 // TurnNarration) because WS callbacks have no user-gesture context.
-                if (!interrupted && autoNarrateRef.current && !autoPausedRef.current && !readOnlyRef.current && assistantMessageId && turnId) {
+                if (isVoicesFeatureEnabled() && !interrupted && autoNarrateRef.current && !autoPausedRef.current && !readOnlyRef.current && assistantMessageId && turnId) {
                     sendTts(assistantMessageId, turnId, ttsRequestId(assistantMessageId, turnId))
                 }
             },
@@ -703,7 +709,7 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
             onTtsJob: applyTtsFrame,
             onTtsComplete: applyTtsFrame,
             onTtsFailed: applyTtsFrame,
-            onVoiceSafetyNotice: safetyPause.onNotice,
+            onVoiceSafetyNotice: (notice) => { if (isVoicesFeatureEnabled()) safetyPause.onNotice(notice) },
             onError: (message, detail) => {
                 // The UI copy is deliberately generic; the category + request id
                 // are what correlate this failure with the backend log line.
@@ -793,7 +799,7 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
 
     // Reconcile after a connection opens or the reader returns to this tab.
     const hasPendingImageJob = turns.some(hasNonTerminalImageJob)
-    const hasPendingTtsJob = turns.some(hasNonTerminalTtsJob)
+    const hasPendingTtsJob = voicesEnabled && turns.some(hasNonTerminalTtsJob)
     const lastPresenceRef = useRef({ socketStatus: 'closed' as typeof socketStatus, pageFocused })
     useEffect(() => {
         const previous = lastPresenceRef.current
@@ -913,7 +919,7 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
     // the turn pending so the speaker control shows a spinner before the first
     // `tts_job` frame arrives; the WS frames then drive the real lifecycle.
     const handleRequestNarration = useCallback((assistantMessageId?: number, turnId?: string) => {
-        if (!assistantMessageId || !turnId || narrationBlocked) return
+        if (!isVoicesFeatureEnabled() || !assistantMessageId || !turnId || narrationBlocked) return
         if (!isAuthenticated) {
             openLoginModal()
             return
@@ -960,7 +966,7 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
         requestNarrationRef.current = handleRequestNarration
     }, [handleRequestNarration])
     const handleAttestNarration = useCallback((assistantMessageId?: number, turnId?: string) => {
-        if (!attestation) return
+        if (!isVoicesFeatureEnabled() || !attestation) return
         void attestation.requestAttestation().then((attested) => {
             if (attested && mountedRef.current) requestNarrationRef.current(assistantMessageId, turnId)
         })
@@ -1488,8 +1494,8 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
                                         onCancelDeleteClick={handleCancelDeleteTurn}
                                         onEditClick={handleEditTurn}
                                         // Read-only (archived workspace): stored clips still play, nothing new is requested.
-                                        onRequestNarration={readOnly ? undefined : handleRequestNarration}
-                                        onAttestNarration={readOnly ? undefined : handleAttestNarration}
+                                        onRequestNarration={!voicesEnabled || readOnly ? undefined : handleRequestNarration}
+                                        onAttestNarration={!voicesEnabled || readOnly ? undefined : handleAttestNarration}
                                         narrationUnavailable={narrationBlocked}
                                         onRefreshVoice={handleRefreshVoice}
                                         onEditNarratorVoice={config.kind === 'adventure' ? onEditNarratorVoice : undefined}
@@ -1575,7 +1581,7 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
                 )}
                 {/* Narration switched off server-side (09 §7): buttons are disabled, this says why. The
                     live region stays mounted so a switch-off that lands mid-session is announced. */}
-                {!readOnly && (
+                {voicesEnabled && !readOnly && (
                     <div role="status" aria-live="polite" className="mx-auto w-full max-w-[760px] px-4 md:px-6" data-testid="narration-availability-status">
                         {/* A safety pause says so rather than the generic switch-off (09 §4.7). */}
                         {safetyPause.isPaused ? (
@@ -1590,7 +1596,7 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
                     </div>
                 )}
                 {/* The live region stays mounted while auto-narrate is on, so a pause that starts mid-session is announced. */}
-                {!readOnly && autoNarrate && (
+                {voicesEnabled && !readOnly && autoNarrate && (
                     <div role="status" aria-live="polite" className="mx-auto w-full max-w-[760px] px-4 md:px-6" data-testid="auto-narration-status">
                         {autoNarrationPause.paused && !narrationUnavailable && (
                             <Callout tone="info" icon={<Icon icon={PauseCircle} size={16} />} className="mb-3" data-testid="auto-narration-paused">
@@ -1599,8 +1605,8 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
                         )}
                     </div>
                 )}
-                {!readOnly && <NarrationAllowanceNote {...narrationAllowance} />}
-                {!readOnly && (
+                {voicesEnabled && !readOnly && <NarrationAllowanceNote {...narrationAllowance} />}
+                {voicesEnabled && !readOnly && (
                     <BreakNudge
                         minutes={readSafeguards(voiceCapabilities).break_nudge_minutes}
                         active={narrationPlaying}
@@ -1643,7 +1649,7 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
                 onCancel={() => setResetConfirmOpen(false)}
             />
             <SafetyPauseNotice
-                open={safetyPause.noticeOpen}
+                open={voicesEnabled && safetyPause.noticeOpen}
                 retryAfterSeconds={safetyPause.retryAfterSeconds}
                 onClose={safetyPause.dismiss}
             />

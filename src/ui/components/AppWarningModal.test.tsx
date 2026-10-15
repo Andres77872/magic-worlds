@@ -5,10 +5,13 @@ import { IN_APP_COPY_DRAFTS, IN_APP_COPY_SWITCHES, releasedInAppCopy } from '@/f
 import { isShippable } from '@/features/legal/documents/legalPending'
 import { AppWarningModal, APP_WARNING_ACCEPTANCE_KEY } from './AppWarningModal'
 
-const flags = vi.hoisted(() => ({ calls: false, released: false }))
+const flags = vi.hoisted(() => ({ voices: false, released: false }))
 
-// The calls build flag (today's only gate on the voice bullet), pinned per test.
-vi.mock('@/shared/voiceFeatureFlag', () => ({ isFrontendVoiceModeEnabled: () => flags.calls }))
+// The parent voice flag hides the bullet, independently of released legal copy.
+vi.mock('@/shared/featureFlags', async (importOriginal) => ({
+    ...await importOriginal<typeof import('@/shared/featureFlags')>(),
+    isVoicesFeatureEnabled: () => flags.voices,
+}))
 
 // The modal reads the shipped switches, on since I-71 (13 §5.8: the Privacy page publishes the
 // ElevenLabs variant); `flags.released` stands in for the rest of the release act: the draft marked final.
@@ -109,7 +112,7 @@ describe('AppWarningModal voice bullet (R2-FE-01; 13 §5.8, 09 §4.7)', () => {
     })
 
     afterEach(async () => {
-        flags.calls = false
+        flags.voices = false
         flags.released = false
         await i18n.changeLanguage('en')
     })
@@ -120,29 +123,36 @@ describe('AppWarningModal voice bullet (R2-FE-01; 13 §5.8, 09 §4.7)', () => {
         expect(draft.status).toBe('draft')
     })
 
-    it('draft unreleased, calls off: today’s modal, no voice bullet', () => {
+    it('hides released voice copy when voices are disabled', () => {
+        flags.released = true
+        render(<AppWarningModal />)
+        expect(bullets()).toEqual(TODAY_KEYS.map((key) => today(key)))
+    })
+
+    it('draft unreleased, voices off: today’s modal, no voice bullet', () => {
         render(<AppWarningModal />)
         expect(bullets()).toEqual(TODAY_KEYS.map((key) => today(key)))
         expect(screen.queryByText(draft.en.text)).toBeNull()
     })
 
-    it('draft unreleased, calls on: today’s voice bullet, unchanged', () => {
-        flags.calls = true
+    it('draft unreleased, voices on: today’s voice bullet, unchanged', () => {
+        flags.voices = true
         render(<AppWarningModal />)
         expect(bullets()).toEqual([...TODAY_KEYS, 'voice'].map((key) => today(key)))
         expect(screen.queryByText(draft.en.text)).toBeNull()
     })
 
-    it('once released, the rewritten bullet shows with calls off (narration is a voice surface)', () => {
+    it('once released, the rewritten bullet shows when voices are enabled', () => {
+        flags.voices = true
         flags.released = true
         render(<AppWarningModal />)
         expect(bullets()).toEqual([...TODAY_KEYS.map((key) => today(key)), draft.en.text])
         expect(screen.queryByText(today('voice'))).toBeNull()
     })
 
-    it('once released, the rewritten bullet replaces today’s with calls on, once, in the UI language', async () => {
+    it('once released, the rewritten bullet replaces today’s with voices on, once, in the UI language', async () => {
         flags.released = true
-        flags.calls = true
+        flags.voices = true
         const { unmount } = render(<AppWarningModal />)
         expect(bullets()).toEqual([...TODAY_KEYS.map((key) => today(key)), draft.en.text])
         unmount()

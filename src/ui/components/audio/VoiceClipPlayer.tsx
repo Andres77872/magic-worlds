@@ -23,10 +23,18 @@ export interface VoiceClipPlayerProps {
     title?: string
     /** Duration shown before metadata loads. */
     durationMs?: number | null
+    /** Effective playback volume, including the user's mute and voice gain. */
+    volume?: number
+    /**
+     * Start playing as soon as each clip loads. For clips the user just asked
+     * to hear ("Listen", "Preview"), so one click plays instead of revealing a
+     * paused bar. A blocked autoplay leaves the bar paused, ready to press.
+     */
+    autoPlay?: boolean
     className?: string
 }
 
-export function VoiceClipPlayer({ src, title, durationMs, className }: VoiceClipPlayerProps) {
+export function VoiceClipPlayer({ src, title, durationMs, volume = 1, autoPlay = false, className }: VoiceClipPlayerProps) {
     const { t } = useTranslation()
     const audioRef = useRef<HTMLAudioElement>(null)
     const [isPlaying, setIsPlaying] = useState(false)
@@ -38,6 +46,11 @@ export function VoiceClipPlayer({ src, title, durationMs, className }: VoiceClip
 
     const peaks = useMemo(() => pseudoPeaks(src), [src])
     const trackName = title?.trim() || t('ui.audio.voiceClipFallback')
+    const effectiveVolume = Number.isFinite(volume) ? Math.min(1, Math.max(0, volume)) : 1
+
+    useEffect(() => {
+        if (audioRef.current) audioRef.current.volume = effectiveVolume
+    }, [effectiveVolume, src])
 
     // Reset transport state when the source changes — React's "adjust state during
     // render" pattern, which avoids a cascading setState-in-effect.
@@ -91,6 +104,7 @@ export function VoiceClipPlayer({ src, title, durationMs, className }: VoiceClip
         e.preventDefault()
         const audio = audioRef.current
         if (!audio) return
+        audio.volume = effectiveVolume
         if (error) {
             setError(false)
             audio.load()
@@ -113,7 +127,7 @@ export function VoiceClipPlayer({ src, title, durationMs, className }: VoiceClip
     return (
         <div className={cx('flex min-w-0 flex-col gap-1', className)} data-testid="voice-clip-player">
             {/* Owned, off-DOM-flow audio element — never enters the playlist dock. */}
-            <audio ref={audioRef} src={src} preload="metadata" className="hidden" aria-hidden="true" />
+            <audio ref={audioRef} src={src} preload={autoPlay ? 'auto' : 'metadata'} autoPlay={autoPlay} className="hidden" aria-hidden="true" />
             <div className="flex items-center gap-2.5">
                 <button
                     type="button"

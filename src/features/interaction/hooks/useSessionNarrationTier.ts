@@ -12,6 +12,7 @@
  *   (409 or 422), with copy for the voice codes (R-10), the archived workspace,
  *   or a generic failure.
  */
+import { isVoicesFeatureEnabled } from '@/shared/featureFlags'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ApiError, type ApiService } from '@/infrastructure/api'
@@ -57,7 +58,7 @@ export function useSessionNarrationTier(
     const savingRef = useRef(false)
 
     const validId = typeof sessionId === 'number' && Number.isInteger(sessionId) && sessionId > 0
-    const canRead = Boolean(api && validId && typeof api.getVoiceCapabilities === 'function' && typeof api.getSessionVoiceSettings === 'function')
+    const canRead = isVoicesFeatureEnabled() && Boolean(api && validId && typeof api.getVoiceCapabilities === 'function' && typeof api.getSessionVoiceSettings === 'function')
     const key = `${basePath}:${validId ? sessionId : ''}`
 
     useEffect(() => {
@@ -82,7 +83,7 @@ export function useSessionNarrationTier(
     const current = loaded && loaded.key === key ? loaded.settings : null
 
     const setTier = useCallback(async (tier: NarrationTier | null) => {
-        if (!api || typeof api.setSessionNarrationTier !== 'function' || !current || savingRef.current) return
+        if (!isVoicesFeatureEnabled() || !api || typeof api.setSessionNarrationTier !== 'function' || !current || savingRef.current) return
         savingRef.current = true
         setPending({ tier })
         setError(null)
@@ -99,7 +100,7 @@ export function useSessionNarrationTier(
 
     const settings = current && pending ? { ...current, tier_override: pending.tier } : current
     return {
-        settings: capabilities ? settings : null,
+        settings: canRead && capabilities ? settings : null,
         capabilities,
         loading: canRead && !(loaded && loaded.key === key),
         saving: pending !== null,

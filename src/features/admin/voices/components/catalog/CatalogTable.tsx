@@ -1,8 +1,9 @@
 import { useTranslation } from 'react-i18next'
 import type { AdminCatalogVoice } from '@/shared'
 import { Badge, Button } from '@/ui/primitives'
+import { VoiceProviderTag } from '@/features/voices/components/VoiceProviderTag'
 import { ACCEPTANCE_MODELS } from '../../constants'
-import { formatDate, formatNumber } from '../../format'
+import { formatNumber } from '../../format'
 import { useVoiceConsole } from '../shell/VoiceConsoleContext'
 
 interface CatalogTableProps {
@@ -30,7 +31,8 @@ export function CatalogTable({ voices, onManage }: CatalogTableProps) {
     const languageLines = (voice: AdminCatalogVoice) => {
         const languages = [...new Set([...voice.languages.map((entry) => entry.language), ...voice.acceptance.map((row) => row.language)])].sort()
         return languages.map((language) => {
-            const accepted = ACCEPTANCE_MODELS.filter((modelId) =>
+            const models = voice.provider === 'fish_audio' ? ['drama-3'] : ACCEPTANCE_MODELS
+            const accepted = models.filter((modelId) =>
                 voice.acceptance.some((row) => row.model_id === modelId && row.language === language && row.verdict === 'pass'),
             )
             return accepted.length > 0
@@ -44,11 +46,11 @@ export function CatalogTable({ voices, onManage }: CatalogTableProps) {
 
     return (
         <div className="overflow-x-auto">
-            <table className="w-full min-w-[960px] border-collapse font-ui text-sm">
+            <table className="w-full border-collapse font-ui text-sm">
                 <caption className="sr-only">{t('admin.voices.catalog.columns.caption')}</caption>
                 <thead>
                     <tr className="text-left text-[11px] uppercase tracking-[0.08em] text-parchment-400">
-                        {(['voice', 'source', 'status', 'languages', 'callEligible', 'references', 'disableAt', 'suspectSince', 'actions'] as const).map((column) => (
+                        {(['voice', 'status', 'languages', 'references', 'actions'] as const).map((column) => (
                             <th key={column} scope="col" className="border-b border-line-faint pb-2 pr-3 font-semibold">
                                 {t(`admin.voices.catalog.columns.${column}`)}
                             </th>
@@ -59,12 +61,11 @@ export function CatalogTable({ voices, onManage }: CatalogTableProps) {
                     {voices.map((voice) => (
                         <tr key={voice.voice_key}>
                             <th scope="row" className={`${cell} text-left font-normal`}>
-                                <span className="block font-semibold text-parchment-50">{voice.display_name}</span>
-                                {voice.provider_name !== voice.display_name && (
-                                    <span className="block text-caption text-fg-muted">{t('admin.voices.catalog.providerName', { name: voice.provider_name })}</span>
-                                )}
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <span className="font-semibold text-parchment-50">{voice.display_name}</span>
+                                    <VoiceProviderTag provider={voice.provider} />
+                                </div>
                             </th>
-                            <td className={`${cell} text-parchment-200`}>{t(`admin.voices.sourceKind.${voice.source_kind}`)}</td>
                             <td className={cell}>
                                 <span className="flex flex-wrap gap-1">
                                     <Badge tone={STATUS_TONE[voice.status]}>{t(`admin.voices.status.${voice.status}`)}</Badge>
@@ -78,12 +79,7 @@ export function CatalogTable({ voices, onManage }: CatalogTableProps) {
                                     ))}
                                 </ul>
                             </td>
-                            <td className={`${cell} text-parchment-200`}>{voice.call_eligible ? t('admin.voices.common.yes') : t('admin.voices.common.no')}</td>
                             <td className={`${cell} tabular-nums text-parchment-200`}>{formatNumber(voice.reference_count, locale)}</td>
-                            <td className={`${cell} text-parchment-300`}>{voice.disable_at ? formatDate(voice.disable_at, locale) : '—'}</td>
-                            <td className={`${cell} ${voice.suspect_since ? 'text-amber-500' : 'text-parchment-300'}`}>
-                                {voice.suspect_since ? formatDate(voice.suspect_since, locale) : '—'}
-                            </td>
                             <td className={cell}>
                                 <Button variant="secondary" size="xs" onClick={() => onManage(voice.voice_key)} aria-label={t('admin.voices.catalog.manage', { name: voice.display_name })}>
                                     {t('admin.voices.catalog.manageShort')}

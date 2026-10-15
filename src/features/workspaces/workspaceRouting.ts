@@ -76,7 +76,7 @@ const GALLERY_CARD_TYPE: Record<GalleryType, WorkspaceCardType> = {
  * galleries. Returns the route unchanged otherwise.
  */
 export function normalizeRoute(page: PageType, hash: string): { page: PageType; hash: string } {
-    if (!isWorkspacesFeatureEnabled()) return { page, hash }
+    if (!isWorkspacesFeatureEnabled() || !isPageFeatureEnabled(page)) return { page, hash }
     if (page !== 'gallery-characters' && page !== 'gallery-personas' && page !== 'gallery-worlds'
         && page !== 'gallery-items' && page !== 'gallery-adventures') return { page, hash }
     const legacy = legacyGalleryTarget(hash || pageHash(page))

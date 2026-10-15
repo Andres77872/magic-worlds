@@ -21,6 +21,7 @@ import { Badge, Button, Callout, Icon, IconButton, IconTile, PageHeader, control
 import { useStartCall } from '../useStartCall'
 import { useWorkspaceReadOnly } from '@/shared/hooks/useWorkspaceReadOnly'
 import { CallHistoryRow } from './CallHistoryRow'
+import { CallStartErrorToast } from './CallStartErrorToast'
 import { CallTranscriptView } from './CallTranscriptView'
 
 const CALLS_PAGE_SIZE = 30
@@ -328,6 +329,7 @@ export function CallsPage() {
                 onConfirm={call.confirmPersonaPick}
                 onClose={call.closePersonaPick}
             />
+            <CallStartErrorToast error={call.error} onClose={call.clearError} />
         </div>
     )
 }

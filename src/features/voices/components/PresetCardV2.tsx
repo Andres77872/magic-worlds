@@ -6,7 +6,7 @@
  * - user: Preview, Edit, Delete, and the 05 §7.8 owner prompts next to its
  *   badges (`leaving` → "Switch to {replacement}", `needs_reselect` → "Choose
  *   a voice" / "Keep for now", `retired` → "Pick another");
- * - global: read-only, with Preview and Duplicate.
+ * - global: read-only, with Preview and Duplicate (the section says so once).
  *
  * An untuned preset whose preview is the voice's free catalog sample says
  * "Free: voice sample" by its Preview button (AC-P2, 05 §6.3).
@@ -26,9 +26,9 @@
 import { useId, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Copy, Loader2, Pencil, Play, Square, Trash2 } from 'lucide-react'
-import type { CatalogVoice, VoicePresetV2 } from '@/shared'
+import type { CatalogVoice, VoicePreset } from '@/shared'
 import { voiceDisplayName } from '@/shared/voice'
-import { Badge, Button, Icon, IconButton } from '@/ui/primitives'
+import { Avatar, Badge, Button, Icon, IconButton } from '@/ui/primitives'
 import { baseLanguageCode } from '../languageCode'
 import {
     emotionLabel,
@@ -55,7 +55,7 @@ import { VoiceOwnerPrompts, type VoiceReplacement } from './VoiceOwnerPrompts'
  * preset's own nor the preview tier, so it says null where either could change
  * the answer.
  */
-function cardPreviewLanguage(row: VoicePresetV2, item: CatalogVoice | null, language: string | null, appLanguage: string): string | null {
+function cardPreviewLanguage(row: VoicePreset, item: CatalogVoice | null, language: string | null, appLanguage: string): string | null {
     const own = row.language_code?.trim() || null
     if (own && item) {
         const accepted = previewableLanguages(item)
@@ -63,7 +63,7 @@ function cardPreviewLanguage(row: VoicePresetV2, item: CatalogVoice | null, lang
         if (![own, item.primary_language].some((code) => accepted.includes(baseLanguageCode(code) ?? ''))) return null
     }
     const text = studioPreviewLanguage(item, { languageCode: own, preferredLanguage: language, fallback: appLanguage })
-    if (!item || !isDefaultRecipe(row.settings, row.emotion)) return text
+    if (!item || (row.provider === 'fish_audio' && row.performance) || !isDefaultRecipe(row.settings, row.emotion)) return text
     // The sample served on each tier (none: a render in the text language); they must agree.
     const [standard, expressive] = (['standard', 'expressive'] as const).map((tier) => {
         const url = previewSampleUrl(item, text, tier)
@@ -73,7 +73,7 @@ function cardPreviewLanguage(row: VoicePresetV2, item: CatalogVoice | null, lang
 }
 
 interface PresetCardV2Props {
-    row: VoicePresetV2
+    row: VoicePreset
     /** The catalog entry of the row's voice (lookup), when known. */
     catalogItem?: CatalogVoice | null
     /** The language the voice is checked against for `not_tested_language`. */
@@ -124,9 +124,9 @@ export function PresetCardV2({
     const freeHintId = useId()
     const showFreeHint = Boolean(onPreview) && previewFree && !previewing
     const paidLabel = `${t('voices.studio.v2.preview')} · ${t('voices.preview.costsCredit')}`
+    const voice = voiceDisplayName(voiceFromPreset(row)) ?? t('voices.display.fallbackName')
     const previewName = (() => {
         if (previewing) return t('voices.studio.v2.stopNamed', { name: row.name })
-        const voice = voiceDisplayName(voiceFromPreset(row)) ?? t('voices.display.fallbackName')
         const heard = cardPreviewLanguage(row, catalogItem, language, previewLanguage(i18n.resolvedLanguage ?? i18n.language))
         const values = { name: row.name, voice, label: paidLabel, ...(heard ? { language: languageLabel(heard, i18n.language) } : {}) }
         // WCAG 2.5.3: the paid name starts with the visible "Preview · 1 credit".
@@ -136,18 +136,22 @@ export function PresetCardV2({
     return (
         <article data-testid="preset-card-v2" data-preset-id={row.preset_id}>
             <div className="flex flex-col gap-3 py-5 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex min-w-0 items-start gap-3">
+                {/* The voice's portrait: the same seed as its catalog row, so the two read as one speaker. */}
+                <Avatar name={catalogItem?.display_name ?? voice} size={40} />
                 <div className="flex min-w-0 flex-col gap-1">
                     <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-ui text-sm font-semibold text-parchment-50">{row.name}</p>
+                        <p className="min-w-0 break-words font-ui text-body font-semibold text-parchment-50">{row.name}</p>
+                        {row.provider === 'fish_audio' && <Badge tone="neutral">Fish Audio</Badge>}
                         {row.is_global && <Badge tone="arcane">{t('voices.studio.defaultBadge')}</Badge>}
                     </div>
                     <EffectiveVoiceLabel
                         stored={voiceFromPreset(row)}
                         effective={row.effective_voice}
                         showBadges={false}
-                        nameClassName="truncate font-ui text-xs text-parchment-400"
+                        nameClassName="truncate font-ui text-caption text-parchment-300"
                     />
-                    {row.description && <p className="font-ui text-sm text-parchment-300">{row.description}</p>}
+                    {row.description && <p className="break-words font-ui text-sm text-parchment-300">{row.description}</p>}
                     {(chips.length > 0 || row.emotion) && (
                         <div className="mt-1 flex flex-wrap gap-1.5">
                             {chips.map((chip) => (
@@ -178,11 +182,11 @@ export function PresetCardV2({
                             busy={switching}
                         />
                     )}
-                    {row.is_global && <p className="font-ui text-caption text-fg-muted">{t('voices.studio.v2.readOnlyGlobal')}</p>}
                     {children}
                 </div>
-                <div className="flex shrink-0 flex-col items-end gap-1.5">
-                    <div className="flex flex-wrap justify-end gap-2">
+                </div>
+                <div className="flex shrink-0 flex-col items-start gap-1.5 pl-[52px] sm:items-end sm:pl-0">
+                    <div className="flex flex-wrap gap-2 sm:justify-end">
                         {onPreview && (
                             <Button
                                 variant="secondary"

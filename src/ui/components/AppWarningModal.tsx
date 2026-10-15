@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle, CheckCircle2 } from 'lucide-react'
-import { isFrontendVoiceModeEnabled } from '@/shared/voiceFeatureFlag'
+import { isVoicesFeatureEnabled } from '@/shared/featureFlags'
 import { releasedInAppCopy } from '../../features/legal/documents/consentCopy'
 import { legalLanguage } from '../../features/legal/documents/legalPending'
 import { Button, Icon, Modal } from '../primitives'
@@ -33,9 +33,8 @@ function isViewingLegalPage() {
 export function AppWarningModal() {
     const { t, i18n } = useTranslation()
     const [isOpen, setIsOpen] = useState(() => !hasAcceptedAppWarning() && !isViewingLegalPage())
-    const voiceModeEnabled = isFrontendVoiceModeEnabled()
-    // R2-FE-01 (13 §5.8, 09 §4.7): once the R2 release switch flips, the rewritten voice bullet shows whenever
-    // any voice surface is on; narration has no client switch, so that is always. Switch off (null): today's modal.
+    const voicesEnabled = isVoicesFeatureEnabled()
+    // Released voice copy follows the same parent gate as narration and calls.
     const releasedVoiceBullet = releasedInAppCopy('warningVoice', legalLanguage(i18n.language))
 
     const acceptWarning = () => {
@@ -80,7 +79,7 @@ export function AppWarningModal() {
                     <li>{t('warning.aiContent')}</li>
                     <li>{t('warning.noPersonalData')}</li>
                     <li>{t('warning.credits')}</li>
-                    {(voiceModeEnabled || releasedVoiceBullet !== null) && (
+                    {voicesEnabled && (
                         <li>{releasedVoiceBullet ?? t('warning.voice')}</li>
                     )}
                 </ul>

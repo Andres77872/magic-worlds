@@ -1,3 +1,4 @@
+import { isVoicesFeatureEnabled } from '@/shared/featureFlags'
 import { memo, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ChatImageAsset, ChatNarratorIdentity, ChatResponseSegment, ForwardOption, ImageLifecycleStatus, TurnEntry } from '../../../shared'
@@ -150,7 +151,7 @@ export const ChatTurn = memo(function ChatTurn({ turn, onForwardOptionClick, onR
                                 onSelect={(index) => onSelectVersion(versions.ids[index])}
                             />
                         )}
-                        {!isUser && (onRequestNarration || hasNarration) && (
+                        {isVoicesFeatureEnabled() && !isUser && (onRequestNarration || hasNarration) && (
                             <TurnNarration
                                 status={turn.ttsStatus}
                                 url={turn.ttsUrl ?? turn.ttsAssets?.[0]?.url}

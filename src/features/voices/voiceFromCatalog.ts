@@ -4,13 +4,12 @@
  * (null); the language is never user-chosen (D13), and a catalog pick has no
  * preset linkage.
  */
-import type { CatalogVoice, CharacterVoiceV2, StoredCharacterVoice } from '@/shared'
+import type { CatalogVoice, StoredCharacterVoice } from '@/shared'
 import { parseStoredVoice } from '@/shared/voice'
 
-export function voiceFromCatalog(item: Pick<CatalogVoice, 'voice_key' | 'display_name'>): CharacterVoiceV2 {
+export function voiceFromCatalog(item: Pick<CatalogVoice, 'voice_key' | 'display_name' | 'provider'>): StoredCharacterVoice {
     return {
-        schema_version: 2,
-        provider: 'elevenlabs',
+        ...(item.provider === 'fish_audio' ? { schema_version: 3 as const, provider: 'fish_audio' as const } : { schema_version: 2 as const, provider: 'elevenlabs' as const }),
         voice_key: item.voice_key,
         voice_name: item.display_name,
         settings: null,
@@ -25,8 +24,8 @@ export function voiceFromCatalog(item: Pick<CatalogVoice, 'voice_key' | 'display
  * language and drops its preset linkage (the preset still names the old
  * voice). Without a stored voice it is the replacement with voice defaults.
  */
-export function voiceWithReplacement(stored: StoredCharacterVoice | null | undefined, replacement: Pick<CatalogVoice, 'voice_key' | 'display_name'>): CharacterVoiceV2 {
+export function voiceWithReplacement(stored: StoredCharacterVoice | null | undefined, replacement: Pick<CatalogVoice, 'voice_key' | 'display_name' | 'provider'>): StoredCharacterVoice {
     const voice = parseStoredVoice(stored)
-    if (!voice) return voiceFromCatalog(replacement)
+    if (!voice || voice.provider !== (replacement.provider ?? 'elevenlabs')) return voiceFromCatalog(replacement)
     return { ...voice, voice_key: replacement.voice_key, voice_name: replacement.display_name, preset_id: null, preset_name: null }
 }

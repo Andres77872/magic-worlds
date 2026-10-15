@@ -11,28 +11,12 @@ import { SynthLab } from './SynthLab'
 type ModelList = 'absent' | 'listed'
 type RenderOutcome = 'plays' | 'refused'
 
-/** The A4 model list (05 §8.2): Flash and v4 with extra formats and normalization, Multilingual v2 missing from the provider listing. */
+/** The A4 model list (05 §8.2): v4 with extra formats and normalization. */
 const LISTED_MODELS: AdminLabModel[] = [
-    {
-        model_alias: 'el_flash_v2_5',
-        label: 'Flash v2.5',
-        tier: 'standard',
-        available: true,
-        unavailable_reason: null,
-        max_chars: 5000,
-        output_formats: ['mp3_44100_128', 'mp3_44100_64', 'wav_24000'],
-        text_normalization: ['auto', 'on', 'off'],
-        supports_language_code: true,
-        supports_seed: true,
-        audio_tags: false,
-        breaks: true,
-        inline_ipa: false,
-        settings: ['stability', 'similarity_boost', 'speed'],
-    },
     {
         model_alias: 'el_v4',
         label: 'Eleven v4',
-        tier: 'expressive',
+        tier: 'standard',
         available: true,
         unavailable_reason: null,
         max_chars: 3000,
@@ -45,22 +29,7 @@ const LISTED_MODELS: AdminLabModel[] = [
         inline_ipa: true,
         settings: ['stability', 'similarity_boost'],
     },
-    {
-        model_alias: 'el_multilingual_v2',
-        label: 'Multilingual v2 (lab only)',
-        tier: null,
-        available: false,
-        unavailable_reason: 'model_unavailable',
-        max_chars: 10000,
-        output_formats: ['mp3_44100_128'],
-        text_normalization: ['auto'],
-        supports_language_code: false,
-        supports_seed: true,
-        audio_tags: false,
-        breaks: true,
-        inline_ipa: false,
-        settings: ['stability', 'similarity_boost', 'style', 'use_speaker_boost', 'speed'],
-    },
+
 ]
 
 /** A silent WAV render, so results play without any network request. */
@@ -125,7 +94,7 @@ type Story = StoryObj<typeof meta>
 /** Without the model list: the R0 lab, Maren preselected from "Send to lab". */
 export const Default: Story = {}
 
-/** With the model list: Eleven v4 offers WAV and raw PCM, and Multilingual v2 is listed but unavailable. */
+/** With the model list: Eleven v4 offers WAV and raw PCM, with the server-provided limits. */
 export const WithModelList: Story = { args: { modelList: 'listed' } }
 
 /** No voice chosen yet: Synthesize stays disabled until one is picked. */

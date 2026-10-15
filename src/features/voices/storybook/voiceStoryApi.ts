@@ -18,7 +18,7 @@ import type {
     UserPreferences,
     UserPreferencesUpdate,
     VoiceCapabilities,
-    VoicePresetV2,
+    VoicePreset,
     VoicePresetV2Write,
 } from '@/shared'
 import { CAPABILITIES_EL_PLUS, CATALOG_PAGE, PRESET_V2_USER } from '../fixtures'
@@ -26,7 +26,7 @@ import { CAPABILITIES_EL_PLUS, CATALOG_PAGE, PRESET_V2_USER } from '../fixtures'
 export interface VoiceStoryApiOptions {
     /** `'fail'`: the capabilities read fails (the V2 surfaces show their read-only state). */
     capabilities?: VoiceCapabilities | 'fail'
-    presets?: VoicePresetV2[]
+    presets?: VoicePreset[]
     /** `'unavailable'`: the catalog answers 404; `'loading'`: it never answers. */
     catalog?: CatalogVoice[] | 'unavailable' | 'loading'
     /** Page size of the fake catalog, to show "Load more". */
@@ -60,6 +60,7 @@ const never = () => new Promise<never>(() => {})
 function storyCatalogPage(catalog: CatalogVoice[], filters: CatalogQuery, cursor: string | null | undefined, pageSize: number): CatalogPage {
     const q = (filters.q ?? '').trim().toLowerCase()
     const matches = catalog.filter((item) => (!q || item.display_name.toLowerCase().includes(q) || (item.description ?? '').toLowerCase().includes(q))
+        && (!filters.provider || (item.provider ?? 'elevenlabs') === filters.provider)
         && (!filters.gender || item.gender === filters.gender)
         && (!filters.age || item.age === filters.age)
         && (filters.tags ?? []).every((tag) => item.tags.includes(tag)))
@@ -71,6 +72,7 @@ function storyCatalogPage(catalog: CatalogVoice[], filters: CatalogQuery, cursor
 export function installVoiceStoryApi(options: VoiceStoryApiOptions = {}): () => void {
     const capabilities = options.capabilities ?? CAPABILITIES_EL_PLUS
     const catalog = options.catalog ?? CATALOG_PAGE
+    const catalogItems = Array.isArray(catalog) ? catalog : []
     const pageSize = options.catalogPageSize ?? 24
     let presets = [...(options.presets ?? [])]
     let preferences: UserPreferences = {
@@ -89,11 +91,12 @@ export function installVoiceStoryApi(options: VoiceStoryApiOptions = {}): () => 
             value: async () => { throw new StoryApiError(`The voice story has no fake for ${key}.`, 0) },
         })
     }
-    const write = (body: VoicePresetV2Write, presetId: string): VoicePresetV2 => ({
+    const write = (body: VoicePresetV2Write, presetId: string): VoicePreset => ({
         ...PRESET_V2_USER,
         ...body,
+        ...(body.provider === 'fish_audio' ? { schema_version: 3 as const, provider: 'fish_audio' as const, settings: null } : { schema_version: 2 as const, provider: 'elevenlabs' as const }),
         preset_id: presetId,
-        voice_name: CATALOG_PAGE.find((item) => item.voice_key === body.voice_key)?.display_name ?? PRESET_V2_USER.voice_name,
+        voice_name: catalogItems.find((item) => item.voice_key === body.voice_key)?.display_name ?? PRESET_V2_USER.voice_name,
         is_global: false,
     })
     Object.assign(service, {
@@ -109,7 +112,7 @@ export function installVoiceStoryApi(options: VoiceStoryApiOptions = {}): () => 
             if (catalog === 'unavailable') return Promise.reject(new StoryApiError('The voice catalog is not available.', 404))
             return Promise.resolve(storyCatalogPage(catalog, filters, cursor, pageSize))
         },
-        getVoiceCatalogByKeys: async (keys: readonly string[]) => CATALOG_PAGE.filter((item) => keys.includes(item.voice_key)),
+        getVoiceCatalogByKeys: async (keys: readonly string[]) => catalogItems.filter((item) => keys.includes(item.voice_key)),
         listVoicePresets: async () => presets,
         createVoicePreset: async (body: VoicePresetV2Write) => {
             const row = write(body, `story-${presets.length + 1}`)

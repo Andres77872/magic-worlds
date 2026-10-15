@@ -24,6 +24,8 @@ export function useCatalogSample() {
     const [clip, setClip] = useState<CatalogSampleClip | null>(null)
     const [loadingUrl, setLoadingUrl] = useState<string | null>(null)
     const [error, setError] = useState<string | null>(null)
+    /** The sample URL whose fetch failed, so a list can show the error on that row. */
+    const [errorUrl, setErrorUrl] = useState<string | null>(null)
     const seq = useRef(0)
     const objectUrl = useRef<string | null>(null)
 
@@ -43,6 +45,7 @@ export function useCatalogSample() {
         const mine = ++seq.current
         setLoadingUrl(sampleUrl)
         setError(null)
+        setErrorUrl(null)
         try {
             const blob = await apiService.fetchProtectedMediaBlob(sampleUrl, 'audio/mpeg')
             if (mine !== seq.current) return
@@ -53,6 +56,7 @@ export function useCatalogSample() {
             if (mine !== seq.current) return
             const status = (failure as { status?: unknown } | null)?.status
             setError(t(status === 429 ? 'voices.preview.rateLimited' : 'voices.preview.unavailable'))
+            setErrorUrl(sampleUrl)
         } finally {
             if (mine === seq.current) setLoadingUrl(null)
         }
@@ -65,5 +69,5 @@ export function useCatalogSample() {
         setLoadingUrl(null)
     }, [replaceObjectUrl])
 
-    return { clip, loadingUrl, loading: loadingUrl !== null, error, play, stop }
+    return { clip, loadingUrl, loading: loadingUrl !== null, error, errorUrl, play, stop }
 }

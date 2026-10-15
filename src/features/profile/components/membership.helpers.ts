@@ -2,6 +2,7 @@
  * Shared formatting helpers for the membership + usage profile sections.
  * Operation keys come from the backend's MEMBERSHIP_OPERATIONS constants.
  */
+import { isOperationFeatureEnabled } from '@/shared/featureFlags'
 
 export const OPERATION_LABELS: Record<string, string> = {
     chat_interaction: 'Chat',
@@ -21,7 +22,7 @@ export function orderedLimitEntries<T>(limits: Record<string, T>): Array<readonl
     const unknown = Object.keys(limits)
         .filter((operation) => !(operation in OPERATION_LABELS))
         .sort()
-    return [...known, ...unknown].map((operation) => [operation, limits[operation]] as const)
+    return [...known, ...unknown].filter(isOperationFeatureEnabled).map((operation) => [operation, limits[operation]] as const)
 }
 
 export function operationLabel(operation: string) {

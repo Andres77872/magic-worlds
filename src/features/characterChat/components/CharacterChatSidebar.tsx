@@ -3,7 +3,7 @@
  * frozen AI cast plus the user's persona.
  */
 
-import { useId, useMemo } from 'react'
+import { useId, useMemo, type ReactNode } from 'react'
 import { ArrowLeft, MessageCircle, Pencil, Phone, Users } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { Character, CharacterChatCodexCard } from '../../../shared'
@@ -12,7 +12,7 @@ import { useVoiceAvailability } from '@/features/interaction/hooks/useVoiceAvail
 import { SessionNarrationTierToggle } from '@/features/interaction/components/SessionNarrationTierToggle'
 import { ChatVoiceIndicator } from '@/features/interaction/components/voice/ChatVoiceIndicator'
 import { SessionLorebookPanel } from '@/features/lorebook'
-import { isLorebooksFeatureEnabled } from '@/shared/featureFlags'
+import { isLorebooksFeatureEnabled, isVoicesFeatureEnabled, isCallsFeatureEnabled } from '@/shared/featureFlags'
 import { useWorkspaceReadOnly } from '@/shared/hooks/useWorkspaceReadOnly'
 import { apiService, resolveMediaUrl } from '../../../infrastructure/api'
 import { Avatar, Button, Eyebrow, Icon, Portrait } from '@/ui/primitives'
@@ -37,6 +37,7 @@ interface CharacterChatSidebarProps {
     onToggleCodexCard?: (card: CharacterChatCodexCard, enabled: boolean) => Promise<unknown>
     onRemoveCodexCard?: (card: CharacterChatCodexCard) => Promise<unknown>
     onBack: () => void
+    sceneNarration?: ReactNode
     onEditCharacter: (character: Character) => void
 }
 
@@ -56,6 +57,7 @@ export function CharacterChatSidebar({
     onToggleCodexCard,
     onRemoveCodexCard,
     onBack,
+    sceneNarration,
     onEditCharacter,
 }: CharacterChatSidebarProps) {
     const { t } = useTranslation()
@@ -68,8 +70,8 @@ export function CharacterChatSidebar({
     const readOnly = useWorkspaceReadOnly(sessionWorkspaceId)
     // 09 §7: calls switched off for this account (the shared 60 s capabilities read,
     // fail open), only while the Call button is shown: disabled with the Calls page copy.
-    const callOffered = !isGroup && Boolean(lead) && voiceEnabled && Boolean(onSetMode) && mode !== 'voice'
-    const callsUnavailable = !useVoiceAvailability(apiService, callOffered).calls_available
+    const callOffered = !isGroup && Boolean(lead) && voiceEnabled && isCallsFeatureEnabled() && Boolean(onSetMode) && mode !== 'voice'
+    const callsUnavailable = !useVoiceAvailability(apiService, callOffered, 0, lead?.voice?.provider ?? 'elevenlabs').calls_available
     const callsUnavailableId = useId()
     // R1-FE-04: the chat's narration tier override rides the chat's own workspace
     // client (EP-1); the toggle renders nothing when its reads fail.
@@ -82,7 +84,7 @@ export function CharacterChatSidebar({
         }
     }, [sessionWorkspaceId])
     const chatId = sessionId ? Number(sessionId) : Number.NaN
-    const narrationTierOffered = Boolean(sessionApi) && Number.isInteger(chatId) && chatId > 0
+    const narrationTierOffered = isVoicesFeatureEnabled() && Boolean(sessionApi) && Number.isInteger(chatId) && chatId > 0
 
     return (
         <div className="flex h-full flex-col bg-ink-900">
@@ -117,7 +119,7 @@ export function CharacterChatSidebar({
                     </div>
 
                     {/* R1-FE-04 (D36): "Voice replaced" and "Use the card's current voice". */}
-                    {!isGroup && sessionId ? <ChatVoiceIndicator variant="panel" chatId={sessionId} workspaceId={sessionWorkspaceId} /> : null}
+                    {isVoicesFeatureEnabled() && !isGroup && sessionId ? <ChatVoiceIndicator variant="panel" chatId={sessionId} workspaceId={sessionWorkspaceId} /> : null}
 
                     {persona && (
                         <section className="border-l-2 border-ember-500/40 py-1 pl-3">
@@ -150,6 +152,7 @@ export function CharacterChatSidebar({
                     {narrationTierOffered && sessionApi && (
                         <SessionNarrationTierToggle api={sessionApi} basePath="character-chats" sessionId={chatId} readOnly={readOnly} />
                     )}
+                    {sceneNarration}
 
                     {isGroup ? (
                         <ul className="m-0 flex list-none flex-col divide-y divide-parchment-50/10 p-0">
@@ -210,7 +213,7 @@ export function CharacterChatSidebar({
 
             {!isGroup && lead && (
                 <div className="flex flex-col gap-2 border-t border-parchment-50/10 px-4 py-3">
-                    {voiceEnabled && onSetMode && (
+                    {isCallsFeatureEnabled() && voiceEnabled && onSetMode && (
                         mode === 'voice' ? (
                             <Button
                                 variant="secondary"

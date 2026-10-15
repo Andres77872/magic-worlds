@@ -42,7 +42,7 @@ import { useTranslation } from 'react-i18next'
 import { AudioLines, Check, Loader2, Play, Square } from 'lucide-react'
 import { AuthContext } from '@/app/providers/AuthProvider'
 import { apiService } from '@/infrastructure/api'
-import type { CatalogVoice, EffectiveVoice, PreviewTextId, StoredCharacterVoice, VoiceCapabilities, VoicePresetV2 } from '@/shared'
+import type { CatalogVoice, EffectiveVoice, PreviewTextId, StoredCharacterVoice, VoiceCapabilities, VoicePreset } from '@/shared'
 import { hasAssignedVoice, isElevenLabsProjection, parseStoredVoice, voiceDisplayName } from '@/shared/voice'
 import { VoiceClipPlayer } from '@/ui/components/audio'
 import { Badge, Button, Chip, Drawer, Icon, IconButton, cx } from '@/ui/primitives'
@@ -121,7 +121,7 @@ export function VoicePickerElevenLabs({
         setWasOpen(open)
         if (open) setTab(openingTab)
     }
-    const [rows, setRows] = useState<VoicePresetV2[]>([])
+    const [rows, setRows] = useState<VoicePreset[]>([])
     const [loading, setLoading] = useState(false)
     const [loadError, setLoadError] = useState(false)
     const [reload, setReload] = useState(0)
@@ -140,7 +140,7 @@ export function VoicePickerElevenLabs({
     const currentKeys = useMemo(() => [currentKey, heardKey], [currentKey, heardKey])
     const currentLookup = useCatalogLookup(currentKeys, open)
     const appLanguage = usePreviewLanguage()
-    const languageOf = (preset: VoicePresetV2) => v2PreviewLanguage(lookup.get(preset.voice_key), language || appLanguage, preset.language_code)
+    const languageOf = (preset: VoicePreset) => v2PreviewLanguage(lookup.get(preset.voice_key), language || appLanguage, preset.language_code)
     const previewTexts = usePreviewTextSets(rows.map(languageOf), open)
     const recipePreview = useRecipePreview({ enabled: open })
     const resetPreview = recipePreview.reset
@@ -148,10 +148,10 @@ export function VoicePickerElevenLabs({
     const credit = usePreviewCreditConfirm(userHash)
     const cancelCredit = credit.cancel
     /** The row audition is the voice's own catalog sample (free, unmetered; AC-P2), not a render. */
-    const isFreeSample = (preset: VoicePresetV2) =>
-        isFreeSamplePreview(preset.settings, preset.emotion, lookup.get(preset.voice_key), previewTexts(languageOf(preset)).language, previewTier)
+    const isFreeSample = (preset: VoicePreset) =>
+        !(preset.provider === 'fish_audio' && preset.performance) && isFreeSamplePreview(preset.settings, preset.emotion, lookup.get(preset.voice_key), previewTexts(languageOf(preset)).language, previewTier)
     /** The language a row's preview is heard in: its catalog sample's (it may fall back to the primary language), else its text's. */
-    const heardLanguageOf = (preset: VoicePresetV2, freeSample: boolean) => {
+    const heardLanguageOf = (preset: VoicePreset, freeSample: boolean) => {
         const textLanguage = previewTexts(languageOf(preset)).language
         if (!freeSample) return textLanguage
         const item = lookup.get(preset.voice_key)
@@ -207,15 +207,18 @@ export function VoicePickerElevenLabs({
         onClose()
     }
 
-    const previewPreset = (preset: VoicePresetV2, costsCredit: boolean) => {
+    const previewPreset = (preset: VoicePreset, costsCredit: boolean) => {
         if (previewId === preset.preset_id && recipePreview.loading) {
             recipePreview.stop()
             return
         }
         const input = {
             voiceKey: preset.voice_key,
+            // Without it a Fish preset is sent as an ElevenLabs body and answers 409 voice_unavailable.
+            provider: preset.provider,
             settings: preset.settings ?? null,
             emotion: preset.emotion ?? null,
+            ...(preset.provider === 'fish_audio' && preset.performance ? { performance: preset.performance } : {}),
             textId: ROW_PREVIEW_TEXT,
             language: previewTexts(languageOf(preset)).language,
             tier: previewTier,
@@ -262,6 +265,7 @@ export function VoicePickerElevenLabs({
         loadingUrl: fromCatalog ? sample.loadingUrl : null,
         loading: fromCatalog && sample.loading,
         error: fromCatalog ? sample.error : null,
+        errorUrl: fromCatalog ? sample.errorUrl : null,
         play: (sampleUrl, gainDb) => {
             if (!fromCatalog) sample.stop()
             setSampleSource('catalog')
@@ -335,7 +339,7 @@ export function VoicePickerElevenLabs({
                             )}
                         </div>
                         {currentPlaying && sample.clip && heardItem && (
-                            <VoiceClipPlayer src={sample.clip.src} title={t('voices.catalog.playSample', { name: heardItem.display_name })} />
+                            <VoiceClipPlayer src={sample.clip.src} volume={sample.clip.volume} autoPlay title={t('voices.catalog.playSample', { name: heardItem.display_name })} />
                         )}
                         {fromCurrent && sample.error && <p role="alert" className="font-ui text-caption text-blood-300">{sample.error}</p>}
                     </div>

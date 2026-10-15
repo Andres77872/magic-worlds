@@ -40,7 +40,7 @@
  */
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AudioLines, Loader2, Play, Square, WandSparkles } from 'lucide-react'
+import { AudioLines, Headphones, Loader2, PenLine, Play, SlidersHorizontal, Square, WandSparkles } from 'lucide-react'
 import { apiService } from '@/infrastructure/api'
 import { VoiceClipPlayer } from '@/ui/components/audio'
 import type {
@@ -50,13 +50,14 @@ import type {
     VoiceCapabilities,
     VoiceControlSpec,
     VoiceEmotion,
-    VoicePresetV2,
+    VoicePreset,
     VoicePresetV2Write,
     VoiceSettingsV2,
+    VoicePerformance,
 } from '@/shared'
 import { surfaceCapabilitiesFor } from '@/shared/voice'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
-import { Button, Callout, Chip, Drawer, Field, Icon, Input, Select, Textarea, type SelectOption } from '@/ui/primitives'
+import { Avatar, Button, Callout, Chip, Drawer, Field, Icon, Input, SectionHeader, Select, Textarea, type SelectOption } from '@/ui/primitives'
 import { useCatalogLookup } from '../hooks/useCatalogLookup'
 import { usePreferredLanguage } from '../hooks/usePreferredLanguage'
 import {
@@ -95,6 +96,7 @@ import { RecipeControlsV2 } from './RecipeControlsV2'
 import { TierToggle, defaultPreviewTier } from './TierToggle'
 import { VoiceBadges, languageLabel } from './VoiceBadges'
 import { VoiceOwnerPrompts, type VoiceReplacement } from './VoiceOwnerPrompts'
+import { VoicePerformancePanel } from './VoicePerformancePanel'
 
 export const PRESET_NAME_LIMIT = 255
 export const PRESET_DESCRIPTION_LIMIT = 2_000
@@ -109,7 +111,9 @@ interface PresetEditorV2Props {
     open: boolean
     mode: PresetEditorV2Mode
     /** The edited or duplicated row; null for a blank preset. */
-    source: VoicePresetV2 | null
+    source: VoicePreset | null
+    /** A catalogue selection starts a new settings draft on this distinct voice. */
+    initialVoice?: CatalogVoice
     capabilities: VoiceCapabilities | null
     /** Re-read the capabilities when they failed (the recipe shows read-only). */
     onRetryCapabilities?: () => void
@@ -118,7 +122,7 @@ interface PresetEditorV2Props {
     /** The signed-in account: the one-time credit confirmation is remembered per account (05 §6.3). */
     userHash?: string | null
     onClose: () => void
-    onSaved: (row: VoicePresetV2 | null) => void
+    onSaved: (row: VoicePreset | null) => void
     notify: (toast: PresetEditorV2Toast) => void
 }
 
@@ -132,7 +136,7 @@ function writeControls(capabilities: VoiceCapabilities | null, tier: NarrationTi
 
 const EMOTION_NONE = ''
 
-export function PresetEditorV2({ open, mode, source, capabilities, onRetryCapabilities, pickVoiceOnOpen = false, userHash = null, onClose, onSaved, notify }: PresetEditorV2Props) {
+export function PresetEditorV2({ open, mode, source, initialVoice, capabilities, onRetryCapabilities, pickVoiceOnOpen = false, userHash = null, onClose, onSaved, notify }: PresetEditorV2Props) {
     const { t, i18n } = useTranslation()
     const [name, setName] = useState('')
     const [description, setDescription] = useState('')
@@ -140,7 +144,9 @@ export function PresetEditorV2({ open, mode, source, capabilities, onRetryCapabi
     const [voiceName, setVoiceName] = useState<string | null>(null)
     const [picked, setPicked] = useState<CatalogVoice | null>(null)
     const [settings, setSettings] = useState<VoiceSettingsV2 | null>(null)
+    const providerDrafts = useRef<Partial<Record<'elevenlabs' | 'fish_audio', VoiceSettingsV2 | null>>>({})
     const [emotion, setEmotion] = useState<VoiceEmotion | null>(null)
+    const [performance, setPerformance] = useState<VoicePerformance | null>(null)
     const [tier, setTier] = useState<NarrationTier>(() => defaultPreviewTier(capabilities))
     const [textId, setTextId] = useState<PreviewTextId>('narration')
     /** A preview language chip the user chose; null follows the default (05 §5.5). */
@@ -169,15 +175,19 @@ export function PresetEditorV2({ open, mode, source, capabilities, onRetryCapabi
         stopSample()
         setConfirmDiscard(false)
         if (!open) return
-        const next = editorSeed(mode, source, t)
+        const selected = mode === 'create' ? initialVoice : undefined
+        const next = selected ? { ...editorSeed(mode, source, t), name: selected.display_name,
+            voiceKey: selected.voice_key, voiceName: selected.display_name } : editorSeed(mode, source, t)
         setSeed(next)
         setName(next.name)
         setDescription(next.description)
         setVoiceKey(next.voiceKey)
         setVoiceName(next.voiceName)
-        setPicked(null)
+        providerDrafts.current = {}
+        setPicked(selected ?? null)
         setSettings(next.settings)
         setEmotion(next.emotion)
+        setPerformance(source?.provider === 'fish_audio' ? source.performance ?? null : null)
         setPickerOpen(!next.voiceKey || pickVoiceOnOpen)
         setTier(defaultPreviewTier(capabilities))
         setTextId('narration')
@@ -187,18 +197,19 @@ export function PresetEditorV2({ open, mode, source, capabilities, onRetryCapabi
         /* eslint-enable react-hooks/set-state-in-effect */
         // Capabilities only seed the tier on open; a later read never resets the draft.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [open, mode, source, t, resetPreview, stopSample])
+    }, [open, mode, source, initialVoice, t, resetPreview, stopSample])
 
     const lookupKeys = useMemo(() => (voiceKey && picked?.voice_key !== voiceKey ? [voiceKey] : []), [voiceKey, picked])
     const lookup = useCatalogLookup(lookupKeys, open)
     const item = voiceKey ? (picked?.voice_key === voiceKey ? picked : lookup.get(voiceKey) ?? null) : null
 
-    const surface = surfaceCapabilitiesFor(capabilities, 'preview', tier)
-    const controls = writeControls(capabilities, tier)
-    const emotionVisible = surface ? surface.supports_emotion : true
+    const provider = item ? (item.provider ?? 'elevenlabs') : source?.provider ?? 'elevenlabs'
+    const surface = surfaceCapabilitiesFor(capabilities, 'preview', tier, provider)
+    const controls = provider === 'fish_audio' ? [] : writeControls(capabilities, tier)
+    const recipeAvailable = provider === 'elevenlabs' || (surface?.healthy === true && (!settings || Object.keys(settings).length === 0))
+    const emotionVisible = provider === 'fish_audio' ? surface?.healthy === true && surface.supports_emotion : surface ? surface.supports_emotion : true
 
     const preferred = usePreferredLanguage(open)
-    const checkedLanguage = presetLanguage(source, preferred.language)
     const appLanguage = usePreviewLanguage()
     // Chips offer the voice's accepted languages only; the default follows D17 (05 §5.5).
     const previewLanguages = previewableLanguages(item)
@@ -208,19 +219,20 @@ export function PresetEditorV2({ open, mode, source, capabilities, onRetryCapabi
         fallback: appLanguage,
     })
     const language = chosenLanguage && previewLanguages.includes(chosenLanguage) ? chosenLanguage : defaultLanguage
+    const checkedLanguage = source ? presetLanguage(source, preferred.language) : language
     const previewTexts = usePreviewTexts(language, open)
     const fixedText = previewTexts.texts[textId]
     const clipText = preview.clip ? clipTranscript(preview.clip, fixedText) : fixedText
     // D18, EP-6: an untuned voice auditions the sample the BFF's default-settings shortcut
     // would serve (`isFreeSamplePreview`, the rule the Studio card shares); else a metered render.
     const sampleUrl = previewSampleUrl(item, language, tier)
-    const useSample = isDefaultRecipe(settings, emotion) && sampleUrl !== null
+    const useSample = !(provider === 'fish_audio' && performance) && isDefaultRecipe(settings, emotion) && sampleUrl !== null
     const playing = useSample ? sample.loading : preview.loading
 
     const nameOverLimit = name.trim().length > PRESET_NAME_LIMIT
     const descriptionOverLimit = description.length > PRESET_DESCRIPTION_LIMIT
-    const canSave = name.trim().length > 0 && Boolean(voiceKey) && !nameOverLimit && !descriptionOverLimit && !saving
-    const dirty = draftChanged(seed, { name, description, voiceKey, settings, emotion })
+    const canSave = name.trim().length > 0 && Boolean(voiceKey) && !nameOverLimit && !descriptionOverLimit && !saving && recipeAvailable
+    const dirty = draftChanged(seed, { name, description, voiceKey, settings, emotion }) || JSON.stringify(performance) !== JSON.stringify(source?.provider === 'fish_audio' ? source.performance ?? null : null)
     // AC-P5: a metered render past the free ones costs 1 credit (a free sample never does).
     const costsCredit = !useSample && preview.nextCostsCredit
 
@@ -245,9 +257,16 @@ export function PresetEditorV2({ open, mode, source, capabilities, onRetryCapabi
     }
 
     const chooseVoice = (next: CatalogVoice) => {
+        if ((next.provider ?? 'elevenlabs') !== provider) {
+            providerDrafts.current[provider] = settings
+            setSettings(providerDrafts.current[next.provider ?? 'elevenlabs'] ?? null)
+            setTier('standard')
+        }
         setPicked(next)
         setVoiceKey(next.voice_key)
         setVoiceName(next.display_name)
+        // A blank draft starts named after its voice, as one opened from the catalog does.
+        if (!name.trim()) setName(next.display_name)
         setPickerOpen(false)
         setChosenLanguage(null)
         dropClips()
@@ -288,7 +307,7 @@ export function PresetEditorV2({ open, mode, source, capabilities, onRetryCapabi
     }
 
     const handlePreview = () => {
-        if (!voiceKey) return
+        if (!voiceKey || !recipeAvailable) return
         if (useSample && sampleUrl) {
             if (sample.loading) {
                 sample.stop()
@@ -304,8 +323,10 @@ export function PresetEditorV2({ open, mode, source, capabilities, onRetryCapabi
         }
         if (preview.limitReached) return
         const input = {
+            provider,
+            ...(provider === 'fish_audio' && performance ? { performance } : {}),
             voiceKey,
-            settings: normalizeSettingsForWrite(settings, controls),
+            settings: provider === 'fish_audio' ? null : normalizeSettingsForWrite(settings, controls),
             emotion,
             textId,
             language: previewTexts.language,
@@ -324,10 +345,12 @@ export function PresetEditorV2({ open, mode, source, capabilities, onRetryCapabi
         setError(null)
         setVoiceFieldError(null)
         const write: VoicePresetV2Write = {
+            ...(provider === 'fish_audio' ? { schema_version: 3 as const, provider: 'fish_audio' as const } : {}),
+            ...(provider === 'fish_audio' && (performance || (source?.provider === 'fish_audio' && source.performance)) ? { performance } : {}),
             name: name.trim(),
             description: description.trim() || null,
             voice_key: voiceKey,
-            settings: normalizeSettingsForWrite(settings, controls),
+            settings: provider === 'fish_audio' ? null : normalizeSettingsForWrite(settings, controls),
             emotion,
         }
         try {
@@ -417,24 +440,15 @@ export function PresetEditorV2({ open, mode, source, capabilities, onRetryCapabi
                 </>
             }
         >
-            <div className="flex flex-col gap-5" data-testid="preset-editor-v2">
+            <div className="flex flex-col gap-6" data-testid="preset-editor-v2">
+                <p className="font-ui text-body text-parchment-300">{t('voices.studio.v2.editorHelp')}</p>
                 {error && (
                     <Callout tone="danger" role="alert">
                         {error}
                     </Callout>
                 )}
 
-                <Field label={t('voices.editor.nameLabel')} error={nameOverLimit ? t('voices.editor.nameTooLong') : undefined}>
-                    <Input value={name} onChange={(event) => setName(event.target.value)} maxLength={PRESET_NAME_LIMIT} placeholder={t('voices.editor.namePlaceholder')} />
-                </Field>
-                <Field
-                    label={t('voices.editor.descriptionLabel')}
-                    error={descriptionOverLimit ? t('voices.editor.descriptionTooLong') : undefined}
-                    helper={t('voices.editor.descriptionHelper')}
-                >
-                    <Textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={PRESET_DESCRIPTION_LIMIT} placeholder={t('voices.editor.descriptionPlaceholder')} />
-                </Field>
-
+                {/* What → how → hear it → save as: the voice first, its name last (it starts as the voice's). */}
                 <section
                     ref={baseVoiceRef}
                     tabIndex={-1}
@@ -442,38 +456,50 @@ export function PresetEditorV2({ open, mode, source, capabilities, onRetryCapabi
                     aria-describedby={voiceFieldErrorShown ? voiceFieldErrorId : undefined}
                     className="flex flex-col gap-3"
                 >
-                    <p className="font-ui text-label font-semibold text-fg">{t('voices.studio.v2.baseVoice')}</p>
+                    <SectionHeader as="h3" icon={AudioLines} title={t('voices.studio.v2.baseVoice')}
+                        // Closes the picker on the voice already chosen; named apart from the drawer's own Cancel.
+                        right={voiceKey && pickerOpen ? (
+                            <Button variant="ghost" size="sm" onClick={() => setPickerOpen(false)}>
+                                {t('voices.studio.v2.keepVoice')}
+                            </Button>
+                        ) : undefined} />
                     {voiceFieldErrorShown && (
                         <p id={voiceFieldErrorId} className="font-ui text-caption text-blood-500" data-testid="voice-field-error">
                             {t(voiceFieldErrorShown)}
                         </p>
                     )}
                     {voiceKey && !pickerOpen ? (
-                        <div className="flex flex-wrap items-start justify-between gap-3 border-l-2 border-arcane-500/30 py-2 pl-3" data-testid="preset-base-voice">
-                            <div className="flex min-w-0 flex-col gap-1">
-                                <p className="font-ui text-sm font-semibold text-parchment-50">{item?.display_name || voiceName || t('voices.display.fallbackName')}</p>
-                                {item && (
-                                    <VoiceBadges
-                                        badges={baseBadges}
-                                        context={{ date: item.disable_at, minPlan: item.min_plan, language: checkedLanguage }}
-                                    />
-                                )}
-                                {item && (
-                                    <VoiceOwnerPrompts
-                                        key={item.voice_key}
-                                        badges={baseBadges}
-                                        replacement={item.replacement}
-                                        onSwitch={switchToReplacement}
-                                        onChoose={() => setPickerOpen(true)}
-                                    />
-                                )}
-                                {item && (
-                                    <p className="font-ui text-xs text-parchment-300" data-testid="preset-voice-language">
-                                        {languageLine}
-                                    </p>
-                                )}
-                                {item && <p className="font-ui text-caption text-fg-muted">{t('voices.notice.language_scope')}</p>}
-                                <p className="font-ui text-caption text-fg-muted">{t('voices.recipe.languageNote')}</p>
+                        <div className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-line-faint bg-surface-raised p-3" data-testid="preset-base-voice">
+                            <div className="flex min-w-0 items-start gap-3">
+                                <Avatar name={item?.display_name || voiceName || t('voices.display.fallbackName')} size={40} />
+                                <div className="flex min-w-0 flex-col gap-1">
+                                    <p className="break-words font-ui text-body font-semibold text-parchment-50">{item?.display_name || voiceName || t('voices.display.fallbackName')}</p>
+                                    {item && (
+                                        <p className="font-ui text-caption text-parchment-300" data-testid="preset-voice-language">
+                                            {languageLine}
+                                        </p>
+                                    )}
+                                    {provider === 'fish_audio' && <><p className="text-caption text-parchment-300">{t('voices.providers.fishInfo')}</p><p className="text-caption text-fg-muted">{t('voices.providers.processing')}</p></>}
+                                    {source && provider !== source.provider && <p className="text-caption text-parchment-300">{t('voices.providers.changed')}</p>}
+                                    {!recipeAvailable && <Callout tone="warning">{t('voices.providers.unavailable')}</Callout>}
+                                    {item && (
+                                        <VoiceBadges
+                                            badges={baseBadges}
+                                            context={{ date: item.disable_at, minPlan: item.min_plan, language: checkedLanguage }}
+                                        />
+                                    )}
+                                    {item && (
+                                        <VoiceOwnerPrompts
+                                            key={item.voice_key}
+                                            badges={baseBadges}
+                                            replacement={item.replacement}
+                                            onSwitch={switchToReplacement}
+                                            onChoose={() => setPickerOpen(true)}
+                                        />
+                                    )}
+                                    {item && <p className="font-ui text-caption text-fg-muted">{t('voices.notice.language_scope')}</p>}
+                                    <p className="font-ui text-caption text-fg-muted">{t('voices.recipe.languageNote')}</p>
+                                </div>
                             </div>
                             <Button
                                 variant="secondary"
@@ -485,58 +511,62 @@ export function PresetEditorV2({ open, mode, source, capabilities, onRetryCapabi
                             </Button>
                         </div>
                     ) : (
-                        <div className="flex flex-col gap-2">
-                            {voiceKey && (
-                                <Button variant="ghost" size="sm" className="self-start" onClick={() => setPickerOpen(false)}>
-                                    {t('common.cancel')}
-                                </Button>
-                            )}
-                            <CatalogVoicePicker
-                                enabled={open && pickerOpen}
-                                currentVoiceKey={voiceKey}
-                                onPick={chooseVoice}
-                            />
-                        </div>
+                        <CatalogVoicePicker
+                            enabled={open && pickerOpen}
+                            capabilities={capabilities}
+                            allLanguagesInitially={mode === 'create'}
+                            currentVoiceKey={voiceKey}
+                            onPick={chooseVoice}
+                        />
                     )}
                 </section>
 
                 <div className="flex flex-col gap-4 border-t border-line-faint pt-5">
-                    <TierToggle capabilities={capabilities} value={tier} onChange={changeTier} showUpsell />
+                    <SectionHeader as="h3" icon={SlidersHorizontal} title={t('voices.studio.v2.sections.delivery')} />
+                    {provider === 'elevenlabs' && <TierToggle capabilities={capabilities} value={tier} onChange={changeTier} showUpsell />}
                     <RecipeControlsV2
-                        surface={surface}
+                        surface={provider === 'fish_audio' && !recipeAvailable ? null : surface}
                         settings={settings}
                         onChange={changeSettings}
                         onRetry={onRetryCapabilities}
-                        onShowStandard={() => changeTier('standard')}
+                        onShowStandard={provider === 'fish_audio' ? undefined : () => changeTier('standard')}
                         // AC-E2: the controls flag every value the save below clamps, hidden ones included.
                         writeControls={controls}
                     />
                     {emotionVisible && (
-                        <Field label={t('voices.recipe.emotion')} helper={tier === 'standard' ? t('voices.recipe.emotionStandardHint') : undefined}>
+                        <Field label={t('voices.recipe.emotion')} helper={provider === 'fish_audio' ? t('voices.providers.emotionHint') : tier === 'standard' ? t('voices.recipe.emotionStandardHint') : undefined}>
                             <Select options={emotionOptions} value={emotion ?? EMOTION_NONE} onChange={changeEmotion} />
                         </Field>
                     )}
                     <p className="font-ui text-caption text-fg-muted" data-testid="thought-note">
-                        {t(tier === 'expressive' ? 'voices.recipe.thoughtNoteExpressive' : 'voices.recipe.thoughtNoteStandard')}
+                        {t(provider === 'fish_audio' ? 'voices.providers.thoughtHint' : tier === 'expressive' ? 'voices.recipe.thoughtNoteExpressive' : 'voices.recipe.thoughtNoteStandard')}
                     </p>
                 </div>
 
                 <div className="flex flex-col gap-4 border-t border-line-faint pt-5">
-                    {previewLanguages.length > 1 && (
-                        <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t('voices.recipe.previewLanguage')}>
-                            {previewLanguages.map((code) => (
-                                <Chip key={code} active={language === code} aria-pressed={language === code} onClick={() => choosePreviewLanguage(code)}>
-                                    {languageLabel(code, i18n.language)}
-                                </Chip>
-                            ))}
-                        </div>
-                    )}
-                    <PreviewTextChooser value={textId} onChange={chooseText} />
+                    <SectionHeader as="h3" icon={Headphones} title={t('voices.studio.v2.sections.listen')} />
+                    <div className="flex flex-wrap items-start gap-x-6 gap-y-4">
+                        {previewLanguages.length > 1 && (
+                            <div className="flex flex-col gap-2">
+                                {/* The group carries the same name; the visible label is not read twice. */}
+                                <p aria-hidden="true" className="font-ui text-label font-semibold text-fg">{t('voices.recipe.previewLanguage')}</p>
+                                <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t('voices.recipe.previewLanguage')}>
+                                    {previewLanguages.map((code) => (
+                                        <Chip key={code} active={language === code} aria-pressed={language === code} onClick={() => choosePreviewLanguage(code)}>
+                                            {languageLabel(code, i18n.language)}
+                                        </Chip>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        <PreviewTextChooser value={textId} onChange={chooseText} />
+                    </div>
+                    {provider === 'fish_audio' && voiceKey && <VoicePerformancePanel voiceKey={voiceKey} language={language} emotion={emotion} value={performance} onChange={next => { setPerformance(next); dropClips() }} userHash={userHash} />}
                     <div className="flex flex-wrap items-center gap-3">
                         <Button
                             variant="secondary"
                             size="sm"
-                            disabled={!voiceKey || (!useSample && preview.limitReached && !preview.loading)}
+                            disabled={!voiceKey || !recipeAvailable || (!useSample && preview.limitReached && !preview.loading)}
                             iconLeft={<Icon icon={playing ? Square : Play} size={14} />}
                             onClick={handlePreview}
                         >
@@ -556,12 +586,26 @@ export function PresetEditorV2({ open, mode, source, capabilities, onRetryCapabi
                     {preview.clip?.fallback === 'standard_fallback' && <VoiceBadges badges={['standard_fallback']} />}
                     {useSample && sample.clip ? (
                         // A catalog sample is the voice's own recording: no fixed-text transcript.
-                        <VoiceClipPlayer src={sample.clip.src} title={t('voices.editor.previewTitle')} />
+                        <VoiceClipPlayer src={sample.clip.src} volume={sample.clip.volume} autoPlay title={t('voices.editor.previewTitle')} />
                     ) : preview.clip ? (
                         <RecipePreviewPlayer src={preview.clip.src} volume={preview.clip.volume} title={t('voices.editor.previewTitle')} transcript={clipText} lang={preview.clip.language} />
                     ) : !useSample ? (
                         <PreviewTranscript text={fixedText} lang={previewTexts.language} />
                     ) : null}
+                </div>
+
+                <div className="flex flex-col gap-4 border-t border-line-faint pt-5">
+                    <SectionHeader as="h3" icon={PenLine} title={t('voices.studio.v2.sections.details')} />
+                    <Field label={t('voices.editor.nameLabel')} error={nameOverLimit ? t('voices.editor.nameTooLong') : undefined}>
+                        <Input value={name} onChange={(event) => setName(event.target.value)} maxLength={PRESET_NAME_LIMIT} placeholder={t('voices.editor.namePlaceholder')} />
+                    </Field>
+                    <Field
+                        label={t('voices.editor.descriptionLabel')}
+                        error={descriptionOverLimit ? t('voices.editor.descriptionTooLong') : undefined}
+                        helper={t('voices.editor.descriptionHelper')}
+                    >
+                        <Textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={PRESET_DESCRIPTION_LIMIT} placeholder={t('voices.editor.descriptionPlaceholder')} />
+                    </Field>
                 </div>
             </div>
         </Drawer>

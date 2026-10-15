@@ -1,14 +1,15 @@
 /**
- * Voice domain types. A `StoredCharacterVoice` is the denormalized ElevenLabs
+ * Voice domain types. A `StoredCharacterVoice` is the denormalized provider recipe
  * voice copied onto a card, snapshot cast entry or narrator slot when a voice
- * is assigned (03 §5.1). A preset is a named recipe; `VoicePresetV2` is the
- * row every read returns and every write creates (09 §1.3).
+ * is assigned (03 §5.1). A preset is a named recipe; `VoicePreset` reads both
+ * ElevenLabs v2 and Fish v3 records.
  *
  * Read stored voices through `@/shared/voice` (`parseStoredVoice`,
  * `hasAssignedVoice`, `voiceIdentity`, `isSameVoice`, `voiceDisplayName`).
  */
 import type { NarrationTier } from './auth.types'
 import type { EffectiveVoice } from './voiceCatalog.types'
+import type { VoicePerformance } from './voicePerformance.types'
 
 // ---- CharacterVoice v2: canonical, verbatim from 03 §5.1.2 ----
 
@@ -35,13 +36,22 @@ export interface CharacterVoiceV2 {
   preset_name?: string | null;      // ≤255
 }
 
-/** A stored voice: always the ElevenLabs shape above. */
-export type StoredCharacterVoice = CharacterVoiceV2
+/** Provider identity is paired with its versioned stored shape. */
+export type VoiceProvider = 'elevenlabs' | 'fish_audio'
+
+export interface CharacterVoiceV3 extends Omit<CharacterVoiceV2, 'schema_version' | 'provider' | 'settings'> {
+  schema_version: 3
+  provider: 'fish_audio'
+  settings?: Record<string, never> | null
+  performance?: VoicePerformance | null
+}
+
+export type StoredCharacterVoice = CharacterVoiceV2 | CharacterVoiceV3
 
 // ---- end of 03 §5.1.2 ----
 
 /** ElevenLabs preset read DTO (03 §5.3, verbatim from 09 §1.3). */
-export interface VoicePresetV2 {
+export interface ElevenLabsVoicePreset {
     preset_id: string; name: string; description: string | null
     voice_key: string; voice_name: string
     settings: VoiceSettingsV2 | null; emotion: VoiceEmotion | null; language_code: string | null
@@ -49,12 +59,27 @@ export interface VoicePresetV2 {
     effective_voice?: EffectiveVoice           // read-only (D35)
 }
 
+export interface FishVoicePreset extends Omit<ElevenLabsVoicePreset, 'schema_version' | 'provider' | 'settings'> {
+    schema_version: 3
+    provider: 'fish_audio'
+    settings: Record<string, never> | null
+    performance?: VoicePerformance | null
+}
+
+/** Both persisted recipes are readable; version 2 retains its original semantics. */
+export type VoicePresetV2 = ElevenLabsVoicePreset
+export type VoicePreset = ElevenLabsVoicePreset | FishVoicePreset
+
 /**
  * EP-3 body of `POST /voice-presets` and `PUT /voice-presets/{id}`: the only
  * preset write. `settings` takes stability, similarity_boost and speed only
  * (`style` / `use_speaker_boost` are 422).
  */
-export type VoicePresetV2Write = Pick<VoicePresetV2, 'name' | 'description' | 'voice_key' | 'settings' | 'emotion'>
+export type VoicePresetV2Write = Pick<ElevenLabsVoicePreset, 'name' | 'description' | 'voice_key' | 'settings' | 'emotion'> & {
+    schema_version?: 3
+    provider?: 'fish_audio'
+    performance?: VoicePerformance | null
+}
 
 /** The fixed recipe-preview texts (D18): one narration, dialogue and thought line per language. */
 export type PreviewTextId = 'narration' | 'dialogue' | 'thought'
@@ -75,6 +100,9 @@ export interface PreviewTextsResponse {
  * never free text. Exactly these keys (extra=forbid).
  */
 export interface VoicePresetPreviewRequestV2 {
+    schema_version?: 3
+    provider?: 'fish_audio'
+    performance?: VoicePerformance | null
     voice_key: string
     settings: VoiceSettingsV2 | null
     emotion: VoiceEmotion | null

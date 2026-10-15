@@ -54,7 +54,11 @@ import {
 import { docsArt } from '@/assets/marketing'
 import type { PageType } from '@/shared'
 import { isFeatureEnabled, type FrontendFeatureFlag } from '@/shared/featureFlags'
-import { isBillingFeatureEnabled } from '@/shared/billingFeatureFlag'
+import { getRoadmapContent, initiativeSearchText, roadmapDoneSearchText, roadmapItemSearchText, type DocsRoadmap } from './roadmapContent'
+
+export type { DocsRoadmap, DocsRoadmapItem, RoadmapDoneEntry, RoadmapInitiative, RoadmapPhase, RoadmapStage, PhaseStatus } from './roadmapContent'
+
+export type DocsTone = 'ember' | 'arcane'
 
 export interface NavSection {
     id: string
@@ -62,7 +66,11 @@ export interface NavSection {
     eyebrow: string
     title: string
     intro: string
+    /** WIP explanation when a feature this section documents is off in this version. */
+    note?: string
     icon: LucideIcon
+    /** Ember is the default voice; writing/lore/media sections speak arcane. */
+    tone: DocsTone
     /** Candlelit banner illustration for the section header (omitted for 'start'). */
     art?: string
 }
@@ -78,8 +86,10 @@ export interface ActionTarget {
 export interface GuideItem {
     title: string
     body: string
+    /** WIP explanation, rendered apart from the instructions it qualifies. */
+    note?: string
     icon: LucideIcon
-    tone?: 'ember' | 'arcane'
+    tone?: DocsTone
     badge?: string
 }
 
@@ -87,8 +97,9 @@ export interface GuideItem {
 export interface MapItem {
     title: string
     body: string
+    note?: string
     icon: LucideIcon
-    tone?: 'ember' | 'arcane'
+    tone?: DocsTone
     page: PageType
     gated?: boolean
     tag?: string
@@ -100,18 +111,6 @@ export interface UtilityItem {
     icon: LucideIcon
     tone?: 'live' | 'arcane' | 'neutral'
     tag?: string
-}
-
-export interface DocsRoadmapItem {
-    id: string
-    title: string
-    status: string
-    availability: string
-    current: string
-    next: string
-    decision: string
-    state: 'implemented' | 'partial' | 'planned'
-    enabled: boolean | null
 }
 
 export interface DocsContent {
@@ -126,12 +125,7 @@ export interface DocsContent {
         utilityRail: string
     }
     sections: NavSection[]
-    roadmap: {
-        reviewed: string
-        note: string
-        labels: { current: string; next: string; decision: string }
-        items: DocsRoadmapItem[]
-    }
+    roadmap: DocsRoadmap
     primaryActions: ActionTarget[]
     quickStart: GuideItem[]
     mapItems: MapItem[]
@@ -148,9 +142,24 @@ export interface DocsContent {
     search: {
         label: string
         placeholder: string
+        placeholderRoadmap: string
         clear: string
         shortcutHint: string
         empty: { title: string; body: string }
+    }
+    views: {
+        label: string
+        guide: string
+        roadmap: string
+    }
+    nav: {
+        onThisPage: string
+        backToTop: string
+    }
+    teaser: {
+        open: string
+        stagesLabel: string
+        showMatches: string
     }
     callout: {
         tipLabel: string
@@ -176,6 +185,7 @@ interface SectionSource {
     id: string
     key: SectionId
     icon: LucideIcon
+    tone?: DocsTone
 }
 
 interface ActionSource {
@@ -217,17 +227,17 @@ const SECTION_SOURCES: readonly SectionSource[] = [
     { id: 'play', key: 'play', icon: Swords },
     { id: 'voice-presets', key: 'voicePresets', icon: AudioLines },
     { id: 'voice', key: 'voice', icon: Mic },
-    { id: 'writing', key: 'writing', icon: BookOpenText },
-    { id: 'resources', key: 'resources', icon: FileText },
-    { id: 'media', key: 'media', icon: Images },
+    { id: 'writing', key: 'writing', icon: BookOpenText, tone: 'arcane' },
+    { id: 'resources', key: 'resources', icon: FileText, tone: 'arcane' },
+    { id: 'media', key: 'media', icon: Images, tone: 'arcane' },
     { id: 'best-practices', key: 'bestPractices', icon: ShieldCheck },
 ]
 
 export const DOC_SECTION_IDS = SECTION_SOURCES.map((section) => section.id)
 
 /** Per-section header illustration (dedicated docs art, by section id). 'start'
- * sits under the page hero art, so it gets no banner of its own. Ring tone
- * follows the section's own eyebrow tone in the view (writing/media are arcane). */
+ * sits under the page hero art and 'roadmap' links to its own view, so neither
+ * gets a banner. Ring tone follows the section's tone (writing/media are arcane). */
 const SECTION_ART: Record<string, string> = docsArt
 
 const PRIMARY_ACTION_SOURCES: readonly ActionSource[] = [
@@ -351,47 +361,6 @@ const BEST_PRACTICE_KEYS = [
     'separateWorkflows',
 ] as const
 
-/** Implementation scope is separate from the availability of this build.
- * Keep this public summary aligned with docs/FEATURE_STATUS.md and ROADMAP.md. */
-const ROADMAP_SOURCES: readonly {
-    key: string
-    state: DocsRoadmapItem['state']
-    feature?: FrontendFeatureFlag | 'billing'
-}[] = [
-    { key: 'core', state: 'implemented' },
-    { key: 'novels', state: 'partial', feature: 'novels' },
-    { key: 'charaStudio', state: 'planned' },
-    { key: 'lorebooks', state: 'implemented', feature: 'lorebooks' },
-    { key: 'resources', state: 'implemented', feature: 'lorebookResources' },
-    { key: 'workspaces', state: 'implemented', feature: 'workspaces' },
-    { key: 'adventures', state: 'implemented', feature: 'adventures' },
-    { key: 'groupChats', state: 'implemented', feature: 'groupChats' },
-    { key: 'community', state: 'implemented', feature: 'communityCards' },
-    { key: 'voices', state: 'partial', feature: 'voices' },
-    { key: 'calls', state: 'partial', feature: 'calls' },
-    { key: 'appAssistant', state: 'implemented', feature: 'appAssistant' },
-    { key: 'billing', state: 'implemented', feature: 'billing' },
-    { key: 'patreon', state: 'planned' },
-]
-
-function roadmapItems(t: TFunction): DocsRoadmapItem[] {
-    return ROADMAP_SOURCES.map(({ key, state, feature }) => {
-        const enabled = feature === 'billing' ? isBillingFeatureEnabled() : feature ? isFeatureEnabled(feature) : null
-        const availability = state === 'planned' ? 'planned' : enabled === null ? 'ungated' : enabled ? 'enabled' : 'disabled'
-        return {
-            id: key,
-            state,
-            enabled,
-            title: t(`docs.roadmap.items.${key}.title`),
-            status: t(`docs.roadmap.statuses.${state}`),
-            availability: t(`docs.roadmap.availability.${availability}`),
-            current: t(`docs.roadmap.items.${key}.current`),
-            next: t(`docs.roadmap.items.${key}.next`),
-            decision: t(`docs.roadmap.items.${key}.decision`),
-        }
-    })
-}
-
 /** Availability wording is shared by the Docs page and assistant guide context.
  * These notes describe frontend rollout availability, not backend readiness. */
 const SECTION_FEATURES: Partial<Record<string, readonly FrontendFeatureFlag[]>> = {
@@ -440,11 +409,22 @@ const BEST_PRACTICE_FEATURES: Partial<Record<(typeof BEST_PRACTICE_KEYS)[number]
     separateWorkflows: ['novels', 'adventures'],
 }
 
-function withAvailability(t: TFunction, copy: string, features: readonly FrontendFeatureFlag[] = []): string {
+/** The localized WIP note for any disabled feature in `features`, else undefined. */
+function availabilityNote(t: TFunction, features: readonly FrontendFeatureFlag[] = []): string | undefined {
     const disabled = features.filter((feature) => !isFeatureEnabled(feature))
-    if (!disabled.length) return copy
+    if (!disabled.length) return undefined
     const names = disabled.map((feature) => t(`docs.availability.features.${feature}`)).join(', ')
-    return `${t('docs.availability.disabled', { features: names })} ${copy}`
+    return t('docs.availability.disabled', { features: names })
+}
+
+function withAvailability(t: TFunction, copy: string, features: readonly FrontendFeatureFlag[] = []): string {
+    const note = availabilityNote(t, features)
+    return note ? `${note} ${copy}` : copy
+}
+
+/** Copy with its WIP note prepended — the plain-text form for search and the assistant. */
+export function withNote(entry: { body: string; note?: string }): string {
+    return entry.note ? `${entry.note} ${entry.body}` : entry.body
 }
 
 function guideItems(t: TFunction, prefix: string, sources: readonly GuideItemSource[]): GuideItem[] {
@@ -452,7 +432,8 @@ function guideItems(t: TFunction, prefix: string, sources: readonly GuideItemSou
         icon: source.icon,
         tone: source.tone,
         title: t(`${prefix}.${source.key}.title`),
-        body: withAvailability(t, t(`${prefix}.${source.key}.body`), GUIDE_FEATURES[`${prefix}.${source.key}`] ?? GUIDE_GROUP_FEATURES[prefix]),
+        body: t(`${prefix}.${source.key}.body`),
+        note: availabilityNote(t, GUIDE_FEATURES[`${prefix}.${source.key}`] ?? GUIDE_GROUP_FEATURES[prefix]),
         badge: source.badge ? t(`${prefix}.${source.key}.badge`) : undefined,
     }))
 }
@@ -472,22 +453,15 @@ export function getDocsContent(t: TFunction): DocsContent {
         sections: SECTION_SOURCES.map((section) => ({
             id: section.id,
             icon: section.icon,
+            tone: section.tone ?? 'ember',
             art: SECTION_ART[section.id],
             label: t(`docs.sections.${section.key}.label`),
             eyebrow: t(`docs.sections.${section.key}.eyebrow`),
             title: t(`docs.sections.${section.key}.title`),
-            intro: withAvailability(t, t(`docs.sections.${section.key}.intro`), SECTION_FEATURES[section.id]),
+            intro: t(`docs.sections.${section.key}.intro`),
+            note: availabilityNote(t, SECTION_FEATURES[section.id]),
         })),
-        roadmap: {
-            reviewed: t('docs.roadmap.reviewed'),
-            note: t('docs.roadmap.note'),
-            labels: {
-                current: t('docs.roadmap.labels.current'),
-                next: t('docs.roadmap.labels.next'),
-                decision: t('docs.roadmap.labels.decision'),
-            },
-            items: roadmapItems(t),
-        },
+        roadmap: getRoadmapContent(t),
         primaryActions: PRIMARY_ACTION_SOURCES.map((action) => ({
             icon: action.icon,
             page: action.page,
@@ -501,7 +475,8 @@ export function getDocsContent(t: TFunction): DocsContent {
             page: item.page,
             gated: item.gated,
             title: t(`docs.map.items.${item.key}.title`),
-            body: withAvailability(t, t(`docs.map.items.${item.key}.body`), MAP_FEATURES[item.key]),
+            body: t(`docs.map.items.${item.key}.body`),
+            note: availabilityNote(t, MAP_FEATURES[item.key]),
             tag: item.tag ? t(`docs.map.items.${item.key}.tag`) : undefined,
         })),
         utilityItems: UTILITY_ITEM_SOURCES.map((item) => ({
@@ -523,9 +498,24 @@ export function getDocsContent(t: TFunction): DocsContent {
         search: {
             label: t('docs.search.label'),
             placeholder: t('docs.search.placeholder'),
+            placeholderRoadmap: t('docs.search.placeholderRoadmap'),
             clear: t('docs.search.clear'),
             shortcutHint: t('docs.search.shortcutHint'),
             empty: { title: t('docs.search.empty.title'), body: t('docs.search.empty.body') },
+        },
+        views: {
+            label: t('docs.views.label'),
+            guide: t('docs.views.guide'),
+            roadmap: t('docs.views.roadmap'),
+        },
+        nav: {
+            onThisPage: t('docs.nav.onThisPage'),
+            backToTop: t('docs.nav.backToTop'),
+        },
+        teaser: {
+            open: t('docs.roadmap.teaser.open'),
+            stagesLabel: t('docs.roadmap.teaser.stagesLabel'),
+            showMatches: t('docs.roadmap.teaser.showMatches'),
         },
         callout: {
             tipLabel: t('docs.callout.tipLabel'),
@@ -534,60 +524,62 @@ export function getDocsContent(t: TFunction): DocsContent {
     }
 }
 
+/** The guide cards a section renders, by section id (empty for map/roadmap/practices). */
+export function guideItemsFor(docs: DocsContent, sectionId: string): GuideItem[] {
+    switch (sectionId) {
+        case 'start':
+            return docs.quickStart
+        case 'library':
+            return docs.libraryGuide
+        case 'cards':
+            return docs.cardGuide
+        case 'play':
+            return docs.playGuide
+        case 'voice-presets':
+            return docs.voicePresetGuide
+        case 'voice':
+            return docs.voiceGuide
+        case 'writing':
+            return docs.writingGuide
+        case 'resources':
+            return docs.resourcesGuide
+        case 'media':
+            return docs.mediaGuide
+        default:
+            return []
+    }
+}
+
 /**
  * Flatten a section's i18n copy (label + headings + every guide title/body) into
  * one lowercased haystack for the in-page search. Derived from the existing
  * content so search needs no extra keys; called once per section, memoized in
- * the view.
+ * the view. The roadmap section indexes the whole roadmap, so a roadmap term
+ * found from the Guide surfaces its summary and the link into the Roadmap view.
  */
 export function sectionSearchText(docs: DocsContent, sectionId: string): string {
     const section = docs.sections.find((entry) => entry.id === sectionId)
-    const parts: string[] = section ? [section.label, section.eyebrow, section.title, section.intro] : []
-    const pushItems = (items: { title: string; body: string }[]) => {
-        for (const item of items) parts.push(item.title, item.body)
+    const parts: string[] = section ? [section.label, section.eyebrow, section.title, section.intro, section.note ?? ''] : []
+    const pushItems = (items: { title: string; body: string; note?: string }[]) => {
+        for (const item of items) parts.push(item.title, withNote(item))
     }
     switch (sectionId) {
         case 'roadmap':
-            parts.push(docs.roadmap.reviewed, docs.roadmap.note, ...Object.values(docs.roadmap.labels))
-            for (const item of docs.roadmap.items) {
-                parts.push(item.title, item.status, item.availability, item.current, item.next, item.decision)
-            }
-            break
-        case 'start':
-            pushItems(docs.quickStart)
+            parts.push(docs.roadmap.title, docs.roadmap.intro, docs.roadmap.reviewed, docs.roadmap.note)
+            for (const item of docs.roadmap.items) parts.push(roadmapItemSearchText(item))
+            for (const initiative of docs.roadmap.initiatives) parts.push(initiativeSearchText(initiative))
+            for (const entry of docs.roadmap.done) parts.push(roadmapDoneSearchText(entry))
             break
         case 'map':
             pushItems(docs.mapItems)
             pushItems(docs.utilityItems)
             parts.push(docs.mapHeadings.primaryWorkspaces, docs.mapHeadings.utilityRail)
             break
-        case 'library':
-            pushItems(docs.libraryGuide)
-            break
-        case 'cards':
-            pushItems(docs.cardGuide)
-            break
-        case 'play':
-            pushItems(docs.playGuide)
-            break
-        case 'voice-presets':
-            pushItems(docs.voicePresetGuide)
-            break
-        case 'voice':
-            pushItems(docs.voiceGuide)
-            break
-        case 'writing':
-            pushItems(docs.writingGuide)
-            break
-        case 'resources':
-            pushItems(docs.resourcesGuide)
-            break
-        case 'media':
-            pushItems(docs.mediaGuide)
-            break
         case 'best-practices':
             parts.push(...docs.bestPractices)
             break
+        default:
+            pushItems(guideItemsFor(docs, sectionId))
     }
     return parts.join(' ').toLowerCase()
 }

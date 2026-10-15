@@ -19,7 +19,7 @@ import type { Adventure, Character, CharacterChatSession, Item, Lorebook, PageTy
 import { MODE_META } from '@/shared/modes'
 import { NovelCreateModal } from '@/features/novel/components/NovelCreateModal'
 import { PersonaPickerDialog } from '@/ui/components'
-import { useStartCall } from '@/features/call'
+import { CallStartErrorToast, useStartCall } from '@/features/call'
 import { isFrontendVoiceModeEnabled } from '@/shared/voiceFeatureFlag'
 import { isAdventuresFeatureEnabled, isLorebooksFeatureEnabled, isNovelsFeatureEnabled } from '@/shared/featureFlags'
 import { chatDisplayTitle } from '@/utils/chatTitle'
@@ -765,6 +765,7 @@ export function LandingPage() {
                 onConfirm={callControls.confirmPersonaPick}
                 onClose={callControls.closePersonaPick}
             />
+            <CallStartErrorToast error={callControls.error} onClose={callControls.clearError} />
         </div>
     )
 }

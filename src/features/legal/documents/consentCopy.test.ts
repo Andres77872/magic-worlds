@@ -12,10 +12,12 @@ function lookup(root: unknown, path: string): unknown {
 }
 
 describe('CONSENT_COPY', () => {
-    it('holds only the version the BFF requires (I-68)', () => {
+    it('keeps the published default and a separately selected Fish development draft', () => {
         expect(CURRENT_CONSENT_VERSION).toBe('voice-v2')
-        expect(Object.keys(CONSENT_COPY)).toEqual(['voice-v2'])
+        expect(Object.keys(CONSENT_COPY).sort()).toEqual(['voice-v2', 'voice-v3'])
         expect(consentCopyFor()).toBe(CONSENT_COPY['voice-v2'])
+        expect(consentCopyFor('voice-v3')).toBe(CONSENT_COPY['voice-v3'])
+        expect(isShippable(CONSENT_COPY['voice-v3'])).toBe(false)
     })
 
     it('ships voice-v2 final and marker-free (I-71), naming ElevenLabs and Groq', () => {

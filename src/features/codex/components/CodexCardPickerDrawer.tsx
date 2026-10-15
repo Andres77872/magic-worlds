@@ -9,6 +9,7 @@
  * While that workspace is archived (or the host says `readOnly`) the library
  * stays browsable, but nothing can be selected or added.
  */
+import { isContentTypeFeatureEnabled, isWorkspacesFeatureEnabled } from '@/shared/featureFlags'
 
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -161,7 +162,7 @@ export function CodexCardPickerDrawer({ open, workspaceId, busy, readOnly: hostR
                     {t(keys.hint)}
                 </p>
                 <div className="flex flex-wrap gap-1.5">
-                    {CODEX_LIBRARY_KINDS.map((pickerKind) => {
+                    {CODEX_LIBRARY_KINDS.filter(isContentTypeFeatureEnabled).map((pickerKind) => {
                         const meta = KIND_META.find((item) => item.kind === pickerKind)
                         const active = kind === pickerKind
                         return (
@@ -193,7 +194,7 @@ export function CodexCardPickerDrawer({ open, workspaceId, busy, readOnly: hostR
                         />
                         {loading && <Loader2 size={15} className="absolute right-3 animate-spin text-ember-500" aria-hidden="true" />}
                     </div>
-                    {browser.collections.length > 0 && (
+                    {isWorkspacesFeatureEnabled() && browser.collections.length > 0 && (
                         <div className="sm:w-52">
                             <Select
                                 size="sm"

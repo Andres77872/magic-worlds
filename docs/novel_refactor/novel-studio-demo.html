@@ -1,0 +1,1177 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A standalone, interactive design preview of the proposed Reverie novel refactor. Sample data only; no application or backend integration.">
+  <title>Story Studio · Novel refactor preview</title>
+  <!--
+    Standalone design demo, based on docs/novel_refactor (2026-10-14).
+    No application imports, dependencies, API requests, or provider calls.
+    Button, IconButton, Badge, Field, Card and Dialog appearances mirror the
+    Reverie primitives. Theme values below are copied from src/ui/styles/theme.css.
+    D1–D6 labels describe proposed delivery phases, not shipped capabilities.
+    Browser storage is namespaced to this sample and never reads app credentials.
+    Open this file directly in a browser. The optional font stylesheet has fallbacks.
+  -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Hanken+Grotesk:wght@400;500;600;700&family=Space+Mono&family=Spectral:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      /* ---------- font families → font-* ---------- */
+  --font-display: "Cormorant Garamond", "Hoefler Text", Georgia, serif;
+  --font-narrative: "Spectral", Georgia, "Times New Roman", serif;
+  --font-ui: "Hanken Grotesk", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "Space Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* ---------- palette → bg-/text-/border- utilities ---------- */
+  /* Ink — dark canvas */
+  --color-ink-900: #0e0c14;
+  --color-ink-800: #14111c;
+  --color-ink-700: #1b1726;
+  --color-ink-600: #251f31;
+  --color-ink-500: #322b41;
+  /* Base endpoint for generated portrait gradients (image-less fallbacks) */
+  --color-gradient-base: #160f24;
+  /* Parchment — warm foreground */
+  --color-parchment-50: #f6efe2;
+  --color-parchment-100: #e7ddcb;
+  --color-parchment-200: #c9bfae;
+  --color-parchment-300: #9a9184;
+  /* Faint but readable: 4.98:1 on ink-700 and 4.52:1 on ink-600.
+     Used for helper text, metadata and placeholders, not only decoration. */
+  --color-parchment-400: #8c8695;
+  --color-parchment-500: #4c4858;
+  /* Ember — primary accent (candlelight gold).
+     -200 is the hover step: components rest on -300 and brighten to -200. */
+  --color-ember-200: #fadfb4;
+  --color-ember-300: #f6cc8c;
+  --color-ember-400: #f2b968;
+  --color-ember-500: #e8a24a;
+  --color-ember-600: #ce8431;
+  --color-ember-700: #a0641f;
+  /* Arcane — secondary accent (AI / magic). -200 is the hover step. */
+  --color-arcane-200: #dbd0f8;
+  --color-arcane-300: #c3b0f2;
+  --color-arcane-400: #a98eec;
+  --color-arcane-500: #8f6fe3;
+  --color-arcane-600: #6e4fc4;
+  --color-arcane-700: #523a98;
+  /* Semantic hues */
+  --color-verdant-500: #6fbf8b; /* success */
+  --color-blood-500: #e2685f;   /* danger */
+  --color-blood-300: #f0938b;   /* danger text on tinted surfaces */
+  --color-amber-500: #e8b04a;   /* warning */
+  /* dark ink for text on ember fills */
+  --color-on-ember: #1a1206;
+
+  /* ---------- radii → rounded-* ---------- */
+  --radius-xs: 6px;
+  --radius-sm: 9px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+  --radius-2xl: 28px;
+
+  /* ---------- elevation + candlelight glow → shadow-* ---------- */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 6px 18px -6px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 18px 44px -12px rgba(0, 0, 0, 0.65);
+  --shadow-xl: 0 36px 80px -20px rgba(0, 0, 0, 0.7);
+  --shadow-glow-ember: 0 0 0 1px rgba(232, 162, 74, 0.35), 0 8px 30px -6px rgba(232, 162, 74, 0.35);
+  --shadow-glow-arcane: 0 0 0 1px rgba(143, 111, 227, 0.35), 0 8px 32px -6px rgba(143, 111, 227, 0.4);
+  /* card hover = elevation + ember glow combined (one box-shadow) */
+  --shadow-card-hover: 0 18px 44px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(232, 162, 74, 0.35), 0 8px 30px -6px rgba(232, 162, 74, 0.35);
+  /* Arcane twin of card-hover for chat-flavored cards — ember stays the only
+     accent on the play/create side, arcane marks the AI side, even on hover. */
+  --shadow-card-hover-arcane: 0 18px 44px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(143, 111, 227, 0.35), 0 8px 32px -6px rgba(143, 111, 227, 0.4);
+
+  /* ---------- motion ---------- */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --default-transition-duration: 220ms; /* Reverie --dur-base */
+  --default-transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-think: think 1.8s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  --animate-shimmer: shimmer 1.6s linear infinite;
+  /* Live call waveform: bars gently bounce while the character speaks (no client-side
+     audio analysis). Transform only. */
+  --animate-call-wave: call-wave 0.9s var(--ease-in-out) infinite alternate;
+  /* Assistant hover card: the bar fills while the card is transient, then the
+     card locks open. Its length matches HOVER_TIMING.lockAfter. Transform only. */
+  --animate-hover-lock: hover-lock 1s linear forwards;
+
+  /* ---------- type scale → text-* (size + line-height) ---------- */
+  --text-display: clamp(44px, 6vw, 84px);
+  --text-display--line-height: 1.02;
+  --text-display--letter-spacing: -0.01em;
+  --text-display--font-weight: 600;
+  --text-h1: clamp(34px, 4vw, 52px);
+  --text-h1--line-height: 1.06;
+  --text-h2: 34px;
+  --text-h2--line-height: 1.12;
+  --text-h3: 24px;
+  --text-h3--line-height: 1.2;
+  --text-narrative: 18px;
+  --text-narrative--line-height: 1.62;
+  --text-body: 15px;
+  --text-body--line-height: 1.55;
+  --text-label: 13px;
+  --text-label--line-height: 1.3;
+  --text-caption: 12px;
+  --text-eyebrow: 12px;
+  --text-eyebrow--letter-spacing: 0.18em;
+  /* micro type for badges, counts, and meta rows */
+  --text-meta: 11px;
+  --text-meta--line-height: 1.3;
+  --text-micro: 10px;
+  --text-micro--line-height: 1.2;
+  /* prose heading sizes — consumed by .chat-prose below */
+  --text-prose-h1: 30px;
+  --text-prose-h2: 26px;
+  --text-prose-h3: 22px;
+
+  /* ---------- semantic / role tokens → bg-/text-/border- utilities ----------
+     Prefer these over raw ramps so intent reads clearly and a palette shift is a
+     token edit, not a find/replace. The raw ramps stay available underneath. */
+  --color-fg: var(--color-parchment-50); /* primary text/icon */
+  --color-fg-muted: var(--color-parchment-200); /* secondary text */
+  --color-fg-subtle: var(--color-parchment-300); /* muted text */
+  --color-fg-faint: var(--color-parchment-400); /* placeholders */
+  --color-surface: var(--color-ink-800); /* page / base surface */
+  --color-surface-raised: var(--color-ink-700); /* cards, controls */
+  --color-surface-overlay: var(--color-ink-600); /* popovers, raised wells */
+  --color-surface-sunken: var(--color-ink-900); /* code, deepest wells */
+  --color-accent: var(--color-ember-500); /* primary action / focus */
+  --color-accent-hover: var(--color-ember-400);
+  --color-accent-ai: var(--color-arcane-500); /* AI / magic side */
+  --color-line: color-mix(in srgb, var(--color-parchment-50) 12%, transparent); /* hairline border */
+  --color-line-faint: color-mix(in srgb, var(--color-parchment-50) 8%, transparent);
+  --color-line-strong: color-mix(in srgb, var(--color-parchment-50) 22%, transparent);
+
+  /* ---------- candlelit focus + stronger glows → shadow-* ---------- */
+  --shadow-input-focus: 0 0 0 1px var(--color-ember-500),
+    0 0 14px -2px color-mix(in srgb, var(--color-ember-500) 45%, transparent);
+  --shadow-input-focus-arcane: 0 0 0 1px var(--color-arcane-500),
+    0 0 14px -2px color-mix(in srgb, var(--color-arcane-500) 45%, transparent);
+  --shadow-glow-ember-strong: 0 0 0 1px color-mix(in srgb, var(--color-ember-500) 50%, transparent),
+    0 10px 40px -6px color-mix(in srgb, var(--color-ember-500) 45%, transparent);
+  --shadow-glow-arcane-strong: 0 0 0 1px color-mix(in srgb, var(--color-arcane-500) 50%, transparent),
+    0 10px 42px -6px color-mix(in srgb, var(--color-arcane-500) 50%, transparent);
+  /* soft resting halos for tinted glyph plates (IconTile) — a quiet centered glow */
+  --shadow-glow-ember-soft: 0 0 20px -8px var(--color-ember-500);
+  --shadow-glow-arcane-soft: 0 0 20px -7px var(--color-arcane-500);
+  /* avatar identity rings: a 2px solid ring + a soft candlelit halo (centered,
+     not a downward drop) — ember marks the player, arcane marks the AI. */
+  --shadow-ring-ember: 0 0 0 2px var(--color-ember-500), 0 0 16px -4px var(--color-ember-500);
+  --shadow-ring-arcane: 0 0 0 2px var(--color-arcane-500), 0 0 18px -3px var(--color-arcane-500);
+  /* tonal toast elevation: semantic hue at emphasis alpha (--alpha-emphasis) */
+  --shadow-glow-verdant: 0 18px 44px -18px color-mix(in srgb, var(--color-verdant-500) 55%, transparent);
+  --shadow-glow-blood: 0 18px 44px -18px color-mix(in srgb, var(--color-blood-500) 55%, transparent);
+
+  /* ---------- non-utility design constants (consumed via var()) ---------- */
+  /* alpha ladder for tints + borders */
+  --alpha-faint: 0.06;
+  --alpha-subtle: 0.1;
+  --alpha-soft: 0.15;
+  --alpha-medium: 0.25;
+  --alpha-strong: 0.35;
+  --alpha-emphasis: 0.55;
+  /* candlelight glow fills (radial-gradient color stops) */
+  --glow-ember-hero: color-mix(in srgb, var(--color-ember-500) 16%, transparent);
+  --glow-ember-page: color-mix(in srgb, var(--color-ember-500) 13%, transparent);
+  --glow-ember-faint: color-mix(in srgb, var(--color-ember-500) 8%, transparent);
+  --glow-arcane-hero: color-mix(in srgb, var(--color-arcane-500) 18%, transparent);
+  --glow-arcane-page: color-mix(in srgb, var(--color-arcane-500) 14%, transparent);
+  --glow-arcane-faint: color-mix(in srgb, var(--color-arcane-500) 10%, transparent);
+  /* focus-ring composites (2px ink gap + 4px accent) */
+  --ring-ember: 0 0 0 2px var(--color-ink-800), 0 0 0 4px var(--color-ember-500);
+  --ring-arcane: 0 0 0 2px var(--color-ink-800), 0 0 0 4px var(--color-arcane-500);
+  --ring-danger: 0 0 0 2px var(--color-ink-800), 0 0 0 4px var(--color-blood-500);
+  /* interaction transforms */
+  --scale-press: 0.98;
+  --scale-hover: 1.02;
+  --scale-zoom: 1.035;
+  /* layout widths (Drawer / Modal / Sidebar size maps consume via var()) */
+  --width-sidebar: 264px;
+  /* Manuscript measure: ~68 characters of Spectral at 18px, plus the prose
+     column's 28px gutters. Absolute, so the editor's chrome can line up with
+     the prose without inheriting its font. */
+  --width-manuscript: 640px;
+  --width-drawer-sm: 360px;
+  --width-drawer-md: 440px;
+  --width-drawer-lg: 600px;
+  --width-drawer-xl: 760px;
+  --width-drawer-2xl: 920px;
+  --width-modal-sm: 420px;
+  --width-modal-md: 540px;
+  --width-modal-lg: 720px;
+    }
+    * { box-sizing: border-box; scrollbar-width: thin; scrollbar-color: var(--color-ink-500) transparent; }
+    [hidden] { display: none !important; }
+    html { color-scheme: dark; }
+    body { margin: 0; background: var(--color-ink-900); color: var(--color-fg); font-family: var(--font-ui); font-size: var(--text-body); line-height: var(--text-body--line-height); }
+    button, input, textarea, select { font: inherit; }
+    button { cursor: pointer; }
+    button:disabled { opacity: .45; cursor: default; }
+    a { color: var(--color-ember-300); text-underline-offset: 3px; }
+    button, a, input, textarea, select { -webkit-tap-highlight-color: transparent; }
+    :focus-visible { outline: 2px solid var(--color-ember-500); outline-offset: 3px; }
+    ::selection { color: var(--color-fg); background: color-mix(in srgb, var(--color-ember-500) 28%, transparent); }
+    h1, h2, h3, p { margin: 0; }
+    h1, h2, h3 { font-weight: 500; }
+    svg.icon { width: 18px; height: 18px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+    .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+    .skip-link { position: fixed; top: -100px; left: 16px; z-index: 110; padding: 12px; background: var(--color-ember-500); color: var(--color-on-ember); border-radius: var(--radius-sm); }
+    .skip-link:focus { top: 12px; }
+    .row { display: flex; align-items: center; gap: 8px; }
+    .spread { justify-content: space-between; }
+    .wrap { flex-wrap: wrap; }
+    .stack { display: grid; gap: 16px; }
+    .muted { color: var(--color-fg-muted); }
+    .subtle { color: var(--color-fg-subtle); }
+    .small { font-size: var(--text-caption); }
+    .label { font-size: var(--text-label); }
+    .mono { font-family: var(--font-mono); font-size: var(--text-meta); }
+    .ember { color: var(--color-ember-300); }
+    .arcane { color: var(--color-arcane-300); }
+    .success { color: var(--color-verdant-500); }
+    .eyebrow { font-size: var(--text-eyebrow); letter-spacing: var(--text-eyebrow--letter-spacing); text-transform: uppercase; color: var(--color-ember-300); }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 38px; padding: 8px 13px; border: 1px solid var(--color-line-strong); border-radius: var(--radius-md); background: transparent; color: var(--color-fg); font-size: var(--text-label); font-weight: 600; line-height: var(--text-label--line-height); text-decoration: none; transition: background var(--default-transition-duration) var(--ease-out), color var(--default-transition-duration) var(--ease-out), border-color var(--default-transition-duration) var(--ease-out); }
+    .btn:hover:not(:disabled) { background: color-mix(in srgb, var(--color-fg) 5%, transparent); border-color: color-mix(in srgb, var(--color-ember-500) 60%, transparent); }
+    .btn.primary { background: var(--color-ember-500); color: var(--color-on-ember); border-color: transparent; }
+    .btn.primary:hover:not(:disabled) { background: var(--color-ember-400); }
+    .btn.ai { background: color-mix(in srgb, var(--color-arcane-500) 15%, transparent); border-color: color-mix(in srgb, var(--color-arcane-500) 40%, transparent); color: var(--color-arcane-300); }
+    .btn.ghost { border-color: transparent; color: var(--color-fg-muted); }
+    .btn.danger { color: var(--color-blood-300); }
+    .btn.compact { min-height: 30px; padding: 5px 9px; font-size: var(--text-caption); border-radius: var(--radius-sm); }
+    .btn.full { width: 100%; }
+    .icon-btn { width: 36px; height: 36px; padding: 0; flex: 0 0 auto; }
+    .badge { display: inline-flex; gap: 5px; align-items: center; width: fit-content; padding: 4px 8px; border-radius: var(--radius-2xl); background: var(--color-ink-600); color: var(--color-fg-muted); font-size: var(--text-meta); font-weight: 600; line-height: var(--text-meta--line-height); white-space: nowrap; }
+    .badge.gold { color: var(--color-ember-300); background: color-mix(in srgb, var(--color-ember-500) 12%, transparent); }
+    .badge.violet { color: var(--color-arcane-300); background: color-mix(in srgb, var(--color-arcane-500) 15%, transparent); }
+    .badge.green { color: var(--color-verdant-500); background: color-mix(in srgb, var(--color-verdant-500) 12%, transparent); }
+    .badge.warning { color: var(--color-amber-500); background: color-mix(in srgb, var(--color-amber-500) 12%, transparent); }
+    .dot { display: inline-block; width: 5px; height: 5px; border-radius: var(--radius-xs); background: currentColor; flex: 0 0 auto; }
+    .field { display: grid; gap: 7px; font-size: var(--text-label); color: var(--color-fg-muted); }
+    .input { min-width: 0; width: 100%; padding: 11px 12px; border: 1px solid var(--color-line); border-radius: var(--radius-md); color: var(--color-fg); background: var(--color-ink-700); font-size: var(--text-label); line-height: var(--text-body--line-height); }
+    .input::placeholder { color: var(--color-fg-faint); }
+    textarea.input { resize: vertical; min-height: 90px; }
+    .rule { height: 1px; background: var(--color-line-faint); border: 0; margin: 16px 0; }
+    .card { padding: 18px; border: 1px solid var(--color-line-faint); border-radius: var(--radius-lg); background: var(--color-ink-700); }
+    .callout { padding: 13px 16px; border-left: 2px solid var(--color-arcane-400); background: color-mix(in srgb, var(--color-arcane-500) 8%, transparent); border-radius: var(--radius-xs); font-size: var(--text-label); color: var(--color-fg-muted); }
+    .callout.warning { border-color: var(--color-amber-500); background: color-mix(in srgb, var(--color-amber-500) 7%, transparent); }
+    .segmented { display: inline-flex; gap: 3px; border: 1px solid var(--color-line-faint); padding: 3px; border-radius: var(--radius-md); background: var(--color-ink-900); }
+    .segmented button { min-height: 32px; padding: 6px 13px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--color-fg-subtle); font-size: var(--text-label); font-weight: 500; display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+    .segmented button:hover { color: var(--color-fg); }
+    .segmented button[aria-pressed="true"] { color: var(--color-ember-300); background: var(--color-ink-600); }
+    .segmented .icon { width: 15px; height: 15px; }
+    .preview-bar { min-height: 33px; padding: 6px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--color-ink-700); border-bottom: 1px solid var(--color-line-faint); color: var(--color-fg-subtle); font-size: var(--text-meta); }
+    .preview-bar .preview-label { text-transform: uppercase; color: var(--color-ember-300); letter-spacing: .12em; }
+    .text-btn { background: transparent; color: var(--color-fg-muted); border: 0; padding: 3px 6px; font-size: var(--text-caption); text-decoration: underline; text-underline-offset: 4px; }
+    #demo { height: 100dvh; min-height: 540px; display: flex; flex-direction: column; container: studio / inline-size; overflow: hidden; }
+    .topbar { min-height: 74px; padding: 12px 24px; border-bottom: 1px solid var(--color-line-faint); display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--color-ink-900); }
+    .brand { display: flex; gap: 12px; align-items: center; }
+    svg.brand-mark { width: 34px; height: 38px; color: var(--color-ember-400); }
+    .brand-name { font-family: var(--font-display); font-size: var(--text-h3); line-height: var(--text-h3--line-height); letter-spacing: .02em; }
+    .brand-caption { color: var(--color-fg-subtle); font-size: var(--text-meta); letter-spacing: .12em; text-transform: uppercase; }
+    .header-divider { width: 1px; height: 30px; background: var(--color-line); margin: 0 12px; }
+    .breadcrumb { color: var(--color-fg-subtle); font-size: var(--text-caption); display: flex; gap: 10px; align-items: center; }
+    .breadcrumb strong { color: var(--color-fg-muted); font-weight: 500; }
+    .modebar { min-height: 58px; padding: 8px 24px; border-bottom: 1px solid var(--color-line-faint); display: flex; align-items: center; justify-content: space-between; gap: 8px; background: var(--color-ink-800); }
+    .modebar-title { min-width: 210px; display: flex; align-items: center; gap: 12px; }
+    .modebar-title span { font-size: var(--text-label); color: var(--color-fg-muted); }
+    .studio { position: relative; display: grid; grid-template-columns: var(--width-sidebar) minmax(0, 1fr) var(--width-drawer-sm); flex: 1; min-height: 0; overflow: hidden; background: var(--color-ink-800); }
+    .outline { display: flex; flex-direction: column; min-height: 0; background: var(--color-ink-900); border-right: 1px solid var(--color-line-faint); }
+    .book-overview { padding: 22px 20px 18px; }
+    .book-cover { width: 47px; height: 62px; border: 1px solid color-mix(in srgb, var(--color-ember-500) 32%, transparent); border-radius: var(--radius-xs); color: var(--color-ember-300); background: var(--color-ink-600); flex: 0 0 auto; position: relative; box-shadow: var(--shadow-sm); }
+    .book-cover svg { width: 100%; height: 100%; }
+    .book-title { font-family: var(--font-display); font-size: var(--text-h3); line-height: 1; }
+    .outline-label { padding: 13px 19px 10px; color: var(--color-fg-subtle); font-size: var(--text-caption); display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--color-line-faint); }
+    .chapter-list { flex: 1; min-height: 0; overflow: auto; padding: 0 10px 20px; }
+    .part-label { margin: 19px 10px 12px; color: var(--color-fg-faint); text-transform: uppercase; letter-spacing: .1em; font-size: var(--text-meta); }
+    .chapter-label { display: flex; align-items: baseline; gap: 8px; margin: 18px 8px 8px; color: var(--color-fg-muted); font-size: var(--text-label); font-weight: 500; }
+    .chapter-number { font-family: var(--font-mono); color: var(--color-fg-subtle); font-size: var(--text-meta); }
+    .scene-item { display: flex; align-items: center; gap: 4px; position: relative; margin: 3px 0 3px 12px; border-radius: var(--radius-sm); border-left: 1px solid var(--color-line-faint); }
+    .scene-item.active { background: color-mix(in srgb, var(--color-ember-500) 10%, transparent); border-left-color: var(--color-ember-500); }
+    .scene-select { display: flex; gap: 9px; align-items: flex-start; flex: 1; min-width: 0; text-align: left; padding: 11px 5px 11px 11px; color: var(--color-fg-muted); background: transparent; border: 0; font-size: var(--text-caption); }
+    .scene-select .scene-dot { color: var(--color-fg-faint); margin-top: 6px; }
+    .scene-item.active .scene-select { color: var(--color-ember-300); }
+    .scene-item.active .scene-dot { color: var(--color-ember-400); }
+    .scene-count { display: block; margin-top: 3px; color: var(--color-fg-faint); font-family: var(--font-mono); font-size: var(--text-micro); }
+    .scene-more { width: 29px; min-width: 29px; height: 32px; opacity: .65; margin-right: 4px; }
+    .scene-item:hover .scene-more, .scene-more:focus-visible { opacity: 1; }
+    .outline-foot { padding: 16px 19px; border-top: 1px solid var(--color-line-faint); display: grid; gap: 12px; }
+    .progress-track { width: 100%; height: 4px; border-radius: var(--radius-xs); background: var(--color-ink-600); overflow: hidden; }
+    .progress-track span { display: block; width: 37%; height: 100%; background: var(--color-ember-500); }
+    .workspace-center { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+    .scene-bar { padding: 12px 26px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--color-line-faint); gap: 12px; }
+    .scene-bar .row { gap: 12px; }
+    .scene-bar .icon { color: var(--color-fg-subtle); width: 15px; height: 15px; }
+    .editor-scroll { flex: 1; min-height: 0; overflow: auto; padding-bottom: 70px; }
+    .manuscript { max-width: var(--width-manuscript); margin: 0 auto; padding: 44px 32px 28px; }
+    .manuscript-heading { margin-bottom: 29px; }
+    .manuscript h1 { font-family: var(--font-display); font-size: var(--text-h1); line-height: var(--text-h1--line-height); margin: 12px 0 15px; letter-spacing: -.015em; }
+    .scene-description { color: var(--color-fg-subtle); font-size: var(--text-caption); line-height: var(--text-body--line-height); }
+    .prose { font-family: var(--font-narrative); font-size: var(--text-narrative); line-height: var(--text-narrative--line-height); color: var(--color-parchment-100); caret-color: var(--color-ember-400); padding: 3px; border-radius: var(--radius-xs); }
+    .prose p { margin: 0 0 22px; }
+    .prose p:first-child::first-letter { font-family: var(--font-display); font-size: var(--text-h2); color: var(--color-ember-300); }
+    .prose .passage-selected { background: color-mix(in srgb, var(--color-ember-500) 10%, transparent); border-radius: var(--radius-xs); outline: 1px solid color-mix(in srgb, var(--color-ember-500) 22%, transparent); outline-offset: 6px; }
+    .prose .committed { border-left: 2px solid var(--color-ember-500); padding-left: 16px; }
+    .writing-tools { margin: 4px 0 28px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .scene-divider { display: flex; align-items: center; gap: 18px; margin: 28px 0 18px; color: var(--color-ember-500); }
+    .scene-divider::before, .scene-divider::after { content: ''; height: 1px; flex: 1; background: var(--color-line-faint); }
+    .editor-footer { max-width: var(--width-manuscript); margin: 0 auto; padding: 0 34px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
+    .inspector { display: flex; flex-direction: column; background: var(--color-ink-900); border-left: 1px solid var(--color-line-faint); min-height: 0; min-width: 0; }
+    .inspector-heading { padding: 19px 19px 14px; display: flex; justify-content: space-between; align-items: center; }
+    .inspector-heading h2 { font-size: var(--text-label); font-weight: 600; }
+    .inspector-tabs { display: flex; border-bottom: 1px solid var(--color-line-faint); padding: 0 12px; }
+    .inspector-tabs button { flex: 1; min-width: 0; min-height: 40px; padding: 8px 7px 12px; border: 0; border-bottom: 2px solid transparent; font-size: var(--text-caption); background: transparent; color: var(--color-fg-subtle); }
+    .inspector-tabs button[aria-selected="true"] { color: var(--color-ember-300); border-bottom-color: var(--color-ember-500); }
+    .inspector-content { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+    .inspector-scroll { overflow: auto; flex: 1; min-height: 0; padding: 20px; }
+    .assistant-identity { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; }
+    .ai-avatar { width: 32px; height: 32px; border-radius: var(--radius-md); border: 1px solid color-mix(in srgb, var(--color-arcane-500) 45%, transparent); display: grid; place-items: center; color: var(--color-arcane-300); background: color-mix(in srgb, var(--color-arcane-500) 10%, transparent); }
+    .assistant-answer { font-size: var(--text-label); color: var(--color-fg-muted); line-height: 1.75; }
+    .assistant-answer p + p { margin-top: 12px; }
+    .citation { display: inline-flex; align-items: center; gap: 5px; background: color-mix(in srgb, var(--color-ember-500) 7%, transparent); color: var(--color-ember-300); border: 1px solid color-mix(in srgb, var(--color-ember-500) 18%, transparent); padding: 4px 7px; border-radius: var(--radius-xs); font-size: var(--text-meta); text-align: left; }
+    .assistant-question { padding: 10px 13px; border-radius: var(--radius-md); background: var(--color-ink-700); color: var(--color-fg); font-size: var(--text-label); margin: 20px 0 16px; }
+    .suggested-question { padding: 10px 0; border: 0; border-bottom: 1px solid var(--color-line-faint); text-align: left; background: transparent; color: var(--color-fg-muted); font-size: var(--text-caption); display: flex; justify-content: space-between; gap: 12px; width: 100%; }
+    .suggested-question:hover { color: var(--color-ember-300); }
+    .assistant-composer { margin: 0 16px 14px; padding: 10px; border: 1px solid var(--color-line-strong); border-radius: var(--radius-lg); background: var(--color-ink-700); }
+    .assistant-composer textarea { resize: none; background: transparent; border: 0; width: 100%; color: var(--color-fg); min-height: 66px; padding: 10px 3px; font-size: var(--text-label); }
+    .assistant-composer textarea::placeholder { color: var(--color-fg-faint); }
+    .assistant-composer .segmented { border: 0; }
+    .assistant-composer .segmented button { font-size: var(--text-meta); padding: 4px 8px; min-height: 27px; }
+    .scope-label { margin: 0 17px 9px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--color-fg-subtle); font-size: var(--text-meta); }
+    .scope-label select { max-width: 165px; border: 0; background: var(--color-ink-900); color: var(--color-ember-300); font-size: var(--text-meta); padding: 5px 0; }
+    .source-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 14px 0; border-bottom: 1px solid var(--color-line-faint); }
+    .source-row input { accent-color: var(--color-ember-500); width: 15px; height: 15px; margin: 3px 0 0; }
+    .source-row label { flex: 1; font-size: var(--text-label); }
+    .source-row label small { display: block; font-size: var(--text-meta); margin-top: 5px; color: var(--color-fg-subtle); }
+    .fact { padding: 13px 0; border-bottom: 1px solid var(--color-line-faint); font-size: var(--text-label); color: var(--color-fg-muted); }
+    .fact .badge { margin-bottom: 8px; }
+    .plot-line { width: 20px; height: 2px; background: var(--color-ember-500); }
+    .planning-view, .review-view { flex: 1; min-height: 0; overflow: auto; padding: 29px; }
+    .view-heading { margin-bottom: 22px; }
+    .view-heading h1 { font-family: var(--font-display); font-size: var(--text-h2); line-height: var(--text-h2--line-height); margin: 8px 0; }
+    .plan-options { margin-bottom: 21px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+    .board { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+    .board-column { min-width: 0; padding: 14px; background: color-mix(in srgb, var(--color-ink-900) 60%, transparent); border-radius: var(--radius-lg); border: 1px solid var(--color-line-faint); }
+    .board-column.drag-over { border-color: var(--color-ember-500); }
+    .board-column h2 { font-size: var(--text-label); font-weight: 500; margin: 3px 0 16px; }
+    .scene-card { margin-top: 10px; padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--color-line-faint); background: var(--color-ink-700); }
+    .scene-card.active { border-color: color-mix(in srgb, var(--color-ember-500) 50%, transparent); }
+    .scene-card h3 { font-family: var(--font-display); font-size: var(--text-h3); line-height: var(--text-h3--line-height); margin: 11px 0 8px; }
+    .scene-card p { font-size: var(--text-caption); line-height: var(--text-body--line-height); color: var(--color-fg-subtle); margin-bottom: 15px; }
+    .scene-card .row.spread { font-size: var(--text-meta); color: var(--color-fg-subtle); }
+    .scene-card .card-title-button { background: transparent; color: var(--color-fg); padding: 0; border: 0; text-align: left; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: var(--text-caption); }
+    .data-table th { font-weight: 500; color: var(--color-fg-subtle); text-align: left; padding: 12px; border-bottom: 1px solid var(--color-line-strong); }
+    .data-table td { padding: 15px 12px; border-bottom: 1px solid var(--color-line-faint); vertical-align: top; }
+    .table-wrap { overflow: auto; }
+    .data-table button { text-align: left; background: transparent; border: 0; color: var(--color-fg); padding: 0; font-size: var(--text-label); }
+    .timeline { position: relative; margin: 24px 0 0 13px; padding-left: 26px; border-left: 1px solid var(--color-line-strong); }
+    .timeline-event { position: relative; padding: 0 0 26px 7px; }
+    .timeline-event::before { content: ''; position: absolute; top: 7px; left: -31px; width: 8px; height: 8px; background: var(--color-ember-500); border-radius: var(--radius-xs); }
+    .timeline-event h3 { font-family: var(--font-display); font-size: var(--text-h3); margin: 5px 0; }
+    .review-summary { padding: 15px 17px; border: 1px solid var(--color-line-faint); border-radius: var(--radius-md); margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; gap: 14px; }
+    .review-picks { display: grid; gap: 8px; margin: 18px 0 22px; }
+    .review-pick { width: 100%; padding: 13px 15px; display: flex; align-items: center; gap: 12px; text-align: left; border: 1px solid var(--color-line-faint); border-radius: var(--radius-md); background: var(--color-ink-900); color: var(--color-fg-muted); font-size: var(--text-label); }
+    .review-pick.active { border-color: color-mix(in srgb, var(--color-arcane-500) 55%, transparent); background: color-mix(in srgb, var(--color-arcane-500) 8%, var(--color-ink-900)); }
+    .review-pick .badge { margin-left: auto; }
+    .diff-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
+    .diff-pane { padding: 19px; border: 1px solid var(--color-line-faint); border-radius: var(--radius-md); background: var(--color-ink-900); min-width: 0; }
+    .diff-pane .diff-label { font-size: var(--text-meta); text-transform: uppercase; letter-spacing: .12em; color: var(--color-fg-subtle); margin-bottom: 15px; }
+    .diff-pane p { font-family: var(--font-narrative); font-size: var(--text-body); line-height: 1.8; color: var(--color-fg-muted); white-space: pre-wrap; }
+    .diff-pane.proposed { border-color: color-mix(in srgb, var(--color-arcane-500) 30%, transparent); }
+    .diff-pane.proposed .diff-label { color: var(--color-arcane-300); }
+    .diff-pane del { color: var(--color-blood-300); text-decoration-color: var(--color-blood-500); }
+    .diff-pane ins { color: var(--color-arcane-200); text-decoration: none; background: color-mix(in srgb, var(--color-arcane-500) 16%, transparent); }
+    .review-actions { display: flex; gap: 8px; flex-wrap: wrap; padding: 16px 0; border-top: 1px solid var(--color-line-faint); }
+    .statusbar { min-height: 35px; padding: 7px 18px; display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--color-ink-900); border-top: 1px solid var(--color-line-faint); font-size: var(--text-meta); color: var(--color-fg-subtle); }
+    .statusbar button { font-size: var(--text-meta); background: transparent; border: 0; color: var(--color-fg-muted); padding: 0; display: inline-flex; align-items: center; gap: 6px; }
+    #save-status { white-space: nowrap; }
+    .statusbar .icon { width: 13px; height: 13px; }
+    .statusbar .status-separator { color: var(--color-line-strong); margin: 0 8px; }
+    .drawer-close { display: none; }
+    .rail-backdrop { display: none; position: absolute; inset: 0; border: 0; z-index: 45; background: color-mix(in srgb, var(--color-ink-900) 75%, transparent); }
+    .studio.hide-outline { grid-template-columns: minmax(0, 1fr) var(--width-drawer-sm); }
+    .studio.hide-outline .outline { display: none; }
+    .studio.hide-inspector { grid-template-columns: var(--width-sidebar) minmax(0, 1fr); }
+    .studio.hide-inspector .inspector { display: none; }
+    .studio.hide-outline.hide-inspector, .studio.focus-mode { grid-template-columns: minmax(0, 1fr); }
+    .focus-mode .outline, .focus-mode .inspector { display: none; }
+    .focus-mode .manuscript { padding-top: 56px; }
+    dialog { width: min(var(--width-modal-lg), calc(100vw - 32px)); max-height: calc(100dvh - 48px); padding: 0; border: 1px solid var(--color-line-strong); border-radius: var(--radius-xl); background: var(--color-ink-800); color: var(--color-fg); box-shadow: var(--shadow-xl); }
+    dialog.wide { width: min(var(--width-drawer-2xl), calc(100vw - 32px)); }
+    dialog::backdrop { background: color-mix(in srgb, var(--color-ink-900) 82%, transparent); backdrop-filter: blur(6px); }
+    .dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 23px 25px 18px; border-bottom: 1px solid var(--color-line-faint); }
+    .dialog-head h2 { font-family: var(--font-display); font-size: var(--text-h2); line-height: var(--text-h2--line-height); margin-top: 8px; }
+    .dialog-body { padding: 24px 25px; }
+    .dialog-foot { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; padding: 16px 25px; border-top: 1px solid var(--color-line-faint); background: var(--color-ink-900); }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .improvement-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .improvement { border: 1px solid var(--color-line-faint); padding: 18px; border-radius: var(--radius-lg); display: grid; gap: 10px; }
+    .improvement h3 { font-family: var(--font-display); font-size: var(--text-h3); }
+    .improvement p { font-size: var(--text-caption); color: var(--color-fg-muted); }
+    .improvement .btn { justify-self: start; }
+    .revision-list { display: grid; gap: 9px; }
+    .revision-button { padding: 13px 16px; width: 100%; border-radius: var(--radius-md); border: 1px solid var(--color-line-faint); background: var(--color-ink-700); color: var(--color-fg); text-align: left; display: flex; align-items: center; gap: 12px; }
+    .revision-button.selected { border-color: var(--color-ember-500); }
+    .revision-preview { font-family: var(--font-narrative); white-space: pre-wrap; color: var(--color-fg-muted); font-size: var(--text-body); line-height: 1.8; max-height: 200px; overflow: auto; padding: 18px; border: 1px solid var(--color-line-faint); border-radius: var(--radius-md); }
+    .toast { position: fixed; bottom: 55px; left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 36px); padding: 14px 17px; background: var(--color-ink-600); border: 1px solid var(--color-line-strong); border-radius: var(--radius-md); box-shadow: var(--shadow-lg); z-index: 110; display: flex; align-items: center; gap: 16px; font-size: var(--text-label); }
+    .toast button { color: var(--color-ember-300); background: transparent; border: 0; padding: 2px; font-size: var(--text-label); }
+    .busy .ai-avatar { border-color: var(--color-arcane-300); }
+    @container studio (max-width: 1220px) {
+      .studio, .studio.hide-inspector { grid-template-columns: var(--width-sidebar) minmax(0, 1fr); }
+      .studio.hide-outline, .studio.hide-outline.hide-inspector, .studio.focus-mode { grid-template-columns: minmax(0, 1fr); }
+      .inspector { display: none; }
+      .studio.inspector-open .inspector { display: flex; position: absolute; top: 0; right: 0; bottom: 0; width: min(var(--width-drawer-sm), calc(100% - 30px)); z-index: 50; box-shadow: var(--shadow-xl); }
+      .studio.inspector-open .rail-backdrop { display: block; }
+      .inspector .drawer-close { display: inline-flex; }
+      .breadcrumb { display: none; }
+      .header-divider { display: none; }
+    }
+    @container studio (max-width: 820px) {
+      .studio, .studio.hide-inspector, .studio.hide-outline { grid-template-columns: minmax(0, 1fr); }
+      .outline { display: none; }
+      .studio.outline-open .outline { display: flex; position: absolute; inset: 0 auto 0 0; width: min(var(--width-sidebar), calc(100% - 30px)); z-index: 50; box-shadow: var(--shadow-xl); }
+      .studio.outline-open .rail-backdrop { display: block; }
+      .outline .drawer-close { display: inline-flex; }
+      .modebar-title { min-width: 0; }
+      .modebar-title > span, .focus-label, .snapshot-label, .history-label { display: none; }
+      .modebar { padding: 8px 14px; }
+      .topbar { min-height: 65px; padding: 11px 16px; }
+      .brand-caption { font-size: var(--text-micro); }
+      .preview-bar { padding: 6px 13px; }
+      .preview-description { display: none; }
+      .manuscript { padding: 32px 24px 22px; }
+      .scene-bar { padding: 11px 22px; }
+      .statusbar .status-optional { display: none; }
+      .planning-view, .review-view { padding: 24px 18px; }
+      .statusbar { padding: 8px 13px; }
+      .statusbar .row { gap: 5px; }
+    }
+    @container studio (max-width: 540px) {
+      .segmented button { padding: 7px 10px; gap: 5px; }
+      .modebar .segmented .icon { display: none; }
+      .modebar { gap: 4px; }
+      .topbar .btn { padding: 8px 10px; }
+      svg.brand-mark { width: 25px; }
+      .brand { gap: 8px; }
+      .brand-name { font-size: var(--text-prose-h3); }
+      .topbar .badge { display: none; }
+      .scene-bar .scene-metadata { display: none; }
+      .board, .diff-grid { grid-template-columns: 1fr; }
+      .scene-description { max-width: 33ch; }
+      .manuscript h1 { font-size: var(--text-h2); }
+      .inspector-toggle-label { display: none; }
+      .review-summary { align-items: flex-start; flex-direction: column; }
+      .statusbar .status-separator { margin: 0 3px; }
+      .statusbar #connection-button { min-width: 24px; min-height: 24px; justify-content: center; }
+      .statusbar #connection-button span { display: none; }
+      .editor-footer { padding: 0 25px; }
+    }
+    @media (max-width: 600px) {
+      .form-grid, .improvement-grid { grid-template-columns: 1fr; }
+      .dialog-head, .dialog-body { padding: 20px; }
+      .dialog-foot { padding: 16px 20px; }
+    }
+    @media (pointer: coarse) {
+      .btn, .text-btn, .scene-more, .scene-select, .inspector-tabs button, .segmented button, .citation { min-height: 44px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+    }
+  </style>
+</head>
+<body>
+<a class="skip-link" href="#main-view">Skip to manuscript</a>
+<svg aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <symbol id="i-quill" viewBox="0 0 24 24"><path d="M20 3c-8-2-15 4-14 12l3 2c7 0 13-7 11-14Z"/><path d="m3 22 12-13M8 16l-1-6m4 2 6 1"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 4h6c2 0 2 1 2 2v15c0-2-1-3-3-3H4zM20 4h-6c-2 0-2 1-2 2v15c0-2 1-3 3-3h5z"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-review" viewBox="0 0 24 24"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M14 4l6 6M9 15l1-5 8-8 4 4-8 8z"/></symbol>
+    <symbol id="i-panel-left" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16m-3-11v6"/></symbol>
+    <symbol id="i-panel-right" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16m3-11v6"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5ZM20 2v4m-2-2h4"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h15m-6-6 6 6-6 6"/></symbol>
+    <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 20V4m-6 6 6-6 6 6"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 4v16m-6-6 6 6 6-6"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+    <symbol id="i-focus" viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/><circle cx="12" cy="12" r="2"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-export" viewBox="0 0 24 24"><path d="M12 3v12m-4-4 4 4 4-4M4 15v5h16v-5"/></symbol>
+    <symbol id="i-snapshot" viewBox="0 0 24 24"><path d="M4 4h14l3 3v13H4ZM8 4v6h9V4M8 20v-6h9v6"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M20 10c0 6-8 11-8 11S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2"/></symbol>
+    <symbol id="i-person" viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M4 21v-3a8 8 0 0 1 16 0v3"/></symbol>
+    <symbol id="i-archive" viewBox="0 0 24 24"><path d="M4 8v13h16V8M3 3h18v5H3zM9 12h6"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="M3 10h11a7 7 0 0 1 0 14M3 10l6-6m-6 6 6 6" transform="translate(0 -2)"/></symbol>
+    <symbol id="i-wifi" viewBox="0 0 24 24"><path d="M2 8a16 16 0 0 1 20 0M5 12a11 11 0 0 1 14 0m-10 4a5 5 0 0 1 6 0"/><circle cx="12" cy="20" r=".7"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="m10 13 4-4M8 16l-2 2a4 4 0 0 1-6-6l5-5a4 4 0 0 1 6 0m2 2 2-2a4 4 0 0 1 6 6l-5 5a4 4 0 0 1-6 0" transform="translate(1 0)"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="m12 3 10 18H2ZM12 9v5m0 3v.1"/></symbol>
+    <symbol id="i-chat" viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 1-9 9 10 10 0 0 1-4-1l-6 2 2-6a10 10 0 0 1-1-4 9 9 0 0 1 18 0ZM8 10h8m-8 4h5"/></symbol>
+  </defs>
+</svg>
+<div id="demo">
+  <div class="preview-bar">
+    <div class="row"><span class="preview-label">Design preview</span><span class="preview-description">Novel refactor · Sample story · AI and account sync are simulated</span></div>
+    <div class="row"><button class="text-btn" data-action="improvements">What's new</button><button class="text-btn" data-action="reset">Reset demo</button></div>
+  </div>
+  <header class="topbar">
+    <div class="row">
+      <div class="brand"><svg class="icon brand-mark" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-quill"/></svg><div><div class="brand-name">Reverie</div><div class="brand-caption">Story Studio</div></div></div>
+      <div class="header-divider"></div>
+      <div class="breadcrumb"><span>Novels</span><span>/</span><strong>The Glass Cartographer</strong><span>/</span><span>Second draft</span></div>
+    </div>
+    <div class="row">
+      <span class="badge gold">Novel refactor</span>
+      <button class="btn ghost" data-action="history" title="Manuscript revision history"><svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg><span class="history-label">History</span><span class="sr-only">Manuscript revision history</span></button>
+      <button class="btn" data-action="snapshot" title="Save a manuscript snapshot"><svg class="icon" aria-hidden="true"><use href="#i-snapshot"/></svg><span class="snapshot-label">Snapshot</span><span class="sr-only">Save a snapshot</span></button>
+      <button class="btn primary" data-action="delivery"><svg class="icon" aria-hidden="true"><use href="#i-export"/></svg>Export</button>
+    </div>
+  </header>
+  <div class="modebar">
+    <div class="modebar-title"><button class="btn ghost icon-btn" id="outline-toggle" data-action="outline-toggle" aria-label="Show or hide manuscript outline" aria-controls="outline" aria-expanded="true"><svg class="icon" aria-hidden="true"><use href="#i-panel-left"/></svg></button><span>Manuscript</span></div>
+    <nav class="segmented" aria-label="Studio views">
+      <button data-view="write" aria-pressed="true"><svg class="icon" aria-hidden="true"><use href="#i-quill"/></svg>Write</button>
+      <button data-view="plan" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-grid"/></svg>Plan</button>
+      <button data-view="review" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-review"/></svg>Review <span id="review-count" class="badge violet">2</span></button>
+    </nav>
+    <div class="row"><button class="btn ghost" id="focus-toggle" data-action="focus" aria-pressed="false" aria-label="Enter focus mode"><svg class="icon" aria-hidden="true"><use href="#i-focus"/></svg><span class="focus-label">Focus</span></button><button class="btn ghost" id="inspector-toggle" data-action="inspector-toggle" aria-label="Show or hide story inspector" aria-expanded="true" aria-controls="inspector"><svg class="icon" aria-hidden="true"><use href="#i-panel-right"/></svg><span class="inspector-toggle-label">Inspector</span></button></div>
+  </div>
+  <div class="studio" id="studio">
+    <button class="rail-backdrop" data-action="close-rails" aria-label="Close side panel"></button>
+    <aside class="outline" id="outline" aria-label="Novel chapters and scenes">
+      <div class="book-overview">
+        <div class="row" style="gap:13px">
+          <div class="book-cover" aria-hidden="true"><svg viewBox="0 0 47 62" fill="none"><path d="M5 0v62M10 8h30v47H10z" stroke="currentColor" opacity=".35"/><circle cx="25" cy="30" r="12" stroke="currentColor" opacity=".6"/><path d="M25 14v32M9 30h32m-25-9 18 18m0-18L16 39m9-20 3 11-3 11-3-11z" stroke="currentColor" opacity=".6"/><circle cx="25" cy="30" r="3" fill="currentColor"/></svg></div>
+          <div><div class="book-title">The Glass<br>Cartographer</div><div class="small subtle" style="margin-top:7px">Literary fantasy · English</div></div>
+          <button class="btn ghost icon-btn drawer-close" data-action="close-rails" aria-label="Close outline"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button>
+        </div>
+      </div>
+      <div class="outline-label"><span id="outline-stats">4 chapters · 8 scenes</span><button class="btn ghost icon-btn" data-action="new-scene" aria-label="Add a scene"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></button></div>
+      <div class="chapter-list" id="chapter-list"></div>
+      <div class="outline-foot">
+        <div class="row spread small"><span class="muted">Manuscript goal</span><span class="mono" id="goal-label"></span></div>
+        <div class="progress-track" role="progressbar" aria-label="Manuscript word goal" aria-valuemin="0" aria-valuemax="5000" aria-valuenow="0" id="manuscript-progress"><span id="goal-progress"></span></div>
+        <div class="row spread"><button class="btn ghost compact" data-action="archive"><svg class="icon" aria-hidden="true"><use href="#i-archive"/></svg>Archive <span id="archive-count"></span></button><button class="btn ghost compact" data-action="plan-help" aria-label="About scene organization">Scene guide</button></div>
+      </div>
+    </aside>
+    <main class="workspace-center" id="main-view" tabindex="-1">
+      <section id="write-view" class="workspace-center" aria-label="Write scene" style="flex:1">
+        <div class="scene-bar"><div class="row small muted"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg><span id="scene-breadcrumb"></span></div><button class="btn ghost compact" data-action="scene-details"><svg class="icon" aria-hidden="true"><use href="#i-more"/></svg>Scene details</button></div>
+        <div class="editor-scroll" id="editor-scroll">
+          <article class="manuscript">
+            <div class="manuscript-heading"><div class="row spread"><span class="eyebrow" id="scene-eyebrow"></span><span class="badge gold" id="scene-status"></span></div><h1 id="scene-title"></h1><div class="row wrap small subtle" id="scene-metadata" style="gap:15px"></div></div>
+            <div class="prose" id="manuscript-editor" contenteditable="true" role="textbox" aria-label="Scene manuscript, editable demo" aria-multiline="true" spellcheck="true"></div>
+            <div class="writing-tools"><button class="btn ai compact" data-action="rewrite"><svg class="icon" aria-hidden="true"><use href="#i-spark"/></svg>Preview a rewrite</button><button class="btn ghost compact" data-action="ask-passage"><svg class="icon" aria-hidden="true"><use href="#i-chat"/></svg>Ask about this scene</button><span class="small subtle" id="selection-info"></span></div>
+            <div class="scene-divider" aria-hidden="true">✦</div>
+          </article>
+          <div class="editor-footer"><span class="small subtle" id="scene-word-count"></span><div class="row"><button class="btn ghost compact" data-action="undo" id="undo-btn" disabled><svg class="icon" aria-hidden="true"><use href="#i-undo"/></svg>Undo</button><button class="btn ghost compact" data-action="next-scene">Next scene <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></div></div>
+        </div>
+      </section>
+      <section id="plan-view" class="planning-view" aria-label="Plan novel" hidden></section>
+      <section id="review-view" class="review-view" aria-label="Review proposed changes" hidden></section>
+    </main>
+    <aside class="inspector" id="inspector" aria-label="Story inspector">
+      <div class="inspector-heading"><h2 id="inspector-title">Your writing companion</h2><div class="row"><span class="badge violet">AI preview</span><button class="btn ghost icon-btn drawer-close" data-action="close-rails" aria-label="Close inspector"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></div></div>
+      <div class="inspector-tabs" role="tablist" aria-label="Inspector sections">
+        <button id="tab-assistant" role="tab" data-inspector="assistant" aria-selected="true" aria-controls="inspector-content">Assistant</button>
+        <button id="tab-codex" role="tab" data-inspector="codex" aria-selected="false" aria-controls="inspector-content" tabindex="-1">Codex</button>
+        <button id="tab-context" role="tab" data-inspector="context" aria-selected="false" aria-controls="inspector-content" tabindex="-1">Context</button>
+        <button id="tab-changes" role="tab" data-inspector="changes" aria-selected="false" aria-controls="inspector-content" tabindex="-1">Changes</button>
+      </div>
+      <div class="inspector-content" id="inspector-content" role="tabpanel" aria-labelledby="tab-assistant"></div>
+    </aside>
+  </div>
+  <footer class="statusbar">
+    <div class="row"><span class="success row" id="save-status" role="status" aria-live="polite"><span class="dot"></span><span>Demo ready</span></span><span class="status-separator">|</span><button data-action="connection" id="connection-button" aria-label="Toggle the online or offline demo"><svg class="icon" aria-hidden="true"><use href="#i-wifi"/></svg><span>Online preview</span></button><span class="status-optional subtle">· account sync simulated</span></div>
+    <div class="row"><button data-action="recovery"><svg class="icon" aria-hidden="true"><use href="#i-undo"/></svg>Try draft recovery</button><span class="status-optional status-separator">|</span><button class="status-optional" data-action="shortcuts">Keyboard help</button></div>
+  </footer>
+</div>
+<dialog id="dialog" aria-labelledby="dialog-title"><div id="dialog-content"></div></dialog>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden><span id="toast-text"></span><button id="toast-action" hidden></button><button data-action="dismiss-toast" aria-label="Dismiss notification">×</button></div>
+<script>
+  (() => {
+    'use strict';
+    const STORAGE_KEY = 'reverie:novel-refactor:standalone-demo:v1';
+    const $ = (selector, root = document) => root.querySelector(selector);
+    const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
+    const clone = value => JSON.parse(JSON.stringify(value));
+    const escape = value => String(value ?? '').replace(/[&<>"']/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
+    const icon = name => `<svg class="icon" aria-hidden="true"><use href="#i-${name}"/></svg>`;
+    const uid = () => globalThis.crypto?.randomUUID?.() || `demo-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const count = paragraphs => {
+      const text = paragraphs.join(' ');
+      if (typeof Intl.Segmenter === 'function') return Array.from(new Intl.Segmenter('en', { granularity: 'word' }).segment(text)).filter(part => part.isWordLike).length;
+      return text.match(/\S+/gu)?.length || 0;
+    };
+    const prose = [
+      'The archive had no doors. Mira had counted them twice: six frames of empty stone, each opening onto a different kind of dark. From somewhere below the floor came the patient sound of water, though the city had not seen rain in thirty years.',
+      'She laid the map on the table. The room was cold, and the paper felt strange beneath her hands. There was a smell of something old. Behind her, Ilyan waited without speaking.',
+      '“Maps don’t remember,” he said at last. “People do. And people are very good at drawing the thing they wish had happened.”',
+      'Mira pressed one finger to the small, inkless square where her father’s house should have been. It was warm. Everything else in the room was cold, but that empty place held the heat of a hand that had only just let go.',
+      '“Then why,” she asked, “does it know his name?”',
+      'A line appeared beneath her finger. Not ink, exactly. A narrow seam of light, turning slowly toward the northern edge of the city. Ilyan took a step back. For the first time since she had met him, he looked his age.',
+      'She did not ask him what he was afraid of. Some questions were doors. And the archive, she was beginning to understand, had more than six.'
+    ];
+    const sensoryRewrite = 'She laid the map on the table. Cold rose through the marble into her wrists; the paper resisted her touch like a living thing. The room smelled of copper and rain trapped in stone. Behind her, Ilyan’s silence settled more heavily than dust.';
+    function initialState() {
+      const scenes = [
+        { id:'s1', chapter:'c1', title:'A street missing from the city', synopsis:'Mira finds a familiar street erased from every public map.', pov:'Mira', location:'The salt market', time:'Day 1 · Morning', day:1.1, status:'Revised', thread:'The missing map', paragraphs:[
+          'By sunrise, someone had stolen a street. Not the stones or the houses or the woman who sold oranges on the corner. Only its name, and the sure knowledge of where it led.',
+          'Mira stood in the market with a map in each hand. Both said the same impossible thing. Where her father’s house had stood for twenty-seven years, the cartographers had drawn an orchard.',
+          'She folded the newer map carefully. It was always better to keep evidence of a lie.'
+        ]},
+        { id:'s2', chapter:'c1', title:'The mapmaker’s warning', synopsis:'Ilyan warns Mira that the archive trades in memories, not directions.', pov:'Mira', location:'Ilyan’s workshop', time:'Day 1 · Afternoon', day:1.2, status:'Revised', thread:'Elias’s disappearance', paragraphs:[
+          'Ilyan did not look at the map when she showed it to him. He looked at her hands.',
+          '“Your father came here the night before he disappeared,” he said. “He asked me for a road I could not give him.”',
+          '“And is he dead?” Mira asked. Ilyan closed the shutters. “I don’t know. That is the only honest answer I have left.”'
+        ]},
+        { id:'s3', chapter:'c2', title:'The map that remembers', synopsis:'A blank place on the map responds to Mira’s touch. Ilyan knows more than he admits.', pov:'Mira', location:'The unlit archive', time:'Day 2 · Before dawn', day:2.1, status:'Drafting', thread:'The missing map', paragraphs:clone(prose)},
+        { id:'s4', chapter:'c2', title:'A bargain in blue ink', synopsis:'The archivist offers a route north in exchange for one memory.', pov:'Mira', location:'The unlit archive', time:'Day 2 · Morning', day:2.2, status:'Outlined', thread:'The cost of memory', paragraphs:[
+          'The archivist wore no shoes. Across the floor behind her, small blue footprints faded as quickly as they appeared.',
+          '“You may have the road,” she told Mira. “But you must leave something of equal length.”',
+          'Mira thought of summers, of her father counting copper coins, of a song whose last line she had never learned. “How do you measure a memory?”'
+        ]},
+        { id:'s5', chapter:'c3', title:'The last lesson', synopsis:'A flashback to Elias teaching Mira how to read an unfinished map.', pov:'Mira', location:'The old observatory', time:'12 years earlier', day:-4380, status:'Drafting', thread:'Elias’s disappearance', paragraphs:[
+          'Her father had always left one corner of a map unfinished. “A map that knows everything,” he told her, “has forgotten what it is for.”',
+          'Mira would later remember this afternoon as proof that Elias had survived his disappearance. Even then, she had known he would be waiting in the north.',
+          'Outside the observatory, summer insects clung to the glass. She was too young to imagine a city without rain.'
+        ]},
+        { id:'s6', chapter:'c3', title:'The road north', synopsis:'Mira chooses the road without knowing what waits at its end.', pov:'Mira', location:'The northern causeway', time:'Day 3 · Dusk', day:3.5, status:'Outlined', thread:'The missing map', paragraphs:[
+          'The causeway ended at the water. According to every map in the city, it had always ended there.',
+          'Mira kept walking. Beneath her first step the light held. Beneath her second, it trembled. She did not take a third until she had stopped expecting certainty.'
+        ]},
+        { id:'s7', chapter:'c4', title:'A familiar hand', synopsis:'The reader and Mira discover that Elias is alive. This is the first confirmed reveal.', pov:'Mira', location:'The drowned observatory', time:'Day 4 · Morning', day:4.1, status:'Outlined', thread:'Elias’s disappearance', paragraphs:[
+          'At the end of the road stood a man drawing a door. He had gone almost entirely gray, but the way he held the pencil had not changed.',
+          '“Father,” Mira said. The word crossed the water before she did.',
+          'Elias looked up. “You found the part I left unfinished.”'
+        ]},
+        { id:'s8', chapter:'c4', title:'What the city keeps', synopsis:'Mira learns why Elias erased their street and what it will cost to bring it back.', pov:'Mira', location:'The drowned observatory', time:'Day 4 · Evening', day:4.7, status:'Outlined', thread:'The cost of memory', paragraphs:[
+          'There were streets beneath the water. Mira could see them now: pale seams of light running under the black surface, each one leading to something the city had chosen to forget.',
+          '“I thought I could save just one house,” Elias said. “I didn’t understand that a city remembers all at once.”'
+        ]}
+      ].map(scene => ({...scene, revision:1, archived:false, summaryStale:false}));
+      return {
+        schema:1, active:'s3', scenes,
+        chapters:[{id:'c1',title:'The city of folded streets',part:'Part I · The erased city'}, {id:'c2',title:'The unlit archive',part:'Part I · The erased city'}, {id:'c3',title:'The shape of an absence',part:'Part II · Beyond the map'}, {id:'c4',title:'The drowned observatory',part:'Part II · Beyond the map'}],
+        proposals:[
+          {id:'p1',sceneId:'s3',paragraph:1,title:'Let the archive feel alive',reason:'Replace abstract description with tactile and sensory detail. Keep Mira’s close third-person voice, past tense, and Ilyan’s unease.',original:prose[1],proposed:sensoryRewrite,baseRevision:1,status:'pending',attempt:1},
+          {id:'p2',sceneId:'s5',paragraph:1,title:'Keep the revelation in chapter four',reason:'The flashback currently tells us that Elias survives. Mira cannot know this yet. Preserve the question until “A familiar hand.”',original:scenes.find(s=>s.id==='s5').paragraphs[1],proposed:'Years later, Mira would return to this afternoon whenever she tried to understand his disappearance. She remembered the pencil in his hand, the unfinished corner, and the promise of a road he had not yet drawn.',baseRevision:1,status:'pending',attempt:1}
+        ],
+        revisions:[
+          {id:'r0',sceneId:'s3',label:'Before the archive rewrite',source:'Manual draft',revision:0,paragraphs:prose.map((p,i)=>i===1?'She put the map down. It was cold in the archive. Ilyan said nothing.':p),time:'Earlier sample'},
+          {id:'r1',sceneId:'s3',label:'Second draft begins',source:'Named snapshot',revision:1,paragraphs:clone(prose),time:'Initial sample'}
+        ],
+        context:{scene:true,previous:true,canon:true,style:true}, temporal:'scene', scope:'scene', canonApproved:false, seriesVersion:2,
+        notes:[{id:'n1',sceneId:'s3',text:'Let the map’s warmth carry the emotion. Avoid explaining what it means too early.',resolved:false}]
+      };
+    }
+    let storageWorks = true;
+    function readState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const saved = JSON.parse(raw);
+          if (saved.schema === 1 && Array.isArray(saved.scenes) && saved.scenes.some(s=>s.id===saved.active&&!s.archived) && Array.isArray(saved.proposals) && Array.isArray(saved.revisions)) return saved;
+        }
+      } catch { storageWorks = false; }
+      return initialState();
+    }
+    let state = readState();
+    let view='write', planView='board', inspector='assistant', reviewTab='changes', selectedProposal='p1', assistantMode='ask', offline=false, focusMode=false;
+    let chat=[], undoStack=[], toastTimer, saveTimer, generationTimer, busy=false, detailsId=null, revisionId=null, recoveryData=null, deliveryMode='export';
+    const studio = $('#studio');
+    const editor = $('#manuscript-editor');
+    const dialog = $('#dialog');
+    const sceneById = id => state.scenes.find(scene=>scene.id===id);
+    const currentScene = () => sceneById(state.active);
+    const activeScenes = () => state.chapters.flatMap(chapter=>state.scenes.filter(scene=>scene.chapter===chapter.id&&!scene.archived));
+    const chapterOf = scene => state.chapters.find(chapter=>chapter.id===scene.chapter);
+    const pending = () => state.proposals.filter(p=>p.status==='pending');
+    const isStale = proposal => { const scene=sceneById(proposal.sceneId); return !scene || scene.archived || scene.revision!==proposal.baseRevision || scene.paragraphs[proposal.paragraph]!==proposal.original; };
+    const statusBadge = status => `<span class="badge ${status==='Revised'?'green':status==='Drafting'?'gold':''}">${escape(status)}</span>`;
+    function setSaveStatus(text, warning=false) {
+      const status=$('#save-status');
+      status.className=`row ${warning?'ember':'success'}`;
+      status.innerHTML=`<span class="dot"></span><span>${escape(text)}</span>`;
+    }
+    function persist() {
+      try { localStorage.setItem(STORAGE_KEY,JSON.stringify(state)); storageWorks=true; }
+      catch { storageWorks=false; }
+      setSaveStatus(storageWorks ? offline?'Saved on device · offline':'Saved on device' : 'Browser storage unavailable · copy or export', !storageWorks||offline);
+    }
+    function toast(message, actionLabel, callback) {
+      clearTimeout(toastTimer);
+      $('#toast-text').textContent=message;
+      const action=$('#toast-action'); action.hidden=!actionLabel; action.textContent=actionLabel||'';
+      action.onclick=()=>{ $('#toast').hidden=true; callback?.(); };
+      $('#toast').hidden=false;
+      toastTimer=setTimeout(()=>$('#toast').hidden=true,7000);
+    }
+    function checkpoint(scene,label,source='Manual draft') {
+      state.revisions.unshift({id:uid(),sceneId:scene.id,label,source,revision:scene.revision,paragraphs:clone(scene.paragraphs),time:'This preview session'});
+    }
+    function recordTextUndo(scene,proposalId=null) {
+      undoStack.push({type:'text',sceneId:scene.id,paragraphs:clone(scene.paragraphs),proposalId});
+      $('#undo-btn').disabled=false;
+    }
+    function recordStructureUndo() {
+      undoStack.push({type:'structure',structure:state.scenes.map(scene=>({id:scene.id,chapter:scene.chapter,archived:scene.archived}))});
+      $('#undo-btn').disabled=false;
+    }
+    function refreshCounts() {
+      const total=activeScenes().reduce((sum,scene)=>sum+count(scene.paragraphs),0);
+      $('#outline-stats').textContent=`${state.chapters.length} chapters · ${activeScenes().length} scenes`;
+      $('#goal-label').textContent=`${total.toLocaleString()} / 5,000`;
+      $('#goal-progress').style.width=`${Math.min(total/5000*100,100)}%`;
+      $('#manuscript-progress').setAttribute('aria-valuenow',Math.min(total,5000));
+      $('#archive-count').textContent=state.scenes.filter(scene=>scene.archived).length||'';
+      const words=count(currentScene().paragraphs);
+      $('#scene-word-count').textContent=`${words} words · ${Math.max(1,Math.ceil(words/220))} min read`;
+      $('#review-count').textContent=pending().length;
+      $('#review-count').hidden=pending().length===0;
+    }
+    function renderRail() {
+      let part='';
+      $('#chapter-list').innerHTML=state.chapters.map((chapter,index)=>{
+        const partLabel=part!==chapter.part?`<div class="part-label">${escape(chapter.part)}</div>`:''; part=chapter.part;
+        return `${partLabel}<div class="chapter-label"><span class="chapter-number">${String(index+1).padStart(2,'0')}</span>${escape(chapter.title)}</div>${state.scenes.filter(scene=>scene.chapter===chapter.id&&!scene.archived).map(scene=>`<div class="scene-item ${scene.id===state.active?'active':''}"><button class="scene-select" data-scene="${escape(scene.id)}" ${scene.id===state.active?'aria-current="true"':''}><span class="dot scene-dot"></span><span>${escape(scene.title)}<span class="scene-count">${count(scene.paragraphs)} words · ${escape(scene.status)}</span></span></button><button class="btn ghost icon-btn scene-more" data-details="${escape(scene.id)}" aria-label="Actions for ${escape(scene.title)}">${icon('more')}</button></div>`).join('')}`;
+      }).join('');
+      refreshCounts();
+    }
+    function renderEditor() {
+      const scene=currentScene(), chapter=chapterOf(scene), index=state.chapters.indexOf(chapter)+1;
+      $('#scene-breadcrumb').textContent=`Chapter ${index} / Scene ${state.scenes.filter(s=>s.chapter===chapter.id&&!s.archived).indexOf(scene)+1}`;
+      $('#scene-eyebrow').textContent=`Chapter ${String(index).padStart(2,'0')} · ${chapter.title}`;
+      $('#scene-title').textContent=scene.title;
+      $('#scene-status').textContent=scene.status;
+      $('#scene-status').className=`badge ${scene.status==='Revised'?'green':'gold'}`;
+      $('#scene-metadata').innerHTML=`<span class="row">${icon('person')}${escape(scene.pov)} · Close third</span><span class="row">${icon('pin')}${escape(scene.location)}</span><span class="row">${icon('clock')}${escape(scene.time)}</span>`;
+      editor.innerHTML=scene.paragraphs.map((text,index)=>`<p data-paragraph="${index}">${escape(text)||'<br>'}</p>`).join('');
+      $('#selection-info').textContent='';
+      refreshCounts();
+    }
+    function setView(next, focus=false) {
+      view=next;
+      $$('[data-view]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.view===view)));
+      $('#write-view').hidden=view!=='write'; $('#plan-view').hidden=view!=='plan'; $('#review-view').hidden=view!=='review';
+      if(view==='plan') renderPlan();
+      if(view==='review') renderReview();
+      closeRails();
+      if(focus) $('#main-view').focus({preventScroll:true});
+    }
+    function selectScene(id, keepView=false) {
+      const scene=sceneById(id); if(!scene||scene.archived) return;
+      state.active=id; renderRail(); renderEditor(); renderInspector(); persist();
+      if(!keepView) setView('write');
+      else if(view==='plan') renderPlan();
+      $('#editor-scroll').scrollTop=0;
+      closeRails();
+    }
+    function openInspector(tab='assistant') {
+      if(focusMode)actions.focus();
+      inspector=tab;
+      studio.classList.remove('hide-inspector');
+      if($('#demo').clientWidth<=1220) { studio.classList.remove('outline-open'); studio.classList.add('inspector-open'); }
+      $('#inspector-toggle').setAttribute('aria-expanded','true');
+      renderInspector();
+    }
+    function closeRails() { studio.classList.remove('outline-open','inspector-open'); updateRailAria(); }
+    function updateRailAria() {
+      const width=$('#demo').clientWidth;
+      $('#outline-toggle').setAttribute('aria-expanded',String(!focusMode&&(width>820?!studio.classList.contains('hide-outline'):studio.classList.contains('outline-open'))));
+      $('#inspector-toggle').setAttribute('aria-expanded',String(!focusMode&&(width>1220?!studio.classList.contains('hide-inspector'):studio.classList.contains('inspector-open'))));
+    }
+    function inspectorTabs() {
+      $$('[data-inspector]').forEach(button=>{const active=button.dataset.inspector===inspector;button.setAttribute('aria-selected',String(active));button.tabIndex=active?0:-1;});
+      $('#inspector-content').setAttribute('aria-labelledby',`tab-${inspector}`);
+      $('#inspector-title').textContent={assistant:'Your writing companion',codex:'The story you know',context:'Context for the next request',changes:'Proposals, kept separate'}[inspector];
+    }
+    function renderAssistant() {
+      const offlineNotice=offline?'<div class="callout warning" style="margin-bottom:16px">Offline preview. Your manuscript is editable; generation is paused.</div>':'';
+      return `<div class="inspector-scroll" id="chat-scroll">${offlineNotice}<div class="assistant-identity"><div class="ai-avatar">${icon(busy?'clock':'spark')}</div><div><div class="label">Story assistant</div><div class="small subtle">Bound to this novel · Sample responses</div></div></div><div class="assistant-answer"><p>You’re in <span class="ember">${escape(currentScene().title)}</span>. We can work on the scene without losing the larger story.</p><p>${currentScene().day<0?'This is a flashback before Elias disappears. Mira must not know what happens years later.':currentScene().day>=4.1?'At this point, Mira has found Elias alive. Earlier scenes must still preserve her uncertainty.':'At this point, Mira knows Elias is missing. Whether he is alive stays unanswered until chapter four.'}</p><div class="row wrap" style="margin-top:12px"><button class="citation" data-cite="s2">${icon('link')}Ch. 1 · The mapmaker’s warning</button></div></div><hr class="rule"><p class="small subtle" style="margin-bottom:7px">Explore an example</p><button class="suggested-question" data-question="What does Mira know about Elias here?">What does Mira know about Elias? ${icon('arrow')}</button><button class="suggested-question" data-action="rewrite">Deepen the archive’s atmosphere ${icon('arrow')}</button><button class="suggested-question" data-action="multi-plan">Move the revelation later ${icon('arrow')}</button>${chat.map(message=>`<div class="assistant-question">${escape(message.question)}</div><div class="assistant-answer">${message.answer}</div>`).join('')}${busy?'<div class="callout" role="status" style="margin-top:18px">Preparing a sample response… <button class="text-btn" data-action="stop">Stop</button></div>':''}</div><div class="scope-label">${icon('book')}<label for="assistant-scope">Scope</label><select id="assistant-scope"><option value="scene" ${state.scope==='scene'?'selected':''}>Current scene</option><option value="chapter" ${state.scope==='chapter'?'selected':''}>Current chapter</option><option value="novel" ${state.scope==='novel'?'selected':''}>Whole novel · analysis</option></select><button class="text-btn" data-action="context">Inspect sources</button></div><form class="assistant-composer" id="assistant-form"><div class="row spread"><div class="segmented" aria-label="Assistant behavior"><button type="button" data-assistant-mode="ask" aria-pressed="${assistantMode==='ask'}">Ask</button><button type="button" data-assistant-mode="suggest" aria-pressed="${assistantMode==='suggest'}">Suggest edits</button></div><span class="small subtle">${assistantMode==='ask'?'Answers only':'Review before applying'}</span></div><label class="sr-only" for="assistant-prompt">Message the story assistant</label><textarea id="assistant-prompt" placeholder="${assistantMode==='ask'?'Ask a question about this story…':'Describe a change to this scene…'}" ${offline?'disabled':''}></textarea><div class="row spread"><span class="small subtle">${assistantMode==='ask'?'Your prose stays yours.':'No automatic manuscript edits.'}</span><button class="btn ai icon-btn compact" type="submit" aria-label="Send sample request" ${busy||offline?'disabled':''}>${icon('up')}</button></div></form>`;
+    }
+    function renderCodex() {
+      return `<div class="inspector-scroll stack"><div class="row spread"><span class="eyebrow">Story-local memory</span><span class="badge">3 entries</span></div><div class="row"><div class="ai-avatar ember">${icon('person')}</div><div><h3 style="font-family:var(--font-display);font-size:var(--text-h3)">Mira Vale</h3><p class="small subtle">Cartographer · Point of view</p></div></div><p class="label muted">Observant, stubborn, and suspicious of answers that arrive too easily. Her father’s disappearance is still an open wound.</p><div><p class="small subtle">Knowledge at this scene</p><div class="fact"><span class="badge green">Author-approved</span><p>${currentScene().day<0?'Elias has not disappeared yet. Mira is still learning from her father.':currentScene().day>=4.1?'Mira has found Elias alive in the drowned observatory.':'Elias disappeared. Mira does not know whether he is alive.'}</p><button class="citation" style="margin-top:9px" data-cite="s2">Ch. 1 · The mapmaker’s warning</button></div><div class="fact"><span class="badge warning">${currentScene().day>=4.1?'Confirmed here · available':'Later revelation · excluded'}</span><p>Elias is alive in the drowned observatory.</p><button class="citation" style="margin-top:9px" data-cite="s7">Ch. 4 · A familiar hand</button></div></div><div class="card"><div class="row spread"><span class="label">Written scene summary</span><span class="badge ${currentScene().summaryStale?'warning':'violet'}">${currentScene().summaryStale?'Out of date':'Derived draft'}</span></div><p class="small muted" style="margin:10px 0">${escape(currentScene().derivedSummary||currentScene().synopsis)}</p><button class="btn ghost compact" data-action="refresh-summary">Refresh summary preview</button></div><button class="btn ai full" data-action="canon">${icon('spark')}${state.canonApproved?'View approved discovery':'Review a discovered fact'}</button><div class="row spread label"><span class="subtle">Series bible · v${state.seriesVersion}</span><button class="text-btn" data-action="series">Review update</button></div></div>`;
+    }
+    function renderContext() {
+      const sources=[{key:'scene',title:'Current scene + writing target',detail:'Protected source · the exact passage',tokens:980},{key:'previous',title:'Earlier scenes',detail:'The mapmaker’s warning · approved summary',tokens:620},{key:'canon',title:'Mira, Ilyan & the archive',detail:'Author-approved Codex entries',tokens:540},{key:'style',title:'Manuscript voice & style',detail:'Close third · past tense · restrained lyricism',tokens:160}];
+      const revealAvailable=state.temporal==='author'||currentScene().day>=4.1;
+      const total=sources.filter(source=>state.context[source.key]).reduce((sum,source)=>sum+source.tokens,420)+(revealAvailable?580:0);
+      return `<div class="inspector-scroll"><p class="eyebrow">Prospective preview</p><p class="label muted" style="margin:12px 0 18px">Choose what the next sample request can see. This preview updates as you change sources.</p><div class="row spread label"><span>Estimated input</span><span class="mono">${total.toLocaleString()} / 6,000</span></div><div class="progress-track" style="margin:12px 0 8px"><span style="width:${total/6000*100}%"></span></div><p class="small subtle">1,000 tokens reserved for output · illustrative estimates</p><hr class="rule"><label class="field">Knowledge policy<select class="input" id="temporal-policy"><option value="scene" ${state.temporal==='scene'?'selected':''}>What Mira knows at this scene</option><option value="author" ${state.temporal==='author'?'selected':''}>Full author knowledge · analysis</option></select></label><div style="margin-top:9px">${sources.map(source=>`<div class="source-row"><input type="checkbox" id="source-${source.key}" data-source="${source.key}" ${state.context[source.key]?'checked':''} ${source.key==='scene'?'disabled':''}><label for="source-${source.key}">${source.title}<small>${source.detail}</small></label><span class="mono subtle">${source.tokens}</span></div>`).join('')}</div><div class="small subtle" style="margin:18px 0 9px">${!revealAvailable?'Not included':'Additional available source'}</div><div class="callout ${!revealAvailable?'warning':''}"><strong class="label">${!revealAvailable?'Future scenes are excluded':'Chapter-four evidence is available'}</strong><p style="margin-top:6px">${!revealAvailable?'Elias’s survival is not available to a continuation of this scene.':currentScene().day>=4.1?'Mira has reached the confirmed reunion. The reveal is available to this scene.':'The reveal can be examined as author knowledge. It is not added to Mira’s earlier knowledge.'}</p></div><p class="small subtle" style="margin-top:17px">No other novels, unapproved research, or stale summaries are included. Your selected passage is never silently dropped.</p></div>`;
+    }
+    function renderChangesInspector() {
+      return `<div class="inspector-scroll"><p class="eyebrow">${pending().length} awaiting review</p><p class="label muted" style="margin:12px 0 20px">Suggestions live here until you decide. Typing or moving focus never accepts them.</p>${state.proposals.map(proposal=>`<button class="review-pick" data-proposal="${proposal.id}" style="margin-bottom:10px"><span>${escape(proposal.title)}<span class="small subtle" style="display:block;margin-top:5px">${escape(sceneById(proposal.sceneId)?.title||'Archived scene')}</span></span><span class="badge ${isStale(proposal)&&proposal.status==='pending'?'warning':proposal.status==='pending'?'violet':''}">${isStale(proposal)&&proposal.status==='pending'?'Target changed':escape(proposal.status)}</span></button>`).join('')}<button class="btn full" data-action="review">Open review desk ${icon('arrow')}</button><hr class="rule"><button class="suggested-question" data-action="continuity">1 continuity finding ${icon('arrow')}</button><button class="suggested-question" data-action="notes">Personal review note ${icon('arrow')}</button></div>`;
+    }
+    function renderInspector() {
+      inspectorTabs();
+      $('#inspector-content').innerHTML=inspector==='assistant'?renderAssistant():inspector==='codex'?renderCodex():inspector==='context'?renderContext():renderChangesInspector();
+      if(busy) $('#inspector-content').classList.add('busy'); else $('#inspector-content').classList.remove('busy');
+    }
+    function sceneCard(scene) {
+      return `<article class="scene-card ${scene.id===state.active?'active':''}" draggable="true" data-drag-scene="${escape(scene.id)}"><div class="row spread">${statusBadge(scene.status)}<button class="btn ghost icon-btn compact" data-details="${escape(scene.id)}" aria-label="Organize ${escape(scene.title)}">${icon('more')}</button></div><h3><button class="card-title-button" data-scene="${escape(scene.id)}">${escape(scene.title)}</button></h3><p>${escape(scene.synopsis)}</p><div class="row spread"><span>${escape(scene.pov)} · ${escape(scene.time)}</span><span class="mono">${count(scene.paragraphs)}</span></div></article>`;
+    }
+    function renderPlan() {
+      let content='';
+      if(planView==='board') content=`<div class="board">${state.chapters.map((chapter,index)=>`<section class="board-column" data-drop-chapter="${chapter.id}"><h2><span class="chapter-number">${String(index+1).padStart(2,'0')}</span> &nbsp; ${escape(chapter.title)}</h2>${state.scenes.filter(s=>s.chapter===chapter.id&&!s.archived).map(sceneCard).join('')}<button class="btn ghost compact full" data-new-in="${chapter.id}" style="margin-top:12px">${icon('plus')}Add scene</button></section>`).join('')}</div>`;
+      if(planView==='outline') content=`<div class="table-wrap"><table class="data-table"><thead><tr><th>Scene / purpose</th><th>Status</th><th>POV</th><th>Words</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>${activeScenes().map(scene=>`<tr><td><button data-scene="${scene.id}">${escape(scene.title)}</button><p class="small subtle" style="margin-top:6px">${escape(scene.synopsis)}</p></td><td>${statusBadge(scene.status)}</td><td>${escape(scene.pov)}</td><td class="mono">${count(scene.paragraphs)}</td><td><button class="btn ghost icon-btn" data-details="${scene.id}" aria-label="Organize ${escape(scene.title)}">${icon('more')}</button></td></tr>`).join('')}</tbody></table></div>`;
+      if(planView==='timeline') content=`<div class="callout">Story time and reading order stay separate. Moving a scene changes where it is read, while its narrative date stays intact.</div><div class="timeline">${[...activeScenes()].sort((a,b)=>a.day-b.day).map(scene=>`<article class="timeline-event"><div class="row spread"><span class="eyebrow">${escape(scene.time)}</span><span class="badge">Read ${activeScenes().indexOf(scene)+1} of ${activeScenes().length}</span></div><h3>${escape(scene.title)}</h3><p class="small subtle" style="margin-bottom:10px">${escape(scene.synopsis)}</p><button class="citation" data-scene="${scene.id}">Chapter ${state.chapters.indexOf(chapterOf(scene))+1} · ${escape(scene.pov)} ${icon('arrow')}</button></article>`).join('')}</div>`;
+      if(planView==='matrix') content=`<p class="small subtle" style="margin-bottom:18px">Plot threads across reading order. Open a marked cell to jump to its scene.</p><div class="table-wrap"><table class="data-table"><thead><tr><th>Story thread</th>${activeScenes().map((scene,index)=>`<th title="${escape(scene.title)}">${String(index+1).padStart(2,'0')}</th>`).join('')}</tr></thead><tbody>${['The missing map','Elias’s disappearance','The cost of memory'].map(thread=>`<tr><td style="min-width:135px">${thread}</td>${activeScenes().map(scene=>`<td>${scene.thread===thread?`<button data-scene="${scene.id}" class="ember" aria-label="${escape(thread)} in ${escape(scene.title)}">◆</button>`:'<span class="subtle" aria-label="Not present">—</span>'}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+      $('#plan-view').innerHTML=`<div class="view-heading"><div class="row spread"><span class="eyebrow">The shape of your story</span><span class="badge">D2 / D4 preview</span></div><h1>One manuscript. Every perspective.</h1><p class="small muted">Organize scenes, follow a thread, or step outside reading order.</p></div><div class="plan-options"><div class="segmented" aria-label="Planning presentation">${['outline','board','timeline','matrix'].map(tab=>`<button data-plan="${tab}" aria-pressed="${planView===tab}">${tab[0].toUpperCase()+tab.slice(1)}</button>`).join('')}</div><button class="btn compact" data-action="new-scene">${icon('plus')}New scene</button></div>${content}`;
+    }
+    function diffText(original, proposed) {
+      const a=original.split(/(\s+)/),b=proposed.split(/(\s+)/);let start=0,end=0;
+      while(start<Math.min(a.length,b.length)&&a[start]===b[start])start++;
+      while(end<Math.min(a.length-start,b.length-start)&&a[a.length-1-end]===b[b.length-1-end])end++;
+      const parts=(words,tag)=>escape(words.slice(0,start).join(''))+`<${tag}>`+escape(words.slice(start,words.length-end).join(''))+`</${tag}>`+escape(end?words.slice(words.length-end).join(''):'');
+      return {before:parts(a,'del'),after:parts(b,'ins')};
+    }
+    function renderReview() {
+      const selected=state.proposals.find(p=>p.id===selectedProposal)||state.proposals[0]; selectedProposal=selected?.id;
+      const tabs=`<div class="segmented" aria-label="Review categories">${[['changes','Changes'],['continuity','Continuity'],['notes','My notes']].map(([key,label])=>`<button data-review-tab="${key}" aria-pressed="${reviewTab===key}">${label}</button>`).join('')}</div>`;
+      let content='';
+      if(reviewTab==='changes') {
+        const picks=`<div class="review-picks">${state.proposals.map(proposal=>`<button class="review-pick ${proposal.id===selectedProposal?'active':''}" data-proposal="${proposal.id}">${icon(proposal.status==='applied'?'check':'review')}<span>${escape(proposal.title)}<span class="small subtle" style="display:block;margin-top:4px">Ch. ${state.chapters.indexOf(chapterOf(sceneById(proposal.sceneId)))+1} · ${escape(sceneById(proposal.sceneId).title)}</span></span><span class="badge ${proposal.status==='pending'?'violet':proposal.status==='applied'?'green':''}">${escape(proposal.status)}</span></button>`).join('')}</div>`;
+        if(selected) {
+          const stale=isStale(selected), diff=diffText(selected.original,selected.proposed);
+          content=picks+`<div class="row spread wrap"><h2 style="font-family:var(--font-display);font-size:var(--text-h3)">${escape(selected.title)}</h2><span class="badge violet">Take ${selected.attempt} · AI proposal</span></div><p class="small muted" style="margin:10px 0">${escape(selected.reason)}</p>${stale&&selected.status==='pending'?'<div class="callout warning" style="margin-top:16px">The manuscript changed after this proposal was made. Compare it with your current text before applying. <button class="text-btn" data-action="rebase">Review current text</button></div>':''}<div class="diff-grid"><section class="diff-pane"><div class="diff-label">Original passage</div><p>${diff.before}</p></section><section class="diff-pane proposed"><div class="diff-label">Proposed passage</div><p>${diff.after}</p></section></div><div class="row wrap small subtle" style="gap:12px;margin-bottom:15px"><span>${icon('link')} Bound to this scene’s saved target</span><button class="citation" data-action="context">Inspect source context</button></div><div class="review-actions">${selected.status==='pending'?`<button class="btn primary" data-action="accept" ${stale?'disabled':''}>${icon('check')}Accept change</button><button class="btn" data-action="refine">Refine</button><button class="btn ghost" data-action="stash">Stash</button><button class="btn ghost danger" data-action="reject">Reject</button>`:selected.status==='applied'?`<span class="badge green">${icon('check')}Applied to the demo manuscript</span><button class="btn" data-action="undo">${icon('undo')}Undo last change</button>`:`<button class="btn ai" data-action="reopen-proposal">Review this alternative again</button>`}</div><p class="small subtle">Applying creates one undoable change. The original remains in manuscript history.</p>`;
+        }
+      }
+      if(reviewTab==='continuity') content=`<div class="card stack" style="margin-top:22px"><div class="row spread"><span class="badge warning">Knowledge / reveal</span><span class="small subtle">Evidence-linked finding</span></div><h2 style="font-family:var(--font-display);font-size:var(--text-h3)">Mira knows too much, too early</h2><p class="label muted">In the flashback, Mira appears to know Elias survives. The first confirmed reveal belongs to chapter four. This may be intentional foreshadowing; the finding is a suggestion for your review.</p><div class="callout">“Mira would later remember this afternoon as proof that Elias had survived his disappearance.”</div><div class="row wrap"><button class="citation" data-cite="s5">Ch. 3 · The last lesson</button><button class="citation" data-cite="s7">Ch. 4 · A familiar hand</button></div><div class="row wrap"><button class="btn ai" data-proposal="p2">Review suggested fix</button><button class="btn ghost" data-action="dismiss-finding">Keep as intentional foreshadowing</button></div></div>`;
+      if(reviewTab==='notes') content=`<div class="stack" style="margin-top:22px">${state.notes.map(note=>`<div class="card stack"><div class="row spread"><span class="badge ${note.resolved?'green':'gold'}">${note.resolved?'Resolved':'Personal note'}</span><span class="small subtle">${escape(sceneById(note.sceneId)?.title||'Scene')}</span></div><p class="label muted">${escape(note.text)}</p><div class="row"><button class="citation" data-cite="${note.sceneId}">Open passage</button><button class="btn ghost compact" data-note="${note.id}">${note.resolved?'Reopen':'Resolve'}</button></div></div>`).join('')}<label class="field">Add a note to the active scene<textarea class="input" id="new-note" placeholder="A question, a reminder, a line worth keeping…"></textarea></label><button class="btn" data-action="add-note">Save personal note</button></div>`;
+      $('#review-view').innerHTML=`<div class="view-heading"><div class="row spread"><span class="eyebrow">Your review desk</span><span class="badge">D3 / D4 preview</span></div><h1>The final word is yours.</h1><p class="small muted">Compare the actual passages. Keep, change, or set them aside.</p></div><div class="review-summary"><span class="label"><span class="arcane">${pending().length} proposals</span> awaiting your decision</span><button class="btn ghost compact" data-action="history">${icon('clock')}Manuscript history</button></div>${tabs}${content}`;
+    }
+    function renderAll() { renderRail();renderEditor();renderInspector();if(view==='plan')renderPlan();if(view==='review')renderReview();updateRailAria(); }
+    function showDialog(eyebrow,title,body,footer='',wide=false) {
+      if(dialog.open)dialog.close();
+      dialog.className=wide?'wide':'';
+      $('#dialog-content').innerHTML=`<div class="dialog-head"><div><p class="eyebrow">${eyebrow}</p><h2 id="dialog-title">${title}</h2></div><button class="btn ghost icon-btn" data-action="close-dialog" aria-label="Close dialog">${icon('close')}</button></div><div class="dialog-body">${body}</div>${footer?`<div class="dialog-foot">${footer}</div>`:''}`;
+      dialog.showModal();
+    }
+    const closeDialog = () => dialog.close();
+    function showImprovements() {
+      const items=[
+        {phase:'D1 · Reliability',title:'Your work has a safety net',text:'Device drafts, honest save states, revision comparison, and recovery across your own tabs or devices.',action:'recovery',button:'Try draft recovery'},
+        {phase:'D2 / D4 · Structure',title:'A scene is a real unit',text:'Parts, chapters, and scenes share one model. Move a scene on the board and find the same change in the outline.',action:'plan-demo',button:'Explore planning'},
+        {phase:'D3 · Story-aware assistant',title:'A conversation with context',text:'Ask with citations, then switch to suggesting edits. Context shows what is included and why future reveals are excluded.',action:'context-demo',button:'Inspect context'},
+        {phase:'D3 / D4 · Revision',title:'See exactly what changes',text:'Original and proposed text, explicit acceptance, editable variants, stash, and one-step undo.',action:'review-demo',button:'Compare a proposal'},
+        {phase:'D4 / D6 · Memory',title:'Remember the right things',text:'Scene-scoped knowledge, evidence-linked continuity, proposed canon, and reviewed updates to your own series bible.',action:'codex-demo',button:'Open story memory'},
+        {phase:'D5 · Portability',title:'A manuscript you can take away',text:'Preview imports and compile selected scenes. This demo downloads real Markdown, text, or a sample project backup.',action:'delivery',button:'Explore delivery'}
+      ];
+      showDialog('The proposed improvements','A writing room with room to grow.',`<p class="label muted" style="margin-bottom:20px">This is an interactive interpretation of the novel-refactor dossier. D1 is work in progress; D2–D6 are proposed phases. Labels and sample workflows are design choices, not release promises.</p><div class="improvement-grid">${items.map(item=>`<section class="improvement"><span class="badge gold">${item.phase}</span><h3>${item.title}</h3><p>${item.text}</p><button class="btn compact" data-action="${item.action}">${item.button} ${icon('arrow')}</button></section>`).join('')}</div><p class="small subtle" style="margin-top:20px">Source: 04 · Structure, 05 · Feature catalog, 06 · UX, 08 · Assistant, 09 · Recovery, and 14 · Roadmap. One author with AI; no shared editing is proposed. Sample work is stored only in this browser under a demo-specific key.</p>`,`<button class="btn primary" data-action="close-dialog">Explore the studio</button>`,true);
+    }
+    function showSceneDetails(id=state.active) {
+      detailsId=id;const scene=sceneById(id);
+      showDialog('Scene details','A place for every scene.',`<div class="stack"><label class="field">Scene title<input class="input" id="detail-title" value="${escape(scene.title)}" required></label><div class="form-grid"><label class="field">Chapter<select class="input" id="detail-chapter">${state.chapters.map(chapter=>`<option value="${chapter.id}" ${scene.chapter===chapter.id?'selected':''}>${escape(chapter.title)}</option>`).join('')}</select></label><label class="field">Status<select class="input" id="detail-status">${['Outlined','Drafting','Revised'].map(status=>`<option ${scene.status===status?'selected':''}>${status}</option>`).join('')}</select></label><label class="field">Point of view<input class="input" id="detail-pov" value="${escape(scene.pov)}"></label><label class="field">Story time<input class="input" id="detail-time" value="${escape(scene.time)}"></label><label class="field">Setting<input class="input" id="detail-location" value="${escape(scene.location)}"></label><label class="field">Plot thread<select class="input" id="detail-thread">${['The missing map','Elias’s disappearance','The cost of memory'].map(thread=>`<option ${scene.thread===thread?'selected':''}>${escape(thread)}</option>`).join('')}</select></label></div><label class="field">Planned synopsis<textarea class="input" id="detail-synopsis">${escape(scene.synopsis)}</textarea></label><p class="small subtle">The outline is your plan. Written summaries and author-approved canon are kept separately.</p><div class="row wrap"><button class="btn compact" data-action="move-up">${icon('up')}Move up</button><button class="btn compact" data-action="move-down">${icon('down')}Move down</button><button class="btn compact" data-action="duplicate-scene">Duplicate</button><button class="btn ghost compact" data-action="split-scene">Split preview</button><button class="btn ghost compact danger" data-action="archive-scene">Archive scene</button></div></div>`,`<button class="btn ghost" data-action="close-dialog">Cancel</button><button class="btn primary" data-action="save-scene-details">Save scene details</button>`);
+    }
+    function saveSceneDetails(shouldClose=true) {
+      const title=$('#detail-title');
+      if(!title.value.trim()){title.setCustomValidity('Give this scene a title.');title.reportValidity();return false;}
+      title.setCustomValidity('');const scene=sceneById(detailsId),chapter=$('#detail-chapter').value;
+      if(scene.chapter!==chapter)recordStructureUndo();
+      Object.assign(scene,{title:title.value.trim(),chapter,status:$('#detail-status').value,pov:$('#detail-pov').value.trim()||'Mira',time:$('#detail-time').value.trim()||'Unspecified',location:$('#detail-location').value.trim()||'Unspecified',thread:$('#detail-thread').value,synopsis:$('#detail-synopsis').value.trim()});
+      if(shouldClose)closeDialog();persist();renderAll();if(shouldClose)toast('Scene details updated across every view.');return true;
+    }
+    function moveScene(direction) {
+      if(!saveSceneDetails(false))return;
+      const scene=sceneById(detailsId),siblings=state.scenes.filter(s=>s.chapter===scene.chapter&&!s.archived),index=siblings.indexOf(scene),neighbor=siblings[index+direction];
+      if(!neighbor){toast(direction<0?'This scene is already first in its chapter.':'This scene is already last in its chapter.');return;}
+      recordStructureUndo();const a=state.scenes.indexOf(scene),b=state.scenes.indexOf(neighbor);[state.scenes[a],state.scenes[b]]=[state.scenes[b],state.scenes[a]];
+      closeDialog();renderAll();persist();toast('Reading order changed. Story time stayed the same.','Undo',undo);
+    }
+    function duplicateScene(id=detailsId) {
+      const original=sceneById(id);recordStructureUndo();
+      const copy={...clone(original),id:uid(),title:`${original.title} · copy`,revision:1,archived:false};
+      state.scenes.splice(state.scenes.indexOf(original)+1,0,copy);closeDialog();selectScene(copy.id);toast('Independent copy created. The original is preserved.','Undo',undo);
+    }
+    function archiveScene() {
+      const scene=sceneById(detailsId);
+      if(activeScenes().length<2){toast('Keep at least one scene in the active manuscript.');return;}
+      recordStructureUndo();scene.archived=true;closeDialog();
+      if(state.active===scene.id)state.active=activeScenes()[0].id;
+      renderAll();persist();toast('Scene archived with its text and history.','Restore',()=>restoreScene(scene.id));
+    }
+    function restoreScene(id) {recordStructureUndo();sceneById(id).archived=false;closeDialog();renderAll();persist();toast('Scene restored to its chapter.');}
+    function showArchive() {
+      const archived=state.scenes.filter(scene=>scene.archived);
+      showDialog('Recoverable structure','The scenes you set aside.',`<div class="stack"><p class="label muted">Archived scenes keep their identity, writing, and history. They are excluded from the active manuscript and export.</p>${archived.length?archived.map(scene=>`<div class="card row spread"><span>${escape(scene.title)}<small class="small subtle" style="display:block">${count(scene.paragraphs)} words · ${escape(chapterOf(scene).title)}</small></span><button class="btn compact" data-restore-scene="${scene.id}">Restore</button></div>`).join(''):'<div class="callout">No archived scenes yet. Open a scene’s actions to archive it, then restore it here.</div>'}</div>`,`<button class="btn primary" data-action="close-dialog">Back to manuscript</button>`);
+    }
+    function showNewScene(chapter=currentScene().chapter) {
+      detailsId=chapter;
+      showDialog('Chapter → scene','Make space for what happens next.',`<div class="stack"><label class="field">Scene title<input class="input" id="new-scene-title" placeholder="An unexpected visitor" required></label><label class="field">Chapter<select class="input" id="new-scene-chapter">${state.chapters.map(c=>`<option value="${c.id}" ${c.id===chapter?'selected':''}>${escape(c.title)}</option>`).join('')}</select></label><label class="field">Planned synopsis<textarea class="input" id="new-scene-synopsis" placeholder="Optional. You can start writing immediately."></textarea></label></div>`,`<button class="btn ghost" data-action="close-dialog">Cancel</button><button class="btn primary" data-action="create-scene">Create scene</button>`);
+    }
+    function createScene() {
+      const input=$('#new-scene-title');if(!input.value.trim()){input.setCustomValidity('Give the new scene a title.');input.reportValidity();return;}
+      recordStructureUndo();const scene={id:uid(),title:input.value.trim(),chapter:$('#new-scene-chapter').value,synopsis:$('#new-scene-synopsis').value,pov:'Mira',location:'Unspecified',time:'Unspecified',day:10,status:'Outlined',thread:'The missing map',paragraphs:[''],revision:1,archived:false,summaryStale:false};
+      state.scenes.push(scene);closeDialog();selectScene(scene.id);editor.focus();toast('Your new scene is ready to write.');
+    }
+    function showSplit() {
+      const scene=sceneById(detailsId);
+      if(scene.paragraphs.length<2){toast('Add a second paragraph to preview a scene split.');return;}
+      showDialog('Exact-text split preview',`Split “${escape(scene.title)}”`, `<div class="stack"><p class="label muted">This sample splits before the second paragraph. Both sides keep their exact prose; the new scene receives its own identity.</p><div class="diff-grid"><section class="diff-pane"><div class="diff-label">Original scene keeps</div><p>${escape(scene.paragraphs[0])}</p></section><section class="diff-pane proposed"><div class="diff-label">New scene begins</div><p>${escape(scene.paragraphs[1])}</p></section></div><p class="small subtle">${scene.paragraphs.length-1} paragraphs move to the new scene. Active proposals on this target will require a new review.</p></div>`,`<button class="btn ghost" data-action="close-dialog">Cancel</button><button class="btn primary" data-action="confirm-split">Split into two scenes</button>`);
+    }
+    function confirmSplit() {
+      const scene=sceneById(detailsId);
+      undoStack.push({type:'split',sceneId:scene.id,paragraphs:clone(scene.paragraphs),structure:state.scenes.map(s=>({id:s.id,chapter:s.chapter,archived:s.archived}))});
+      $('#undo-btn').disabled=false;checkpoint(scene,'Before scene split','Structure operation');
+      const second={...clone(scene),id:uid(),title:`${scene.title} · continued`,paragraphs:scene.paragraphs.slice(1),revision:1,summaryStale:true};
+      scene.paragraphs=scene.paragraphs.slice(0,1);scene.revision++;scene.summaryStale=true;
+      state.scenes.splice(state.scenes.indexOf(scene)+1,0,second);closeDialog();renderAll();persist();toast('Scene split. The original revision remains in history.');
+    }
+    function undo() {
+      const entry=undoStack.pop();if(!entry){toast('There are no new changes to undo in this session.');return;}
+      if(entry.type==='text'||entry.type==='split') {
+        const scene=sceneById(entry.sceneId);checkpoint(scene,'Before undo','Recovery');scene.paragraphs=clone(entry.paragraphs);scene.revision++;scene.summaryStale=true;state.active=scene.id;
+        if(entry.proposalId){const p=state.proposals.find(p=>p.id===entry.proposalId);p.status='pending';p.baseRevision=scene.revision;p.original=scene.paragraphs[p.paragraph];}
+      }
+      if(entry.type==='structure'||entry.type==='split') {
+        const prior=new Map(entry.structure.map((s,index)=>[s.id,{...s,index}]));
+        state.scenes.forEach(scene=>{const old=prior.get(scene.id);if(old){scene.chapter=old.chapter;scene.archived=old.archived;}else scene.archived=true;});
+        state.scenes.sort((a,b)=>(prior.get(a.id)?.index??99999)-(prior.get(b.id)?.index??99999));
+        if(currentScene().archived)state.active=activeScenes()[0].id;
+      }
+      $('#undo-btn').disabled=undoStack.length===0;renderAll();persist();toast('Previous state restored. Later unrelated prose is retained.');
+    }
+    function showSnapshot() {
+      showDialog('Named checkpoint','Save a moment in the draft.',`<div class="stack"><p class="label muted">Save the active scene with a name and a record of the manuscript’s current scene versions.</p><label class="field">Snapshot name<input class="input" id="snapshot-name" value="Before the next revision" required></label><div class="callout">Active scene: ${escape(currentScene().title)} · ${count(currentScene().paragraphs)} words</div></div>`,`<button class="btn ghost" data-action="close-dialog">Cancel</button><button class="btn primary" data-action="save-snapshot">Save snapshot</button>`);
+    }
+    function saveSnapshot() {
+      const name=$('#snapshot-name').value.trim();if(!name){$('#snapshot-name').reportValidity();return;}
+      checkpoint(currentScene(),name,'Named snapshot');state.revisions[0].manifest=activeScenes().map(scene=>({sceneId:scene.id,revision:scene.revision}));persist();closeDialog();toast('Named snapshot saved in this demo.','View history',showHistory);
+    }
+    function showHistory(selectedId=null) {
+      const revisions=state.revisions.filter(revision=>revision.sceneId===state.active);revisionId=selectedId||revisions[0]?.id;
+      const selected=revisions.find(revision=>revision.id===revisionId);
+      showDialog('Manuscript revisions',`History · ${escape(currentScene().title)}`,`<div class="stack"><p class="label muted">Manuscript revisions are separate from generated alternatives. Restore creates a new current revision and preserves the earlier versions.</p><div class="revision-list">${revisions.length?revisions.map(revision=>`<button class="revision-button ${revision.id===revisionId?'selected':''}" data-revision="${revision.id}">${icon('clock')}<span>${escape(revision.label)}<span class="small subtle" style="display:block;margin-top:4px">${escape(revision.source)} · ${escape(revision.time)} · ${count(revision.paragraphs)} words</span></span></button>`).join(''):'<div class="callout">No snapshots for this scene yet. Save a snapshot or apply a reviewed edit.</div>'}</div>${selected?`<div class="row spread"><span class="small subtle">Selected snapshot · read-only preview</span><span class="badge">${selected.paragraphs.join(' ')===currentScene().paragraphs.join(' ')?'Matches current text':'Differs from current text'}</span></div><div class="revision-preview">${escape(selected.paragraphs.join('\n\n'))}</div>`:''}</div>`,`<button class="btn ghost" data-action="close-dialog">Close</button><button class="btn" data-action="snapshot">New snapshot</button>${selected?'<button class="btn primary" data-action="restore-revision">Restore as new revision</button>':''}`);
+    }
+    function restoreRevision() {
+      const revision=state.revisions.find(r=>r.id===revisionId),scene=currentScene();if(!revision)return;
+      recordTextUndo(scene);checkpoint(scene,'Before restoring a snapshot','Recovery');scene.paragraphs=clone(revision.paragraphs);scene.revision++;scene.summaryStale=true;checkpoint(scene,`Restored: ${revision.label}`,'Restore');closeDialog();renderAll();persist();toast('Restored as a new revision. Previous writing is still in history.','Undo',undo);
+    }
+    function showRecovery(mode='recover') {
+      const scene=currentScene();
+      if(!recoveryData||recoveryData.sceneId!==scene.id)recoveryData={sceneId:scene.id,local:[...clone(scene.paragraphs),'Under her fingertips, the map pulsed once, as if answering a question she had not yet asked.'],account:scene.paragraphs.map((p,i)=>i===0?`${p} A lamp burned beside the stairs.`:p)};
+      const {local,account}=recoveryData;
+      showDialog('Interruption & recovery',mode==='recover'?'Your draft is still here.':'Two versions. No lost writing.',`<div class="stack"><div class="segmented" aria-label="Recovery example"><button data-recovery-tab="recover" aria-pressed="${mode==='recover'}">Interrupted session</button><button data-recovery-tab="conflict" aria-pressed="${mode==='conflict'}">Another tab changed it</button></div><p class="label muted">${mode==='recover'?'Example: the browser closed while this scene had unsynced changes. Compare the device checkpoint before choosing how to resume.':'Example: your device has unsynced writing and your own other tab saved a newer account version. Both versions stay available until you decide.'}</p><div class="diff-grid"><section class="diff-pane"><div class="diff-label">Account version · simulated</div><p>${escape(account.slice(-2).join('\n\n'))}</p></section><section class="diff-pane proposed"><div class="diff-label">Device draft · unsynced sample</div><p>${escape(local.slice(-2).join('\n\n'))}</p></section></div><div class="callout warning">This is a recovery fixture for the current sample scene. Your actual demo draft is checkpointed before a choice is applied.</div><div class="row wrap"><button class="btn" data-action="recover-copy">Keep device draft as a copy</button><button class="btn ghost" data-action="recover-account">Use account example</button>${mode==='conflict'?'<button class="btn ai" data-action="review-merge">Review a merge</button>':''}</div></div>`,`<button class="btn ghost" data-action="close-dialog">Keep both for now</button><button class="btn primary" data-action="recover-local">Resume device draft</button>`,true);
+    }
+    function recoverDraft(which) {
+      const scene=sceneById(recoveryData.sceneId);
+      if(which==='copy') {
+        recordStructureUndo();const copy={...clone(scene),id:uid(),title:`${scene.title} · recovered`,paragraphs:clone(recoveryData.local),revision:1,archived:false};state.scenes.push(copy);closeDialog();selectScene(copy.id);toast('Device draft kept as an independent scene.');
+      } else {
+        recordTextUndo(scene);checkpoint(scene,'Before recovery choice','Recovery');
+        scene.paragraphs=clone(which==='local'?recoveryData.local:recoveryData.account);scene.revision++;scene.summaryStale=true;checkpoint(scene,which==='local'?'Recovered device draft':'Adopted account example','Recovery');closeDialog();renderAll();persist();toast('Recovery choice saved. The prior draft remains in history.','Undo',undo);
+      }
+      recoveryData=null;
+    }
+    function showMerge() {
+      showDialog('Review before combining','Keep the lines that matter.',`<div class="stack"><p class="label muted">Edit this proposed combination. It includes the account example and the device-only final paragraph. Nothing is applied until you choose “Save reviewed merge.”</p><label class="field">Reviewed merged text<textarea id="merge-text" class="input" style="min-height:280px">${escape([...recoveryData.account,recoveryData.local.at(-1)].join('\n\n'))}</textarea></label></div>`,`<button class="btn ghost" data-action="close-dialog">Keep both versions</button><button class="btn primary" data-action="apply-merge">Save reviewed merge</button>`);
+    }
+    function applyMerge() {
+      const paragraphs=$('#merge-text').value.split(/\n\s*\n/).filter(Boolean),scene=sceneById(recoveryData.sceneId);
+      if(!paragraphs.length){toast('Keep some text in the reviewed merge.');return;}
+      recordTextUndo(scene);checkpoint(scene,'Before reviewed merge','Recovery');scene.paragraphs=paragraphs;scene.revision++;scene.summaryStale=true;checkpoint(scene,'Reviewed device/account merge','Recovery');recoveryData=null;closeDialog();renderAll();persist();toast('Reviewed merge saved as a new revision.','Undo',undo);
+    }
+    function stageRewrite() {
+      closeDialog();if(offline){toast('Generation is paused in the offline example. You can keep writing.');return;}
+      const scene=currentScene(),paragraph=Math.min(1,scene.paragraphs.length-1),original=scene.paragraphs[paragraph];
+      if(!original.trim()){toast('Write a paragraph first, then preview a rewrite.');return;}
+      checkpoint(scene,'Before requesting a rewrite','AI request checkpoint');
+      let proposal=state.proposals.find(p=>p.sceneId===scene.id&&p.status==='pending'&&p.title==='Let the archive feel alive');
+      if(!proposal){proposal={id:uid(),sceneId:scene.id,title:'Let the scene breathe',status:'pending',attempt:1};state.proposals.push(proposal);}
+      Object.assign(proposal,{paragraph,original,proposed:scene.id==='s3'&&original===prose[1]?sensoryRewrite:`${original} She held her breath, listening for the sound beneath the silence.`,baseRevision:scene.revision,reason:'Sample sensory revision: replace abstraction with a concrete detail while keeping the scene’s point of view. Review the exact text before accepting.'});
+      selectedProposal=proposal.id;reviewTab='changes';setView('review',true);openInspector('changes');persist();renderReview();
+    }
+    function acceptProposal() {
+      const proposal=state.proposals.find(p=>p.id===selectedProposal);if(!proposal||proposal.status!=='pending')return;
+      if(isStale(proposal)){toast('This target changed. Review it against the current text first.');renderReview();return;}
+      const scene=sceneById(proposal.sceneId);recordTextUndo(scene,proposal.id);checkpoint(scene,'Before accepted AI revision','AI checkpoint');
+      scene.paragraphs[proposal.paragraph]=proposal.proposed;scene.revision++;scene.summaryStale=true;proposal.status='applied';proposal.appliedRevision=scene.revision;state.active=scene.id;checkpoint(scene,proposal.title,'Accepted AI edit');renderAll();persist();toast('Change applied. The original is one undo away.','Undo',undo);
+    }
+    function setProposalStatus(status) {
+      const proposal=state.proposals.find(p=>p.id===selectedProposal);if(!proposal)return;proposal.status=status;renderAll();persist();toast(status==='stashed'?'Alternative stashed. Your manuscript is unchanged.':'Proposal rejected. Your original text is preserved.');
+    }
+    function showRefine() {
+      const proposal=state.proposals.find(p=>p.id===selectedProposal);
+      showDialog('Edit the proposed variant','Make the suggestion sound like you.',`<div class="stack"><p class="label muted">Your changes stay in the proposal. They do not enter the manuscript until you explicitly accept it.</p><label class="field">Proposed passage<textarea class="input" id="refine-text" style="min-height:200px">${escape(proposal.proposed)}</textarea></label><label class="field">Why this version<input class="input" id="refine-reason" value="${escape(proposal.reason)}"></label></div>`,`<button class="btn ghost" data-action="close-dialog">Cancel</button><button class="btn primary" data-action="save-refinement">Keep this proposed variant</button>`);
+    }
+    function showRebase() {
+      const proposal=state.proposals.find(p=>p.id===selectedProposal),scene=sceneById(proposal.sceneId);
+      if(!scene||scene.archived){toast('Restore the target scene before reviewing this alternative.');return;}
+      const current=scene.paragraphs[proposal.paragraph];if(current===undefined){toast('The paragraph no longer exists. Start a new proposal for the current scene.');return;}
+      showDialog('Target changed','Review against the current passage.',`<div class="stack"><p class="label muted">The original target no longer matches. Compare your current text and edit the proposed replacement deliberately.</p><div class="diff-pane"><div class="diff-label">Current manuscript passage</div><p>${escape(current)}</p></div><label class="field">Replacement to review<textarea class="input" id="rebase-text" style="min-height:180px">${escape(proposal.proposed)}</textarea></label><p class="small subtle">Continue returns to review. It does not apply the edit.</p></div>`,`<button class="btn ghost" data-action="close-dialog">Keep original proposal</button><button class="btn primary" data-action="confirm-rebase">Continue with this comparison</button>`);
+    }
+    function showMultiPlan() {
+      showDialog('Bounded assistant plan','Move the reveal. Keep the mystery.',`<div class="stack"><p class="label muted">Example instruction: “Save the confirmation that Elias is alive for chapter four, but keep the emotional thread in earlier scenes.”</p><div class="card stack"><div class="row"><span class="badge gold">1</span><strong class="label">The map that remembers</strong></div><p class="label muted">Deepen the archive’s atmosphere and preserve Mira’s uncertainty.</p><div class="row"><span class="badge gold">2</span><strong class="label">The last lesson</strong></div><p class="label muted">Replace the explicit survival claim with a memory that preserves the unanswered question.</p></div><div class="callout">Two scenes · two independent text proposals · keep the chapter-four reveal. No scene moves or canon updates are included.</div><p class="small subtle">Approving this plan prepares sample proposals. You review and accept the final passages separately.</p></div>`,`<button class="btn ghost" data-action="close-dialog">Cancel</button><button class="btn primary" data-action="approve-plan">Prepare the two proposals</button>`);
+    }
+    function approvePlan() {
+      if(offline){toast('Reconnect the sample before preparing proposals.');return;}
+      const sample=initialState().proposals;
+      for(const item of sample) {
+        const scene=sceneById(item.sceneId);if(!scene||scene.archived)continue;
+        const existing=state.proposals.find(p=>p.id===item.id);
+        if(existing?.status==='applied')continue;
+        const candidate={...item,original:scene.paragraphs[item.paragraph]||'',baseRevision:scene.revision,status:'pending'};
+        if(existing)Object.assign(existing,candidate);else state.proposals.push(candidate);
+      }
+      closeDialog();reviewTab='changes';selectedProposal='p1';setView('review');renderAll();persist();toast('Two sample results are ready for separate review.');
+    }
+    function askQuestion(question) {
+      if(offline){toast('Assistant requests are paused in the offline preview.');return;}
+      if(busy)return;
+      busy=true;const wasSuggest=assistantMode==='suggest',requestedScene=clone(currentScene());openInspector('assistant');
+      generationTimer=setTimeout(()=>{
+        busy=false;
+        const sceneAnswer=requestedScene.day<0?'<p>This is a childhood flashback. Mira knows Elias as her father and teacher; she cannot know about his later disappearance or survival.</p><button class="citation" data-cite="s5">Ch. 3 · The last lesson</button><p class="small subtle">Canned demo answer; future revelations remain excluded from her point of view.</p>':requestedScene.day>=4.1?'<p>Mira has now found Elias alive at the drowned observatory. This is confirmed on the page rather than inferred from earlier clues.</p><button class="citation" data-cite="s7">Ch. 4 · A familiar hand</button><p class="small subtle">Canned demo answer; earlier scenes retain their earlier knowledge state.</p>':null;
+        const answer=wasSuggest?`<p>This sample request creates a passage proposal rather than editing your manuscript.</p><p class="small subtle">Your instruction: ${escape(question)}</p><button class="btn ai compact" style="margin-top:12px" data-action="rewrite">Compare a sample rewrite</button>`:/elias|father|know|alive|reveal|missing/i.test(question)?sceneAnswer||'<p><strong>Evidence:</strong> Mira knows Elias disappeared. Ilyan explicitly says he does not know whether Elias is dead.</p><p><strong>Interpretation:</strong> Mira has reason to hope, but no confirmation. A continuation here should preserve that uncertainty.</p><button class="citation" style="margin-top:12px" data-cite="s2">Ch. 1 · “That is the only honest answer…”</button><p class="small subtle" style="margin-top:12px">The chapter-four reveal is excluded by the scene-knowledge policy. This is a canned demo answer.</p>':`<p>For this sample, the map’s warmth can carry the scene’s emotional tension while Ilyan’s silence leaves room for doubt.</p><p>This is a creative possibility, rather than a new fact about the story. You can explore it as a proposal and decide whether to use it.</p><button class="citation" style="margin-top:12px" data-cite="s3">Ch. 2 · The map that remembers</button><p class="small subtle" style="margin-top:12px">Illustrative response. No model was called.</p>`;
+        chat.push({question,answer});renderInspector();const scroll=$('#chat-scroll');if(scroll)scroll.scrollTop=scroll.scrollHeight;
+      },650);
+    }
+    function showCanon() {
+      showDialog('Evidence → proposal → canon',state.canonApproved?'An approved story fact.':'A discovery, awaiting your decision.',`<div class="stack"><span class="badge ${state.canonApproved?'green':'violet'}">${state.canonApproved?'Author-approved in this demo':'AI-extracted candidate'}</span><h3 style="font-family:var(--font-display);font-size:var(--text-h3)">The map reacts to Mira’s touch.</h3><p class="label muted">Scope: this map, in the archive scene. This does not establish that every map in the world behaves the same way.</p><div class="callout">“A line appeared beneath her finger. Not ink, exactly. A narrow seam of light…”</div><button class="citation" data-cite="s3">Ch. 2 · The map that remembers</button><p class="small subtle">An extraction is a proposal until you approve it. The linked passage remains its evidence; later edits can require a new review.</p></div>`,`<button class="btn ghost" data-action="close-dialog">${state.canonApproved?'Close':'Keep as proposed'}</button>${state.canonApproved?'':'<button class="btn primary" data-action="approve-canon">Approve as story canon</button>'}`);
+    }
+    function showSeries() {
+      showDialog('Your series · versioned inheritance','A new edition of the story bible.',`<div class="stack"><span class="badge">D6 · Advanced preview</span><p class="label muted">The Folded City series has a proposed canon update. This novel is pinned to version ${state.seriesVersion}. Prior manuscripts and exports keep their own versions.</p><div class="diff-grid"><section class="diff-pane"><div class="diff-label">Pinned version 2</div><p>The archive opens before dawn.</p></section><section class="diff-pane proposed"><div class="diff-label">Proposed version 3</div><p>The archive opens before dawn, only to someone carrying an unfinished map.</p></section></div><p class="label muted">Impact to review: “The map that remembers” and “A bargain in blue ink.” Adopting the reference version does not rewrite their prose.</p></div>`,`<button class="btn ghost" data-action="close-dialog">Keep current version</button><button class="btn primary" data-action="adopt-series">Use version 3 for this novel</button>`);
+    }
+    function showDelivery(mode='export') {
+      deliveryMode=mode;
+      const tabs=`<div class="segmented" aria-label="Delivery workflow"><button data-delivery-tab="export" aria-pressed="${mode==='export'}">Export manuscript</button><button data-delivery-tab="import" aria-pressed="${mode==='import'}">Import preview</button></div>`;
+      const body=mode==='export'?`<div class="form-grid"><label class="field">Format<select id="export-format" class="input"><option value="md">Markdown · working download</option><option value="txt">Plain text · working download</option><option value="json">Sample project backup · JSON</option><option disabled>DOCX · proposed converter</option><option disabled>EPUB · proposed compiler</option><option disabled>Print / PDF · proposed layout flow</option></select></label><label class="field">Draft<input class="input" value="Second draft · current scene versions" readonly></label></div><div class="label muted">Choose manuscript scenes</div><div class="card" style="max-height:200px;overflow:auto">${activeScenes().map(scene=>`<label class="row small" style="margin-bottom:10px"><input type="checkbox" data-export-scene="${scene.id}" checked style="accent-color:var(--color-ember-500)">${escape(scene.title)} <span class="mono subtle" style="margin-left:auto">${count(scene.paragraphs)}</span></label>`).join('')}</div><label class="row label muted"><input type="checkbox" id="export-notes" style="accent-color:var(--color-ember-500)">Include personal notes as a separate section</label><div class="callout">Export freezes the selected scene versions. Unaccepted proposals, archived scenes, and assistant chat are excluded. No publication or external upload takes place.</div><p class="small subtle">DOCX, EPUB, and print layout are future conversion workflows, shown in the format list for context. The three enabled formats download locally.</p>`:`<label class="field">Paste a small Markdown scene<textarea class="input" id="import-source" style="min-height:170px">## The door in the water\n\nMira unfolded the map. This time, she left one corner blank.\n\n“Some roads,” she said, “are supposed to be found.”</textarea></label><p class="label muted">Preview the title, paragraphs, and conversion notes before adding anything to the sample manuscript.</p><div class="callout warning">This demo accepts pasted text only. Images, footnotes, tables, and rich document conversion need a full import parser. The original pasted text is retained in the demo import record.</div>`;
+      showDialog('Manuscript delivery',mode==='export'?'Take the story with you.':'Bring a draft into the writing room.',`<div class="stack">${tabs}${body}</div>`,`<button class="btn ghost" data-action="close-dialog">Cancel</button><button class="btn primary" data-action="${mode==='export'?'build-export':'preview-import'}">${mode==='export'?'Compile & download':'Preview import'}</button>`);
+    }
+    let importCandidate=null;
+    function previewImport() {
+      const source=$('#import-source').value;if(!source.trim()){toast('Paste some text before opening the import preview.');return;}
+      const chunks=source.split(/\n\s*\n/).filter(Boolean),first=chunks[0],hasHeading=/^#{1,6}\s/.test(first),title=hasHeading?first.replace(/^#{1,6}\s+/,'').trim():'Imported scene';
+      importCandidate={source,title,paragraphs:hasHeading?chunks.slice(1):chunks};if(!importCandidate.paragraphs.length)importCandidate.paragraphs=[''];
+      showDialog('Import · review before adding','One scene, ready for your decision.',`<div class="stack"><span class="badge gold">1 scene · ${count(importCandidate.paragraphs)} words</span><h3 style="font-family:var(--font-display);font-size:var(--text-h3)">${escape(title)}</h3><div class="revision-preview">${escape(importCandidate.paragraphs.join('\n\n'))}</div><div class="callout">The first Markdown heading supplies the title. Other Markdown is kept as literal text in this lightweight preview. Destination: the active chapter. The original paste is preserved.</div></div>`,`<button class="btn ghost" data-action="import">Back</button><button class="btn primary" data-action="commit-import">Add this scene</button>`);
+    }
+    function commitImport() {
+      if(!importCandidate)return;recordStructureUndo();const scene={...clone(currentScene()),id:uid(),title:importCandidate.title,paragraphs:clone(importCandidate.paragraphs),rawImport:importCandidate.source,status:'Drafting',synopsis:'Imported text · plan not yet written',revision:1,summaryStale:true,archived:false};state.scenes.push(scene);importCandidate=null;closeDialog();selectScene(scene.id);toast('Reviewed import added as a new independent scene.');
+    }
+    function download(content,filename,type) {
+      const url=URL.createObjectURL(new Blob([content],{type}));const link=document.createElement('a');link.href=url;link.download=filename;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+    }
+    function buildExport() {
+      const selected=$$('[data-export-scene]:checked',dialog).map(input=>input.dataset.exportScene),format=$('#export-format').value,includeNotes=$('#export-notes').checked;
+      if(!selected.length){toast('Select at least one scene to compile.');return;}
+      const frozen=clone(state),scenes=frozen.chapters.flatMap(chapter=>frozen.scenes.filter(scene=>scene.chapter===chapter.id&&selected.includes(scene.id)&&!scene.archived));
+      const manifest=scenes.map(scene=>({sceneId:scene.id,title:scene.title,revision:scene.revision}));
+      if(format==='json')download(JSON.stringify({kind:'reverie-novel-demo-backup',schema:1,title:'The Glass Cartographer',manifest,chapters:frozen.chapters,scenes,notes:includeNotes?frozen.notes.filter(note=>selected.includes(note.sceneId)):[],revisions:frozen.revisions.filter(revision=>selected.includes(revision.sceneId)),canon:{mapRespondsToTouch:frozen.canonApproved},seriesVersion:frozen.seriesVersion},null,2),'the-glass-cartographer-demo.json','application/json');
+      else {
+        let content=format==='md'?'# The Glass Cartographer\n\n':'THE GLASS CARTOGRAPHER\n\n';
+        frozen.chapters.forEach((chapter,index)=>{
+          const chapterScenes=scenes.filter(scene=>scene.chapter===chapter.id);if(!chapterScenes.length)return;
+          content+=`${format==='md'?'## ':''}Chapter ${index+1}: ${chapter.title}\n\n`;
+          chapterScenes.forEach(scene=>{content+=`${format==='md'?'### ':''}${scene.title}\n\n${scene.paragraphs.join('\n\n')}\n\n`;});
+        });
+        if(includeNotes){content+='\nPERSONAL NOTES\n\n'+frozen.notes.filter(note=>selected.includes(note.sceneId)).map(note=>`${frozen.scenes.find(s=>s.id===note.sceneId).title}: ${note.text}`).join('\n\n');}
+        download(content,`the-glass-cartographer-demo.${format}`,format==='md'?'text/markdown;charset=utf-8':'text/plain;charset=utf-8');
+      }
+      showDialog('Compiled from frozen sample versions','Your manuscript download is ready.',`<div class="stack"><span class="badge green">${scenes.length} scenes · ${scenes.reduce((total,scene)=>total+count(scene.paragraphs),0)} words</span><p class="label muted">Your browser received a ${format==='json'?'sample project backup':format==='md'?'Markdown manuscript':'plain-text manuscript'}. The input version list below describes exactly what was compiled.</p><div class="card" style="max-height:230px;overflow:auto">${manifest.map(item=>`<div class="row spread small" style="padding:6px 0"><span>${escape(item.title)}</span><span class="mono subtle">revision ${item.revision}</span></div>`).join('')}</div><p class="small subtle">No unaccepted AI text was included. This file contains sample writing only.</p></div>`,`<button class="btn primary" data-action="close-dialog">Back to the story</button>`);
+    }
+    function keyboardHelp() {
+      showDialog('Keyboard & navigation','A quieter way through the studio.',`<div class="stack"><div class="row spread label"><span>Save the owning demo draft</span><kbd class="badge">Ctrl / Cmd + S</kbd></div><div class="row spread label"><span>Undo a reviewed commit</span><kbd class="badge">Ctrl / Cmd + Z or Undo button</kbd></div><div class="row spread label"><span>Leave focus mode / close a panel</span><kbd class="badge">Escape</kbd></div><div class="row spread label"><span>Switch inspector tabs</span><kbd class="badge">Left / Right arrows</kbd></div><p class="label muted">Tab always moves focus. It never accepts AI writing. Scene moves work through Scene details → Move up / Move down, as well as board dragging.</p><p class="small subtle">Native text-editing undo remains available while typing in the manuscript. The explicit Undo button also handles reviewed edits and structure operations.</p></div>`,`<button class="btn primary" data-action="close-dialog">Back to writing</button>`);
+    }
+    const actions={
+      'improvements':showImprovements, 'close-dialog':closeDialog, 'dismiss-toast':()=>$('#toast').hidden=true,
+      'reset':()=>showDialog('Reset this sample','Start again with the original draft?',`<p class="label muted">This clears only this demo’s sample writing, proposals, and local snapshots. Your application data is not connected.</p>`,`<button class="btn ghost" data-action="close-dialog">Keep exploring</button><button class="btn primary" data-action="confirm-reset">Reset sample</button>`),
+      'confirm-reset':()=>{clearTimeout(generationTimer);clearTimeout(saveTimer);state=initialState();view='write';chat=[];busy=false;undoStack=[];offline=false;focusMode=false;studio.className='studio';$('.focus-label').textContent='Focus';$('#focus-toggle').setAttribute('aria-pressed','false');$('#focus-toggle').setAttribute('aria-label','Enter focus mode');$('#connection-button').innerHTML=`${icon('wifi')}<span>Online preview</span>`;closeDialog();setView('write');renderAll();persist();$('#undo-btn').disabled=true;toast('Original sample restored.');},
+      'outline-toggle':()=>{if(focusMode)actions.focus();if($('#demo').clientWidth<=820){studio.classList.remove('inspector-open');studio.classList.toggle('outline-open');}else studio.classList.toggle('hide-outline');updateRailAria();},
+      'inspector-toggle':()=>{if(focusMode)actions.focus();if($('#demo').clientWidth<=1220){studio.classList.remove('outline-open');studio.classList.toggle('inspector-open');}else studio.classList.toggle('hide-inspector');updateRailAria();},
+      'close-rails':()=>{const fromInspector=studio.classList.contains('inspector-open');closeRails();(fromInspector?$('#inspector-toggle'):$('#outline-toggle')).focus();},
+      'focus':()=>{focusMode=!focusMode;studio.classList.toggle('focus-mode',focusMode);closeRails();$('#focus-toggle').setAttribute('aria-pressed',String(focusMode));$('#focus-toggle').setAttribute('aria-label',focusMode?'Exit focus mode':'Enter focus mode');$('.focus-label').textContent=focusMode?'Exit focus':'Focus';updateRailAria();},
+      'scene-details':()=>showSceneDetails(), 'save-scene-details':()=>saveSceneDetails(), 'move-up':()=>moveScene(-1), 'move-down':()=>moveScene(1), 'duplicate-scene':()=>duplicateScene(), 'archive-scene':archiveScene, 'archive':showArchive,
+      'new-scene':()=>showNewScene(), 'create-scene':createScene, 'split-scene':showSplit, 'confirm-split':confirmSplit,
+      'next-scene':()=>{const all=activeScenes(),index=all.indexOf(currentScene());selectScene(all[(index+1)%all.length].id);},
+      'undo':undo, 'snapshot':showSnapshot, 'save-snapshot':saveSnapshot, 'history':()=>showHistory(), 'restore-revision':restoreRevision,
+      'recovery':()=>{recoveryData=null;showRecovery();}, 'recover-local':()=>recoverDraft('local'), 'recover-account':()=>recoverDraft('account'), 'recover-copy':()=>recoverDraft('copy'), 'review-merge':showMerge, 'apply-merge':applyMerge,
+      'connection':()=>{offline=!offline;$('#connection-button').innerHTML=`${icon('wifi')}<span>${offline?'Offline preview':'Online preview'}</span>`;persist();renderInspector();toast(offline?'Offline example: editing and device checkpoints stay available.':'Online example restored. Account sync remains simulated.');},
+      'context':()=>{closeDialog();openInspector('context');}, 'rewrite':stageRewrite, 'accept':acceptProposal, 'stash':()=>setProposalStatus('stashed'), 'reject':()=>setProposalStatus('rejected'), 'refine':showRefine,
+      'save-refinement':()=>{const p=state.proposals.find(p=>p.id===selectedProposal),text=$('#refine-text').value.trim();if(!text){toast('Keep a proposed passage before continuing.');return;}p.proposed=text;p.reason=$('#refine-reason').value;p.attempt++;closeDialog();renderAll();persist();toast('Your variant is ready for review.');},
+      'rebase':showRebase, 'confirm-rebase':()=>{const p=state.proposals.find(p=>p.id===selectedProposal),scene=sceneById(p.sceneId);p.original=scene.paragraphs[p.paragraph];p.proposed=$('#rebase-text').value;p.baseRevision=scene.revision;p.attempt++;closeDialog();renderReview();renderInspector();persist();toast('Comparison updated. Acceptance is still a separate action.');},
+      'reopen-proposal':()=>{const p=state.proposals.find(p=>p.id===selectedProposal);p.status='pending';renderAll();persist();},
+      'ask-passage':()=>{assistantMode='ask';openInspector('assistant');$('#assistant-prompt').value=`What matters in “${currentScene().title}”?`;$('#assistant-prompt').focus();},
+      'multi-plan':showMultiPlan, 'approve-plan':approvePlan, 'stop':()=>{clearTimeout(generationTimer);busy=false;renderInspector();toast('Sample response stopped. Your writing was not changed.');},
+      'review':()=>{reviewTab='changes';setView('review');}, 'continuity':()=>{reviewTab='continuity';setView('review');}, 'notes':()=>{reviewTab='notes';setView('review');},
+      'dismiss-finding':()=>toast('Finding kept as an author choice. No manuscript edit was applied.'),
+      'add-note':()=>{const text=$('#new-note').value.trim();if(!text)return;state.notes.push({id:uid(),sceneId:state.active,text,resolved:false});renderReview();persist();toast('Personal note saved for this scene.');},
+      'refresh-summary':()=>{currentScene().summaryStale=false;currentScene().derivedSummary=`Sample refreshed summary: ${currentScene().title}. ${currentScene().synopsis}`;persist();renderInspector();toast('Derived summary refreshed in the sample. Approved canon is unchanged.');},
+      'canon':showCanon, 'approve-canon':()=>{state.canonApproved=true;persist();showCanon();renderInspector();}, 'series':showSeries, 'adopt-series':()=>{state.seriesVersion=3;persist();closeDialog();renderInspector();toast('Series version 3 selected. Scene prose was not rewritten.');},
+      'delivery':()=>showDelivery(), 'import':()=>showDelivery('import'), 'build-export':buildExport, 'preview-import':previewImport, 'commit-import':commitImport,
+      'shortcuts':keyboardHelp,
+      'plan-demo':()=>{closeDialog();setView('plan');}, 'context-demo':()=>{closeDialog();openInspector('context');}, 'review-demo':()=>{closeDialog();reviewTab='changes';setView('review');}, 'codex-demo':()=>{closeDialog();openInspector('codex');},
+      'plan-help':()=>showDialog('One structure, several views','Chapters hold scenes. Scenes hold the writing.',`<div class="stack"><p class="label muted">This preview demonstrates independent scenes with titles, POV, status, setting, and story time. Board, outline, timeline, and matrix read the same scene model.</p><p class="label muted">Open a scene’s actions to move, duplicate, split, or archive it. Archived writing is recoverable. A move changes reading order without changing narrative time.</p><div class="callout">The proposed migration preserves each legacy chapter as one scene. It does not guess scene boundaries from blank lines.</div></div>`,`<button class="btn primary" data-action="plan-demo">Open planning views</button>`)
+    };
+    document.addEventListener('click',event=>{
+      const button=event.target.closest('button');if(!button||button.disabled)return;
+      if(button.dataset.action){actions[button.dataset.action]?.();return;}
+      if(button.dataset.view){setView(button.dataset.view);return;}
+      if(button.dataset.scene){if(dialog.open)closeDialog();selectScene(button.dataset.scene);return;}
+      if(button.dataset.details){showSceneDetails(button.dataset.details);return;}
+      if(button.dataset.inspector){inspector=button.dataset.inspector;renderInspector();return;}
+      if(button.dataset.plan){planView=button.dataset.plan;renderPlan();return;}
+      if(button.dataset.reviewTab){reviewTab=button.dataset.reviewTab;renderReview();return;}
+      if(button.dataset.proposal){selectedProposal=button.dataset.proposal;reviewTab='changes';setView('review');return;}
+      if(button.dataset.cite){if(dialog.open)closeDialog();const id=button.dataset.cite;selectScene(id);toast(`Source passage: ${sceneById(id).title}.`);return;}
+      if(button.dataset.assistantMode){assistantMode=button.dataset.assistantMode;renderInspector();return;}
+      if(button.dataset.question){askQuestion(button.dataset.question);return;}
+      if(button.dataset.newIn){showNewScene(button.dataset.newIn);return;}
+      if(button.dataset.restoreScene){restoreScene(button.dataset.restoreScene);return;}
+      if(button.dataset.revision){showHistory(button.dataset.revision);return;}
+      if(button.dataset.recoveryTab){showRecovery(button.dataset.recoveryTab);return;}
+      if(button.dataset.deliveryTab){showDelivery(button.dataset.deliveryTab);return;}
+      if(button.dataset.note){const note=state.notes.find(note=>note.id===button.dataset.note);note.resolved=!note.resolved;renderReview();persist();}
+    });
+    document.addEventListener('submit',event=>{
+      if(event.target.id!=='assistant-form')return;event.preventDefault();const input=$('#assistant-prompt'),question=input.value.trim();if(!question)return;input.value='';askQuestion(question);
+    });
+    document.addEventListener('change',event=>{
+      if(event.target.dataset.source){state.context[event.target.dataset.source]=event.target.checked;renderInspector();persist();}
+      if(event.target.id==='temporal-policy'){state.temporal=event.target.value;renderInspector();persist();}
+      if(event.target.id==='assistant-scope'){state.scope=event.target.value;if(state.scope==='novel')state.temporal='author';renderInspector();persist();}
+    });
+    let manualEditGroup=false;
+    editor.addEventListener('beforeinput',()=>{if(!manualEditGroup){recordTextUndo(currentScene());manualEditGroup=true;}});
+    editor.addEventListener('input',()=>{
+      const paragraphs=Array.from(editor.childNodes).map(node=>(node.nodeType===Node.TEXT_NODE?node.textContent:node.innerText||node.textContent)||'').filter(text=>text.trim());
+      const scene=currentScene();scene.paragraphs=paragraphs.length?paragraphs:[''];scene.revision++;scene.summaryStale=true;
+      clearTimeout(saveTimer);setSaveStatus('Checkpointing device draft…');refreshCounts();
+      saveTimer=setTimeout(()=>{manualEditGroup=false;persist();renderRail();if(inspector!=='assistant')renderInspector();},400);
+    });
+    editor.addEventListener('paste',event=>{event.preventDefault();const text=event.clipboardData?.getData('text/plain')||'';const selection=getSelection();if(!selection?.rangeCount)return;if(!manualEditGroup){recordTextUndo(currentScene());manualEditGroup=true;}const range=selection.getRangeAt(0);range.deleteContents();const node=document.createTextNode(text);range.insertNode(node);range.setStartAfter(node);range.collapse(true);selection.removeAllRanges();selection.addRange(range);editor.dispatchEvent(new Event('input',{bubbles:true}));});
+    editor.addEventListener('mouseup',()=>{const text=getSelection()?.toString().trim()||'';$('#selection-info').textContent=text?`${count([text])} selected words`:'';});
+    let draggedScene=null;
+    document.addEventListener('dragstart',event=>{const card=event.target.closest('[data-drag-scene]');if(!card)return;draggedScene=card.dataset.dragScene;event.dataTransfer.setData('text/plain',draggedScene);event.dataTransfer.effectAllowed='move';});
+    document.addEventListener('dragover',event=>{const column=event.target.closest('[data-drop-chapter]');if(!column||!draggedScene)return;event.preventDefault();column.classList.add('drag-over');});
+    document.addEventListener('dragleave',event=>{const column=event.target.closest('[data-drop-chapter]');if(column&&!column.contains(event.relatedTarget))column.classList.remove('drag-over');});
+    document.addEventListener('drop',event=>{const column=event.target.closest('[data-drop-chapter]');if(!column||!draggedScene)return;event.preventDefault();recordStructureUndo();sceneById(draggedScene).chapter=column.dataset.dropChapter;draggedScene=null;renderAll();persist();toast('Scene moved to the chosen chapter. Its prose and story time are preserved.','Undo',undo);});
+    document.addEventListener('dragend',()=>{draggedScene=null;$$('.drag-over').forEach(column=>column.classList.remove('drag-over'));});
+    document.addEventListener('keydown',event=>{
+      if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='s'&&!dialog.open){event.preventDefault();clearTimeout(saveTimer);persist();toast('Demo draft checkpointed on this device. Account sync is simulated.');return;}
+      if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='z'&&!event.shiftKey&&!dialog.open&&!event.target.closest('input,textarea,[contenteditable]')){event.preventDefault();undo();return;}
+      if(event.key==='Escape'&&!dialog.open){if(studio.classList.contains('outline-open')||studio.classList.contains('inspector-open'))actions['close-rails']();else if(focusMode)actions.focus();}
+      const tab=event.target.closest('[data-inspector]');
+      if(tab&&['ArrowLeft','ArrowRight','Home','End'].includes(event.key)){event.preventDefault();const tabs=$$('[data-inspector]'),index=tabs.indexOf(tab),next=event.key==='Home'?0:event.key==='End'?tabs.length-1:(index+(event.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;inspector=tabs[next].dataset.inspector;renderInspector();tabs[next].focus();}
+      if(event.key==='Tab'&&!dialog.open){
+        const rail=studio.classList.contains('inspector-open')?$('#inspector'):studio.classList.contains('outline-open')?$('#outline'):null;
+        if(rail){const focusable=$$('button:not(:disabled),textarea:not(:disabled),select:not(:disabled),input:not(:disabled),[tabindex="0"]',rail).filter(el=>el.getClientRects().length);const first=focusable[0],last=focusable.at(-1);if(!rail.contains(document.activeElement)){event.preventDefault();first?.focus();}else if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}}
+      }
+    });
+    dialog.addEventListener('click',event=>{if(event.target!==dialog)return;const bounds=dialog.getBoundingClientRect();if(event.clientX<bounds.left||event.clientX>bounds.right||event.clientY<bounds.top||event.clientY>bounds.bottom)closeDialog();});
+    window.addEventListener('resize',()=>{closeRails();updateRailAria();});
+    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')persist();});
+    window.addEventListener('pagehide',persist);
+    renderAll();persist();
+  })();
+</script>
+</body>
+</html>

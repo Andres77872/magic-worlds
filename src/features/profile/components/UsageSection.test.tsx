@@ -1,8 +1,10 @@
 import { render, screen, within } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { activeCapacityUsage, emptyCapacityUsage } from '../llmCapacityUsage.fixtures'
 import { baseProfile } from './ProfileView.stories'
 import { UsageSection } from './UsageSection'
+
+afterEach(() => vi.unstubAllEnvs())
 
 function byokPanel() {
     return screen.getByRole('group', { name: 'Your provider key (BYOK)' })
@@ -95,4 +97,17 @@ describe('UsageSection voice panel (D24)', () => {
         expect(panel.queryByText(/min/)).not.toBeInTheDocument()
         expect(panel.queryByText(/previews? left/)).not.toBeInTheDocument()
     })
+})
+
+
+it('hides voice usage and quota rows while preserving other usage', () => {
+    vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'false')
+    vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
+    render(<UsageSection profile={{ ...baseProfile, membership: { ...baseProfile.membership!,
+        narration_chars_used: 500, narration_chars_limit: 2500, call_seconds_used: 90, call_seconds_limit: 180, previews_left: 2,
+    } }} />)
+    expect(screen.queryByRole('group', { name: 'Voice' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Call mode')).not.toBeInTheDocument()
+    expect(screen.queryByText('TTS')).not.toBeInTheDocument()
+    expect(screen.getByRole('progressbar', { name: 'Included daily credits used' })).toBeInTheDocument()
 })

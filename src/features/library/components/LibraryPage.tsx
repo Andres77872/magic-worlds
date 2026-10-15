@@ -13,6 +13,7 @@
  * creators with a captured origin) start here. An archived workspace is
  * read-only: browsing and copying out stay available.
  */
+import { isContentTypeFeatureEnabled } from '@/shared/featureFlags'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CheckCircle2, ChevronLeft, ChevronRight, CheckSquare, Copy, FolderMinus, FolderPlus, Pencil, Plus, RefreshCw, Search, Trash2, Users, X } from 'lucide-react'
@@ -247,6 +248,7 @@ export function LibraryPage() {
     useEffect(() => {
         if (!revealKey || !route.reveal || !api) return
         const ref = route.reveal
+        if (!isContentTypeFeatureEnabled(ref.cardType)) return
         const scope = capture()
         let cancelled = false
         const galleryType = ref.cardType === 'adventure_template' ? 'adventure' : ref.cardType
@@ -273,8 +275,9 @@ export function LibraryPage() {
 
     const revealedItem = revealed && revealed.key === revealKey ? revealed.item : null
     const displayItems = useMemo(() => {
-        if (!revealedItem) return cards.items
-        return [revealedItem, ...cards.items.filter((item) => libraryItemKey(item) !== libraryItemKey(revealedItem))]
+        const visible = cards.items.filter((item) => isContentTypeFeatureEnabled(item.galleryType))
+        if (!revealedItem || !isContentTypeFeatureEnabled(revealedItem.galleryType)) return visible
+        return [revealedItem, ...visible.filter((item) => libraryItemKey(item) !== libraryItemKey(revealedItem))]
     }, [cards.items, revealedItem])
 
     const [pendingReturn, setPendingReturn] = useState<ReturnType<typeof takeLibraryReturn>>(null)

@@ -1,0 +1,98 @@
+{
+  "date": "2026-10-15",
+  "milestone": "M6 foundation",
+  "overall_goal_complete": false,
+  "implemented": [
+    "bounded native MessagePack timestamp transport",
+    "revisable Unicode word/source matching",
+    "native metadata-only regression fixture"
+  ],
+  "not_integrated": [
+    "public call engine and ledger",
+    "call account leases/top-ups and schema handoff",
+    "call provider/profile eligibility",
+    "browser first-audible timing and end-to-end R4 matrix"
+  ],
+  "public_fish_calls_enabled": false,
+  "release_r4_accepted": false,
+  "native": {
+    "state": "succeeded",
+    "model": "drama-3",
+    "request_kind": "timestamp-native-01",
+    "catalogue_entries_created": 0,
+    "audio_bytes": 111176,
+    "duration_ms": 6949,
+    "sha256": "a3664028fcc94e72e83bd6074b1d137d93967aa3b5bf956f9f0c140affbf8cb8",
+    "first_audio_ms": 1686,
+    "elapsed_ms": 2516,
+    "wire_packets": 11,
+    "close_calls": 1,
+    "actual_native_requests": 1,
+    "packet_counts": {
+      "audio_nonempty": 10,
+      "normal_finish": 1,
+      "provider_chunks": 2,
+      "alignment_revisions_per_chunk": [
+        5,
+        5
+      ]
+    },
+    "one_observed_start_revision_ms": [
+      80,
+      0
+    ],
+    "second_chunk_offset_ms": 2786.394557823129,
+    "latency_scope": "single server-side development probe including local admission; not browser p50/p95",
+    "mp3_validation": "complete mono 44100 Hz, 128 kbps",
+    "metadata_only_live_case_observed": false,
+    "metadata_only_synthetic_regression": true,
+    "shared_supplier_admission_used": true,
+    "actual_debit_reconciled": false,
+    "acoustic_acceptance": false
+  },
+  "word_projection": {
+    "native_fixture_word_projection": true,
+    "logical_code_points": 71,
+    "logical_sha256": "26d9d79a6e6c650ff92e41a618eb3870936b0b389d4420f3b9bbc5abe447270d",
+    "final_quality": "provider_words",
+    "complete_prefix": 71,
+    "metadata_does_not_bill_audio": true,
+    "call_engine_integrated": false
+  },
+  "tests": {
+    "backend_full": {
+      "passed": 13992,
+      "skipped": 754,
+      "deselected": 10
+    },
+    "frontend_full": {
+      "passed": 4186,
+      "files": 399
+    },
+    "call_transport_cases": 16,
+    "word_timeline_cases": 10,
+    "native_capture_contains_audio": false,
+    "frontend_build": "passed",
+    "story_typecheck": "passed",
+    "new_component_lint": "passed",
+    "diff_checks": "passed"
+  },
+  "development_readiness": {
+    "schema": "2026_10_fish_performance",
+    "schema_verified": true,
+    "http_ready_status": 200,
+    "public_active_fish_voices": 1,
+    "remaining_scene_test_databases": 0,
+    "scene_enabled": false,
+    "calls_enabled": false,
+    "performance_enabled": false,
+    "design_enabled": true,
+    "preview_enabled": true,
+    "narration_enabled": true,
+    "approved_user_languages": [
+      "es"
+    ]
+  },
+  "remaining_scene_gate": "Longer native HTTP scene responses ended in incomplete MP3 frames; scene generation remains off",
+  "initial_catalogue": "Gabriel only; English/Spanish root voice creation independently enabled"
+}

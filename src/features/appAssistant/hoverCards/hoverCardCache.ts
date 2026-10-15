@@ -15,6 +15,7 @@ import { useEffect, useState } from 'react'
 import { fetchCardPreview, type CardPreview } from '@/features/cards/cardPreview'
 import { ApiError, apiService, isProtectedMediaUrl, resolveMediaUrl } from '@/infrastructure/api'
 import { hoverCardKey, previewTargetFor, type HoverCardRef } from './hoverCardModel'
+import { isContentTypeFeatureEnabled } from '@/shared/featureFlags'
 
 const settledPreviews = new Map<string, CardPreview | null>()
 const pendingPreviews = new Map<string, Promise<CardPreview | null>>()
@@ -25,7 +26,7 @@ function previewKey(ref: HoverCardRef, workspaceId: string): string {
 
 /** The settled result for `ref` in a workspace (`null` = known missing), or undefined when never fetched. */
 export function peekRemotePreview(ref: HoverCardRef, workspaceId: string | null): CardPreview | null | undefined {
-    if (!workspaceId) return null
+    if (!workspaceId || !isContentTypeFeatureEnabled(ref.kind)) return null
     const key = previewKey(ref, workspaceId)
     return settledPreviews.has(key) ? settledPreviews.get(key) ?? null : undefined
 }
@@ -35,7 +36,7 @@ export function peekRemotePreview(ref: HoverCardRef, workspaceId: string | null)
  * Resolves null when the record is gone, or without a committed workspace.
  */
 export function loadRemotePreview(ref: HoverCardRef, workspaceId: string | null): Promise<CardPreview | null> {
-    if (!workspaceId) return Promise.resolve(null)
+    if (!workspaceId || !isContentTypeFeatureEnabled(ref.kind)) return Promise.resolve(null)
     const key = previewKey(ref, workspaceId)
     if (settledPreviews.has(key)) return Promise.resolve(settledPreviews.get(key) ?? null)
     const pending = pendingPreviews.get(key)

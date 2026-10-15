@@ -13,6 +13,7 @@
  * - DataProvider offers `refreshAdventureVoices`.
  * The narrator and the persona are never targets (EP-2).
  */
+import { isVoicesFeatureEnabled } from '@/shared/featureFlags'
 import { useMemo, useRef, type RefObject } from 'react'
 import type { Adventure } from '@/shared/types'
 import { useData } from '@/app/hooks'
@@ -54,7 +55,7 @@ export function useCastVoiceRefresh({ adventure, cast, editable, readOnly }: Use
     const sessionId = Number(adventure.id)
     const api = session.api
     const canRefresh = Boolean(
-        editable && !readOnly && !session.readOnly && session.active && api && refreshAdventureVoices
+        isVoicesFeatureEnabled() && editable && !readOnly && !session.readOnly && session.active && api && refreshAdventureVoices
         && !adventure.draft && Number.isInteger(sessionId) && sessionId > 0,
     )
 
@@ -71,7 +72,7 @@ export function useCastVoiceRefresh({ adventure, cast, editable, readOnly }: Use
 
     const run = (cardIds: readonly string[]) => {
         const batches = refreshBatches(cardIds)
-        if (batches.length === 0 || !api || !refreshAdventureVoices) return
+        if (!isVoicesFeatureEnabled() || batches.length === 0 || !api || !refreshAdventureVoices) return
         statusRef.current?.focus()
         void refresh.run(async () => {
             for (const batch of batches) await refreshAdventureVoices(adventure.id, batch, api)

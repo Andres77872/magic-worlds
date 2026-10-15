@@ -34,4 +34,14 @@ describe('catalogBadges (R1-FE-01)', () => {
         expect(catalogSampleUrl(CATALOG_ELDRIN, 'fr')).toContain('language=en')
         expect(catalogSampleUrl(catalogVoice({ languages: [] }), 'en')).toBeNull()
     })
+
+    it('skips missing samples before falling back to the primary language or another sample', () => {
+        const [english, spanish] = CATALOG_ELDRIN.languages
+        const noSpanishSample = catalogVoice({ languages: [english, { ...spanish, sample_url: '' }] })
+        expect(catalogSampleUrl(noSpanishSample, 'es-MX')).toBe(english.sample_url)
+
+        const noPrimarySample = catalogVoice({ languages: [{ ...english, sample_url: '' }, spanish] })
+        expect(catalogSampleUrl(noPrimarySample, 'en')).toBe(spanish.sample_url)
+        expect(catalogSampleUrl(noPrimarySample, 'fr')).toBe(spanish.sample_url)
+    })
 })

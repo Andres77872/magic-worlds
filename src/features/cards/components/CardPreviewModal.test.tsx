@@ -171,6 +171,15 @@ describe('CardPreviewModal voice line (R1-FE-03)', () => {
         )
     }
 
+    it('hides stored voice details when the parent flag is off', () => {
+        vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'false')
+        try {
+            renderCard(CHARACTER)
+            expect(screen.queryByTestId('card-preview-voice')).not.toBeInTheDocument()
+            expect(screen.getByText('Lyra')).toBeInTheDocument()
+        } finally { vi.unstubAllEnvs() }
+    })
+
     it('shows the voice and what it plays as for a projection', () => {
         renderCard(CHARACTER)
         expect(screen.getByTestId('card-preview-voice')).toHaveTextContent('Eldrin')

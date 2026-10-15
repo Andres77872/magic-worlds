@@ -5,7 +5,7 @@
  * language the voice lists (when it lists any). The server stays the
  * authority: eligibility (`voice_not_eligible`) is only known on write.
  */
-import type { AdminCatalogVoice, AdminGlobalPresetInput, VoiceEmotion, VoicePresetV2, VoiceSettingsV2 } from '@/shared'
+import type { AdminCatalogVoice, AdminGlobalPresetInput, VoiceEmotion, VoicePreset, VoiceSettingsV2 } from '@/shared'
 import { SETTING_RANGES, type LabSettingKey } from './constants'
 
 export const GLOBAL_PRESET_NAME_MAX = 255
@@ -40,7 +40,7 @@ export function emptyGlobalPresetDraft(): GlobalPresetDraft {
     return { name: '', description: '', voice_key: '', settings: null, emotion: null, language_code: '' }
 }
 
-export function draftFromPreset(preset: VoicePresetV2): GlobalPresetDraft {
+export function draftFromPreset(preset: VoicePreset): GlobalPresetDraft {
     return {
         name: preset.name,
         description: preset.description ?? '',
