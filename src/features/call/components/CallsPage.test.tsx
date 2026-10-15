@@ -11,6 +11,7 @@ import {
     WorkspaceTestProvider,
     type WorkspaceTestState,
 } from '@/shared/hooks/testing/workspaceTestUtils'
+import contract from '@/shared/voice/fishAudioContract.fixture.json'
 import { toVoiceCapabilities } from '@/shared/voice/voiceCapabilities'
 import { CallsPage } from './CallsPage'
 
@@ -39,6 +40,19 @@ const PERSONA: Character = { id: 'p1', name: 'Aria', stats: {}, role: 'persona',
 const CARD_PERSONA: Character = { id: 'p2', name: 'Sera', stats: {}, role: 'persona' } as Character
 const MIRA: Character = { id: 'c1', name: 'Mira', race: 'Elf', stats: {}, role: 'character', voice: { schema_version: 2, provider: 'elevenlabs', voice_key: `vk_${'e'.repeat(32)}`, voice_name: 'Mira' } } as Character
 const MIRA_WITH_DEFAULT: Character = { ...MIRA, default_persona_id: 'p2' } as Character
+const GABRIEL: Character = { id: 'c3', name: 'Gabriel', stats: {}, role: 'character', voice: { schema_version: 3, provider: 'fish_audio', voice_key: `vk_${'f'.repeat(32)}`, voice_name: 'Gabriel', settings: null } } as Character
+
+/** Calls on for the account; Fish advertises its call surface only when `fishCalls`. */
+function fishCapabilities(fishCalls: boolean) {
+    const fish = contract.capabilities.providers[0]
+    const provider = fishCalls
+        ? { ...fish, operations: [...fish.operations, 'call'], surfaces: { ...fish.surfaces, call: fish.surfaces.narration } }
+        : fish
+    return toVoiceCapabilities({
+        ...contract.capabilities, consent_version_required: 'voice-v3', providers: [provider],
+        status: { calls_available: true, narration_available: true },
+    })
+}
 
 vi.mock('@/app/hooks', () => ({
     useAuth: () => ({ isAuthenticated: authed, openLoginModal }),
@@ -177,6 +191,50 @@ describe('CallsPage', () => {
         await waitFor(() => expect(startCharacterChat).toHaveBeenCalledWith(MIRA, PERSONA))
         await waitFor(() => expect(resumeCharacterChat).toHaveBeenCalledWith({ id: 'chat-1', character: MIRA }, { mode: 'voice' }))
         expect(setPage).toHaveBeenCalledWith('character-chat')
+    })
+
+    it('says why a Fish-voiced character cannot be called while Fish calls are off', async () => {
+        characters = [GABRIEL, PERSONA]
+        getVoiceCapabilities.mockResolvedValue(fishCapabilities(false))
+        render(<CallsPage />)
+        await waitFor(() => expect(getVoiceCapabilities).toHaveBeenCalled())
+        await act(async () => {})
+
+        fireEvent.click(screen.getByRole('button', { name: 'Call Gabriel' }))
+
+        const toast = await screen.findByRole('alert')
+        expect(toast).toHaveTextContent('Call not started')
+        expect(toast).toHaveTextContent('Fish Audio voices support narration and previews.')
+        expect(startCharacterChat).not.toHaveBeenCalled()
+        fireEvent.click(screen.getByRole('button', { name: 'Dismiss notice' }))
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    it('starts a Fish-voiced call once the server advertises a healthy Fish call surface', async () => {
+        characters = [GABRIEL, PERSONA]
+        getVoiceCapabilities.mockResolvedValue(fishCapabilities(true))
+        startCharacterChat.mockResolvedValue({ id: 'chat-2', character: GABRIEL } as CharacterChatSession)
+        render(<CallsPage />)
+        await waitFor(() => expect(getVoiceCapabilities).toHaveBeenCalled())
+        await act(async () => {})
+
+        fireEvent.click(screen.getByRole('button', { name: 'Call Gabriel' }))
+
+        await waitFor(() => expect(startCharacterChat).toHaveBeenCalledWith(GABRIEL, PERSONA))
+        await waitFor(() => expect(resumeCharacterChat).toHaveBeenCalledWith({ id: 'chat-2', character: GABRIEL }, { mode: 'voice' }))
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    it('shows a failed start instead of leaving the click silent', async () => {
+        startCharacterChat.mockRejectedValueOnce(new Error('Chat service unavailable.'))
+        render(<CallsPage />)
+
+        fireEvent.click(screen.getByRole('button', { name: 'Call Mira' }))
+
+        const toast = await screen.findByRole('alert')
+        expect(toast).toHaveTextContent('Call not started')
+        expect(toast).toHaveTextContent('Chat service unavailable.')
+        expect(resumeCharacterChat).not.toHaveBeenCalled()
     })
 
     it('starts a voice call with the character card default persona before the global default', async () => {
