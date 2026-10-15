@@ -1,6 +1,6 @@
 # Objectives and scope
 
-> **Scope / status (reviewed 2026-10-14):** R1 design/coverage contract and dated implementation evidence. Source is implemented; default product UI rollout remains **WIP**, locally opted in. [02](02_current_status_and_findings.md) owns current status and schema compatibility; [04](04_gaps_and_priorities.md) owns remaining gaps/TBD. Historical test totals, branch state and migration notes below apply to their stated dates, not deployment availability.
+> **Lifecycle: active R1 contract. Documentation reconciliation: 2026-10-15.** The foundation is implemented; rollout and specific integrity acceptance remain open. [02](02_current_status_and_findings.md) owns source/status and schema compatibility; [04](04_gaps_and_priorities.md) owns remaining work. Normative requirements below remain acceptance/regression contracts, not claims that every guarantee has runtime evidence. Dated implementation/validation records are in git history.
 
 **Status:** Selected R1 scope; implemented in source, WIP rollout. See [current status](02_current_status_and_findings.md).\
 **Refreshed:** 2026-10-12.
@@ -66,7 +66,7 @@ Existing public cards and share links remain supported. They are distribution me
 
 A user can create Sandbox and Novel A, put related cards into a cast collection, find that cast through an existing picker, copy selected cards into Sandbox, and edit the copies without affecting Novel A. A request started in one workspace finishes there even if the user switches before completion.
 
-For actionable acceptance scenarios, see [the plan](/home/andres/WebstormProjects/magic-worlds/docs/workspace_r1/12_implementation_plan_and_acceptance.md) and [validation coverage](/home/andres/WebstormProjects/magic-worlds/docs/workspace_r1/13_validation_and_coverage.md).
+For actionable acceptance, see [10 — acceptance guarantees](10_risks_and_decisions.md#acceptance-guarantees-a01-a27) and the remaining gates in [04](04_gaps_and_priorities.md).
 
 ## Selected implementation contracts
 

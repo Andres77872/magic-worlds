@@ -1,5 +1,7 @@
 # Local moderation policy, thresholds, and context
 
+**Lifecycle: active implementation proposal, unimplemented native integration. Reviewed 2026-10-15.** Requirements and examples below define the intended feature; they do not establish current support. Use [00](00_current_status_and_findings.md) for source status and [10](10_rollout_risks_and_decisions.md) for scope/delivery.
+
 Date: **2026-10-15**. Status: **policy research requiring evaluation**. Model choice is accepted; question wording and thresholds are not implicitly approved.
 
 Policy here means server-owned question/threshold definitions in the native backend service. Each LLM/image profile's default-on boolean controls whether its operation invokes this policy; it does not select the moderator, questions, or model. No moderator profile, policy database, or new enforcement framework is required.
@@ -39,7 +41,7 @@ Choose category/purpose thresholds using reviewed examples and a held-out set. T
 
 Every required answer must be present and valid. A score meeting the chosen block rule withholds the operation. If evaluation motivates an uncertain interval, map it to withholding/refusal using the existing error path; do not build a manual-review workflow in this integration. Keep provider unavailability distinguishable from a policy block.
 
-Identify the local question/threshold configuration by code revision in evaluation results and safe logs. Changes require regression evaluation and clearing/bypassing incompatible existing caches. No policy table or per-decision persistence is required.
+Identify the local question/threshold configuration by code revision in evaluation results and safe logs. Changes require regression evaluation and clearing/bypassing incompatible existing caches. Changing the model identity or provider route (for example OpenRouter to Workers AI) also requires re-running the en/es domain regression (§7) before release. No policy table or per-decision persistence is required.
 
 ## 4. Context must identify the target
 

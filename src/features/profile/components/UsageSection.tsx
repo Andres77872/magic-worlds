@@ -4,6 +4,7 @@
  * Requests on the user's own provider key (BYOK) are a separate panel: they use
  * no app credits, so they never mix into the credit totals above.
  */
+import { isVoicesFeatureEnabled, isCallsFeatureEnabled, isOperationFeatureEnabled } from '@/shared/featureFlags'
 import { Gauge, KeyRound, Mic } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
@@ -38,7 +39,7 @@ export function UsageSection({ profile, llmUsage }: UsageSectionProps) {
 
     const operations = orderedLimitEntries(membership.limits ?? {})
     const monthly = membership.monthly_usage
-    const voiceUsage = readVoiceUsage(membership)
+    const voiceUsage = isVoicesFeatureEnabled() ? readVoiceUsage(membership) : null
     const monthlyOperations = monthly ? orderedLimitEntries(monthly.operations ?? {}) : []
 
     return (
@@ -94,7 +95,7 @@ function VoiceUsagePanel({ usage, t, locale }: { usage: VoiceUsageView; t: TFunc
                         </span>
                     </div>
                 )}
-                {call && (
+                {isCallsFeatureEnabled() && call && (
                     <div className="flex flex-col gap-1.5">
                         <UsageMeter
                             label={t('usage.voice.callMinutes')}
@@ -135,7 +136,7 @@ function ByokUsagePanel({
     t: TFunction
     locale: string
 }) {
-    const operations = state.usage?.operations.filter((operation) => operation.byok_enabled) ?? []
+    const operations = state.usage?.operations.filter((operation) => operation.byok_enabled && isOperationFeatureEnabled(operation.operation)) ?? []
     const active = operations.filter((operation) => operation.month.user_byok > 0)
     const historical = state.usage?.operations.reduce((total, operation) => total + operation.month.unattributed, 0) ?? 0
 

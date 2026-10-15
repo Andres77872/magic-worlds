@@ -1,8 +1,8 @@
 # Interactive AI text streaming
 
-**Status reviewed 2026-10-14:** implemented transport, deployed acceptance **WIP/TBD**. `VITE_FEATURE_TEXT_STREAMING_ENABLED` defaults on; only the exact string `false` selects synchronous card/story generation. Story/adventure/group/lorebook/app surfaces keep their own gates and are WIP when disabled. See [feature status](FEATURE_STATUS.md) and **STREAM-01 / CHAT-01** in [roadmap](ROADMAP.md).
+**Source/lifecycle review: 2026-10-15.** implemented transport, deployed acceptance **WIP/TBD**. `VITE_FEATURE_TEXT_STREAMING_ENABLED` defaults on; only the exact string `false` selects synchronous card/story generation. Story/adventure/group/lorebook/app surfaces keep their own gates and are WIP when disabled. See [feature status](FEATURE_STATUS.md) and **STREAM-01** and REL-01 in [roadmap](ROADMAP.md).
 
-Migration commands and test counts below describe the original streaming rollout. Current BFF bootstrap expects `2026_10_voice_native`; the older `2026_09_text_streaming` revision is a historical step, not the current target. Inspect the actual schema/migration chain before applying it. The planner-tool stream regression was fixed in BFF `2c2973d`, with a later passing smoke on the test deployment recorded in the [current voice ledger](voice_refactor/00_current_status_and_roadmap.md); that bounded evidence does not qualify every graph/provider path.
+Migration commands and test counts below describe the original streaming rollout. Current BFF source expects the revision named by `CONTENT_SCHEMA_REVISION` in the BFF bootstrap (owned by the active Fish/voice execution; not asserted here); the older `2026_09_text_streaming` revision is a historical step, not the current target. Inspect the actual schema/migration chain before applying it. The planner-tool stream regression was fixed in BFF `2c2973d`, with a later passing smoke on the test deployment recorded in the [current voice ledger](voice_refactor/00_current_status_and_roadmap.md); that bounded evidence does not qualify every graph/provider path.
 
 Implemented across `magic-worlds`, `magic-worlds-api`, and `api.magic_llm`.
 Media generation, extraction, and other background jobs retain their existing job lifecycle.
@@ -16,6 +16,8 @@ Media generation, extraction, and other background jobs retain their existing jo
 | Story Studio | Live prose preview at the mapped editor position; critique previews in its feedback drawer. Saved candidates enter the existing Accept/Regenerate/Decline flow. Escape aborts the request. |
 | Character, world, item, adventure creation | The creation gallery includes one-shot generation. Read-only field previews appear before validation and persistence; only a saved result enters the editor and refreshes the library. Stop retains an explicitly incomplete preview. |
 | Voice text | Late text from a canceled turn or another session is discarded. |
+
+The implemented previews consume incremental output. Novel acceptance/save/undo reliability remains open in the [NE register](novel_refactor/10_issues_gaps_and_risks.md); the transport does not close those editor findings.
 
 All preview text is real incremental output. Story preview widgets are outside the
 manuscript document, so autosave cannot store an unfinished preview. Accept/reject,
@@ -73,6 +75,11 @@ without another paid POST. Closing the creator invalidates its result callback.
 
 ## Deployment order
 
+For the current release, inventory the exact client/BFF/upstream revisions, verify the complete schema with the revision-matched backend operations guide, and deploy compatible streaming contracts together. The old September migration is not a current upgrade recipe. Read the [backend database guide](../../../PycharmProjects/magic-worlds-api/docs/database.md); Fish handoff remains owned by its executing work. Choose the client streaming flag before dispatch and qualify the proxy/recovery checks below on the actual release pair.
+
+<details>
+<summary>Historical September streaming rollout sequence</summary>
+
 1. Deploy the `api.magic_llm` adapter changes.
 2. Apply BFF migration `scripts/migrations/20260906_text_streaming.sql`. It adds the
    nullable `story_generation.request_id` column and advances the content schema
@@ -83,6 +90,8 @@ without another paid POST. Closing the creator invalidates its result callback.
    selects synchronous Story Studio/card endpoints before generation starts;
    there is no automatic second-request fallback. Existing chat/assistant streaming
    remains enabled independently.
+
+</details>
 
 SSE responses send `Cache-Control: no-cache, no-transform`, `X-Accel-Buffering: no`,
 and heartbeat comments every 15 seconds. The client detects connection silence
@@ -108,9 +117,7 @@ The following counts and browser fixture results are historical evidence from th
   completion, retained previews after Stop during saving, Story Studio live preview,
   transition to review controls, and Decline restoring the original manuscript.
 
-The deployed proxy/provider check remains outstanding because no public deployed
-target was supplied. Once deployed,
-check all four card types and Story Studio through the public origin: output must
+The original pass did not qualify all card/story streams through a public proxy. The later voice deployment smoke does not establish those SSE paths. Current release acceptance must check all four card types and Story Studio through the intended public origin: output must
 appear before `final`, Stop must interrupt idle generation, a committed result must
 match the library/history after reload, and disconnect recovery must use GET without
 an additional generation POST. Also verify one tool-only assistant reply and chat

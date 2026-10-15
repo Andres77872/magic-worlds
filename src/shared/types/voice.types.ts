@@ -200,7 +200,7 @@ export type VoiceSocketServerFrame =
         confidence?: number
         no_speech_prob?: number
     }
-    | { type: 'voice_turn_start'; voice_session_id: string; turn_id: string; user_message_id: number; assistant_message_id: number }
+    | { type: 'voice_turn_start'; voice_session_id: string; turn_id: string; user_message_id: number; assistant_message_id: number; segment_seq?: number }
     | { type: 'voice_assistant_delta'; voice_session_id: string; turn_id: string; content: string }
     | {
         type: 'voice_audio_chunk'

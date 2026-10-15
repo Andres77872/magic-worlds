@@ -30,6 +30,7 @@
  * URL. Playback never autostarts (frames arrive from WS callbacks with no
  * user-gesture context) — we always surface a Play affordance.
  */
+import { isVoicesFeatureEnabled } from '@/shared/featureFlags'
 import { useContext, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
@@ -80,6 +81,7 @@ interface TurnNarrationProps {
 }
 
 export function TurnNarration(props: TurnNarrationProps) {
+    if (!isVoicesFeatureEnabled()) return null
     if (props.segments && props.segments.length > 0) {
         return (
             <MultiClipNarration

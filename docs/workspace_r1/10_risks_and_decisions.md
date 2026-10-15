@@ -1,11 +1,11 @@
 # Risks, selected decisions, and release gates
 
-> **Scope / status (reviewed 2026-10-14):** R1 design/coverage contract and dated implementation evidence. Source is implemented; default product UI rollout remains **WIP**, locally opted in. [02](02_current_status_and_findings.md) owns current status and schema compatibility; [04](04_gaps_and_priorities.md) owns remaining gaps/TBD. Historical test totals, branch state and migration notes below apply to their stated dates, not deployment availability.
+> **Lifecycle: active R1 contract. Documentation reconciliation: 2026-10-15.** The foundation is implemented; rollout and specific integrity acceptance remain open. [02](02_current_status_and_findings.md) owns source/status and schema compatibility; [04](04_gaps_and_priorities.md) owns remaining work. Normative requirements below remain acceptance/regression contracts, not claims that every guarantee has runtime evidence. Dated implementation/validation records are in git history.
 
 **Status:** Selected implementation choices are in source with dated local tests; residual integrity and deployment risks remain WIP in 02/04.\
 **Refreshed:** 2026-10-12.
 
-Severity expresses consequences if R1 guarantees are missed, not evidence that the current single-library app has a workspace vulnerability.
+Severity expresses consequences if R1 guarantees are missed, not evidence that the reviewed implementation has a reproduced workspace vulnerability.
 
 ## Risk register
 
@@ -36,7 +36,7 @@ Severity expresses consequences if R1 guarantees are missed, not evidence that t
 
 | Concern | Decision | Authoritative detail |
 |---|---|---|
-| Ownership | Personal owner within existing AppScope; one home workspace per content root | 05, 06, 15 |
+| Ownership | Personal owner within existing AppScope; one home workspace per content root | 06, 15 |
 | Activity scope | Cards, lorebooks/resources, stories, all session kinds/voice history, unified assistants | 01, 16 |
 | Collections | Flat mixed types, many memberships, organization only | 15 |
 | Library navigation | One sidebar Library entry; folders and unchanged cards together; visible search and local type/role filters; existing creators/assistant from New | 08, 15 |
@@ -55,18 +55,52 @@ Severity expresses consequences if R1 guarantees are missed, not evidence that t
 | Deployment | Coordinated exact-schema cutover from 2026_10_image_profiles | 11 |
 | Frontend rollout | One R1 build that always sends workspace-scoped requests; `VITE_FEATURE_WORKSPACES_ENABLED` gates UI only; startup handshake before any private request; compatibility release for stale tabs; stop API → deploy frontend → migrate → start API → enable flag | 08, 11 |
 
-These selections resolve the previous design alternatives. They are recorded to make implementation actionable and do not claim that code, a migration, or runtime verification exists.
+These selections resolve the previous design alternatives. Their implementation exists; this decision table is not evidence that every release gate has passed. Current source findings and closure criteria live in 02/04.
 
 The user's 2026-10-12 approval of the revised library prototype fixes the earlier unspecified sidebar and creation-entry layout. The existing screenshot/first explanatory prototype is not a selected design. Preserve actual GalleryCard/GalleryPage appearance and existing creation/assistant flows when implementing the unified browser. Approval covers the browser/entry flow, not the prototype's simulated persistence or abbreviated editor fields.
 
 ## Remaining evidence, not open domain decisions
 
-Deployed revision/MySQL version, exact DDL/DTO fixtures, representative volumes/query plans, copy transaction duration, blob backups, drain/resume behavior, and preservation checks must be gathered during implementation/release preparation. Initial batch bounds may be reduced after measurement; raising them requires the corresponding performance/transaction tests.
+Deployed revision/MySQL version, exact DDL/DTO fixtures, representative volumes/query plans, copy transaction duration, blob backups, drain/resume behavior, and preservation checks remain required for the intended release environment; dated local results are summarized in [04](04_gaps_and_priorities.md) (W-05 baseline). Initial batch bounds may be reduced after measurement; raising them requires the corresponding performance/transaction tests.
 
 Permanent deletion, collaboration, shared editable cards, nested/smart collections, moves, and bundle export remain deferred. They are not hidden requirements for completing personal R1.
 
 ## Release gates
 
-Do not activate workspace UI until R01–R20 and the selected acceptance matrix A01–A27 are covered. Include the approved library/search/creator/assistant scenarios; a frontend flag cannot compensate for account-wide API fallback or an incompatible schema.
+Do not activate workspace UI until R01–R20 and the selected [acceptance guarantees A01–A27](#acceptance-guarantees-a01-a27) are covered. Include the approved library/search/creator/assistant scenarios; a frontend flag cannot compensate for account-wide API fallback or an incompatible schema.
 
-Keep implementation status in document 12. A checkbox for a design decision means the specification is complete, not that its risk has passed testing. New findings require updates to contracts, inventory, tests, and the affected decision rather than silently choosing a second behavior.
+### Acceptance guarantees (A01-A27)
+
+| ID | Required user-visible or persistence guarantee |
+|---|---|
+| A01 | Existing content appears in protected default workspaces with unchanged IDs/content/snapshots |
+| A02 | Cards, context, stories, sessions, voice history and assistants are separated by owned workspace |
+| A03 | One card has multiple memberships; repeated add/remove and collection deletion preserve card content |
+| A04 | Mixed supported types browse/search/count/page coherently with role/feature filtering |
+| A05 | Cast collections are usable in Codex and roleplay pickers without automatic context import |
+| A06 | Copies are private independent published cards with correct lorebook/resource/media dependencies |
+| A07 | Concurrent/repeated same requests return one stable mapping; Copy again creates another copy; deleted results stay deleted |
+| A08 | Import conflicts are destination-local and source content copied elsewhere does not block import |
+| A09 | Generation/save/assistant/turn/media completion after switching cannot mutate the new workspace |
+| A10 | Default persona, per-character live persona reference and global lore context are workspace-local |
+| A11 | Matching picker/collection cards beyond the first page remain reachable |
+| A12 | Default cannot be archived; others become read-only, admitted work completes, deleted grouping warns, fresh work is rejected |
+| A13 | Manual/AI/public/share/file imports show/capture workspace and optional memberships; public copies remain private |
+| A14 | Shared media cannot be deleted while any retained content still needs its bytes; a deletion racing a copy either fails the copy (nothing created) or is refused after it |
+| A15 | Save/discard/cancel/failed-save behavior holds across menu, Back/Forward, external hashes and queued links |
+| A16 | A copy is all-or-nothing: any failure creates no card, book, resource, link, membership, association or receipt; later source edits/deletion do not alter completed copies; resource snapshots/hashes/provenance stay valid |
+| A17 | Call switches await end; archive blocks live calls; account-wide single-call/quotas remain unchanged |
+| A18 | Origin notices/tasks/playlist labels navigate safely, including archived/deleted targets and legacy notices |
+| A19 | Empty/concurrent initialization yields one usable default; account wipe cannot be followed by content resurrection |
+| A20 | API capability/strict-schema/migration recovery rejects unsupported states and preserves current image profiles/BYOK |
+| A21 | Sidebar has one Library entry for cards; former owned type-gallery links resolve to library filters; unrelated navigation remains |
+| A22 | Compact collection folders and cards of all supported types share one browser grid/list; cards start after the folder row; existing card design, gallery scaffold and view preference are retained |
+| A23 | Search remains visible at root and in collections; query/type/empty-state recovery and folder counts are accurate without per-folder count requests |
+| A24 | Library New reaches all enabled existing creators including persona, imports, and flat collection creation; destination/return state is visible and preserved |
+| A25 | Templates, direct generation and card assistant keep their current behavior and one saved identity; history handoff respects origin and initial membership |
+| A26 | Returning from creation restores browsing state; a result hidden by existing filters is reachable through explicit View card without silently clearing filters |
+| A27 | Every frontend/API build pairing during rollout either works on the protected default workspace or shows an explicit updating/reload state; no private request or workspace header before the handshake, no account-wide fallback, no automatic reload, the flag-`false` state hides workspace UI without hiding default content, and pre-R1 browser storage lands in the default workspace once (an idempotent one-time move) |
+
+Enable the R1 UI only after these pass on the intended release pair in rehearsal; documentation completion is not runtime acceptance. Exercise every supported card type, with separate cases for character personas (role filtering and default selection are special) and adventure templates (embedded snapshots, no shared version history), and every inventory row in [16](16_scope_inventory.md). Database-semantic guarantees (composite constraints, transactions, copy atomicity, migration resume) need real ephemeral MySQL tests; mock-only route tests cannot prove them.
+
+Keep current implementation and release status in 02/04. A checkbox for a design decision means the specification is complete, not that its risk has passed testing. New findings require updates to contracts, inventory, tests, and the affected decision rather than silently choosing a second behavior.

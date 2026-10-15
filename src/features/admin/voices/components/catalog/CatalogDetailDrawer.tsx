@@ -8,7 +8,10 @@ import { useTranslation } from 'react-i18next'
 import { Lock, RefreshCw, Send, Star, Trash2 } from 'lucide-react'
 import { apiService } from '@/infrastructure/api'
 import type { AdminCatalogUpdate, AdminCatalogVoice, VoiceAgeBucket, VoiceGender, VoiceSettingsV2, VoiceVisibility } from '@/shared'
-import { Badge, Button, Callout, Drawer, Field, Icon, Input, Select, Textarea } from '@/ui/primitives'
+import { Badge, Button, Callout, Drawer, Field, Icon, Input, Select, SwitchRow, Textarea } from '@/ui/primitives'
+import { useVoiceCapabilitiesSnapshot } from '@/features/interaction/hooks/useVoiceCapabilitiesSnapshot'
+import { surfaceCapabilitiesFor } from '@/shared/voice'
+import { VoiceProviderTag } from '@/features/voices/components/VoiceProviderTag'
 import { AGE_BUCKETS, GENDERS, OWNED_SOURCE_KINDS } from '../../constants'
 import {
     allPassed,
@@ -76,6 +79,9 @@ export function CatalogDetailDrawer({ voice, onClose, onUpdated, onDependentsMov
     const [busy, setBusy] = useState<string | null>(null)
     const [refusal, setRefusal] = useState<ServerRefusal | null>(null)
     const [repoint, setRepoint] = useState<PendingRepoint | null>(null)
+    const capabilities = useVoiceCapabilitiesSnapshot(apiService, voice.provider === 'fish_audio')
+    const fishCallReady = surfaceCapabilitiesFor(capabilities, 'call', 'standard', 'fish_audio')?.healthy === true
+        && voice.acceptance.some((entry) => entry.model_id === 'drama-3' && entry.language === voice.primary_language && entry.verdict === 'pass')
 
     const published = isPublished(voice)
     const blockedL2 = isBlockedUntilL2(voice)
@@ -220,6 +226,7 @@ export function CatalogDetailDrawer({ voice, onClose, onUpdated, onDependentsMov
             <div className="flex flex-col gap-7">
                 <div className="flex flex-col gap-2">
                     <div className="flex flex-wrap gap-1.5">
+                        <VoiceProviderTag provider={voice.provider} />
                         <Badge tone={voice.status === 'active' ? 'live' : voice.status === 'blocked' || voice.status === 'failed' || voice.status === 'removed' ? 'danger' : 'neutral'}>
                             {t(`admin.voices.status.${voice.status}`)}
                         </Badge>
@@ -232,10 +239,10 @@ export function CatalogDetailDrawer({ voice, onClose, onUpdated, onDependentsMov
                         <CopyableVoiceId value={voice.provider_voice_id} compact />
                     </div>
                     <div className="flex flex-wrap gap-2 pt-1">
-                        <Button variant="secondary" size="sm" iconLeft={<Icon icon={Star} size={14} />} onClick={() => sendToAcceptance(voice.voice_key)}>
+                        <Button variant="secondary" size="sm" iconLeft={<Icon icon={Star} size={14} />} onClick={() => { onClose(); sendToAcceptance(voice.voice_key) }}>
                             {t('admin.voices.catalog.actions.sendToAcceptance')}
                         </Button>
-                        <Button variant="secondary" size="sm" iconLeft={<Icon icon={Send} size={14} />} onClick={() => sendToLab(voice.voice_key)}>
+                        <Button variant="secondary" size="sm" iconLeft={<Icon icon={Send} size={14} />} onClick={() => { onClose(); sendToLab(voice.voice_key) }}>
                             {t('admin.voices.catalog.actions.sendToLab')}
                         </Button>
                         <Button variant="ghost" size="sm" iconLeft={<Icon icon={RefreshCw} size={14} />} onClick={() => void syncThis()} disabled={busy === 'sync'}>
@@ -313,6 +320,17 @@ export function CatalogDetailDrawer({ voice, onClose, onUpdated, onDependentsMov
                 <DrawerSection title={t('admin.voices.catalog.detail.sections.metadata')}>
                     <MetadataForm voice={voice} saving={busy === 'metadata'} onSave={(body) => void patch('metadata', body, 'admin.voices.toasts.saved')} />
                 </DrawerSection>
+                {voice.provider === 'fish_audio' && (
+                    <DrawerSection title={t('admin.voices.fish.callTitle')}>
+                        <SwitchRow
+                            label={t('admin.voices.fish.callEligible')}
+                            description={t('admin.voices.fish.callHelp')}
+                            checked={voice.call_eligible}
+                            disabled={busy !== null || !voice.call_eligible && !fishCallReady}
+                            onChange={(enabled) => void patch('calls', { call_eligible: enabled }, 'admin.voices.toasts.saved')}
+                        />
+                    </DrawerSection>
+                )}
 
                 <DrawerSection title={t('admin.voices.catalog.detail.sections.languages')}>
                     {voice.languages.length === 0 || voice.languages.every((entry) => !entry.sample_url) ? (
@@ -439,7 +457,7 @@ function MetadataForm({ voice, saving, onSave }: { voice: AdminCatalogVoice; sav
                 .map((tag) => tag.trim())
                 .filter(Boolean),
             ...(Number.isFinite(rank) ? { sort_rank: rank } : {}),
-            default_settings: settings,
+            ...(voice.provider === 'elevenlabs' ? { default_settings: settings } : {}),
         })
     }
 
@@ -473,11 +491,11 @@ function MetadataForm({ voice, saving, onSave }: { voice: AdminCatalogVoice; sav
                     <Input type="number" value={sortRank} onChange={(event) => setSortRank(event.target.value)} />
                 </Field>
             </div>
-            <fieldset className="flex flex-col gap-2">
+            {voice.provider === 'elevenlabs' && <fieldset className="flex flex-col gap-2">
                 <legend className="mb-1 font-ui text-label font-semibold text-fg">{t('admin.voices.catalog.detail.defaultSettings')}</legend>
                 <p className="font-ui text-caption text-fg-muted">{t('admin.voices.catalog.detail.defaultSettingsHelp')}</p>
                 <VoiceSettingsEditor keys={ALL_SETTING_KEYS} value={settings} onChange={setSettings} locale={locale} />
-            </fieldset>
+            </fieldset>}
             <div>
                 <Button type="submit" variant="primary" disabled={saving || !displayName.trim()}>
                     {saving ? t('admin.voices.common.saving') : t('admin.voices.catalog.detail.saveMetadata')}

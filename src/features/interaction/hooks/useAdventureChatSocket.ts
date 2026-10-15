@@ -1,3 +1,4 @@
+import { isVoicesFeatureEnabled } from '@/shared/featureFlags'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ChatSocketServerMessage, ForwardOption } from '../../../shared'
 import { apiService, ChatSocket, type ChatSocketStatus } from '../../../infrastructure/api'
@@ -346,7 +347,7 @@ export function useAdventureChatSocket(
         })
     }
     const sendTts = (assistantMessageId: number, turnId: string, requestId?: string) =>
-        socketRef.current?.sendTts(assistantMessageId, turnId, requestId)
+        isVoicesFeatureEnabled() && socketRef.current?.sendTts(assistantMessageId, turnId, requestId)
     const cancel = () => {
         const wasPreparing = preparing.current
         preparing.current = false

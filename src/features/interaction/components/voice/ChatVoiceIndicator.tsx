@@ -25,6 +25,7 @@
  * Reads DataProvider and the workspace through their contexts, so it renders
  * nothing outside them (stories, isolated tests).
  */
+import { isVoicesFeatureEnabled } from '@/shared/featureFlags'
 import { useContext, useId, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { RefreshCw } from 'lucide-react'
@@ -63,7 +64,7 @@ export function ChatVoiceIndicator({ variant, chatId, workspaceId, className }: 
         chat && !chat.isDraft && chat.kind !== 'character_group' && cardIds.length <= 1
         && Number.isInteger(numericId) && numericId > 0,
     )
-    const enabled = single
+    const enabled = isVoicesFeatureEnabled() && single
     // The source card counts only from the session's own workspace (D39 item 6); absent is fine.
     const card = enabled && session.active && cardIds[0] ? data?.characters.find((character) => character.id === cardIds[0]) : undefined
     const cardEffective = readEffectiveVoice(card?.effective_voice)

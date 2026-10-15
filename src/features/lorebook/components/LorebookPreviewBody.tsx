@@ -23,7 +23,9 @@ export function LorebookPreviewBody({ lorebook }: LorebookPreviewBodyProps) {
                 <div className="min-w-0 flex-1">
                     <p className="m-0 font-display text-[18px] font-semibold leading-tight text-parchment-50">{lorebook.name}</p>
                     <p className="m-0 mt-0.5 font-ui text-xs text-parchment-400">
-                        {t('sessionLorebooks.entryResourceCount', { entries: lorebook.entries.length, resources: resources.length })}
+                        {isLorebookResourcesFeatureEnabled()
+                            ? t('sessionLorebooks.entryResourceCount', { entries: lorebook.entries.length, resources: resources.length })
+                            : t('sessionLorebooks.entryCount', { count: lorebook.entries.length })}
                     </p>
                 </div>
             </div>

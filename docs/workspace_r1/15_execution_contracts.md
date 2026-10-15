@@ -1,14 +1,14 @@
 # R1 execution contracts
 
-> **Scope / status (reviewed 2026-10-14):** R1 design/coverage contract and dated implementation evidence. Source is implemented; default product UI rollout remains **WIP**, locally opted in. [02](02_current_status_and_findings.md) owns current status and schema compatibility; [04](04_gaps_and_priorities.md) owns remaining gaps/TBD. Historical test totals, branch state and migration notes below apply to their stated dates, not deployment availability.
+> **Lifecycle: active R1 contract. Documentation reconciliation: 2026-10-15.** The foundation is implemented; rollout and specific integrity acceptance remain open. [02](02_current_status_and_findings.md) owns source/status and schema compatibility; [04](04_gaps_and_priorities.md) owns remaining work. Normative requirements below remain acceptance/regression contracts, not claims that every guarantee has runtime evidence. Dated implementation/validation records are in git history.
 
 **Status:** Selected contracts implemented in source; current residuals and release gates remain WIP in 02/04.\
 **Refreshed:** 2026-10-12, America/Mexico_City.\
-**Authority:** This document resolves the alternatives in documents 05–10. Change it together with affected acceptance scenarios if implementation evidence requires a revision.
+**Authority:** This document resolves the alternatives in documents 06 and 08–10. Change it together with the affected [acceptance guarantees](10_risks_and_decisions.md#acceptance-guarantees-a01-a27) if implementation evidence requires a revision.
 
 ## Boundary and transport
 
-Keep the exact existing `AppScope` type. Introduce a separate immutable `WorkspaceContext` containing user ID, AppScope, workspace ID, archive state, and operation intent. Validate it in the BFF; frontend values are selectors only. Do not put personal workspace IDs into upstream `workspace_id`, generated content, profile configuration, credentials, or graph payloads.
+Keep the exact existing `AppScope` type. Use the implemented separate immutable `WorkspaceContext` containing user ID, AppScope, workspace ID, archive state, and operation intent. Validate it in the BFF; frontend values are selectors only. Do not put personal workspace IDs into upstream `workspace_id`, generated content, profile configuration, credentials, or graph payloads.
 
 | Request family | Workspace selector | Rule |
 |---|---|---|
@@ -60,7 +60,7 @@ The resolve endpoint is a narrow owned lookup for legacy links and origin naviga
 
 ## Lists and organization metadata
 
-Add `GET /workspaces/{id}/cards` for mixed-type collection browsing. Parameters: optional `card_type`, `character_role`, `q`, `collection_id`, `uncollected=false`; `limit` defaults to 24 (1–100), `offset` defaults to 0 (0–100000). Collection and uncollected are mutually exclusive. Character role requires character type. Disabled feature types are excluded; an explicitly disabled type follows existing feature-disabled behavior.
+Add `GET /workspaces/{id}/cards` for mixed-type collection browsing. Parameters: optional `card_type`, `character_role`, `q`, `collection_id`, `uncollected=false`; `limit` defaults to 24 (1–100), `offset` defaults to 0 (0–100000). Collection and uncollected are mutually exclusive. Character role requires character type. Disabled feature types are excluded; an explicitly disabled type follows existing feature-disabled behavior. Feature flags are frontend-only, so this exclusion is client-side, and filtering mixed results by each type's flag exists only in the working tree (uncommitted, 2026-10-15); the BFF endpoint has no card-type gate and returns all four persisted types.
 
 The approved frontend is one Library entry, with compact collection folders and these cards composed in one grid/list. It retains the search control, existing card rendering and view preference. The root reads the owned collection list once, filters collection labels/descriptions locally for root search, and composes it with server-paged matching cards; it does not replace card search with folder navigation or add folder items to this cards-only response. Folders appear once, before card pages, and the first card starts a new grid row. All types includes character/persona, world, item and adventure; the Persona UI filter maps to character type plus the existing persona role. Existing type routes remain adapters/legacy compatibility, not separate required sidebar destinations. Document 08 specifies creation/return/search UX; the prototype's compact initial view and simulated results do not change these data contracts.
 
@@ -83,7 +83,7 @@ Add `tb_content_operation_context`, separate from upstream effective configurati
 
 Insert context in the same admission transaction as the local execution/job record, before provider or finalization work. Workspace admission and archive take the same workspace-row lock. New retained request fingerprints include workspace and sorted distinct destination collection IDs. Migration-derived historical context uses document 11's legacy branch: validate its default origin and empty initial-membership set, then retain the old fingerprint/payload; it cannot admit a fresh contextless execution. Existing account-wide execution request uniqueness stays unchanged; changing organization under the same identity returns a conflict, never a new destination.
 
-Explicit user retries creating a new execution attempt inherit the original context and must pass the current active-workspace check. Resolve a retained identical operation before applying fresh-admission rules: completed replay remains available after archive. Already admitted execution finalization, provider callbacks, and read-only reconciliation may complete/read after archive using a verified admission capability tied to that exact record. A worker is not granted a general archived-workspace write bypass.
+Explicit user retries creating a new execution attempt inherit the original context and must pass the current active-workspace check. Resolve a retained identical operation before applying fresh-admission rules: completed replay remains available after archive. Known exception: replaying a lorebook extraction admitted before the resource-task baseline (`21127be`) into a workspace that was later archived returns 409 `WORKSPACE_ARCHIVED`. Already admitted execution finalization, provider callbacks, and read-only reconciliation may complete/read after archive using a verified admission capability tied to that exact record. A worker is not granted a general archived-workspace write bypass.
 
 | State change after admission | Required outcome |
 |---|---|
@@ -143,6 +143,8 @@ Keep immutable media owned at its current account/application boundary. Add `tb_
 
 Asset deletion remains account-wide and must refuse while any body, draft, version, activity snapshot, or receipt references it. A copy in progress holds share locks on the assets it reads (see Copy command); there are no copy pins. Archive removes no associations/bytes. Account-wide playlist playback may continue with an origin label. Removing a card changes its references without deleting another workspace's asset.
 
+**Open implementation deviations:** W-04b/W-04c in [04](04_gaps_and_priorities.md#w-04-source-verification-and-independent-closure) track omitted retained-assistant references and unguarded TTS deletion. The paragraph above is the required lifecycle contract; the current implementation has not proved the full guarantee.
+
 Notifications remain a mixed account/application inbox, including global billing notices. New generation notices persist `metadata.workspace_id` from context; display an origin label and resolve actions through the guarded switch coordinator. Legacy notices without origin resolve through an owned job or show an unavailable target; never default their action to the active workspace. Archived targets open read-only with Restore; missing targets show a retained status/unavailable message.
 
 ## Error contract
@@ -162,4 +164,4 @@ Preserve existing AI idempotency conflict codes when their fingerprint gains org
 
 ## Implementation gate
 
-These contracts close design choices; code, DTO fixtures, migrations and executable tests are present in the current source. Revalidate changed integration points and the residuals in document 04 before claiming release completion. Document 16 enumerates enforcement paths; document 13 defines verification. Production revision, row counts, copy transaction duration at the maximum bounds, query plans, backups, and quiescence are deployment preconditions, not missing domain choices.
+These contracts close design choices; code, DTO fixtures, migrations and executable tests are present in the current source. Revalidate changed integration points and the residuals in document 04 before claiming release completion. Document 16 enumerates enforcement paths; [10 — acceptance guarantees](10_risks_and_decisions.md#acceptance-guarantees-a01-a27) defines the release acceptance set, and [04](04_gaps_and_priorities.md) holds open acceptance. Production revision, row counts, copy transaction duration at the maximum bounds, query plans, backups, and quiescence are deployment preconditions, not missing domain choices.

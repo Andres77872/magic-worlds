@@ -39,12 +39,12 @@ export function readEffectiveVoice(raw: unknown): EffectiveVoice | null {
     if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null
     const wire = raw as Record<string, unknown>
     const route = wire.provider_route
-    if (route !== undefined && route !== null && route !== 'elevenlabs') return null
+    if (route !== undefined && route !== null && route !== 'elevenlabs' && route !== 'fish_audio') return null
     const badges = Array.isArray(wire.badges) ? wire.badges.filter(isVoiceBadgeKey) : []
     return {
         voice_key: typeof wire.voice_key === 'string' ? wire.voice_key : null,
         display_name: typeof wire.display_name === 'string' ? wire.display_name : '',
-        provider_route: 'elevenlabs',
+        provider_route: route === 'fish_audio' ? 'fish_audio' : 'elevenlabs',
         substitution_reason: isSubstitutionReason(wire.substitution_reason) ? wire.substitution_reason : null,
         badges: [...new Set(badges)],
     }

@@ -1,6 +1,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { createElement, type ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { FRONTEND_FEATURE_ENV } from '@/shared/featureFlags'
 
 const addStoryCardRefs = vi.fn().mockResolvedValue(undefined)
 const updateStoryCardRef = vi.fn().mockResolvedValue(undefined)
@@ -118,9 +119,41 @@ const LOREBOOK = {
 } as Lorebook
 
 describe('useCodex', () => {
+    afterEach(() => vi.unstubAllEnvs())
     beforeEach(() => {
         vi.clearAllMocks()
+        for (const env of Object.values(FRONTEND_FEATURE_ENV)) vi.stubEnv(env, 'true')
         workspaceCurrent = true
+    })
+
+    it('hides persisted disabled references without changing data or their precedence', async () => {
+        vi.stubEnv(FRONTEND_FEATURE_ENV.lorebooks, 'false')
+        vi.stubEnv(FRONTEND_FEATURE_ENV.adventures, 'false')
+        const refs = [
+            ref({ id: 'visible', precedence: 0 }),
+            ref({ id: 'hidden-adventure', kind: 'adventure_template', precedence: 8 }),
+            ref({ id: 'hidden-lore', kind: 'lorebook_entry', precedence: 12 }),
+        ]
+        const original = structuredClone(refs)
+        const { result } = renderHook(() => useCodex({ story: story(refs), workspace: WORKSPACE }))
+        expect(result.current.entries.map(entry => entry.id)).toEqual(['visible'])
+        expect(result.current.mentionEntries.map(entry => entry.id)).toEqual(['visible'])
+        expect(result.current.detectionNames.map(entry => entry.id)).toEqual(['visible'])
+        expect(result.current.loreEntries).toEqual([])
+        const hidden = { id: refs[1].id, kind: refs[1].kind, label: 'Hidden', description: '', enabled: true, ref: refs[1] }
+        await act(async () => {
+            await result.current.toggleEntry(hidden)
+            await result.current.saveSnapshot(hidden, { label: 'Changed', description: '' })
+            await result.current.removeEntry(hidden)
+            await result.current.addCards([{ kind: 'adventure_template', cardId: 'new-hidden' }])
+            await result.current.cloneLorebookEntries(LOREBOOK, ['entry-1'])
+        })
+        expect(updateStoryCardRef).not.toHaveBeenCalled()
+        expect(deleteStoryCardRef).not.toHaveBeenCalled()
+        expect(addStoryCardRefs).not.toHaveBeenCalled()
+        await act(async () => { await result.current.addCards([{ kind: 'world', cardId: 'new-world' }]) })
+        expect(addStoryCardRefs.mock.calls[0][1][0].precedence).toBe(13)
+        expect(refs).toEqual(original)
     })
 
     it('derives entries from story-level refs only, sorted by precedence', () => {

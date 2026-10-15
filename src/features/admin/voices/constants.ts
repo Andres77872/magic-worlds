@@ -19,18 +19,19 @@ import type {
 
 // ---- Models (03 §5.4.1, §5.6) ----
 
-/** Standard tier: narration, previews and calls. */
-export const FLASH_MODEL_ID = 'eleven_flash_v2_5'
+/** Both narration tiers and previews use v4; calls use v4 Turbo. */
+export const STANDARD_MODEL_ID = 'eleven_v4'
 /** Expressive tier. */
 export const EXPRESSIVE_MODEL_ID = 'eleven_v4'
-/** The two models every catalog voice is accepted on (D09). */
-export const ACCEPTANCE_MODELS = [FLASH_MODEL_ID, EXPRESSIVE_MODEL_ID] as const
+/** One review covers both narration tiers, which now share v4. */
+export const ACCEPTANCE_MODELS = [STANDARD_MODEL_ID] as const
 
 // ---- Catalog enums, in display order ----
 
 export const CATALOG_STATUSES: VoiceCatalogStatus[] = ['draft', 'active', 'hidden', 'deprecating', 'removed', 'blocked', 'failed']
 export const CATALOG_VISIBILITIES: VoiceVisibility[] = ['admin', 'public', 'plan_gated']
 export const SOURCE_KINDS: VoiceSourceKind[] = [
+    'owned_reference', 'licensed_reference',
     'designed',
     'remixed',
     'ivc',
@@ -81,7 +82,7 @@ export const SCRIPT_VERSION = 'acc-v1'
 export const TARGET_LUFS = -18
 /** Voices that need more attenuation than this are flagged (D16, S-16). */
 export const MAX_ATTENUATION_DB = -6
-/** `call_eligible` requires a Flash pass and at least this consistency (D09). */
+/** `call_eligible` requires a v4 pass and at least this consistency (D09). */
 export const CALL_ELIGIBLE_MIN_CONSISTENCY = 4
 /** Proposed: warn below this score; the owner sets formal thresholds. */
 export const LOW_SCORE_WARNING = 3
@@ -132,7 +133,7 @@ export interface LabModelProfile {
     settings: LabSettingKey[]
     sendsLanguageCode: boolean
     /**
-     * The tier this alias serves (03 §5.4.1: Flash = standard, v4 = expressive),
+     * The tier this alias serves (03 §5.4.1: v4 serves both tiers),
      * whose `max_chars` `GET /voices/capabilities` lists (narration, or `admin_lab`
      * when listed); null for the lab-only models. Text limits come from the
      * server, never from this file.
@@ -147,18 +148,7 @@ export interface LabModelProfile {
 }
 
 export const LAB_MODELS: LabModelProfile[] = [
-    { alias: 'el_flash_v2_5', settings: ['stability', 'similarity_boost', 'speed'], sendsLanguageCode: true, tier: 'standard', audioTags: false, breaks: true, inlineIpa: false },
-    { alias: 'el_v4', settings: ['stability', 'similarity_boost'], sendsLanguageCode: true, tier: 'expressive', audioTags: true, breaks: false, inlineIpa: true },
-    {
-        alias: 'el_multilingual_v2',
-        settings: ['stability', 'similarity_boost', 'style', 'use_speaker_boost', 'speed'],
-        sendsLanguageCode: false,
-        tier: null,
-        audioTags: false,
-        breaks: true,
-        inlineIpa: false,
-    },
-    { alias: 'el_v3', settings: ['stability'], sendsLanguageCode: true, tier: null, audioTags: true, breaks: false, inlineIpa: false },
+    { alias: 'el_v4', settings: ['stability', 'similarity_boost'], sendsLanguageCode: true, tier: 'standard', audioTags: true, breaks: false, inlineIpa: true },
 ]
 
 /**

@@ -18,7 +18,7 @@ Default scope is the selected passage when present, otherwise the active scene. 
 
 For a factual story question, retrieve relevant passages and cite them. Separate evidence, inference, and an invented possibility. A question about a character's age must not silently create a canon fact if the manuscript has never stated it.
 
-For drafting, use the cursor and surrounding prose. Rewrite uses the selected fragment and constraints. Critique analyzes without modifying. Scene planning uses outline goals and known state. Whole-book analysis can include future chapters only under an explicit author-analysis policy.
+For drafting, use the cursor and surrounding prose. Rewrite uses the selected fragment and constraints. Critique analyzes without modifying. Scene planning uses outline goals and known state. Outline adherence is an author choice: strict for outline-first work, exploratory for discovery writing. Outline and draft may diverge intentionally; surface the disagreement and never silently rewrite either one to force agreement. Whole-book analysis can include future chapters only under an explicit author-analysis policy.
 
 ## Proposed context bundle
 
@@ -60,6 +60,14 @@ Use one compiler for preview, execution, and trace:
 For a mutating generation, establish a saved/checkpointed target snapshot before execution. Ask may analyze a clearly labeled working draft; a later edit proposal must establish matching base revisions before commit. A local draft's hash and status must not be presented as a server-acknowledged revision.
 
 ## Budget and retrieval rules
+
+### Source precedence and reveal policy
+
+For K01/K03/K10/K11, resolve an approved novel-local fact or pinned story/session snapshot before its mutable library origin. A newer library version is an impact-review candidate, not an automatic replacement. Within authorized, scene-appropriate sources, explicit author inclusion/exclusion and priority take precedence over automatic mention suggestions. Resolve remaining conflicts deterministically, disclose them, and ask for a choice when conflicting canon cannot safely be reconciled. Inclusion cannot bypass ownership or the selected temporal/reveal policy.
+
+Names, aliases, and triggers support matching/disambiguation; they are not substitutes for a source's factual content. Expose weak/empty descriptions and ambiguous matches rather than pretending they supplied usable context. For K05/K14, ordinary scene drafting excludes unrevealed lore and future character knowledge. An explicit author-analysis scope may inspect authorized future revelations, but must label that scope and must not silently carry it into scene drafting. Preview and execution retain the same source versions, ordering, reveal decisions, exclusions, and budget outcomes.
+
+### Allocation and retrieval
 
 Prefer model-specific tokenization where supported. Otherwise use a conservative, explicit estimator and test it across English, Spanish, CJK, mixed scripts and structured content. The current words-times-1.35 estimate cannot establish a multilingual hard budget.
 
@@ -133,6 +141,14 @@ Partial acceptance is available only for independent operations or a dependency-
 
 Within the editor, previews are decorations or a separate review document. They do not become canonical prose or autosaved text before acceptance. Both inline commands and chat proposals use the same lifecycle. A successful accept is one undoable operation; durable restore remains available after reload.
 
+## Editorial feedback to Codex and library
+
+A18/K04/K12 extend the same changeset lifecycle to author-reviewed discoveries from the manuscript. A patch binds an explicitly selected existing novel-local fact, card, or lorebook entry and its expected version. Creation requires an explicitly selected authorized destination within the existing supported fact/card/lorebook families; it does not introduce a new card type. Record the supporting passage/anchor and source manuscript revision, target identity or creation destination, selected fields, before/after values, and whether the statement is evidence or inference. An invented detail or unreliable narrator's claim stays proposed; it is not canon because it appeared in generated prose.
+
+The author may edit a proposed value, reject the suggestion, or apply an independent selection of fields. Applying those fields validates the exact reviewed variant and dependency closure, rechecks target ownership/lifecycle/version, and returns the original result on retry. A stale or missing target requires comparison or a new explicit choice. For creation, show the intended destination and require deliberate approval; do not create a new library object merely to resolve a mention.
+
+Default discoveries to novel-local scope. A library update is a separate explicit target decision and must not rewrite other novels' pinned snapshots. Preserve the manuscript evidence and resulting target revision in provenance. The current empty `stagedCardUpdates` result and write-during-execution card/lorebook tools do not implement this review contract. This work concerns the writing-to-Codex feedback loop; it adds no game-state updates or new card families.
+
 ## Plans and background work
 
 For a cross-scene request, show the plan, affected units, constraints, and execution limits. Generate in bounded steps; checkpoint outputs before moving on. Integrate with the existing background-task UI when work outlives the view. Never accept a partial stream as a finished document. Preserve completed proposals if later steps fail.
@@ -143,4 +159,6 @@ Use a single controller with explicit task roles first. A planner/writer/critic/
 
 Record exact author instructions, selected source revisions, model/profile/graph identifiers, token accounting where available, output, proposal variants, decisions, and resulting revisions. Keep credentials and unrelated private context out of logs and durable metadata. Use allowlisted fields rather than generic raw provider-response storage.
 
-Provide source citations for factual answers and continuity findings. Critiques may offer multiple plausible choices; their judgments are not objective literary scores. Feedback can refine a pending proposal. Product telemetry should default to content-free events; any research collection of manuscript text requires a separate explicit data policy.
+Provide source citations for factual answers and continuity findings. Critiques may offer multiple plausible choices; their judgments are not objective literary scores. Critique cites concrete passages and plausible revision strategies; it never labels the author's prose objectively inferior, never uses an AI-detection score as an editorial gate, and does not flatten deliberate genre or style choices. Feedback can refine a pending proposal. Product telemetry should default to content-free events; any research collection of manuscript text requires a separate explicit data policy.
+
+Before AI use, explain which manuscript/context material is sent, the selected execution/provider route, and the applicable retention and training policy in plain author-facing language. Describe verified policy and unresolved limits accurately; do not infer a non-training, zero-retention, or copyright guarantee from this proposal. Ordinary local writing must remain available without agreeing to an AI request.

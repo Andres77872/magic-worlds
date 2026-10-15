@@ -1,11 +1,13 @@
 # Chat Image WebSocket Delivery
 
-**Status reviewed 2026-10-14:** implemented frame/recovery handling; adventure availability **WIP — default off**, locally opted in. Character chats use their own stored session/message endpoints in the shared engine. Backend/provider/deployed recovery acceptance remains separate; [roadmap](ROADMAP.md) tracks play/media inconsistencies and live smoke gates.
+**Source/lifecycle review: 2026-10-15.** implemented frame/recovery handling; adventure availability **WIP — default off**, locally opted in. Character chats use their own stored session/message endpoints in the shared engine. Backend/provider/deployed recovery acceptance remains separate; [roadmap](ROADMAP.md) tracks play/media inconsistencies and live smoke gates.
 
 The frontend treats chat-generated images as a turn-local lifecycle layered on top
 of normal text chat. The backend still sends text first (`delta*`, optional
 `metadata`, then `done`) and may later send additive `image_job`, `image_complete`,
 or `image_failed` frames for the same assistant turn.
+
+The implementation boundary is [the shared chat route](../../../PycharmProjects/magic-worlds-api/src/routes/user/route_chat.py), [image enqueue/finalization](../../../PycharmProjects/magic-worlds-api/src/services/image_generation/engine.py), [socket protocol](../src/infrastructure/api/chatSocket.ts) and [frontend chat lifecycle](../src/features/interaction/hooks/useAdventureChatSocket.ts). This cleanup rechecked source ownership and retained the test command below; no live delivery, browser or provider test was run. Scene inputs remain textual; Chara reference editing is [planned](chara_studio/08_roadmap_and_gaps.md).
 
 ## Frame Handling
 

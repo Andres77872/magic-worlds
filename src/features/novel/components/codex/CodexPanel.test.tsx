@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const addStoryCardRefs = vi.fn().mockResolvedValue(undefined)
 const updateStoryCardRef = vi.fn().mockResolvedValue(undefined)
@@ -126,7 +126,46 @@ const RAW_LOREBOOK = {
     ],
 }
 
+afterEach(() => vi.unstubAllEnvs())
+
 describe('CodexPanel', () => {
+    it('hides stored disabled references and restores them unchanged in an enabled build', () => {
+        const stored = [
+            ref({ id: 'visible' }),
+            ref({ id: 'hidden-adventure', kind: 'adventure_template', snapshot: snapshot({ name: 'Hidden quest', story_card_kind: 'adventure_template' }) }),
+            ref({ id: 'hidden-lore', kind: 'lorebook_entry', snapshot: snapshot({ name: 'Hidden pact', story_card_kind: 'lorebook_entry' }) }),
+        ]
+        const original = structuredClone(stored)
+        vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'true')
+        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'false')
+        vi.stubEnv('VITE_FEATURE_LOREBOOKS_ENABLED', 'false')
+        const disabled = render(<Harness refs={stored} />)
+        expect(screen.getByText('Aria')).toBeInTheDocument()
+        expect(screen.queryByText('Hidden quest')).not.toBeInTheDocument()
+        expect(screen.queryByText('Hidden pact')).not.toBeInTheDocument()
+        expect(screen.getByTestId('codex-context-meter')).toHaveTextContent('1/1')
+        expect(updateStoryCardRef).not.toHaveBeenCalled()
+        expect(deleteStoryCardRef).not.toHaveBeenCalled()
+        expect(stored).toEqual(original)
+
+        disabled.unmount()
+        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'true')
+        vi.stubEnv('VITE_FEATURE_LOREBOOKS_ENABLED', 'true')
+        render(<Harness refs={stored} />)
+        expect(screen.getByText('Hidden quest')).toBeInTheDocument()
+        expect(screen.getByText('Hidden pact')).toBeInTheDocument()
+        expect(screen.getByTestId('codex-context-meter')).toHaveTextContent('3/3')
+        expect(stored).toEqual(original)
+    })
+    it('keeps card selection but hides lorebooks when only novels are enabled', () => {
+        vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'true')
+        vi.stubEnv('VITE_FEATURE_LOREBOOKS_ENABLED', 'false')
+        render(<Harness refs={[]} />)
+        openAddMenu()
+        expect(screen.queryByRole('menuitem', { name: /lorebook/i })).not.toBeInTheDocument()
+        expect(screen.getByRole('menuitem', { name: /cards/i })).toBeInTheDocument()
+        expect(apiService.getLorebooks).not.toHaveBeenCalled()
+    })
     beforeEach(() => {
         vi.clearAllMocks()
         vi.mocked(apiService.getLorebooks).mockResolvedValue([RAW_LOREBOOK])

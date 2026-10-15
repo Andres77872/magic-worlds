@@ -4,7 +4,7 @@ import { fn } from 'storybook/test'
 import { LAB_MODELS } from '../../constants'
 import { MarkupToolbar } from './MarkupToolbar'
 
-const [FLASH, V4, MULTILINGUAL, V3] = LAB_MODELS
+const [V4] = LAB_MODELS
 const MODELS_BY_ALIAS = Object.fromEntries(LAB_MODELS.map((profile) => [profile.alias, profile]))
 
 /** The toolbar over a text preview: each insert lands at the end, as the lab inserts at the caret. */
@@ -49,7 +49,7 @@ const meta = {
         model: { control: 'select', options: Object.keys(MODELS_BY_ALIAS), mapping: MODELS_BY_ALIAS, description: 'The lab model profile.' },
         onInsert: { action: 'inserted', control: false },
     },
-    args: { mode: 'app', model: FLASH, onInsert: fn() },
+    args: { mode: 'app', model: V4, onInsert: fn() },
 } satisfies Meta<typeof MarkupToolbar>
 
 export default meta
@@ -57,9 +57,6 @@ type Story = StoryObj<typeof meta>
 
 /** App markup: the same inserts for every model. */
 export const AppMarkup: Story = {}
-
-/** Flash, model native: breaks only. */
-export const NativeFlash: Story = { args: { mode: 'native', model: FLASH } }
 
 /** v4, model native: audio tags and inline pronunciation. */
 export const NativeV4: Story = { args: { mode: 'native', model: V4 } }
@@ -69,7 +66,7 @@ export const NativeByModel: Story = {
     parameters: { controls: { disable: true } },
     render: (args) => (
         <ul className="flex flex-col gap-4">
-            {[FLASH, V4, MULTILINGUAL, V3].map((model) => (
+            {LAB_MODELS.map((model) => (
                 <li key={model.alias} className="flex flex-col gap-1.5">
                     <code className="font-mono text-caption text-fg-subtle">{model.alias}</code>
                     <MarkupToolbar mode="native" model={model} onInsert={args.onInsert} />

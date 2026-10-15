@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { VoiceCapabilities, VoicePresetV2 } from '@/shared'
+import type { VoiceCapabilities, VoicePresetV2, VoicePreset } from '@/shared'
+import { CAPABILITIES_FISH, CATALOG_FISH, PRESET_FISH } from '../fishFixtures'
 import {
     CAPABILITIES_EL_FREE,
     CAPABILITIES_EL_PLUS,
@@ -47,7 +48,7 @@ vi.mock('@/infrastructure/api', () => ({
 
 interface Props {
     mode?: PresetEditorV2Mode
-    source?: VoicePresetV2 | null
+    source?: VoicePreset | null
     capabilities?: VoiceCapabilities | null
     pickVoiceOnOpen?: boolean
     userHash?: string | null
@@ -69,7 +70,7 @@ function lookupAnswers(...extra: (typeof CATALOG_PAGE)[number][]) {
     })
 }
 
-const save = () => fireEvent.click(screen.getByRole('button', { name: 'Save preset' }))
+const save = () => fireEvent.click(screen.getByRole('button', { name: 'Save settings' }))
 
 describe('PresetEditorV2 (R1-FE-02, EP-3)', () => {
     beforeEach(() => {
@@ -86,6 +87,42 @@ describe('PresetEditorV2 (R1-FE-02, EP-3)', () => {
         api.fetchProtectedMediaBlob.mockReset().mockResolvedValue(new Blob(['mp3'], { type: 'audio/mpeg' }))
         clearPreferredLanguageCache()
         api.getUserPreferences.mockReset().mockResolvedValue({ preferred_language: 'en', has_preference: false, narration_tier: 'standard' })
+    })
+
+    it('reopens a Fish preset without ElevenLabs sliders and saves its versioned identity', async () => {
+        lookupAnswers(CATALOG_FISH)
+        api.updateVoicePreset.mockResolvedValue(PRESET_FISH)
+        renderEditor({ mode: 'edit', source: PRESET_FISH, capabilities: CAPABILITIES_FISH })
+        expect(await screen.findByText('Fish Audio · Drama 3 · Narration only')).toBeInTheDocument()
+        expect(screen.queryByRole('slider')).not.toBeInTheDocument()
+        expect(screen.queryByRole('radio', { name: 'Expressive' })).not.toBeInTheDocument()
+        save()
+        await waitFor(() => expect(api.updateVoicePreset).toHaveBeenCalledWith(PRESET_FISH.preset_id, {
+            name: PRESET_FISH.name, description: null, voice_key: PRESET_FISH.voice_key,
+            schema_version: 3, provider: 'fish_audio', settings: null, emotion: 'calm',
+        }))
+    })
+
+    it('keeps a Fish recipe read-only while its capabilities are missing', async () => {
+        lookupAnswers(CATALOG_FISH)
+        renderEditor({ mode: 'edit', source: PRESET_FISH, capabilities: CAPABILITIES_EL_PLUS })
+        expect(await screen.findByText('This voice can’t be used right now. Try again later or choose another voice.')).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Save settings' })).toBeDisabled()
+        expect(api.updateVoicePreset).not.toHaveBeenCalled()
+    })
+
+    it('switches a Fish draft to an ElevenLabs voice with a compatible recipe', async () => {
+        lookupAnswers(CATALOG_FISH)
+        renderEditor({ mode: 'edit', source: PRESET_FISH, capabilities: CAPABILITIES_FISH })
+        fireEvent.click(await screen.findByRole('button', { name: 'Change voice' }))
+        const rows = await screen.findAllByTestId('catalog-voice-row')
+        const eldrin = rows.find((row) => row.getAttribute('data-voice-key') === CATALOG_ELDRIN.voice_key)!
+        fireEvent.click(within(eldrin).getByRole('button', { name: 'Use' }))
+        await waitFor(() => expect(screen.getAllByRole('slider').length).toBeGreaterThan(0))
+        save()
+        await waitFor(() => expect(api.updateVoicePreset).toHaveBeenCalledWith(PRESET_FISH.preset_id, {
+            name: PRESET_FISH.name, description: null, voice_key: CATALOG_ELDRIN.voice_key, settings: null, emotion: 'calm',
+        }))
     })
 
     it('labels emotions by effect on Expressive, notes thought delivery per tier, and links back to Standard (05 §5.1-§5.4)', () => {
@@ -197,7 +234,7 @@ describe('PresetEditorV2 (R1-FE-02, EP-3)', () => {
 
     it('creates a preset from a catalog voice with voice defaults', async () => {
         const { onSaved, onClose, notify } = renderEditor()
-        fireEvent.change(screen.getByLabelText('Preset name'), { target: { value: '  Tavern keeper ' } })
+        fireEvent.change(screen.getByLabelText('Name for these settings'), { target: { value: '  Tavern keeper ' } })
         const maren = (await screen.findAllByTestId('catalog-voice-row')).find((row) => within(row).queryByText('Maren')) as HTMLElement
         fireEvent.click(within(maren).getByRole('button', { name: 'Use' }))
         expect(within(screen.getByTestId('preset-base-voice')).getByText('Maren')).toBeInTheDocument()
@@ -209,12 +246,12 @@ describe('PresetEditorV2 (R1-FE-02, EP-3)', () => {
         expect(api.updateVoicePreset).not.toHaveBeenCalled()
         await waitFor(() => expect(onClose).toHaveBeenCalled())
         expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ preset_id: 'new-1' }))
-        expect(notify).toHaveBeenCalledWith(expect.objectContaining({ tone: 'success', title: 'Preset saved' }))
+        expect(notify).toHaveBeenCalledWith(expect.objectContaining({ tone: 'success', title: 'Voice settings saved' }))
     })
 
     it('edits a V2 preset in place, writing the 0.05 grid only', async () => {
         renderEditor({ mode: 'edit', source: PRESET_V2_USER })
-        expect(screen.getByLabelText('Preset name')).toHaveValue('Harbour master')
+        expect(screen.getByLabelText('Name for these settings')).toHaveValue('Harbour master')
         fireEvent.change(screen.getByLabelText('Stability'), { target: { value: '0.62' } })
         save()
         await waitFor(() => expect(api.updateVoicePreset).toHaveBeenCalledTimes(1))
@@ -229,7 +266,7 @@ describe('PresetEditorV2 (R1-FE-02, EP-3)', () => {
 
     it('duplicates a global preset as a new one', async () => {
         renderEditor({ mode: 'duplicate', source: PRESET_V2_GLOBAL })
-        expect(screen.getByLabelText('Preset name')).toHaveValue('Fireside narrator (copy)')
+        expect(screen.getByLabelText('Name for these settings')).toHaveValue('Fireside narrator (copy)')
         save()
         await waitFor(() => expect(api.createVoicePreset).toHaveBeenCalledWith(expect.objectContaining({ name: 'Fireside narrator (copy)', voice_key: VOICE_KEY_MAREN })))
         expect(api.updateVoicePreset).not.toHaveBeenCalled()
@@ -238,11 +275,11 @@ describe('PresetEditorV2 (R1-FE-02, EP-3)', () => {
     it('keeps the draft and explains a refused voice (422)', async () => {
         api.updateVoicePreset.mockRejectedValue(Object.assign(new Error('Unprocessable'), { status: 422, code: 'voice_plan_locked' }))
         const { onClose } = renderEditor({ mode: 'edit', source: PRESET_V2_USER })
-        fireEvent.change(screen.getByLabelText('Preset name'), { target: { value: 'Renamed' } })
+        fireEvent.change(screen.getByLabelText('Name for these settings'), { target: { value: 'Renamed' } })
         save()
         const alert = await screen.findByRole('alert')
         expect(alert).toHaveTextContent('Your plan doesn’t include this voice option.')
-        expect(screen.getByLabelText('Preset name')).toHaveValue('Renamed')
+        expect(screen.getByLabelText('Name for these settings')).toHaveValue('Renamed')
         expect(onClose).not.toHaveBeenCalled()
     })
 
@@ -340,11 +377,26 @@ describe('PresetEditorV2 (R1-FE-02, EP-3)', () => {
         })
     })
 
+    it('names a blank draft after the voice it picks, and keeps a typed name', async () => {
+        renderEditor()
+        const maren = (await screen.findAllByTestId('catalog-voice-row')).find((row) => within(row).queryByText('Maren')) as HTMLElement
+        fireEvent.click(within(maren).getByRole('button', { name: 'Use' }))
+        expect(screen.getByLabelText('Name for these settings')).toHaveValue('Maren')
+        expect(screen.getByRole('button', { name: 'Save settings' })).toBeEnabled()
+        fireEvent.change(screen.getByLabelText('Name for these settings'), { target: { value: 'Tavern keeper' } })
+        fireEvent.click(screen.getByRole('button', { name: 'Change voice' }))
+        const eldrin = (await screen.findAllByTestId('catalog-voice-row')).find((row) => within(row).queryByText('Eldrin')) as HTMLElement
+        fireEvent.click(within(eldrin).getByRole('button', { name: 'Use' }))
+        expect(screen.getByLabelText('Name for these settings')).toHaveValue('Tavern keeper')
+        // The sections read in the order of the job: the voice, its delivery, a listen, then its name.
+        expect(screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual(['Base voice', 'Delivery', 'Listen', 'Name and notes'])
+    })
+
     it('needs a name of at most 255 characters and a voice', async () => {
         renderEditor()
-        expect(screen.getByRole('button', { name: 'Save preset' })).toBeDisabled()
-        fireEvent.change(screen.getByLabelText('Preset name'), { target: { value: 'Named' } })
-        expect(screen.getByRole('button', { name: 'Save preset' })).toBeDisabled()
+        expect(screen.getByRole('button', { name: 'Save settings' })).toBeDisabled()
+        fireEvent.change(screen.getByLabelText('Name for these settings'), { target: { value: 'Named' } })
+        expect(screen.getByRole('button', { name: 'Save settings' })).toBeDisabled()
     })
 
     it('"Use voice defaults" stores no settings', async () => {
@@ -525,7 +577,7 @@ describe('PresetEditorV2 (R1-FE-02, EP-3)', () => {
             expect(screen.getByRole('heading', { name: 'Duplicate “Fireside narrator”' })).toBeInTheDocument()
             second.unmount()
             renderEditor()
-            expect(screen.getByRole('heading', { name: 'New voice preset' })).toBeInTheDocument()
+            expect(screen.getByRole('heading', { name: 'Save voice settings' })).toBeInTheDocument()
         })
 
         it('closes at once without changes', () => {
@@ -537,13 +589,13 @@ describe('PresetEditorV2 (R1-FE-02, EP-3)', () => {
 
         it('asks before discarding unsaved changes, from Cancel and from Escape', async () => {
             const { onClose } = renderEditor({ mode: 'edit', source: PRESET_V2_USER })
-            fireEvent.change(screen.getByLabelText('Preset name'), { target: { value: 'Harbour mistress' } })
+            fireEvent.change(screen.getByLabelText('Name for these settings'), { target: { value: 'Harbour mistress' } })
             fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
             let dialog = await screen.findByRole('dialog', { name: 'Discard unsaved changes?' })
             expect(dialog).toHaveTextContent('Your changes to “Harbour master” haven’t been saved.')
             fireEvent.click(within(dialog).getByRole('button', { name: 'Keep editing' }))
             expect(onClose).not.toHaveBeenCalled()
-            expect(screen.getByLabelText('Preset name')).toHaveValue('Harbour mistress')
+            expect(screen.getByLabelText('Name for these settings')).toHaveValue('Harbour mistress')
 
             fireEvent.keyDown(document, { key: 'Escape' })
             dialog = await screen.findByRole('dialog', { name: 'Discard unsaved changes?' })
@@ -565,10 +617,10 @@ describe('PresetEditorV2 (R1-FE-02, EP-3)', () => {
             const trigger = screen.getByRole('button', { name: 'Open editor' })
             trigger.focus()
             fireEvent.click(trigger)
-            fireEvent.change(await screen.findByLabelText('Preset name'), { target: { value: 'Harbour mistress' } })
+            fireEvent.change(await screen.findByLabelText('Name for these settings'), { target: { value: 'Harbour mistress' } })
             fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
             fireEvent.click(within(await screen.findByRole('dialog', { name: 'Discard unsaved changes?' })).getByRole('button', { name: 'Discard changes' }))
-            await waitFor(() => expect(screen.queryByLabelText('Preset name')).not.toBeInTheDocument())
+            await waitFor(() => expect(screen.queryByLabelText('Name for these settings')).not.toBeInTheDocument())
             expect(document.activeElement).toBe(trigger)
         })
 

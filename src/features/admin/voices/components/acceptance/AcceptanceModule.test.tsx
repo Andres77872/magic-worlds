@@ -44,13 +44,12 @@ describe('AcceptanceModule (AC-R3)', () => {
     it('batch-renders the fixed scripts on Flash and v4 and plays them side by side', async () => {
         await renderQueued()
         expect(mock().renderAcceptance).toHaveBeenCalledWith(
-            { voice_key: draftVoice.voice_key, model_ids: ['eleven_flash_v2_5', 'eleven_v4'], languages: ['en'], script_version: 'acc-v1' },
+            { voice_key: draftVoice.voice_key, model_ids: ['eleven_v4'], languages: ['en'], script_version: 'acc-v1' },
             expect.any(AbortSignal),
         )
-        const flash = screen.getByRole('region', { name: 'Flash v2.5 (Standard)' })
-        const expressive = screen.getByRole('region', { name: 'v4 (Expressive)' })
-        expect(within(flash).getByRole('button', { name: 'Play Flash render, Narration' })).toBeInTheDocument()
-        expect(within(expressive).getByRole('button', { name: 'Play Expressive render, Narration' })).toBeInTheDocument()
+        const flash = screen.getByRole('region', { name: 'v4' })
+        expect(within(flash).getByRole('button', { name: 'Play v4 render, Narration' })).toBeInTheDocument()
+        expect(screen.getAllByRole('region', { name: 'v4' })).toHaveLength(1)
         expect(within(flash).getAllByText('The candle gutters low as the hidden door opens.')[0]).toHaveAttribute('lang', 'en')
     })
 
@@ -74,7 +73,7 @@ describe('AcceptanceModule (AC-R3)', () => {
                 {
                     render_id: 'fr-flash',
                     voice_key: draftVoice.voice_key,
-                    model_id: 'eleven_flash_v2_5',
+                    model_id: 'eleven_v4',
                     language: 'fr',
                     script_kind: 'narration',
                     script_version: 'acc-v1-fr',
@@ -106,11 +105,10 @@ describe('AcceptanceModule (AC-R3)', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Render scripts' }))
         await screen.findByText('Rendered 1 voice.')
 
-        const flash = screen.getByRole('region', { name: 'Flash v2.5 (Standard)' })
-        const expressive = screen.getByRole('region', { name: 'v4 (Expressive)' })
+        const flash = screen.getByRole('region', { name: 'v4' })
         expect(within(flash).getByText('Script acc-v1-fr')).toBeInTheDocument()
-        expect(within(expressive).getByText('Script acc-v1')).toBeInTheDocument()
-        expect(within(expressive).getByText('No acceptance scripts exist for this language yet.')).toBeInTheDocument()
+        expect(within(flash).getByText('Script acc-v1')).toBeInTheDocument()
+        expect(within(flash).getByText('No acceptance scripts exist for this language yet.')).toBeInTheDocument()
     })
 
     it('explains a whole batch refused for missing acceptance scripts', async () => {
@@ -123,7 +121,7 @@ describe('AcceptanceModule (AC-R3)', () => {
 
     it('has six rubric keys and an explicit verdict before saving', async () => {
         await renderQueued()
-        const form = screen.getByRole('form', { name: 'Rubric: Flash v2.5 (Standard)' })
+        const form = screen.getByRole('form', { name: 'Rubric: v4' })
         expect(within(form).getAllByRole('group')).toHaveLength(7) // six scores + verdict
         fireEvent.click(within(form).getByRole('button', { name: 'Save verdict' }))
         expect(await within(form).findByText('Score every item and choose pass or fail.')).toBeInTheDocument()
@@ -132,7 +130,7 @@ describe('AcceptanceModule (AC-R3)', () => {
 
     it('shows gain_db = min(0, −18 − LUFS) and warns beyond −6 dB (I-15)', async () => {
         await renderQueued()
-        const form = screen.getByRole('form', { name: 'Rubric: Flash v2.5 (Standard)' })
+        const form = screen.getByRole('form', { name: 'Rubric: v4' })
         // The renders measured −14 LUFS: 4 dB of attenuation.
         expect(within(form).getByText(/Gain: -4.0 dB/)).toBeInTheDocument()
         fireEvent.change(within(form).getByLabelText('Integrated loudness (LUFS)'), { target: { value: '-10' } })
@@ -144,7 +142,7 @@ describe('AcceptanceModule (AC-R3)', () => {
     it('blocks a pass that needs more than −6 dB with the reason, and still records a fail (I-15)', async () => {
         mock().putAcceptanceVerdict.mockResolvedValue({ acceptance: makeAcceptance({ verdict: 'fail', integrated_lufs: -10, gain_db: -8 }), voice: draftVoice })
         await renderQueued()
-        const flash = screen.getByRole('form', { name: 'Rubric: Flash v2.5 (Standard)' })
+        const flash = screen.getByRole('form', { name: 'Rubric: v4' })
         scoreAll(flash, 4)
         fireEvent.change(within(flash).getByLabelText('Integrated loudness (LUFS)'), { target: { value: '-10' } })
         fireEvent.click(within(flash).getByRole('radio', { name: 'Pass' }))
@@ -162,7 +160,7 @@ describe('AcceptanceModule (AC-R3)', () => {
         expect(within(flash).queryByText(reason)).not.toBeInTheDocument()
         fireEvent.click(within(flash).getByRole('button', { name: 'Save verdict' }))
         await waitFor(() =>
-            expect(mock().putAcceptanceVerdict).toHaveBeenCalledWith(draftVoice.voice_key, 'eleven_flash_v2_5', 'en', {
+            expect(mock().putAcceptanceVerdict).toHaveBeenCalledWith(draftVoice.voice_key, 'eleven_v4', 'en', {
                 verdict: 'fail',
                 scores: { timbre: 4, naturalness: 4, emotion_tags: 4, accent: 4, artefacts: 4, consistency_vs_v4: 4 },
                 integrated_lufs: -10,
@@ -172,7 +170,7 @@ describe('AcceptanceModule (AC-R3)', () => {
 
     it('states the limit in LUFS, so a value just over it never reads as "-6.0 beyond -6.0" (I-15)', async () => {
         await renderQueued()
-        const flash = screen.getByRole('form', { name: 'Rubric: Flash v2.5 (Standard)' })
+        const flash = screen.getByRole('form', { name: 'Rubric: v4' })
         scoreAll(flash, 4)
         // −11.96 LUFS: an unrounded gain of −6.04 dB, refused; −12 LUFS: exactly −6 dB, accepted.
         fireEvent.change(within(flash).getByLabelText('Integrated loudness (LUFS)'), { target: { value: '-11.96' } })
@@ -184,7 +182,7 @@ describe('AcceptanceModule (AC-R3)', () => {
 
         fireEvent.change(within(flash).getByLabelText('Integrated loudness (LUFS)'), { target: { value: '-12' } })
         fireEvent.click(within(flash).getByRole('button', { name: 'Save verdict' }))
-        await waitFor(() => expect(mock().putAcceptanceVerdict).toHaveBeenCalledWith(draftVoice.voice_key, 'eleven_flash_v2_5', 'en', expect.objectContaining({ verdict: 'pass', integrated_lufs: -12 })))
+        await waitFor(() => expect(mock().putAcceptanceVerdict).toHaveBeenCalledWith(draftVoice.voice_key, 'eleven_v4', 'en', expect.objectContaining({ verdict: 'pass', integrated_lufs: -12 })))
     })
 
     it('ignores renders without a loudness value instead of poisoning the pre-fill', async () => {
@@ -197,18 +195,16 @@ describe('AcceptanceModule (AC-R3)', () => {
         await screen.findByRole('checkbox', { name: 'Eldrin' })
         fireEvent.click(screen.getByRole('button', { name: 'Render scripts' }))
         await screen.findByText('Rendered 1 voice.')
-        const flash = screen.getByRole('form', { name: 'Rubric: Flash v2.5 (Standard)' })
-        const expressive = screen.getByRole('form', { name: 'Rubric: v4 (Expressive)' })
-        // Both Flash renders lack a value: the field starts empty, never "NaN".
+        const flash = screen.getByRole('form', { name: 'Rubric: v4' })
+        // Both v4 renders lack a value: the field starts empty, never "NaN".
         expect(within(flash).getByLabelText('Integrated loudness (LUFS)')).toHaveValue(null)
         expect(within(flash).getByText('Gain: enter a loudness value')).toBeInTheDocument()
-        expect(within(expressive).getByLabelText('Integrated loudness (LUFS)')).toHaveValue(-14)
         expect(screen.queryByText(/NaN/)).not.toBeInTheDocument()
     })
 
     it('requires the offline-meter loudness before a pass (I-15)', async () => {
         await renderQueued()
-        const flash = screen.getByRole('form', { name: 'Rubric: Flash v2.5 (Standard)' })
+        const flash = screen.getByRole('form', { name: 'Rubric: v4' })
         scoreAll(flash, 4)
         fireEvent.change(within(flash).getByLabelText('Integrated loudness (LUFS)'), { target: { value: '' } })
         fireEvent.click(within(flash).getByRole('radio', { name: 'Pass' }))
@@ -221,23 +217,21 @@ describe('AcceptanceModule (AC-R3)', () => {
     it('shows the server refusal 422 gain_out_of_range in plain words', async () => {
         mock().putAcceptanceVerdict.mockRejectedValue(new ApiError(422, 'gain_db below -6', { code: 'gain_out_of_range' }))
         await renderQueued()
-        const flash = screen.getByRole('form', { name: 'Rubric: Flash v2.5 (Standard)' })
+        const flash = screen.getByRole('form', { name: 'Rubric: v4' })
         scoreAll(flash, 4)
         fireEvent.click(within(flash).getByRole('radio', { name: 'Pass' }))
         fireEvent.click(within(flash).getByRole('button', { name: 'Save verdict' }))
         expect(await within(flash).findByText(/^The server refused the pass: this voice needs more attenuation than a pass allows/)).toBeInTheDocument()
     })
 
-    it('marks call eligibility only for a Flash pass with consistency of 4 or more', async () => {
+    it('marks call eligibility only for a v4 pass with consistency of 4 or more', async () => {
         await renderQueued()
-        const flash = screen.getByRole('form', { name: 'Rubric: Flash v2.5 (Standard)' })
+        const flash = screen.getByRole('form', { name: 'Rubric: v4' })
         scoreAll(flash, 5, 3)
         fireEvent.click(within(flash).getByRole('radio', { name: 'Pass' }))
         expect(within(flash).getByText(/Not call eligible/)).toBeInTheDocument()
         score(flash, /Consistency with v4/, 4)
         expect(within(flash).getByText(/^Call eligible/)).toBeInTheDocument()
-        const expressive = screen.getByRole('form', { name: 'Rubric: v4 (Expressive)' })
-        expect(within(expressive).getByText('Call eligibility is decided by the Flash verdict.')).toBeInTheDocument()
     })
 
     it('saves the verdict and renders the own sample on a pass', async () => {
@@ -245,28 +239,28 @@ describe('AcceptanceModule (AC-R3)', () => {
         mock().putAcceptanceVerdict.mockResolvedValue({ acceptance: accepted.acceptance[0], voice: accepted })
         mock().renderCatalogSamples.mockResolvedValue({
             voice_key: draftVoice.voice_key,
-            items: [{ sample_asset_id: 's1', language: 'en', model_id: 'eleven_flash_v2_5', kind: 'showcase', url: auditRenders.items[0].audio_url }],
+            items: [{ sample_asset_id: 's1', language: 'en', model_id: 'eleven_v4', kind: 'showcase', url: auditRenders.items[0].audio_url }],
         })
         await renderQueued()
-        const flash = screen.getByRole('form', { name: 'Rubric: Flash v2.5 (Standard)' })
+        const flash = screen.getByRole('form', { name: 'Rubric: v4' })
         scoreAll(flash, 4)
         fireEvent.click(within(flash).getByRole('radio', { name: 'Pass' }))
         fireEvent.click(within(flash).getByRole('button', { name: 'Save verdict' }))
         await waitFor(() =>
-            expect(mock().putAcceptanceVerdict).toHaveBeenCalledWith(draftVoice.voice_key, 'eleven_flash_v2_5', 'en', {
+            expect(mock().putAcceptanceVerdict).toHaveBeenCalledWith(draftVoice.voice_key, 'eleven_v4', 'en', {
                 verdict: 'pass',
                 scores: { timbre: 4, naturalness: 4, emotion_tags: 4, accent: 4, artefacts: 4, consistency_vs_v4: 4 },
                 integrated_lufs: -14,
             }),
         )
-        await waitFor(() => expect(mock().renderCatalogSamples).toHaveBeenCalledWith(draftVoice.voice_key, { languages: ['en'], model_ids: ['eleven_flash_v2_5'] }))
-        expect(await screen.findByRole('button', { name: 'Play Sample, Flash, English' })).toBeInTheDocument()
+        await waitFor(() => expect(mock().renderCatalogSamples).toHaveBeenCalledWith(draftVoice.voice_key, { languages: ['en'], model_ids: ['eleven_v4'] }))
+        expect(await screen.findByRole('button', { name: 'Play Sample, v4, English' })).toBeInTheDocument()
     })
 
     it('does not re-render samples when the server already rendered them', async () => {
         mock().putAcceptanceVerdict.mockResolvedValue({ acceptance: makeAcceptance(), voice: readyVoice })
         await renderQueued()
-        const flash = screen.getByRole('form', { name: 'Rubric: Flash v2.5 (Standard)' })
+        const flash = screen.getByRole('form', { name: 'Rubric: v4' })
         scoreAll(flash, 4)
         fireEvent.click(within(flash).getByRole('radio', { name: 'Pass' }))
         fireEvent.click(within(flash).getByRole('button', { name: 'Save verdict' }))

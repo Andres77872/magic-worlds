@@ -19,6 +19,7 @@ import { useAuth, useData, useFloatingWindows, useLanguage, useNavigation } from
 import { useWorkspace } from '@/app/hooks/useWorkspace'
 import { useWorkspaceReadOnly } from '@/shared/hooks/useWorkspaceReadOnly'
 import type { PageType } from '@/shared'
+import { isContentTypeFeatureEnabled } from '@/shared/featureFlags'
 import type { AssistantConversation } from '@/shared/types/assistant.types'
 import { buildCardEditHash, buildLinkedEditorHash, pageHash } from '@/features/gallery/galleryLinks'
 import { useOriginNavigation } from '@/features/workspaces/originNavigation'
@@ -33,7 +34,8 @@ import { Toast } from '@/ui/primitives'
 import { adventureName, estimateFocusTokens } from '../appKnowledge'
 import { assistantTag } from '../assistantTags'
 import { appAssistantAdapter } from '../appAssistantAdapter'
-import { APP_ASSISTANT_SUGGESTIONS } from '../assistantSuggestions'
+import { availableAssistantSuggestions } from '../assistantSuggestions'
+import { isAssistantLinkFeatureEnabled } from '../replyLinks'
 import { FOCUS_LIMIT, useAssistantKnowledge } from '../hooks/useAssistantKnowledge'
 import { HoverCardsProvider, focusMatchKey, parseHoverCardHref, previewTargetFor, type HoverCardRef } from '../hoverCards'
 import { AssistantFocusPicker } from './AssistantFocusPicker'
@@ -105,7 +107,7 @@ export function AppAssistantPage() {
     }, [knowledge])
 
     const suggestions = useMemo(
-        () => APP_ASSISTANT_SUGGESTIONS.filter((suggestion) => !suggestion.requires || knowledge.sources.includes(suggestion.requires)),
+        () => availableAssistantSuggestions(knowledge.sources),
         [knowledge.sources],
     )
 
@@ -123,6 +125,7 @@ export function AppAssistantPage() {
     // may be stored under either kind, so match it the way the cards do).
     const { library, focus: focusRefs, setFocus, removeFocus } = knowledge
     const toggleFocus = useCallback((ref: HoverCardRef) => {
+        if (!isContentTypeFeatureEnabled(ref.kind)) return
         const key = focusMatchKey(ref)
         const current = focusRefs.find((entry) => focusMatchKey(entry) === key)
         if (current) removeFocus(current)
@@ -132,6 +135,7 @@ export function AppAssistantPage() {
     // A record previews over the thread: a card in its preview modal, and a
     // lorebook (which has none) in its preview window.
     const viewRecord = useCallback((ref: HoverCardRef) => {
+        if (!isContentTypeFeatureEnabled(ref.kind)) return
         const target = previewTargetFor(ref)
         if (target) return cardPreview.openCardPreview(target)
         const lorebook = lorebooks.find((book) => book.id === ref.id)
@@ -142,6 +146,7 @@ export function AppAssistantPage() {
     // Every other working link opens in a new tab (`AssistantReplyLink`), so
     // only record links and links to nowhere reach the page.
     const navigateLink = useCallback((href: string) => {
+        if (!isAssistantLinkFeatureEnabled(href)) return
         const ref = parseHoverCardHref(href)
         if (ref) viewRecord(ref)
         else setLinkNotice(t('appAssistant.notices.linkMissing'))
@@ -157,6 +162,7 @@ export function AppAssistantPage() {
         const missing = () => setLinkNotice(t('appAssistant.handoff.missing'))
         const tag = assistantTag(conversation)
         if (tag === 'app') return
+        if (!isContentTypeFeatureEnabled(tag)) return
         const origin = conversation.organization?.workspace_id ?? null
         if (origin && origin !== selectedWorkspaceId) {
             const page: PageType = tag === 'adventure_template' ? 'adventure' : tag

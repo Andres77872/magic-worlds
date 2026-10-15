@@ -7,6 +7,7 @@
 
 import { useTranslation } from 'react-i18next'
 import type { CardUsage } from '@/shared'
+import { isNovelsFeatureEnabled, isSessionUsageCountAvailable } from '@/shared/featureFlags'
 import { cx } from '@/ui/primitives'
 
 export interface CardUsageLineProps {
@@ -22,10 +23,11 @@ export function CardUsageLine({ usage, showNone = false, className }: CardUsageL
     if (!usage) return null
 
     const parts: string[] = []
-    if (usage.sessions > 0) parts.push(t('cardVersions.usage.sessionsShort', { count: usage.sessions }))
-    if (usage.stories > 0) parts.push(t('cardVersions.usage.storiesShort', { count: usage.stories }))
+    if (isSessionUsageCountAvailable() && usage.sessions > 0) parts.push(t('cardVersions.usage.sessionsShort', { count: usage.sessions }))
+    if (isNovelsFeatureEnabled() && usage.stories > 0) parts.push(t('cardVersions.usage.storiesShort', { count: usage.stories }))
 
-    const text = parts.length > 0 ? `${t('cardVersions.usage.used')} ${parts.join(' · ')}` : showNone ? t('cardVersions.usage.none') : null
+    const unused = showNone && usage.sessions === 0 && usage.stories === 0
+    const text = parts.length > 0 ? `${t('cardVersions.usage.used')} ${parts.join(' · ')}` : unused ? t('cardVersions.usage.none') : null
     if (!text) return null
 
     return <p className={cx('font-ui text-caption text-parchment-400', className)}>{text}</p>

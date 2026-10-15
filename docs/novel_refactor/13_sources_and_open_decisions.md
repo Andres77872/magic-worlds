@@ -6,7 +6,7 @@ The original dossier records external references with research cutoff **2026-10-
 
 **Resolved scope:** Collaboration is excluded. The target is a single-author AI editor; shared editing, invitations, team roles, reviewer access, and collaborative synchronization are not deferred features or open decisions. CoAuthor below is a human–AI writing research project, not a multi-user product requirement.
 
-Source IDs retain their original numbering after scope exclusions.
+Source IDs retain their original numbering after scope exclusions. These tables are the dossier's complete product and research reference set.
 
 ## Product and workflow references
 
@@ -101,7 +101,6 @@ Source paths and observed results are recorded in [01](01_current_state_and_evid
 - [Workspace R1](../workspace_r1/README.md): ownership, account/workspace switch and archive contracts.
 - [LLM profiles](../llm_profiles/README.md): published-profile resolution, role caps, credentials, payer and frozen execution.
 - [App assistant research](../app_assistant/README.md): unified conversations and app-guide boundary.
-- [Storytelling research](../story_telling/README.md): historical product/workflow intent; refresh outdated implementation descriptions.
 - Frontend [story DTOs](../../src/shared/types/story.types.ts), [assistant DTOs](../../src/shared/types/assistant.types.ts), and [LLM DTOs](../../src/shared/types/llm.types.ts).
 - Availability: [featureFlags](../../src/shared/featureFlags.ts), [example environment](../../.env.example), [AppRouter](../../src/app/router/AppRouter.tsx), [Sidebar](../../src/ui/components/Sidebar.tsx), and `apiService.assertNovelsEnabled()`. The reviewed local `.env` enables novels; production availability remains unverified.
 - BFF `src/models/{story,assistant,llm_profiles}.py`, `src/routes/{stories,assistant}.py`, `src/services/{story_generation,story_execution,llm_profile_resolution,llm_profile_execution}.py`, assistant registry/core, and StoryModel persistence.

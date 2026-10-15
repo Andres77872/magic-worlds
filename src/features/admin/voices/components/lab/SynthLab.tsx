@@ -40,7 +40,7 @@ export function SynthLab({ initialVoiceKey = null }: { initialVoiceKey?: string 
     const { catalog, locale, reportError } = useVoiceConsole()
     const textId = useId()
     const [voiceKey, setVoiceKey] = useState(initialVoiceKey ?? '')
-    const [modelAlias, setModelAlias] = useState<LabModelAlias>('el_flash_v2_5')
+    const [modelAlias, setModelAlias] = useState<LabModelAlias>('el_v4')
     const [outputFormat, setOutputFormat] = useState<string>(LAB_DEFAULT_OUTPUT_FORMAT)
     const [normalization, setNormalization] = useState<LabTextNormalization>('auto')
     const [languageCode, setLanguageCode] = useState('')
@@ -73,12 +73,13 @@ export function SynthLab({ initialVoiceKey = null }: { initialVoiceKey?: string 
         }
     }, [])
 
-    const models = labModels.models
+    const voice = voiceKey ? catalog.byKey.get(voiceKey) : undefined
+    const models = labModels.models.filter((option) => !voice || (voice.provider === 'fish_audio') === (option.alias === 'fish_drama_3'))
     const model: LabModelOption =
-        models.find((profile) => profile.alias === modelAlias) ?? models.find((profile) => profile.available) ?? models[0]
+        models.find((profile) => profile.alias === modelAlias) ?? models.find((profile) => profile.available) ?? models[0] ?? labModels.models[0]
     const modelLabel = (option: LabModelOption) =>
         option.label ?? (KNOWN_ALIASES.has(option.alias) ? t(`admin.voices.lab.models.${option.alias}`) : option.alias)
-    const voice = voiceKey ? catalog.byKey.get(voiceKey) : undefined
+    const modelAvailable = model.available && (!voice || (voice.provider === 'fish_audio') === (model.alias === 'fish_drama_3'))
     const maxChars = labTextLimit(model, capabilities, learnedLimits[model.alias])
     const tooLong = text.length > maxChars
     // What this model offers, minus what the BFF refused for it; the selection falls back to the first offer.
@@ -107,7 +108,7 @@ export function SynthLab({ initialVoiceKey = null }: { initialVoiceKey?: string 
 
     const submit = async (event: FormEvent) => {
         event.preventDefault()
-        if (!voice || !text.trim() || tooLong || !model.available) return
+        if (!voice || !text.trim() || tooLong || !modelAvailable) return
         setBusy(true)
         setError(null)
         const parsedSeed = Number.parseInt(seed, 10)
@@ -116,12 +117,12 @@ export function SynthLab({ initialVoiceKey = null }: { initialVoiceKey?: string 
                 voice_key: voice.voice_key,
                 model_alias: model.alias,
                 text,
-                markup_mode: markupMode,
+                markup_mode: voice.provider === 'fish_audio' ? 'app' : markupMode,
                 output_format: format,
                 language_code: model.sendsLanguageCode ? languageCode.trim().toLowerCase() || null : null,
                 seed: model.supportsSeed && Number.isFinite(parsedSeed) ? parsedSeed : null,
                 apply_text_normalization: textNormalization,
-                voice_settings: pickSettings(settings, model.settings),
+                voice_settings: voice.provider === 'fish_audio' ? null : pickSettings(settings, model.settings),
             })
             const id = nextId.current++
             setResults((previous) => [
@@ -232,15 +233,15 @@ export function SynthLab({ initialVoiceKey = null }: { initialVoiceKey?: string 
                 <div className="flex min-w-0 flex-col gap-3">
                     <Field label={t('admin.voices.lab.markup.label')} className="max-w-xs">
                         <Select
-                            options={(['app', 'native'] as const).map((value) => ({ value, label: t(`admin.voices.lab.markup.${value}`) }))}
-                            value={markupMode}
+                            options={(voice?.provider === 'fish_audio' ? ['app'] as const : ['app', 'native'] as const).map((value) => ({ value, label: t(`admin.voices.lab.markup.${value}`) }))}
+                            value={voice?.provider === 'fish_audio' ? 'app' : markupMode}
                             onChange={(value) => setMarkupMode(value as LabMarkupMode)}
                         />
                     </Field>
                     <p className="font-ui text-caption text-fg-muted">
-                        {markupMode === 'app' ? t('admin.voices.lab.markup.appHelp') : t('admin.voices.lab.markup.nativeHelp')}
+                        {voice?.provider === 'fish_audio' || markupMode === 'app' ? t('admin.voices.lab.markup.appHelp') : t('admin.voices.lab.markup.nativeHelp')}
                     </p>
-                    <MarkupToolbar mode={markupMode} model={model} onInsert={insert} />
+                    {voice?.provider !== 'fish_audio' && <MarkupToolbar mode={markupMode} model={model} onInsert={insert} />}
                     <Field label={t('admin.voices.lab.text')} htmlFor={textId} error={tooLong ? t('admin.voices.lab.tooLong', { max: maxChars }) : undefined}>
                         <Textarea id={textId} value={text} onChange={(event) => setText(event.target.value)} rows={8} />
                     </Field>
@@ -251,7 +252,7 @@ export function SynthLab({ initialVoiceKey = null }: { initialVoiceKey?: string 
                         </p>
                     )}
                     <div>
-                        <Button type="submit" variant="primary" iconLeft={<Icon icon={TestTube2} size={15} />} disabled={busy || !voice || !text.trim() || tooLong || !model.available}>
+                        <Button type="submit" variant="primary" iconLeft={<Icon icon={TestTube2} size={15} />} disabled={busy || !voice || !text.trim() || tooLong || !modelAvailable}>
                             {busy ? t('admin.voices.lab.synthesizing') : t('admin.voices.lab.synthesize')}
                         </Button>
                     </div>

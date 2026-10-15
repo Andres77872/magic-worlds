@@ -1,6 +1,6 @@
 /**
  * Acceptance (R0 deliverable, 05 §8.4, AC-R3): queue voices, batch-render the
- * fixed scripts on Flash and v4, listen side by side and against a reference
+ * fixed scripts on v4, listen to the samples and against a reference
  * voice, then score the rubric and record the verdict per model and language.
  * A pass that leaves the language without an own sample renders it.
  */
@@ -13,7 +13,7 @@ import { Button, Callout, Field, Input, Select, SwitchRow } from '@/ui/primitive
 import {
     ACCEPTANCE_MODELS,
     CONSOLE_LANGUAGES,
-    FLASH_MODEL_ID,
+    STANDARD_MODEL_ID,
     LIGHT_LANGUAGES,
     SCRIPT_VERSION,
 } from '../../constants'
@@ -86,7 +86,7 @@ export function AcceptanceModule({ initialVoiceKey = null }: { initialVoiceKey?:
         for (const voiceKey of queue) {
             try {
                 const response = await apiService.renderAcceptance(
-                    { voice_key: voiceKey, model_ids: models, languages, script_version: SCRIPT_VERSION },
+                    { voice_key: voiceKey, model_ids: catalog.byKey.get(voiceKey)?.provider === 'fish_audio' ? ['drama-3'] : models, languages, script_version: SCRIPT_VERSION },
                     controller.signal,
                 )
                 if (controller.signal.aborted) return
@@ -112,10 +112,10 @@ export function AcceptanceModule({ initialVoiceKey = null }: { initialVoiceKey?:
         catalog.voices.filter((voice) => voice.voice_key === reviewKey || renders[voice.voice_key] || selected.includes(voice.voice_key)),
         t,
     )
-    const references = catalog.voices.filter((voice) => voice.voice_key !== reviewKey && isAccepted(voice, FLASH_MODEL_ID, reviewLanguage))
+    const references = catalog.voices.filter((voice) => voice.voice_key !== reviewKey && isAccepted(voice, STANDARD_MODEL_ID, reviewLanguage))
     const reference = referenceKey ? catalog.byKey.get(referenceKey) : undefined
     const candidateNarration =
-        languageRenders.find((item) => item.model_id === FLASH_MODEL_ID && item.script_kind === 'narration') ??
+        languageRenders.find((item) => item.model_id === STANDARD_MODEL_ID && item.script_kind === 'narration') ??
         languageRenders.find((item) => item.script_kind === 'narration')
 
     const measuredLufs = (modelId: string): number | null => {
@@ -346,7 +346,7 @@ export function AcceptanceModule({ initialVoiceKey = null }: { initialVoiceKey?:
                             </div>
 
                             <div className="grid gap-4 2xl:grid-cols-2">
-                                {ACCEPTANCE_MODELS.map((modelId) => {
+                                {(reviewVoice.provider === 'fish_audio' ? ['drama-3'] : ACCEPTANCE_MODELS).map((modelId) => {
                                     const stored =
                                         reviewVoice.acceptance.find((row) => row.model_id === modelId && row.language === reviewLanguage) ?? null
                                     const measured = measuredLufs(modelId)

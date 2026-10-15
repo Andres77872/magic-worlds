@@ -1,3 +1,4 @@
+import { assertLlmFeatureEnabled } from '@/shared/featureFlags'
 import type { LlmFeature, LlmRequest, LlmSelection } from '@/shared/types/llm.types'
 import { API_BASE_URL } from './baseUrl'
 
@@ -16,10 +17,12 @@ export function configureLlmPreparation(handler: Preparation): () => void {
 }
 
 export async function prepareLlmRequest(feature: LlmFeature, supplied?: LlmRequest, signal?: AbortSignal, recoveryRequestId?: string, workspaceId?: string | null): Promise<LlmRequest> {
+    assertLlmFeatureEnabled(feature)
     signal?.throwIfAborted()
     const value = recoveryRequestId || supplied?.retry_of_execution_id
         ? (await prepareLlmDispatch(feature, signal, supplied?.selection, supplied?.retry_of_execution_id, recoveryRequestId, workspaceId))()
         : supplied?.credentials || supplied?.expected_revision_id ? supplied : (await prepareLlmDispatch(feature, signal, supplied?.selection))()
+    assertLlmFeatureEnabled(feature)
     signal?.throwIfAborted()
     if (value.credentials && !API_BASE_URL.startsWith('https://')) throw new Error('LLM_CREDENTIAL_HTTPS_REQUIRED')
     return { ...(supplied?.retry_of_execution_id ? { retry_of_execution_id: supplied.retry_of_execution_id } : {}), selection: value.selection ? { ...value.selection } : { mode: 'inherit' },
@@ -29,6 +32,7 @@ export async function prepareLlmRequest(feature: LlmFeature, supplied?: LlmReque
 
 /** A disconnected socket queues this secret-free factory, never a serialized key. */
 export async function prepareLlmDispatch(feature: LlmFeature, signal?: AbortSignal, selection?: LlmSelection, retryOfExecutionId?: string, recoveryRequestId?: string, workspaceId?: string | null): Promise<() => LlmRequest> {
+    assertLlmFeatureEnabled(feature)
     signal?.throwIfAborted()
     if ((retryOfExecutionId || recoveryRequestId) && !prepare) throw new Error('LLM_RETRY_PREPARATION_REQUIRED')
     // The origin workspace only matters to retained retry/recovery reads.
@@ -36,6 +40,7 @@ export async function prepareLlmDispatch(feature: LlmFeature, signal?: AbortSign
     const materialize = prepare ? await (origin ? prepare(feature, signal, selection, retryOfExecutionId, recoveryRequestId, origin)
         : recoveryRequestId ? prepare(feature, signal, selection, retryOfExecutionId, recoveryRequestId)
         : prepare(feature, signal, selection, retryOfExecutionId)) : () => ({ selection: selection ?? { mode: 'inherit' as const } })
+    assertLlmFeatureEnabled(feature)
     signal?.throwIfAborted()
     return materialize
 }

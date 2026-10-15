@@ -167,6 +167,16 @@ function lastQuery() {
 }
 
 describe('LibraryPage (Workspace R1)', () => {
+    it('hides adventure cards from mixed Library results while workspaces stay enabled', async () => {
+        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'false')
+        api.listLibraryCards.mockResolvedValue(page([...CARDS, { card_type: 'adventure_template',
+            card: { id: 'a1', name: 'Hidden adventure', scenario: 'Hidden adventure', triggers: [], category: [] } }]))
+        renderLibrary()
+        expect(await screen.findByText('Lyra')).toBeInTheDocument()
+        expect(screen.queryByText('Hidden adventure')).not.toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: /begin adventure/i })).not.toBeInTheDocument()
+    })
+
     beforeEach(() => {
         vi.stubEnv('VITE_FEATURE_WORKSPACES_ENABLED', 'true')
         vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'true')

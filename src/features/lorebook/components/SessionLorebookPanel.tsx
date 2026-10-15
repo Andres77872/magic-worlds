@@ -353,7 +353,9 @@ export function SessionLorebookPanel({ targetKind, targetId, label, className, f
                                         <span className="min-w-0 flex-1">
                                             <span className="block truncate font-ui text-sm font-semibold text-parchment-100">{lorebook.name}</span>
                                             <span className="block truncate font-ui text-xs text-parchment-400">
-                                                {t('sessionLorebooks.entryResourceCount', { entries: lorebook.entries.length, resources: resourceStats?.total ?? 0 })}
+                                                {resourceFeaturesEnabled
+                                                    ? t('sessionLorebooks.entryResourceCount', { entries: lorebook.entries.length, resources: resourceStats?.total ?? 0 })
+                                                    : t('sessionLorebooks.entryCount', { count: lorebook.entries.length })}
                                             </span>
                                         </span>
                                         {inSession ? (

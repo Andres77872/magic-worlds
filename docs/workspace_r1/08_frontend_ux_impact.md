@@ -1,6 +1,6 @@
 # Frontend UX impact
 
-> **Scope / status (reviewed 2026-10-14):** R1 design/coverage contract and dated implementation evidence. Source is implemented; default product UI rollout remains **WIP**, locally opted in. [02](02_current_status_and_findings.md) owns current status and schema compatibility; [04](04_gaps_and_priorities.md) owns remaining gaps/TBD. Historical test totals, branch state and migration notes below apply to their stated dates, not deployment availability.
+> **Lifecycle: active R1 contract. Documentation reconciliation: 2026-10-15.** The foundation is implemented; rollout and specific integrity acceptance remain open. [02](02_current_status_and_findings.md) owns source/status and schema compatibility; [04](04_gaps_and_priorities.md) owns remaining work. Normative requirements below remain acceptance/regression contracts, not claims that every guarantee has runtime evidence. Dated implementation/validation records are in git history.
 
 **Status:** Approved interaction specification; application screens are implemented in source. Default product rollout remains WIP; the original prototype approval is dated 2026-10-12.\
 **Refreshed:** 2026-10-12.
@@ -9,7 +9,7 @@
 
 The approved [library prototype](/home/andres/.codex/visualizations/2026/10/12/01a12edd-8ae3-7fb1-be3a-d0c89aefbe9e/library-r1.html) is the local visual reference for the decisions below. The first explanatory mockup and screenshots of the old sidebar are not target designs. This document defines product behavior; existing GalleryPage/GalleryCard and the complete creators/assistant remain the implementation reference. The prototype's fixtures, compact initial view and abbreviated editor walkthrough do not introduce new persistence behavior, force a new default view preference, or authorize reducing editor fields.
 
-The sidebar has one **Library / Biblioteca** entry for private cards. Remove the separate Characters, Worlds, Items, and Adventures gallery entries from that menu; personas do not gain another sidebar entry. Type-specific creators, query adapters, and owned legacy links remain supported behind the unified library. The current screenshot is evidence of the existing menu, not the requested target design.
+The sidebar has one **Library / Biblioteca** entry for private cards. Remove the separate Characters, Worlds, Items, and Adventures gallery entries from that menu; personas do not gain another sidebar entry. Type-specific creators, query adapters, and owned legacy links remain supported behind the unified library. The pre-R1 screenshot records the old menu; the approved unified browser is implemented in source.
 
 Inside Library, display collection folders and existing cards together in one file-browser-style content grid or list. Collections are navigable folder entries, not a row of chips/buttons and not another top-level sidebar section. The active workspace remains visible in the app chrome. Preserve unrelated feature navigation and the established account/content boundaries.
 
@@ -115,11 +115,11 @@ Generate the request ID when the user submits a given selection, destination and
 
 A canceled switch preserves the original workspace and URL. A failed save must not proceed as if it succeeded. Aborting a browser request does not prove that the server operation was canceled.
 
-Extend the existing navigation interceptor and novel flush mechanisms into one async coordinator. Current browser hash/popstate handling bypasses the interceptor and must be changed as described below. Browser history, workspace menu, assistant/notification links, and task actions use that same coordinator.
+The implemented async navigation coordinator uses the existing interceptors and novel flush guards for workspace changes. Browser hash/popstate handling participates in guarded navigation; the former bypass was a pre-R1 finding. Preserve this behavior across browser history, workspace menu, assistant/notification links and task actions.
 
 ## Frontend state and API ownership
 
-[DataProvider](/home/andres/WebstormProjects/magic-worlds/src/app/providers/DataProvider.tsx) currently keys loads by account/auth epoch. Include workspace ID or epoch in data ownership and mutation callbacks.
+[DataProvider](/home/andres/WebstormProjects/magic-worlds/src/app/providers/DataProvider.tsx) keys ownership by account/auth and workspace ID/epoch. Loads wait for workspace readiness, and late mutation results validate the captured owner.
 
 Place WorkspaceProvider inside LanguageProvider and outside NavigationProvider. Navigation owns the switch coordinator and guard registry; WorkspaceProvider owns list/selected ID/epoch and exposes an internal commit action. DataProvider remains inside Navigation and reads both contexts. Retain LlmSessionProvider and account-level credentials/preferences; do not remount the authenticated app on switching.
 
@@ -129,7 +129,7 @@ Include workspace in content-related local storage, such as assistant focus and 
 
 ## Existing writing and roleplay flows
 
-The novel Codex already accepts multiple cards. Add collection filtering and complete paging to its existing picker; retain the explicit Add selected action. No automatic import, manuscript rewrite, or TipTap replacement is required.
+The novel Codex accepts multiple cards. Preserve collection filtering and complete paging in its existing picker; retain the explicit Add selected action. No automatic import, manuscript rewrite, or TipTap replacement is required.
 
 Cast, world, and persona selectors should consume scoped data. A persona default belongs to the workspace. Existing activity snapshots remain displayed even when the live library lacks a source card; do not replace preserved content silently.
 
@@ -149,7 +149,7 @@ Roleplay sockets and read-only floating previews stop applying old events when c
 
 Provide keyboard-accessible workspace and collection controls, labeled selection buttons, focus restoration after dialogs, announced operation results, and non-color active/selected indicators. Use existing reduced-motion and responsive drawer patterns.
 
-The final UX acceptance scenarios are in [the plan](/home/andres/WebstormProjects/magic-worlds/docs/workspace_r1/12_implementation_plan_and_acceptance.md).
+The final UX acceptance guarantees are [A21–A27 in document 10](10_risks_and_decisions.md#acceptance-guarantees-a01-a27).
 
 ## Selected URL and browser-history algorithm
 
@@ -178,7 +178,7 @@ The protected default workspace can be renamed and has an explanatory unavailabl
 
 Call history/transcript browsing is workspace-local, while the existing account/application one-live-call policy remains. Archive reports an active-call conflict until the user ends it. Call launching and pending persona selection capture origin before asynchronous work.
 
-The notification inbox remains account-wide with origin labels for content notices. Use guarded origin navigation for View status/result; archived results open read-only, missing targets show unavailable/retained status. Generation/media task UI uses explicit origin while current generic tasks still handles theme songs only.
+The notification inbox remains account-wide with origin labels for content notices. Use guarded origin navigation for View status/result; archived results open read-only, missing targets show unavailable/retained status. Generation/media task UI uses explicit origin; the generic tasks list covers theme songs, PDF import/extraction, images and TTS.
 
 Contracts and inventory: [document 15](15_execution_contracts.md), [document 16](16_scope_inventory.md).
 
@@ -192,7 +192,7 @@ The R1 build always sends workspace-scoped requests; it has no account-wide code
 
 | Flag | What the user sees | Requests |
 |---|---|---|
-| `false` (rollout default) | Today's UI: Characters/Worlds/Items/Adventures sidebar entries and type galleries, current hashes. No workspace switcher, Library, collections, Copy to workspace or New collection | Every private request carries the protected default workspace ID from `GET /workspaces` |
+| `false` (rollout default) | Legacy type-gallery UI: Characters/Worlds/Items/Adventures sidebar entries and type galleries, current hashes. No workspace switcher, Library, collections, Copy to workspace or New collection | Every private request carries the protected default workspace ID from `GET /workspaces` |
 | `true` | The full R1 UI in this document | Captured workspace per request (document 15) |
 
 With the flag `false`, the frontend offers no way to create workspaces or collections. Owned legacy links still go through `resolve-content`. If the account has more than one active workspace (possible only after the UI was enabled and then switched off again), show a persistent notice: "Some workspaces are temporarily unavailable. Their content is safe." Links, notifications and assistant links that resolve to a non-default workspace show the same unavailable state. They never open the record under the default workspace and never fall back to a gallery as if it were deleted.
@@ -221,10 +221,11 @@ The blocking states keep local unsaved content and never reload automatically.
 
 Tabs open on the previous build keep running it after the cutover. They already poll `/version.json` every 2 minutes while focused (`useAppVersionCheck`) and show the existing update banner. While the API is stopped they show the services-down banner. R1 relies on both, plus a small **compatibility release** of the current frontend, shipped before the maintenance window, that adds one behavior:
 
-- A response with `detail.code` `WORKSPACE_REQUIRED` runs the version check immediately and replaces per-request error toasts and the data-load banner with a blocking dialog on private pages: "This page is out of date. Reload to continue. Changes that were not saved before the update can't be saved from this tab."
+- `WORKSPACE_REQUIRED` arrives as an HTTP 422 `detail.code`, a chat-socket close 4422 or a voice-socket `voice_error`; the compatibility release treats all three the same, and 4422 is terminal (no reconnect).
+- Any of them runs the version check immediately and replaces per-request error toasts and the data-load banner with a blocking dialog on private pages: "This page is out of date. Reload to continue. Changes that were not saved before the update can't be saved from this tab."
 - The dialog never reloads by itself, so the user can copy unsaved text first. Repeated failures do not stack further toasts or retries.
 
-Tabs older than the compatibility release only show the existing non-blocking update banner and request errors until reloaded. The API rejects their unscoped writes, so nothing is written to the wrong place.
+Tabs older than the compatibility release only show the existing non-blocking update banner and request errors until reloaded. The API rejects their unscoped writes, so nothing is written to the wrong place. The compatibility release's changes are still uncommitted and its shipped/live status is unverified (W-01 in [04](04_gaps_and_priorities.md)).
 
 ### Browser storage carried over
 
@@ -243,6 +244,6 @@ Content-related browser storage written before R1 is not scoped to a workspace (
 
 ## Research basis and design validation
 
-The selected layout follows the user's explicit direction. Research informs the interaction details, not a replacement visual design: Google Drive's official organization guidance supports meaningful folder names and explicit organization actions; NN/g's breadcrumbs guidance supports location/parent navigation and cautions against oversized mobile trails; Carbon's search/filter/empty-state guidance supports visible search scope, recoverable filters and differentiated empty states. Sources and limitations are recorded in document 14.
+The selected layout follows the user's explicit direction. Research informs the interaction details, not a replacement visual design: [Google Drive's organization guidance](https://support.google.com/drive/answer/2375091?hl=en) supports meaningful folder names and explicit organization actions; [NN/g's breadcrumbs guidance](https://www.nngroup.com/articles/breadcrumbs/) supports location/parent navigation and cautions against oversized mobile trails; Carbon's [search](https://www.carbondesignsystem.com/building-blocks/core/components/search/guidelines), [filtering](https://preview.carbondesignsystem.com/building-blocks/core/patterns/filtering) and [empty-state](https://www.carbondesignsystem.com/building-blocks/core/patterns/empty-states) guidance supports visible search scope, recoverable filters and differentiated empty states. These were read 2026-10-12 and are design references, not usability-test results.
 
-Before implementation, review the library root, mixed folder, New menu for every available type, creator intro, manual creator, direct-generation result, card assistant, history handoff, no-match/empty/error states, mobile search and keyboard paths. Compare cards and the gallery scaffold with current GalleryPage/GalleryCard, not the earlier explanatory mockup. A standalone prototype may simulate persistence and abbreviate a walkthrough; it is not authority to replace any existing editor fields or assistant behavior.
+For release and regression acceptance, review the library root, mixed folder, New menu for every available type, creator intro, manual creator, direct-generation result, card assistant, history handoff, no-match/empty/error states, mobile search and keyboard paths. Compare cards and the gallery scaffold with current GalleryPage/GalleryCard, not the earlier explanatory mockup. A standalone prototype may simulate persistence and abbreviate a walkthrough; it is not authority to replace any existing editor fields or assistant behavior.

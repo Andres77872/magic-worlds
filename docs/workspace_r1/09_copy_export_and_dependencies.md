@@ -1,6 +1,6 @@
 # Copy, export, and dependency behavior
 
-> **Scope / status (reviewed 2026-10-14):** R1 design/coverage contract and dated implementation evidence. Source is implemented; default product UI rollout remains **WIP**, locally opted in. [02](02_current_status_and_findings.md) owns current status and schema compatibility; [04](04_gaps_and_priorities.md) owns remaining gaps/TBD. Historical test totals, branch state and migration notes below apply to their stated dates, not deployment availability.
+> **Lifecycle: active R1 contract. Documentation reconciliation: 2026-10-15.** The foundation is implemented; rollout and specific integrity acceptance remain open. [02](02_current_status_and_findings.md) owns source/status and schema compatibility; [04](04_gaps_and_priorities.md) owns remaining work. Normative requirements below remain acceptance/regression contracts, not claims that every guarantee has runtime evidence. Dated implementation/validation records are in git history.
 
 **Status:** Selected R1 copy contract implemented in workspace_copy.py and the frontend copy flow; release acceptance remains WIP.\
 **Refreshed:** 2026-10-12.
@@ -9,18 +9,18 @@
 
 | Action | Identity / content effect | R1 |
 |---|---|---|
-| Add/remove collection | Same card; membership only | Implement |
+| Add/remove collection | Same card; membership only | Implemented |
 | Duplicate within workspace | New independent local card | Preserve and scope |
-| Copy to workspace | New private destination roots with lineage | Implement bounded all-or-nothing command |
+| Copy to workspace | New private destination roots with lineage | Implemented bounded all-or-nothing command |
 | Move | Changes live reference ownership | Deferred |
 | Export card | Existing portable supported content | Preserve |
 | Workspace/collection bundle | Manifest and cross-install transfer | Deferred |
 
 In the approved library browser, collection folders represent membership in this table. Adding to a folder keeps the same card at the library root and in its other collections. Removing from a folder or deleting the collection does not delete the card. Folder navigation/appearance is not an implicit move or copy command. Cross-workspace independence still requires explicit Copy to workspace with a visible destination and optional destination collection.
 
-[CardResourceCloner](/home/andres/PycharmProjects/magic-worlds-api/src/services/card_resource_clone.py) prepares media/lorebooks for existing per-card clones. Owner duplicates reuse media; cross-owner public/share imports copy owned blobs. Published bodies, lineage, transactions, and cleanup are reusable. Destination scope, batch dependency maps inside a single transaction, and the success-only request receipt must be added.
+[CardResourceCloner](/home/andres/PycharmProjects/magic-worlds-api/src/services/card_resource_clone.py) prepares media/lorebooks for existing per-card clones. Owner duplicates reuse media; cross-owner public/share imports copy owned blobs. Published bodies, lineage, transactions, and cleanup are reusable. The separate [workspace copy repository](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/workspace_copy.py) implements destination scope, transactional dependency maps and the success-only request receipt; the per-card cloner alone does not establish batch semantics.
 
-The current cloner creates a new lorebook per attachment and carries embedded resource metadata. Independent linked rows live separately in lorebook_resource/link. Batch copying must handle both representations rather than merely loop over the old copier.
+The current cloner creates a new lorebook per attachment and carries embedded resource metadata. Independent linked rows live separately in lorebook_resource/link. The batch copy contract handles both representations; preserve that separation rather than loop over the old copier.
 
 ## Selected field policy
 
@@ -72,7 +72,7 @@ The receipt only stops a double submit or a lost response from creating a second
 
 ## Media lifecycle and file portability
 
-Media references are shared bytes, not shared editable card content. Changing the Sandbox portrait changes that copy's reference only. Keep account/application-wide deletion checks across bodies, drafts, versions, activities, and receipts. A deletion that races a copy either finishes first (the copy fails) or waits for the copy to commit (the new references then block it). Archived workspaces retain associations and references.
+Media references are shared bytes, not shared editable card content. Changing the Sandbox portrait changes that copy's reference only. Account/application-wide deletion checks are required across bodies, drafts, versions, activities and receipts. W-04 records the retained-assistant omission and unguarded TTS deletion; these open gaps limit the current implementation guarantee. A deletion that races a copy either finishes first (the copy fails) or waits for the copy to commit (the new references then block it). Archived workspaces retain associations and references.
 
 Portable exports contain supported content/provenance and media in the existing supported format, without organization fields, local collection IDs, secrets, or share authority. Existing snapshot source identities remain historical provenance where the format supports them. Import selects its private destination explicitly and preserves existing media portability checks.
 

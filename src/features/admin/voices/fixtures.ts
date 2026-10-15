@@ -21,7 +21,7 @@ const scores = { timbre: 4, naturalness: 4, emotion_tags: 4, accent: 5, artefact
 
 export function makeAcceptance(overrides: Partial<AdminCatalogAcceptance> = {}): AdminCatalogAcceptance {
     return {
-        model_id: 'eleven_flash_v2_5',
+        model_id: 'eleven_v4',
         language: 'en',
         verdict: 'pass',
         scores,
@@ -66,7 +66,7 @@ export function makeCatalogVoice(overrides: Partial<AdminCatalogVoice> = {}): Ad
         replacement_voice_key: null,
         sort_rank: 10,
         reference_count: 0,
-        languages: [{ language: 'en', locale: 'en-US', accent: null, model_ids: ['eleven_flash_v2_5', 'eleven_v4'], sample_url: null }],
+        languages: [{ language: 'en', locale: 'en-US', accent: null, model_ids: ['eleven_v4'], sample_url: null }],
         acceptance: [],
         created_at: '2026-10-01T10:00:00Z',
         updated_at: '2026-10-10T12:00:00Z',
@@ -86,8 +86,8 @@ export const readyVoice = makeCatalogVoice({
     call_eligible: true,
     replacement_voice_key: 'vk_00000000000000000000000000000003',
     reference_count: 42,
-    languages: [{ language: 'en', locale: 'en-GB', accent: 'british', model_ids: ['eleven_flash_v2_5', 'eleven_v4'], sample_url: SILENT_WAV }],
-    acceptance: [makeAcceptance(), makeAcceptance({ model_id: 'eleven_v4' })],
+    languages: [{ language: 'en', locale: 'en-GB', accent: 'british', model_ids: ['eleven_v4'], sample_url: SILENT_WAV }],
+    acceptance: [makeAcceptance()],
 })
 
 export const replacementVoice = makeCatalogVoice({
@@ -99,8 +99,8 @@ export const replacementVoice = makeCatalogVoice({
     visibility: 'public',
     call_eligible: true,
     replacement_voice_key: 'vk_00000000000000000000000000000002',
-    languages: [{ language: 'en', locale: 'en-US', accent: null, model_ids: ['eleven_flash_v2_5', 'eleven_v4'], sample_url: SILENT_WAV }],
-    acceptance: [makeAcceptance(), makeAcceptance({ model_id: 'eleven_v4' })],
+    languages: [{ language: 'en', locale: 'en-US', accent: null, model_ids: ['eleven_v4'], sample_url: SILENT_WAV }],
+    acceptance: [makeAcceptance()],
 })
 
 export const draftVoice = makeCatalogVoice()
@@ -118,7 +118,7 @@ export const libraryVoice = makeCatalogVoice({
     call_eligible: true,
     replacement_voice_key: 'vk_00000000000000000000000000000002',
     acceptance: [makeAcceptance()],
-    languages: [{ language: 'en', locale: null, accent: null, model_ids: ['eleven_flash_v2_5'], sample_url: SILENT_WAV }],
+    languages: [{ language: 'en', locale: null, accent: null, model_ids: ['eleven_v4'], sample_url: SILENT_WAV }],
     terms_at_add: { live_moderation_enabled: false, free_users_allowed: true, rate: 1, fiat_rate: null, voice_mixing_allowed: false },
 })
 
@@ -177,7 +177,7 @@ export const auditLibraryPage: LibraryVoicePage = {
             live_moderation_enabled: false,
             safety_control: null,
             voice_mixing_allowed: false,
-            verified_languages: [{ language: 'en', locale: 'en-IE', accent: 'irish', model_ids: ['eleven_flash_v2_5', 'eleven_v4'] }],
+            verified_languages: [{ language: 'en', locale: 'en-IE', accent: 'irish', model_ids: ['eleven_v4'] }],
             preview_url: SILENT_WAV,
             catalog_voice_key: null,
         },
@@ -189,7 +189,7 @@ export const auditLibraryPage: LibraryVoicePage = {
 export const auditRenders: AcceptanceRenderResponse = {
     voice_key: draftVoice.voice_key,
     script_version: 'acc-v1',
-    items: (['eleven_flash_v2_5', 'eleven_v4'] as const).flatMap((modelId) =>
+    items: (['eleven_v4'] as const).flatMap((modelId) =>
         (['narration', 'dialogue'] as const).map((scriptKind) => ({
             render_id: `${modelId}-${scriptKind}`,
             voice_key: draftVoice.voice_key,

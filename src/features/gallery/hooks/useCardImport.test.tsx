@@ -39,9 +39,23 @@ beforeEach(() => {
 
 afterEach(() => {
     vi.restoreAllMocks()
+    vi.unstubAllEnvs()
 })
 
 describe('useCardImport', () => {
+    it('does not import a shared adventure while adventures are disabled', async () => {
+        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'false')
+        vi.stubEnv('VITE_FEATURE_COMMUNITY_CARDS_ENABLED', 'true')
+        const imported = vi.spyOn(apiService, 'importSharedCard')
+        const { result } = renderHook(() => useCardImport({ client: apiService }))
+        await act(async () => {
+            await result.current.requestImport({ kind: 'shared', token: 'token',
+                item: { ...item(), galleryType: 'adventure', backendType: 'adventure_template' } })
+        })
+        expect(imported).not.toHaveBeenCalled()
+        expect(loadData).not.toHaveBeenCalled()
+    })
+
     it('clones a public card and refreshes the library on success', async () => {
         const clone = vi.spyOn(apiService, 'cloneCard').mockResolvedValue({ card_type: 'character', card: {} } as never)
         const { result } = renderHook(() => useCardImport({ client: apiService }))

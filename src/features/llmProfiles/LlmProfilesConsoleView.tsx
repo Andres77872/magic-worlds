@@ -7,6 +7,7 @@
  * console for root users → Your profiles → App profiles → Which profile each
  * feature uses → Your provider key → Request usage.
  */
+import { isLlmFeatureEnabled } from '@/shared/featureFlags'
 import { useId, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { LucideIcon } from 'lucide-react'
@@ -136,7 +137,7 @@ export function LlmProfilesConsoleView({ state, onManageAppProfiles }: LlmProfil
 
         {assignments && <AssignmentsTable scope={systemAdmin ? 'app' : 'personal'} value={assignments} issues={state.assignmentIssues}
             defaultGaps={state.defaultGaps}
-            features={state.features.filter(feature => systemAdmin || feature.user_selection_enabled)} profiles={choices}
+            features={state.features.filter(feature => isLlmFeatureEnabled(feature.feature_key) && (systemAdmin || feature.user_selection_enabled))} profiles={choices}
             dirty={state.assignmentsDirty} busy={busy} onChange={actions.setAssignments} onSave={actions.saveAssignments}
             note={systemAdmin ? undefined : t('llmProfiles.mediaScope')} />}
 

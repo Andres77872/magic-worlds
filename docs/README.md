@@ -1,28 +1,39 @@
-# Documentation index
+# Documentation
 
-Reviewed against the local frontend and `magic-worlds-api` source on **2026-10-14**, with a [focused commit review on 2026-10-15](REVIEW_2026-10-14.md#commit-review-2026-10-15). Start with [feature status](FEATURE_STATUS.md) for availability and [the roadmap](ROADMAP.md) for remaining work. The [review record](REVIEW_2026-10-14.md) explains the evidence and validation limits.
+<a id="documentation-index"></a>
 
-The in-app `#/docs` page now has separate **Guide** and **Roadmap** views. Open `#/docs?view=roadmap` for the localized summary of 14 feature areas and the Novel Studio and Chara Studio phases; `section=` links to a specific section. The roadmap shows current foundations, build availability, next work and TBD decisions, with disabled and planned rows retained. The detailed engineering backlog remains in the Markdown dossiers below; update `src/features/docs/components/roadmapContent.ts` and both locales when it changes. A hosted site receives these views only after deploying the frontend change.
+**Documentation review: 2026-10-15.** Start with the [status matrix](STATUS_MATRIX.md), [feature availability](FEATURE_STATUS.md), and [remaining work](ROADMAP.md). These describe reviewed source and dated evidence; deployed configuration and acceptance need their own records.
 
-**WIP includes features disabled by their rollout gate even when their code exists.** A local opt-in, a passing test, a research proposal, and a deployed release are different facts. The status register records them separately. Historical documents and vendor research retain their original dates; their recommendations are not current product guarantees.
+## Current areas
 
-| Area | Current entry point | Reading guidance |
-| --- | --- | --- |
-| Novel / Story Studio | [Novel refactor](novel_refactor/README.md) | WIP default rollout; existing chapter editor versus proposed scene/revision/assistant architecture |
-| Character image studio | [Chara Studio](chara_studio/README.md) | WIP proposal; existing portrait generation does not provide reference editing or a dedicated studio |
-| Workspaces / Library | [Workspace R1](workspace_r1/README.md) | WIP default rollout; workspace transport is required even with the product flag off |
-| Voices / calls | [Voice refactor](voice_refactor/README.md) | Native ElevenLabs implementation and remaining operational gates; earlier MiniMax plans are historical |
-| LLM profiles / BYOK | [Profiles](llm_profiles/README.md) | Source implementation, historical execution log, and outstanding operational acceptance |
-| Lorebooks / resources | [Lorebook plan](lorebook/README.md) | WIP default rollout; current implementation ledger precedes the original research plan |
-| Assistants | [Assistant contract](app_assistant/README.md) | Three kinds (`card`, `lorebook`, `app`), frontend and backend gates; no novel assistant kind |
-| Billing / membership | [Billing setup](billing/SETUP.md), [membership review](membership-management-review.md) | Purchase UI has its own frontend gate; pricing research is a dated proposal |
-| Card enrichment | [Card research](cards_enrich/README.md) | Existing item support and still-proposed enrichment work |
-| Card PNG export | [HTML rendering](html2img/README.md) | Existing export pipeline versus broader rendering research |
-| Streaming / chat media | [Text streaming](interactive-text-streaming.md), [chat images](chat-image-websocket-delivery.md) | Implemented transports; availability follows each owning feature |
-| Historical backend issues | [Issue register](issues/README.md) | June reports reconciled with current message and session contracts |
-| Security | [Credential audit](security/secret-resolution-audit-2026-10-11.md) | Bounded October audit; remediation and deployed verification must be tracked separately |
-| Writing research | [Storytelling](story_telling/README.md) | Research input to the novel plan, not a feature list |
-| UI reviews | [September consolidation](ui-audit-2026-09-19.md), [UX backlog](ui-ux-review-2026-09-05.md) | Dated fixture/source evidence; does not prove current rollout or live accessibility |
-| Monitoring notes | [Historical monitor workflow](monitor.md) | Tool-specific operational history, not a built-in app monitoring feature |
+| Area | Maintained entry point | Status and reading boundary |
+|---|---|---|
+| Assistants | [Contract](app_assistant/README.md), [main assistant improvement](assistant_improvement/README.md) | Three implemented kinds: card, lorebook, app. Registry, feature and execution gates still apply; novel assistant is planned. Shared card/lorebook tools, retrieval and toolset switches for the main assistant are proposed only (roadmap AIMP-01–05) |
+| Billing / membership | [Billing](billing/README.md), [setup](billing/SETUP.md) | Membership/accounting implemented; checkout acceptance open |
+| Cards | [Capabilities and enrichment backlog](cards_enrich/README.md) | Items, guided fields and basic advisory quality hints implemented; a quality rubric, context attribution, adventure item state and director contracts remain planned |
+| Character images | [Chara Studio](chara_studio/README.md) | Active design. Generation/upload/history exists; editing and reusable pixel references remain unimplemented |
+| Fish Audio | [Owner-maintained execution status](fish_audio_support/11_implementation_status.md) | **Executing; excluded from this cleanup.** Read its live ledger for progress and readiness; shared voice docs do not override it |
+| Card PNG export | [Current implementation and gaps](html2img/README.md) | Export implemented; private portrait fidelity and deployed browser acceptance remain open |
+| LLM profiles / BYOK | [Current status](llm_profiles/16_current_status_and_roadmap.md), [operations](llm_profiles/14_operations_runbook.md) | Profile functionality exists; the current graph transport leaves credential custody unresolved. The Models page is shown to signed-in users (server profiles still need `LLM_PROFILES_ENABLED`), and its shipped BYOK wording overstates custody (F11) |
+| Lorebooks / resources | [Current capabilities and backlog](lorebook/README.md) | Substantial gated implementation; portability, trace fidelity and advanced retrieval remain open |
+| Moderation | [Accepted requirements and plan](moderation/README.md) | Existing speech text gate is partial. Native multimodal checks and default-on profile controls are planned |
+| Novel / Story Studio | [Novel dossier](novel_refactor/README.md), [status](novel_refactor/14_status_and_roadmap.md) | Sole writing plan, incorporating the earlier storytelling brief. Chapter editor exists; reliability findings and expanded scene/revision/assistant work remain open |
+| Security | [Finding dispositions](security/README.md) | Active remediation backed by a preserved audit; profile screens do not establish end-to-end custody |
+| Voices / calls | [Voice reference](voice_refactor/README.md), [release gates](voice_refactor/00_current_status_and_roadmap.md) | Earlier speech migration has dated completion evidence; current providers, gating and release work are maintained separately |
+| Workspaces / Library | [R1 contracts](workspace_r1/README.md), [remaining gaps](workspace_r1/04_gaps_and_priorities.md) | Core implementation exists; UI rollout, integrity and environment acceptance remain open. Workspace transport always applies |
 
-When updating a feature document, record the review date, source paths, gate behavior, implemented subset, gaps, and acceptance evidence. Put unresolved scope decisions in the roadmap with `TBD`; do not leave a target design headed “current state.”
+## Transport and supporting references
+
+- [Interactive text streaming](interactive-text-streaming.md): implemented transport, migration history and remaining proxy/recovery acceptance.
+- [Chat image delivery](chat-image-websocket-delivery.md): additive image frames and polling/history recovery.
+- [Membership administration](membership-management-review.md): maintained membership administration boundaries and MEMBER-01.
+
+## Documentation rules
+
+Implementation and release status are separate. **Implemented** means the source path exists; **done** names a bounded task with evidence; **planned** names missing behavior. **Historical** preserves a dated observation; **superseded** identifies a replaced direction; **stale** is a current claim requiring correction. A disabled rollout does not remove an implementation or close its defects.
+
+Each area has one maintained status authority linked above. Plans describe target behavior, contracts describe implemented behavior, and evidence retains its original revision/date. Carry unresolved findings and accepted requirements into the maintained authority before removing a plan. Do not replay migration commands from a historical document against a newer schema. Removed historical records (archives, dated audits and reviews, superseded plans and research) are not kept in the tree; retrieve them from git history, e.g. `git show 5a29ad5:docs/<path>` (records created after that commit are not in git).
+
+Prefer repository-relative links for frontend sources. Sibling-service links assume the documented local checkout layout. Historical vendor/model/pricing claims need a new primary-source review before reuse.
+
+The in-app `#/docs` Guide and Roadmap use localized frontend content, separately from these Markdown files. Their implementation is in `src/features/docs/components/`; changing this index does not update that copy. Keep product claims aligned when a later application change updates `docsContent.ts`, `roadmapContent.ts`, and the locales.

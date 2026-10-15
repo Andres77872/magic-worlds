@@ -1,55 +1,51 @@
-# Feature status
+# Feature availability and implementation
 
-**Source/configuration review: 2026-10-14.** This register describes this checkout. It does not attest which bundle, environment, database revision, or provider configuration is running in a deployed installation.
+<a id="feature-status"></a>
 
-**Frontend gate follow-up: 2026-10-15.** The current working tree also gates narration with `VOICES_ENABLED`; calls require both `CALLS_ENABLED` and `VOICES_ENABLED`. The local/example booleans below were rechecked without changing configuration.
+**Source/documentation review: 2026-10-15.** This register describes reviewed source and example configuration. It does not attest the bundle, flags, database or provider state of a running installation. [The documentation matrix](STATUS_MATRIX.md) separates delivery and document lifecycle; [the roadmap](ROADMAP.md) retains remaining acceptance.
 
-## Status rules
+<a id="status-rules"></a>
+<a id="product-rollout-register"></a>
 
-| Label | Meaning |
-| --- | --- |
-| Implemented | A source path and matching integration exist. This alone does not establish rollout or successful provider execution. |
-| WIP — gated | The feature can be disabled by a rollout gate. When that gate is off, document the feature as WIP even if the implementation exists. |
-| WIP — partial / planned | Only part of the target is implemented, or no implementing route/data model/surface was found. |
-| Historical | A dated review, test result, design baseline, or vendor research snapshot. It is not a current acceptance result. |
-| TBD | A decision, owner, operational fact, or acceptance result remains unresolved. No delivery date is implied. |
+## Gate rules
 
-The ten product flags in [featureFlags.ts](../src/shared/featureFlags.ts) accept **only the exact string `true`**. Unset, `false`, `TRUE`, and `1` disable them. All ten are `false` in [.env.example](../.env.example); the local `.env` opts into all ten. Vite reads these values when serving/building the app: changing a file does not establish the state of an already-built deployment.
+The ten product flags in [featureFlags.ts](../src/shared/featureFlags.ts) require the exact string `true`; unset values, `false`, `TRUE` and `1` disable them. All ten are false in [the example](../.env.example). The October 15 audit observed a local opt-in for all ten; that dated file observation is not deployment evidence.
 
-Disabled page features are removed from navigation and render `NotFoundPage` for a direct route in [AppRouter](../src/app/router/AppRouter.tsx). **There is no universal WIP placeholder screen.** “WIP” here is the documentation/roadmap classification; replacing the runtime 404 with an explanatory WIP screen is a separate product decision.
+Calls additionally require voices. Lorebook resources additionally require lorebooks. Disabled page features are hidden from navigation and render Not Found through [AppRouter](../src/app/router/AppRouter.tsx); there is no universal WIP placeholder. Implemented features remain implemented when rollout is off, while their availability and release acceptance remain WIP.
 
-## Product rollout register
+| Feature | `VITE_FEATURE_` suffix | Default / example | Implemented foundation | Remaining boundary |
+|---|---|---|---|---|
+| Community | `COMMUNITY_CARDS_ENABLED` | Off | Sharing, community and shared-card routes | Ownership, revocation, shared media and import acceptance |
+| Lorebooks | `LOREBOOKS_ENABLED` | Off | Authoring, entries, attachments, activation, assistant | Prompt/trace, scope, lifecycle and rollout acceptance; [reference](lorebook/README.md) |
+| Lorebook resources | `LOREBOOK_RESOURCES_ENABLED` | Off; parent lorebooks required | Text resources, PDF and URL-to-Markdown import, metadata extraction | Extraction also needs BFF `LOREBOOK_EXTRACTION_ENABLED` (default off) and LLM profile transport; runtime/profile, retry, archive and deletion acceptance |
+| Voices / narration / root voice admin | `VOICES_ENABLED` | Off | Catalog, recipes, narration and administration | Frontend controls/requests gated; server provider, moderation, quota and runtime gates also apply |
+| Calls | `CALLS_ENABLED` | Off; parent voices required | Calls page, session controller and transport | Server voice mode, provider/STT readiness, consent, quotas and real-device acceptance |
+| Novel / Story Studio | `NOVELS_ENABLED` | Off | Chapter editor, inline generation, Codex and generated-output history | Reliability, scenes, durable revisions/drafts, novel assistant and manuscript interchange; [status](novel_refactor/14_status_and_roadmap.md). Working tree (uncommitted, 2026-10-15): the Codex hides lorebook-entry refs while lorebooks are off and adventure-template refs while adventures are off; stored refs are not altered, and enabled hidden refs still reach server-side generation context |
+| Group conversations | `GROUP_CHATS_ENABLED` | Off | Group behavior in the existing chatroom | The chatroom and 1:1 chat remain available independently |
+| Adventures | `ADVENTURES_ENABLED` | Off | Creator, gallery, sessions and interaction | Stored-history, stream/media and matching-deployment acceptance |
+| App assistant | `APP_ASSISTANT_ENABLED` | Off | Dedicated page and shared assistant client | BFF registry and usable `app_assistant` profile required; the BFF refuses to start with any enabled assistant kind unless `LLM_PROFILES_ENABLED=true` and `MAGIC_LLM_API_URL` are set |
+| Workspace product UI | `WORKSPACES_ENABLED` | Off | Library, switcher, collections and copy | Private workspace transport and handshake remain mandatory with UI off |
 
-| Feature | Gate suffix (`VITE_FEATURE_…`) | Unset / example | Local file | Actual implementation and remaining scope |
-| --- | --- | --- | --- | --- |
-| Community / shared cards | `COMMUNITY_CARDS_ENABLED` | Off — **WIP** | On | Community gallery, sharing API methods, shared-card routes exist. Deployed sharing/ownership/media behavior is unverified in this review. |
-| Lorebooks | `LOREBOOKS_ENABLED` | Off — **WIP** | On | Studio, gallery, entries, attachments, activation preview, assistant, and BFF activation/loader exist. Advanced research scope is not all shipped; see [ledger](lorebook/README.md). |
-| Lorebook resources | `LOREBOOK_RESOURCES_ENABLED` | Off — **WIP** | On | Requires the lorebooks flag too. Shared/embedded resource editing, PDF import and metadata extraction exist; backend configuration/profile gates still apply. |
-| Voice Studio / root voice admin / narration | `VOICES_ENABLED` | Off — **WIP** | On | Native catalog, presets, design/cloning/library, administration and narration source exist. The frontend flag gates their controls and requests; provider/moderation/release gates remain separate. |
-| Calls | `CALLS_ENABLED` | Off — **WIP** | On | Requires the voices flag too. Calls page and session calls exist. Backend `VOICE_MODE_ENABLED` plus runtime settings and provider/STT readiness govern actual calls. |
-| Novel / Story Studio | `NOVELS_ENABLED` | Off — **WIP** | On | Story gallery, chapter Markdown editor, staged AI generation, codex, saving and generation-history output copying exist. Scene entities, durable revisions, manuscript import/export, a novel assistant kind, and richer recovery remain WIP. |
-| Group conversations | `GROUP_CHATS_ENABLED` | Off — **WIP** | On | Chatroom itself remains available; the flag controls group conversation behavior. Do not describe the entire chatroom as disabled. |
-| Adventures | `ADVENTURES_ENABLED` | Off — **WIP** | On | Creator, gallery, active sessions and interaction routes are gated together. Stored history mutation and WebSocket transport exist. |
-| App assistant | `APP_ASSISTANT_ENABLED` | Off — **WIP** | On | Dedicated page and shared assistant client exist. BFF must also offer kind `app` and resolve an `app_assistant` profile. |
-| Workspace R1 product UI | `WORKSPACES_ENABLED` | Off — **WIP** | On | Library, switcher, collections and workspace management/copy exist. Default-workspace handshake and private request scoping stay active with this flag off. |
+Evidence: [flag tests](../src/shared/featureFlags.test.ts), [workspace provider](../src/app/providers/WorkspaceProvider.tsx), [API client](../src/infrastructure/api/index.ts), [voice availability](../src/features/interaction/hooks/useVoiceAvailability.ts), and [narration UI](../src/features/interaction/components/TurnNarration.tsx).
 
-Evidence: [flag tests](../src/shared/featureFlags.test.ts), [Sidebar](../src/ui/components/Sidebar.tsx), [ChatroomPage](../src/features/characterChat/components/ChatroomPage.tsx), [workspace provider](../src/app/providers/WorkspaceProvider.tsx), [API client](../src/infrastructure/api/index.ts), [current voice ledger](voice_refactor/00_current_status_and_roadmap.md), and the suite reviews linked from the [index](README.md).
+<a id="other-gates-and-ungated-foundations"></a>
 
-## Other gates and ungated foundations
+## Independent foundations and server gates
 
-| Area | Configuration / availability | Actual status |
-| --- | --- | --- |
-| Stripe purchase UI | `VITE_BILLING_ENABLED === 'true'`, then signed-in `GET /billing/plans` with `enabled:true` | **WIP — disabled in this local configuration** because the variable is absent from local `.env`. Code defaults off, although `.env.example` explicitly sets it to `true`. Local backend billing sync is opted in; this does not override the frontend gate or prove checkout readiness. |
-| Patreon | `VITE_PATREON_ENABLED === 'true'`; backend reconciliation has independent gates | **WIP — frontend scaffolding**, absent/off locally; example sets it to `true`. No Patreon link/connect UI ships. Entitlement reconciliation is distinct from a connect surface. |
-| New card/story SSE generation | `VITE_FEATURE_TEXT_STREAMING_ENABLED !== 'false'` | Implemented; **defaults on**. Local variable is absent, example is `true`. Explicit `false` chooses synchronous card/story endpoints before dispatch; it does not disable chat or assistant streams. Owning feature flags still apply. |
-| LLM profiles / BYOK | BFF `LLM_PROFILES_ENABLED` and upstream catalog/execution/custody configuration | Implemented source, **WIP operational acceptance**. Local BFF flag is true; example is false. No model-routing fallback is implied. BYOK requires HTTPS and transient credential entry; see [current status](llm_profiles/16_current_status_and_roadmap.md). |
-| Card assistant | No frontend feature flag | Client integration exists; BFF `ASSISTANTS_ENABLED` still controls availability. “Always on” only means no frontend rollout flag. |
-| Lorebook/app assistants | Frontend owning flag and BFF assistant registry | WIP when either gate is off. Local BFF registry opts into `card,lorebook,app`; missing profile/transport readiness is a separate failure. No `novel` kind exists. |
-| Character/world/item creators and private galleries, 1:1 chat | No product flag | Implemented source paths. Authentication, workspace handshake, API availability and generation profiles remain prerequisites. |
-| Membership credits, PAYG wallets, promo grants / root consoles | Independent of purchase flags | Implemented; turning off checkout does not turn off quota accounting, redemption, or root membership management. |
-| Portrait generation / image profiles | No dedicated Chara Studio flag | Implemented generation pipeline. **Chara Studio editing/reference/mask/asset workflow remains WIP planned**; enabling other flags cannot provide it. |
-| Card PNG export | No dedicated product flag | Implemented frontend download and backend Playwright rendering. Private-portrait fidelity has a source-inferred authentication gap; Chromium/runtime/storage checks remain operational requirements. See [export ledger](html2img/README.md). |
+| Area | Availability contract | Current disposition |
+|---|---|---|
+| Stripe purchases | Exact `VITE_BILLING_ENABLED=true`, authenticated enabled server catalog | Code default off; example explicitly true. The October 15 local audit found the variable absent. Purchase acceptance open; [setup](billing/SETUP.md) |
+| Patreon | Exact `VITE_PATREON_ENABLED=true`; independent backend reconciliation | Code default off; example explicitly true. Gated client methods and the BFF `/patreon/link/*` proxy (to api.auth link proof) exist; no connect UI. Local variable absent in the dated audit |
+| Card/story text streaming | `VITE_FEATURE_TEXT_STREAMING_ENABLED !== 'false'` | Defaults on. Explicit false chooses synchronous endpoints before dispatch; chat and assistant streams are separate |
+| LLM profiles | BFF `LLM_PROFILES_ENABLED`, configured catalog/targets and selected profiles | Functional foundation present; **custody/security acceptance open**, not merely a deployment task; [actual transport](llm_profiles/16_current_status_and_roadmap.md). The Models and profiles page (`#/models`) and the Image profiles page (`#/image-models`) have no frontend flag and appear to every signed-in user; per-feature model controls follow their owning feature's flag. The shipped BYOK copy says keys are not saved on our servers, which overstates custody while F04 is open (F11) |
+| Card assistant | No frontend product flag; BFF `ASSISTANTS_ENABLED` | Registry can disable it. Lorebook/app assistants also require their frontend owner flags. No novel kind exists |
+| Character/world/item creation and 1:1 chat | No corresponding product flag | Authentication, scoped workspace, API and generation configuration remain prerequisites |
+| Membership, grants and root consoles | Independent of checkout UI | Credit accounting, redemption, quotas and membership administration remain applicable. Plans also carry daily narration-character and call-second caps (`daily_quantity_limit` for `tts_generation` / `voice_call`), enforced at runtime |
+| Image generation | Existing profile/media routes; no dedicated Chara Studio flag | Generation implemented; editing/reference workflows planned. A flag cannot supply the missing DTO/route |
+| PNG export | No dedicated product flag; browser runtime required | Implemented; private image fidelity and deployed rendering acceptance open. Working tree (uncommitted, 2026-10-15): the client blocks export for card types whose content flag is off (adventure-template export needs the adventures flag); the BFF route has no content-type gate |
+| Moderation | Existing server speech gate; optional/required mode is separate from health | Native multimodal checks and `moderation_enabled` profile fields remain planned; [accepted scope](moderation/README.md) |
+| Fish Audio | Managed by the active Fish execution | [Its owner-maintained status](fish_audio_support/11_implementation_status.md) is authoritative; excluded from this cleanup |
 
-Evidence: [billing helper](../src/shared/billingFeatureFlag.ts), [billing catalog hook](../src/features/billing/hooks/useBillingCatalog.ts), [Patreon helper](../src/shared/patreonFeatureFlag.ts), [LLM session provider](../src/features/llmProfiles/LlmSessionProvider.tsx), [BFF billing config](../../../PycharmProjects/magic-worlds-api/src/services/billing_config.py), [BFF assistant registry](../../../PycharmProjects/magic-worlds-api/src/services/assistants/registry.py).
+Current BFF source expects the revision named by `CONTENT_SCHEMA_REVISION` in the BFF bootstrap (owned by the active Fish/voice execution; not asserted here); the stable workspace capability marker remains `2026_10_workspace_r1`. Consult [bootstrap](../../../PycharmProjects/magic-worlds-api/src/database/mysql/bootstrap.py) and the revision-matched backend operations guide before any schema handoff. This register does not claim a running migration or provider state.
 
-Do not publish private `.env` contents or credential values as evidence. This review records only allow-listed feature booleans and assistant kind names. No flag, environment file, database, or deployed service was changed.
+No private credential values are documentation evidence. Local boolean observations retain their audit date; environment acceptance must record the actual built client, deployed service revisions and schema.

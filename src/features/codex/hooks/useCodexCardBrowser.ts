@@ -7,6 +7,7 @@
  * a page that arrives for older parameters, or after a workspace switch, is
  * ignored.
  */
+import { isContentTypeFeatureEnabled, isWorkspacesFeatureEnabled } from '@/shared/featureFlags'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -129,13 +130,13 @@ export function useCodexCardBrowser({ workspaceId, kind, query, collectionId, en
 
     // Kind / search / collection / workspace change → debounced restart at offset 0.
     useEffect(() => {
-        if (!enabled || !api || !targetWorkspaceId) return
+        if (!enabled || !api || !targetWorkspaceId || !isContentTypeFeatureEnabled(kind)) return
         const request: PageRequest = {
             api,
             workspaceId: targetWorkspaceId,
             kind,
             q: query.trim() || undefined,
-            collectionId: collectionId || undefined,
+            collectionId: isWorkspacesFeatureEnabled() ? collectionId || undefined : undefined,
         }
         requestRef.current = request
         seqRef.current += 1
@@ -145,9 +146,10 @@ export function useCodexCardBrowser({ workspaceId, kind, query, collectionId, en
         return () => clearTimeout(timer)
     }, [api, collectionId, enabled, fetchPage, kind, query, targetWorkspaceId])
 
-    // The collection filter lists the browsed workspace's collections.
+    // The collection filter is a workspace product surface; card browsing stays available.
     useEffect(() => {
-        if (!enabled || !api || !targetWorkspaceId) return
+        if (!isWorkspacesFeatureEnabled()) return
+        if (!enabled || !api || !targetWorkspaceId || !isContentTypeFeatureEnabled(kind)) return
         const scope = capture()
         let live = true
         api.listCollections(targetWorkspaceId)
@@ -161,7 +163,7 @@ export function useCodexCardBrowser({ workspaceId, kind, query, collectionId, en
         return () => {
             live = false
         }
-    }, [api, capture, enabled, isCurrent, targetWorkspaceId])
+    }, [api, capture, enabled, isCurrent, kind, targetWorkspaceId])
 
     const hasMore = !error && loaded < total
 
@@ -171,5 +173,5 @@ export function useCodexCardBrowser({ workspaceId, kind, query, collectionId, en
         void fetchPage(request, false)
     }, [enabled, fetchPage, hasMore, loading, loadingMore])
 
-    return { options, collections, total, loading, loadingMore, hasMore, error, loadMore }
+    return { options: isContentTypeFeatureEnabled(kind) ? options : [], collections: isWorkspacesFeatureEnabled() ? collections : [], total, loading, loadingMore, hasMore, error, loadMore }
 }

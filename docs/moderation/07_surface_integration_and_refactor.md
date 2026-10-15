@@ -1,5 +1,7 @@
 # Integration seams and limits on refactoring
 
+**Lifecycle: active implementation proposal, unimplemented native integration. Reviewed 2026-10-15.** Requirements and examples below define the intended feature; they do not establish current support. Use [00](00_current_status_and_findings.md) for source status and [10](10_rollout_risks_and_decisions.md) for scope/delivery.
+
 Date: **2026-10-15**. Proposed work only. The latest scope includes actual audio/image evaluation and default-on controls on both profile families.
 
 ## 1. Ownership and scope
@@ -55,4 +57,4 @@ Necessary local corrections include total deadline ownership, complete media/uni
 
 Keep report eligibility/concurrency/cursors, companion detection, account-penalty attribution/delivery, warnings, and public-card text review workflows as separate backlog. Do not add outboxes, receipts, moderation ledgers, distributed caches, a provider framework, broad historical data migrations, or cross-service code changes.
 
-Remove only obsolete active moderation graph/caller-token wiring after direct cutover. No wholesale deletion of old profile feature entries, schemas, or history is required.
+Remove only obsolete active moderation graph/caller-token wiring after direct cutover. The legacy `moderation` feature entries that stay visible afterwards are the frontend 'Speech moderation' feature in the profile voice group ([llmProfileModel.ts](../../src/features/llmProfiles/llmProfileModel.ts) and [llmProfiles.ts](../../src/app/i18n/locales/llmProfiles.ts), `946961c`; its `voices` flag mapping in [featureFlags.ts](../../src/shared/featureFlags.ts) is in the working tree (uncommitted, 2026-10-15)), the BFF `FeatureKey` literal, feature contract and `db.sql` seed row (`6d6138d`), and the api.magic_llm feature contract (`c1afb8a`). TBD: hide or retire the root `moderation` profile assignment after cutover so a published moderation profile is not mistaken for active moderation. No wholesale deletion of old profile feature entries, schemas, or history is required.

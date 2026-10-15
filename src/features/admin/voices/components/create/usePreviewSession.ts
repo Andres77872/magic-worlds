@@ -10,6 +10,7 @@ interface PreviewSession {
     previews: VoiceDesignPreview[]
     description: string
     parentVoiceKey: string | null
+    provider: 'elevenlabs' | 'fish_audio'
 }
 
 /**
@@ -42,7 +43,7 @@ export function usePreviewSession() {
         try {
             const response = await run(controller.signal)
             if (controller.signal.aborted) return
-            setSession({ previews: response.previews, description, parentVoiceKey })
+            setSession({ previews: response.previews, description, parentVoiceKey, provider: response.provider ?? 'elevenlabs' })
             setChosenId(null)
         } catch (error) {
             if (controller.signal.aborted || isAbortError(error)) return
@@ -53,11 +54,12 @@ export function usePreviewSession() {
     }
 
     const save = async (values: SaveDesignValues) => {
-        if (!session || !chosenId) return
+        if (!session || !chosenId || session.previews.find((preview) => preview.generated_voice_id === chosenId)?.save_supported === false) return
         setSaving(true)
         setSaveError(null)
         try {
-            const voice = await apiService.saveAdminDesign({
+            const run = session.provider === 'fish_audio' ? apiService.saveFishDesign.bind(apiService) : apiService.saveAdminDesign.bind(apiService)
+            const voice = await run({
                 generated_voice_id: chosenId,
                 voice_name: values.voiceName,
                 voice_description: session.description,

@@ -1,145 +1,73 @@
 # Runbook operativo de perfiles LLM
 
-**Reconciliación documental 2026-10-14: procedimientos disponibles; ejecución por entorno WIP/TBD.** No aplicar cortes de revisión antigua sobre un schema posterior: el bootstrap BFF actual exige `2026_10_voice_native`. Revisar inspección/preflight y cadena real antes de ejecutar. Este documento no acredita migración, provisión ni publicación; [16](16_current_status_and_roadmap.md) registra el estado actual.
+**Revisado: 2026-10-15. Estado: referencia operativa activa; aceptación de custodia bloqueada.** Los perfiles y la admisión existen. El BFF actual transforma los clientes simbólicos en `engine`, `model` y `api_info`, y publica `{agt, messages, stream}` en `/v1/chat/completions`. No usa el handshake del diseño protegido. [Estado actual](16_current_status_and_roadmap.md) y [hallazgos de seguridad](../security/README.md) tienen precedencia.
 
-Procedimientos para operar el contrato de perfiles una vez desplegado. El corte de datos está en [09](09_migration_and_rollout.md), los controles de secretos en [05](05_security_and_secrets.md) y el avance local en [12](12_implementation_status.md). Ningún paso de este documento se ha ejecutado contra `.90`.
+## 1. Identificar el contrato realmente instalado
 
-Regla general: nunca imprimir, pegar ni registrar el valor de una credencial. Los comandos y reportes usan nombres de variables, alias y conteos.
+Registrar las revisiones del frontend, BFF, API LLM y runtime instalado, la configuración permitida y el schema. Comparar el paquete/runtime utilizado por el servicio con el checkout inspeccionado; la existencia de una factory protegida en otro módulo no demuestra su uso en esta ruta.
 
-## 1. Gates antes de activar
+- [Carga del transporte](../../../../PycharmProjects/magic-worlds-api/src/services/llm_profile_api.py): `LLM_PROFILES_ENABLED` controla el transporte BFF; ausente devuelve `503 LLM_PROFILES_DISABLED`.
+- [Transporte vigente](../../../../PycharmProjects/magic-worlds-api/src/services/llm_execution_transport.py): consulta `/models` y `/providers`, valida los targets configurados y renderiza el grafo al despachar.
+- [Cliente de perfiles](../../src/features/llmProfiles/LlmSessionProvider.tsx) y [credenciales de pestaña](../../src/features/llmProfiles/credentialSession.ts): configuración persistible separada de memoria BYOK del navegador.
+- [Bootstrap](../../../../PycharmProjects/magic-worlds-api/src/database/mysql/bootstrap.py): el source exige la revisión nombrada por `CONTENT_SCHEMA_REVISION` en el bootstrap BFF (propiedad de la ejecución activa de Fish/voz; no se afirma aquí). La revisión realmente desplegada debe verificarse por separado.
 
-Los flags `LLM_EXECUTION_ENABLED` (API LLM) y `LLM_PROFILES_ENABLED` (BFF) arrancan en `false`. Activarlos solo después de completar esta lista en el entorno de despliegue:
+## 2. Gate de custodia pendiente
 
-- **TLS:** HTTPS/WSS de SPA a BFF y HTTPS de BFF a API LLM. BYOK viaja en el body y exige HTTPS también en el tramo BFF → ejecutor.
-- **Egress:** API LLM solo puede salir hacia los targets HTTPS provisionados en el catálogo. El BFF no necesita salida directa a proveedores LLM: solo hacia API LLM, `api.auth`, los proveedores de media y sus servicios internos existentes. Los redirects van bloqueados.
-- **Logging/APM/proxies:** ningún componente captura bodies de request ni headers `Authorization` (proxy, balanceador, APM, exporters, dumps). Los flags `MAGIC_LLM_DEBUG_PAYLOAD*` de magic-llm solo registran un resumen en ejecuciones protegidas, pero deben seguir apagados en producción.
-- **Canary:** en staging, ejecutar cada feature con una clave BYOK ficticia contra un target mock. Después buscar esa cadena en DB, snapshots, checkpoints, auditoría, logs, APM, exporters y archivos temporales; debe haber cero apariciones. Cubrir éxito, error de validación 422, cancelación y retry ([05](05_security_and_secrets.md#verificación-exigida)).
-- **Handshake:** el BFF consulta `/v1/llm-execution/capabilities` antes de enviar credenciales. Si la versión no es 1, falta una capability o el servicio está deshabilitado, rechaza el camino nuevo antes de la inferencia.
+El transporte actual coloca la clave BYOK en `agt` antes de serializar. La ruta inline del ejecutor conserva una copia del grafo authored en el snapshot nativo. Limpiar el diccionario del BFF después del envío no elimina la copia recibida. Por tanto, **no está acreditada la promesa de no persistencia end-to-end**.
 
-## 2. Provisión inicial
+Antes de declarar esa garantía, ejecutar un canario ficticio por la ruta completa BFF → admisión → runtime → snapshot, incluyendo éxito, fallo, cancelación y retry. El criterio es ausencia del valor y de derivados prohibidos en persistencia, historial, diagnósticos y telemetría. El diseño deseado permanece en [05](05_security_and_secrets.md); F04 y F05 permanecen abiertos en [seguridad](../security/README.md).
 
-1. **Catálogo API LLM.** `python -m scripts.provision_execution_catalog` (preflight) y luego `--apply` con `--target-file`, `--connection-file` y `--metadata-file` ([catálogo](/home/andres/PycharmProjects/api.magic_llm/docs/llm_execution_catalog.md)).
-2. **Custodia.** `LLM_EXECUTION_CREDENTIAL_CUSTODY` asocia proyecto+target+alias a un nombre de variable. El valor existe solo en esa variable o en el gestor del ejecutor.
-3. **Perfiles system.** Root crea y publica los perfiles system. Después fija el default global y las recomendaciones por feature en la consola root (`PUT /admin/llm/policy`).
-   - Sin default global la política no se guarda (`SYSTEM_DEFAULT_REQUIRED`).
-   - Sin perfil resoluble, la ejecución falla cerrada. No hay modelo de respaldo en env.
-4. **Verificación.** `GET /admin/llm/connections` debe mostrar cada conexión `available`, sin revelar la custodia. Después ejecutar la prueba explícita del perfil publicado (`POST /admin/llm/profiles/{id}/test`). Esa prueba es una inferencia real: se hace solo con la credencial platform provisionada.
+Antes de habilitar BYOK en un entorno, corregir el copy de UI que afirma que la clave no se guarda en servidores ([`llmProfiles.ts`](../../src/app/i18n/locales/llmProfiles.ts) `key.explanation` y `byok.body`, EN/ES; F11).
 
-## 3. Rotación de la credencial platform
+No usar `LLM_EXECUTION_ENABLED`, `/v1/llm-execution/capabilities` ni `LLM_EXECUTION_CREDENTIAL_CUSTODY` como prueba de que este BFF negocia el transporte protegido. Son controles de otro contrato; su adopción necesita implementación y aceptación explícitas.
 
-API LLM lee la credencial desde su entorno al crear el primer cliente de cada ejecución, después del snapshot. Todos los roles y retries de esa ejecución comparten ese valor. Una restauración crea un contexto nuevo y lee el valor vigente. Por eso:
+En producción, `MAGIC_LLM_DEBUG_PAYLOAD` y `MAGIC_LLM_DEBUG_PAYLOAD_FULL` (magic-llm) deben estar apagados: fuera de ejecuciones protegidas, el primero registra previews de resultados de tools y el segundo los mensajes y tools completos. Ningún proxy, balanceador, APM, exporter o dump debe capturar bodies de request ni headers `Authorization`; con el transporte actual, el body BFF → API LLM lleva la clave BYOK dentro de `agt`.
 
-1. Crear la clave nueva en el proveedor sin revocar la anterior.
-2. Actualizar el valor en el gestor o variable de la custodia, con el mismo nombre de variable.
-3. Hacer un rolling restart de API LLM. Las réplicas nuevas usan la clave nueva.
-4. Drenar las réplicas anteriores hasta que no tengan streams activos. Una ejecución ya iniciada conserva la clave con la que empezó. El `timeout_seconds` de cada rol tiene un máximo de 600 s.
-5. Verificar `available` en `/admin/llm/connections` y lanzar una prueba explícita de un perfil que use esa conexión.
-6. Revocar la clave anterior en el proveedor y registrar la rotación en el sistema de cambios, sin el valor.
+## 3. Catálogo, perfiles y asignaciones
 
-Si la clave se ha filtrado, revocarla primero en el proveedor (las ejecuciones con esa clave fallarán) y repetir los pasos 2–5. Después auditar el alcance según [09](09_migration_and_rollout.md#rollback-concreto). BYOK no participa en la rotación: esas claves nunca llegan al servidor de forma persistente.
+Revisar el catálogo seguro que realmente proyecta el BFF, los targets/conexiones de la configuración actual, las capacidades de cada feature y las revisiones publicadas. Usar [las rutas vigentes](../../../../PycharmProjects/magic-worlds-api/src/routes/llm_profiles.py) y los ETags de lectura para escrituras con control de versión.
 
-Las claves de media del BFF (`FAL_KEY`, `ELEVENLABS_*`) siguen su propio contrato. Se rotan del mismo modo: valor nuevo, rolling restart del BFF y revocación de la anterior tras terminar los jobs en curso.
+- Las modificaciones de perfiles, policy y preferencias existentes (editar draft/perfil, publish, rollback, archive, `PUT` de policy/preferencias y `DELETE` del override) envían `If-Match` con el ETag leído; sin él devuelven 428 `PROFILE_VERSION_REQUIRED` y con una versión desactualizada, 409 `PROFILE_VERSION_CONFLICT`.
+- Usuario: `DELETE /user/llm/preferences/features/{feature}` quita el override; la feature hereda default personal → recomendación root → default global. Root: `PUT /admin/llm/policy` sin esa feature la devuelve al default global.
+- El default global no puede quedar vacío (422 `SYSTEM_DEFAULT_REQUIRED`); solo se reemplaza por otro perfil system publicado.
+- Archivar falla con 409 `PROFILE_IN_USE` mientras cualquier default o asignación del proyecto lo use, incluidas preferencias de usuarios. No hay reasignación forzada: publicar el sustituto y retirar antes las asignaciones (root las suyas; los usuarios las propias).
+- Una ejecución en curso conserva la revisión congelada al admitirse; los cambios de asignación solo afectan a ejecuciones nuevas.
 
-## 4. Eliminar una asignación
+Una selección incompatible, archivada, no autorizada o sin credencial debe fallar de forma accionable. No omitirla para elegir otro pagador. Retirar un override permite herencia; no equivale a omitir una selección inválida. Las pruebas explícitas de perfiles pueden producir inferencia y costo, y quedan fuera de una inspección de solo lectura.
 
-Todas las escrituras exigen `If-Match: "<row_version>"`, obtenido del ETag de la lectura. Una versión desactualizada devuelve `PROFILE_VERSION_CONFLICT` (409).
+Los defaults/precios preparados el 2026-10-10 son históricos (ver [ledger 16](16_current_status_and_roadmap.md#evidencia-y-precedencia)), no perfiles publicados ni evaluaciones actuales. La publicación requiere evidencia del grafo/feature/modelo/configuración, no solo el nombre de un modelo.
 
-- **Usuario:** `DELETE /user/llm/preferences/features/{feature}` quita el override de esa feature. La feature vuelve a heredar en este orden: default personal → recomendación root → default global. También se puede reemplazar la preferencia completa con `PUT /user/llm/preferences`.
-- **Root, recomendación por feature:** `PUT /admin/llm/policy` con `feature_profiles` sin esa feature. La feature pasa a heredar el default global.
-- **Root, default global:** no se puede dejar vacío (`SYSTEM_DEFAULT_REQUIRED`). Solo se reemplaza por otro perfil system publicado.
-- **Archivar un perfil:** falla con `PROFILE_IN_USE` (409) mientras cualquier default o asignación del proyecto lo use, incluidas las preferencias de usuarios. No existe reasignación forzada: antes de archivar, root debe publicar el sustituto y retirar sus propias asignaciones, y los usuarios deben cambiar las suyas.
+## 4. BYOK, fallos y reintentos
 
-Una ejecución en curso conserva la revisión que congeló al admitirse. Los cambios de asignación afectan solo a ejecuciones nuevas.
+La memoria de la pestaña y los controles HTTPS del frontend reducen retención del cliente, pero no certifican custodia del ejecutor. El transporte BFF permite HTTPS o HTTP de loopback hacia API LLM; esa excepción local no habilita BYOK en una SPA/API pública HTTP.
 
-## 5. Recarga, cuenta y BYOK
+Una respuesta upstream perdida o inválida es terminal para el transporte actual; no hay recuperación upstream pendiente automática. El BFF conserva sus propios planes/recibos y puede ofrecer reconciliación o retry explícito según la feature. Distinguir replay de un resultado, nuevo intento y recuperación de un stream; no inferir que un retry usa el grafo corregido después de congelar el plan. Probar no duplicación de efectos y cargos, reentrada de credencial y cambios de cuenta/proyecto/workspace.
 
-La matriz completa por evento está en [08](08_web_client_root_and_user.md) («Comportamiento implementado por evento»). Resumen operativo:
+Comportamiento implementado en la SPA (base de aceptación de LLM-R5). La clave vive en [`credentialSession`](../../src/features/llmProfiles/credentialSession.ts) y el target congelado por request ID, sin clave, en `llmIntents` ([`llmIntent.ts`](../../src/infrastructure/api/llmIntent.ts)); ambos solo en memoria:
 
-- La clave BYOK vive solo en memoria de la pestaña. Recargar, cerrar sesión, cambiar de cuenta o caducar la sesión la borra, y el usuario debe introducirla otra vez.
-- El perfil y las preferencias persisten en servidor y se recuperan tras recargar.
-- Una ejecución BYOK interrumpida no se reanuda automáticamente. Se reanuda con una clave nueva contra el mismo plan y revisión (`BYOK_CREDENTIAL_REQUIRED`). Nunca cambia a platform por su cuenta.
-- Un reintento con el mismo request ID de una ejecución terminada no ejecuta ni cobra otra vez: devuelve el resultado retenido o `LLM_EXECUTION_FINISHED`.
+| Evento | Clave | Target congelado | Request sin terminar |
+|---|---|---|---|
+| Recarga de la pestaña | Se pierde | Se pierde | Extracción: el recibo local reanuda con su request ID y target. Chat: el historial del servidor muestra el turno, y un turno interrumpido se reconcilia por request ID al reintentar desde esta pestaña. Las demás superficies inician una solicitud nueva |
+| Token expirado (mismo usuario) | Se borra | Se conserva | Tras el refresh, el reintento reenvía el target sin clave; si el servidor la pide, se solicita solo para el mismo perfil y revisión |
+| Logout, cambio de cuenta/proyecto u otra pestaña cambia el token | Se borra | Se borra | Nada se reenvía; el siguiente intento es una solicitud nueva |
+| Restart o lease vencido en el servidor | El BFF no la guarda; el snapshot del ejecutor puede conservarla mientras F04 siga abierto | Se conserva | El reintento con el mismo request ID recupera la ejecución congelada sin doble cobro. Si es BYOK y el servidor pide la clave, se solicita otra vez; nunca cambia a platform. Un fallo terminal confirmado ofrece un intento enlazado (`retry_of_execution_id`) |
 
-## 6. Media
+## 5. Rotación y retención
 
-Imagen, canción y voz consumen créditos app por operación según el plan de membership (`image_generation`, `theme_song_generation`, `tts_generation`). Usan las credenciales de media de la plataforma. Seleccionar BYOK para texto no autoriza una clave de fal.ai ni de ElevenLabs. Los writers LLM de media resuelven perfiles system.
+El transporte platform envía referencias de entorno al ejecutor y el runtime actual materializa clientes. Verificar en el servicio real cuándo se cargan y retienen esos valores antes de planificar rotación. Coordinar sustitución, reinicio/drenaje y verificación con el operador; este documento no acredita una rotación ni promete resolución lazy por ejecución.
 
-## 7. Retención
+Snapshots, mensajes, checkpoints, auditoría, recibos y backups necesitan una política de retención. **No afirmar que todos esos almacenes excluyen credenciales mientras F04 siga abierto.** Hoy no hay purga automática de planes, recibos y reservas del BFF, snapshots y eventos de API LLM ni facts de uso, que guardan prompts y resultados del usuario. Antes del release, decidir plazos por tabla, retención de backups y el tratamiento de backups anteriores al corte, que pueden contener configuración antigua. Las claves de media tienen ciclos de vida separados; la selección BYOK de texto no cambia automáticamente el costo ni la autorización de imagen, música o voz.
 
-No hay purga automática de:
+## 6. Migraciones y handoff de revisión
 
-- planes de ejecución, recibos ni reservas del BFF;
-- snapshots y eventos de API LLM;
-- facts de uso.
+Usar la [guía de base actual](../../../../PycharmProjects/magic-worlds-api/docs/database.md), el bootstrap y las herramientas de la revisión desplegada. Los cortes antiguos de perfiles, workflows, turnos y columnas tenían precondiciones específicas y algunos borraban datos. Las herramientas de corte vigentes están en esa guía y en el [catálogo de API LLM](../../../../PycharmProjects/api.magic_llm/docs/llm_execution_catalog.md).
 
-Ninguno de esos almacenes guarda credenciales, pero sí prompts y resultados del usuario. Antes del release, decidir y documentar:
+API LLM: [`20261010_retire_agent_model_reference.sql`](../../../../PycharmProjects/api.magic_llm/scripts/migrations/20261010_retire_agent_model_reference.sql) elimina `magic_manage.tb_agent_flow.id_model` y su índice en un único ALTER. Aplicarlo en el mismo despliegue, tras terminar la inicialización/verificación del versionado de agentes, con los escritores anteriores detenidos y `SHOW CREATE TABLE` revisado (sin FK sobre la columna), antes de arrancar el writer nuevo sobre una tabla con `id_model NOT NULL`. Retirar la columna cambia el fingerprint del verificador de identidades; no reutilizar la prueba previa. Antes de aplicarlo, retirar o corregir `eval_user_model_access_for_agent` en `api.magic_llm/src/db/user.py` (hoy sin llamadores), que todavía hace JOIN sobre `tb_agent_flow.id_model`. Pendiente de verificar por entorno (no aplicado en `.90` según el registro del 2026-10-10).
 
-- plazos por tabla;
-- retención de backups;
-- tratamiento de backups previos al corte, que pueden contener configuración anterior (paso 5 de «Preparación» en [09](09_migration_and_rollout.md)).
+Inspeccionar primero la revisión existente, los preflights soportados, escritores activos, backups/restauración y el orden de despliegue. Una base posterior no debe recibir otra vez un corte predecessor. La ejecución Fish está fuera de este cleanup: cualquier avance o handoff de esa integración corresponde a [su ledger](../fish_audio_support/11_implementation_status.md).
 
-## 8. Corte de datos
+## 7. Evidencia para cerrar aceptación
 
-Seguir [09](09_migration_and_rollout.md#corte-de-workflows-poblados-implementado): inspección de solo lectura, revisión explícita, preflight y `--apply`. Antes del corte hay que parar los escritores anteriores y hacer backup de MySQL y de `THEME_SONG_STORAGE_ROOT`.
+Registrar revisiones y entorno, canarios de custodia, catálogo/perfiles publicados, matriz feature/pagador/fallo/retry, conciliación de uso/créditos y comportamiento de límites. Los conteos de logs anteriores no se suman como cobertura única ni prueban el entorno actual.
 
-```bash
-python scripts/migrations/20261009_llm_profiles.py --inspect-workflows > workflows.json
-python scripts/migrations/20261009_llm_profiles.py --inspect-theme-songs > canciones.json
-# revisar y editar ambos documentos
-python scripts/migrations/20261009_llm_profiles.py --workflow-review-file workflows.json --theme-song-review-file canciones.json
-python scripts/migrations/20261009_llm_profiles.py --apply --workflow-review-file workflows.json --theme-song-review-file canciones.json
-```
-
-Cada revisión es opcional e independiente. La de workflows solo aplica mientras existan las tablas retiradas de Agent Studio; la de canciones, solo si hay canciones retiradas. El preflight valida las dos antes de cualquier DDL. El apply convierte workflows/cards y deja el borrado de canciones para el final, antes de avanzar el marker.
-
-- **Operaciones de cards `in_flight`:** se rechazan mientras su lease siga vivo.
-- **Leases vencidos:** el campo de revisión `cards.reconcile_stale_in_flight: true` los convierte en recibos `failed`, fechados al vencimiento. Es el mismo resultado que el servicio anterior registraba.
-- **Workflows sin current:** se retiran del runtime tras revisión explícita. La inspección los marca con `has_current: false` y `retire_unpublished: false`; hay que poner `retire_unpublished: true` en cada uno. Se convierten sin current: el draft y las revisiones guardadas se conservan, ningún runtime los selecciona y Studio los muestra sin publicar (`current: null`). El root puede publicarlos después desde Studio; el corte nunca publica un draft. Sin el acknowledgment, o con marcas que no coinciden con la fuente, el corte se rechaza sin cambios.
-- **Canciones de modelos retirados:** se borran tras revisión explícita. Son los jobs de `music_2_6`/`music_3_0` (cualquier alias fuera de `ace_step`/`minimax_music_3`) o del optimizador de letras retirado, más sus assets. No tienen proyección pública: con ellos `/tasks` y las listas de canciones fallarían, y uno sin terminar abortaría la recuperación al arrancar.
-  - **Revisión:** `--inspect-theme-songs` emite solo conteos y una huella de identidades, con `delete_retired: false`. Poner `delete_retired: true` sin tocar conteos ni huella. Sin revisión, o con una desactualizada, el corte se rechaza sin borrar filas, como antes.
-  - **Storage:** el proceso de migración necesita `THEME_SONG_STORAGE_ROOT`, el mismo directorio del API, si hay assets. Si falta o no existe, el corte se rechaza antes de borrar nada.
-  - **Referencias:** cada `theme_song_url` que apunta a un asset retirado pasa a `null`, como al quitar la canción de una card. Se limpian cards, drafts y versiones, snapshots de sesiones, lorebooks e historias, recibos y turnos de asistente, de todos los owners, sin cambiar sus timestamps. También se borran las notificaciones de esos jobs. Las copias importadas son assets propios y se conservan, igual que los jobs actuales.
-  - **Archivos:** se eliminan después del commit con el storage de la app, contenidos en la raíz; un archivo ausente cuenta como eliminado. Las filas se borran al final, cuando no queda ninguna referencia.
-  - **Resultado:** el apply imprime solo conteos (`jobs`, `assets`, `documents`, `references`, `notifications`, `files_removed`, `files_missing`). No cambia uso, créditos ni ledgers: no guardan IDs de canciones.
-  - **Interrupción:** repetir el mismo apply con la misma revisión. Si la conversión de workflows ya borró las tablas retiradas, repetirlo sin `--workflow-review-file`.
-
-### Turnos que el servicio anterior dejó en vuelo
-
-El runtime de perfiles solo recupera turnos con plan de ejecución. Un turno de chat o de asistente admitido antes del corte mantendría su conversación ocupada para siempre. Después del corte de esquema y antes de habilitar `LLM_PROFILES_ENABLED`:
-
-```bash
-python scripts/migrations/20261010_interrupted_turns.py
-python scripts/migrations/20261010_interrupted_turns.py --review-file revisado.json
-python scripts/migrations/20261010_interrupted_turns.py --apply --review-file revisado.json
-```
-
-1. **Inspección** (sin flags): solo lectura. Devuelve la base y los conteos `chat_turns`, `chat_guards`, `chat_reservations`, `card_assistant_guards` y `lorebook_assistant_guards`, sin contenido.
-2. **Revisión:** guardar esa salida y poner `acknowledge_previous_recovery: true`.
-3. **Preflight y apply:** ambos vuelven a contar bajo lock y rechazan cualquier diferencia.
-4. **Apply:** aplica las reglas del servicio anterior en una sola transacción:
-   - **Chat:** la respuesta en streaming pasa a `interrupted` con `error_category: stale_stream`. Se reembolsan los créditos reservados con referencia `chat_turn:<turn_id>` y se libera el guard, subiendo la versión de la conversación.
-   - **Asistentes:** se libera el guard vencido y sube la versión. No se inventa ninguna respuesta.
-
-Rechaza sin cambios en estos casos:
-
-- un lease todavía vivo: chat < 300 s o asistente < 10 min;
-- una respuesta `pending`;
-- un guard inconsistente;
-- conteos distintos de los revisados.
-
-Los turnos y guards que pertenecen a un plan de ejecución nunca se tocan. Usa el mismo lock advisory que el corte de esquema.
-
-### Columna `id_model` de agentes en API LLM
-
-La escritura de `id_model=150` ya se retiró de `create_identity`, y el verificador SQL crea identidades sin ese campo. El DDL del corte está en [20261010_retire_agent_model_reference.sql](/home/andres/PycharmProjects/api.magic_llm/scripts/migrations/20261010_retire_agent_model_reference.sql). Debe aplicarse durante el mismo despliegue, con los escritores detenidos, antes de iniciar el writer nuevo sobre una tabla antigua con `id_model NOT NULL`.
-
-1. Confirmar con `SHOW CREATE TABLE magic_manage.tb_agent_flow` la columna, el índice `tb_agent_flow_cat_model_id_model_fk` y la ausencia de FK sobre esa columna.
-2. Terminar la inicialización/versionado y revisar su evidencia: el verificador anterior hashea todas las columnas de la identidad, por lo que retirar una columna cambia su fingerprint. No presentar esa prueba previa como fingerprint posterior al corte.
-3. Ejecutar el DDL revisado: elimina el índice y la columna en un único ALTER de MySQL 8. Conserva metadatos, revisiones y asociaciones.
-4. Desplegar el writer sin `id_model` y comprobar creación de una identidad nueva.
-
-Calificación local: tres casos SQL sobre MySQL propio sin red verifican conservación de datos, creación nueva y rechazo atómico cuando existe una FK no revisada. El verificador completo de versionado también pasa. No se ejecutó el DDL en `.90`.
-
-### Defaults elegidos: OpenRouter
-
-La elección vigente es OpenRouter con Opus/Sonnet y caché de prompt. La preparación de catálogo, custodia y cinco drafts root está en [15](15_openrouter_defaults.md). El transporte vigente sigue siendo el compatible con Chat Completions de `magic-llm`; no se instaló ningún SDK ni se aplicaron los cambios de Anthropic directo preparados en staging.
+Este cambio documental no ejecutó inferencia, consultas de base, migraciones, cambios de configuración ni despliegue.

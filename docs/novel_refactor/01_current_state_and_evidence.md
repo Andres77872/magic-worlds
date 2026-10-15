@@ -1,5 +1,7 @@
 # Current state and evidence
 
+**Source/lifecycle reconciliation, 2026-10-15:** the implemented chapter-based boundary and open save/acceptance/search mechanisms were rechecked. Test counts, prior reproductions and prototype measurements below are dated records. This cleanup did not rerun those checks, modify the HTML demo, call a provider or establish a deployed state. [14](14_status_and_roadmap.md) owns current delivery status.
+
 **Documentation review:** 2026-10-14. **Status:** WIP — implemented, feature-gated baseline; current source audit and focused test evidence. Overall novel availability is **WIP**, disabled in the example configuration and enabled in the reviewed local override. See [actual status and roadmap](14_status_and_roadmap.md) for evidence, rollout gates, and TBDs.
 
 Reviewed on 2026-10-14. Frontend root: `/home/andres/WebstormProjects/magic-worlds`. Backend root: `/home/andres/PycharmProjects/magic-worlds-api`.
@@ -21,12 +23,12 @@ The current hierarchy is Story → StoryChapter. Chapter bodies are Markdown str
 | Novel library | Search, pagination, grid/list presentation, create/open/delete | [NovelGalleryPage](../../src/features/novel/components/NovelGalleryPage.tsx), [gallery config](../../src/features/novel/novelGalleryConfig.tsx) |
 | Create novel | Blank or card-based creation; first chapter initialized | [NovelCreateModal](../../src/features/novel/components/NovelCreateModal.tsx) |
 | Manuscript editing | TipTap, basic marks, headings, lists, quotes, scene break, Markdown I/O | [NovelEditor](../../src/features/novel/editor/NovelEditor.tsx) |
-| Chapter navigation | Select, add, confirmed delete, title editing; no distinct scene hierarchy | [useNovelStudio](../../src/features/novel/hooks/useNovelStudio.ts), [NovelChapterRail](../../src/features/novel/components/NovelChapterRail.tsx) |
+| Chapter navigation | Select, add and confirmed delete in the chapter rail; renaming through the chapter title field in the studio; no distinct scene hierarchy | [useNovelStudio](../../src/features/novel/hooks/useNovelStudio.ts), [NovelChapterRail](../../src/features/novel/components/NovelChapterRail.tsx), [NovelStudio](../../src/features/novel/components/NovelStudio.tsx) chapter title field |
 | Persistence | 1.2-second debounce, manual save, retries, flush, conditional unload warning | [useChapterDraft](../../src/features/novel/hooks/useChapterDraft.ts) |
 | Navigation protection | Decline live suggestion, flush draft, hold navigation on failure | [useStudioGuards](../../src/features/novel/hooks/useStudioGuards.ts) |
 | AI actions | Continue, rewrite, expand, condense, describe, critique, custom beat; streaming preview | [useInlineAI](../../src/features/novel/editor/hooks/useInlineAI.ts) |
 | AI review | Accept, reject, regenerate, transient highlighting, implicit acceptance on edits | [aiSuggestion](../../src/features/novel/editor/extensions/aiSuggestion.ts) |
-| Codex | Story-local card/lore snapshots, toggles, editing, mentions, trigger highlighting | [useCodex](../../src/features/novel/hooks/useCodex.ts), [CodexPanel](../../src/features/novel/components/codex/CodexPanel.tsx) |
+| Codex | Story-local card/lore snapshots, toggles, editing, mentions, trigger highlighting. Working tree (uncommitted, 2026-10-15): lorebook entries need the lorebooks flag and adventure-template refs need the adventures flag; hidden stored refs are preserved, not altered. Gap: the BFF has no frontend-flag awareness, so hidden refs that are still enabled remain in generation context, trace and token totals | [useCodex](../../src/features/novel/hooks/useCodex.ts), [CodexPanel](../../src/features/novel/components/codex/CodexPanel.tsx) |
 | Search | Find and replace within the mounted chapter; case-sensitive option | [searchReplace](../../src/features/novel/editor/extensions/searchReplace.ts) |
 | Productivity | Focus mode, typewriter scrolling, per-chapter word target, counts | [useEditorChrome](../../src/features/novel/editor/hooks/useEditorChrome.ts), [useWordGoal](../../src/features/novel/hooks/useWordGoal.ts) |
 | History | Generated-output list, status, prompt readout, copy action | [useGenerationHistory](../../src/features/novel/hooks/useGenerationHistory.ts), [history drawer](../../src/features/novel/components/NovelGenerationHistoryDrawer.tsx) |

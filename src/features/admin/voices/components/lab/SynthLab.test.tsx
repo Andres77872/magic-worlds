@@ -26,22 +26,13 @@ describe('SynthLab (AC-R10)', () => {
         mock().testAdminVoice.mockResolvedValue(labResult('req-1'))
     })
 
-    it('shows only the controls the selected model supports', async () => {
+    it('offers only v4 and its supported voice controls', async () => {
         await renderLab()
-        // Flash: stability, similarity and speed; language code sent.
-        expect(screen.getByRole('slider', { name: 'Speed' })).toBeInTheDocument()
-        expect(screen.queryByRole('slider', { name: 'Style' })).not.toBeInTheDocument()
-        expect(screen.getByLabelText('Language code')).toBeInTheDocument()
-
-        chooseOption('Model', 'v4')
         expect(screen.queryByRole('slider', { name: 'Speed' })).not.toBeInTheDocument()
+        expect(screen.queryByRole('slider', { name: 'Style' })).not.toBeInTheDocument()
+        expect(screen.queryByRole('switch', { name: 'Speaker boost' })).not.toBeInTheDocument()
         expect(screen.getByRole('slider', { name: 'Similarity' })).toBeInTheDocument()
-
-        chooseOption('Model', 'Multilingual v2 (lab only)')
-        expect(screen.getByRole('slider', { name: 'Style' })).toBeInTheDocument()
-        expect(screen.getByRole('switch', { name: 'Speaker boost' })).toBeInTheDocument()
-        expect(screen.queryByLabelText('Language code')).not.toBeInTheDocument()
-        expect(screen.getByText(/Never sent for this model/)).toBeInTheDocument()
+        expect(screen.getByLabelText('Language code')).toBeInTheDocument()
     })
 
     it('offers model-native inserts only where the model supports them', async () => {
@@ -50,8 +41,8 @@ describe('SynthLab (AC-R10)', () => {
         expect(within(toolbar()).getByRole('button', { name: /Sigh/ })).toBeInTheDocument()
         chooseOption('Markup mode', 'Model native')
         // Flash has breaks but no audio tags.
-        expect(within(toolbar()).getByRole('button', { name: /Pause/ })).toBeInTheDocument()
-        expect(within(toolbar()).queryByRole('button', { name: /Sigh/ })).not.toBeInTheDocument()
+        expect(within(toolbar()).queryByRole('button', { name: /Pause/ })).not.toBeInTheDocument()
+        expect(within(toolbar()).getByRole('button', { name: /Sigh/ })).toBeInTheDocument()
         chooseOption('Model', 'v4')
         expect(within(toolbar()).getByRole('button', { name: /Sigh/ })).toBeInTheDocument()
         expect(within(toolbar()).getByRole('button', { name: /Pronunciation/ })).toBeInTheDocument()
@@ -64,17 +55,17 @@ describe('SynthLab (AC-R10)', () => {
         await waitFor(() =>
             expect(mock().testAdminVoice).toHaveBeenCalledWith({
                 voice_key: readyVoice.voice_key,
-                model_alias: 'el_flash_v2_5',
+                model_alias: 'el_v4',
                 text: expect.stringContaining('<#0.4#>'),
                 markup_mode: 'app',
                 output_format: 'mp3_44100_128',
                 language_code: 'en',
                 seed: null,
                 apply_text_normalization: 'auto',
-                voice_settings: readyVoice.default_settings,
+                voice_settings: { stability: 0.5, similarity_boost: 0.75 },
             }),
         )
-        const result = await screen.findByRole('article', { name: 'Maren, Flash v2.5' })
+        const result = await screen.findByRole('article', { name: 'Maren, v4' })
         expect(within(result).getByText('Request ID req-1')).toBeInTheDocument()
         expect(within(result).getByText('Character cost 112')).toBeInTheDocument()
         expect(within(result).getByText('Format mp3_44100_128')).toBeInTheDocument()
@@ -83,7 +74,7 @@ describe('SynthLab (AC-R10)', () => {
     it('pins results to compare them', async () => {
         await renderLab()
         fireEvent.click(screen.getByRole('button', { name: 'Synthesize' }))
-        const result = await screen.findByRole('article', { name: 'Maren, Flash v2.5' })
+        const result = await screen.findByRole('article', { name: 'Maren, v4' })
         fireEvent.click(within(result).getByRole('button', { name: 'Compare' }))
         expect(screen.getByRole('region', { name: 'Compare' })).toBeInTheDocument()
         expect(within(result).getByRole('button', { name: 'Unpin' })).toHaveAttribute('aria-pressed', 'true')
@@ -91,7 +82,6 @@ describe('SynthLab (AC-R10)', () => {
 
     it('blocks text over the model limit', async () => {
         await renderLab()
-        chooseOption('Model', 'v3 (lab only)')
         fireEvent.change(screen.getByLabelText('Text'), { target: { value: 'a'.repeat(5001) } })
         expect(screen.getByText('The text exceeds the model limit of 5000 characters.')).toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Synthesize' })).toBeDisabled()
@@ -109,10 +99,6 @@ describe('SynthLab (AC-R10)', () => {
         chooseOption('Model', 'v4')
         expect(screen.getByText('1201 / 1200 characters')).toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Synthesize' })).toBeDisabled()
-        // A lab-only model has no capabilities entry: the 5,000-character BFF cap applies.
-        chooseOption('Model', 'v3 (lab only)')
-        expect(screen.getByText('1201 / 5000 characters')).toBeInTheDocument()
-        expect(screen.getByRole('button', { name: 'Synthesize' })).toBeEnabled()
     })
 
     it('prefers an admin_lab entry over the narration tier when one is listed', async () => {
@@ -127,7 +113,7 @@ describe('SynthLab (AC-R10)', () => {
         fireEvent.change(screen.getByLabelText('Text'), { target: { value: 'a'.repeat(901) } })
         expect(await screen.findByText('901 / 900 characters')).toBeInTheDocument()
         chooseOption('Model', 'v4')
-        expect(screen.getByText('901 / 1200 characters')).toBeInTheDocument()
+        expect(screen.getByText('901 / 900 characters')).toBeInTheDocument()
     })
 
     it('learns the model limit from a text_over_model_limit answer and explains it', async () => {
@@ -197,7 +183,7 @@ describe('SynthLab with the lab model list (R1-FE-06, A4)', () => {
         mock().listAdminLabModels.mockRejectedValue(new ApiError(501, 'Not Implemented'))
         await renderLab()
         await waitFor(() => expect(mock().listAdminLabModels).toHaveBeenCalled())
-        expect(optionTexts('Model')).toEqual(['Flash v2.5', 'v4', 'Multilingual v2 (lab only)', 'v3 (lab only)'])
+        expect(optionTexts('Model')).toEqual(['v4'])
         expect(optionTexts('Output format')).toEqual(['mp3_44100_128', 'mp3_44100_64'])
         expect(screen.getByText('Set by the server: always automatic.')).toBeInTheDocument()
         expect(screen.getByLabelText('Seed')).toBeInTheDocument()
@@ -267,9 +253,9 @@ describe('SynthLab with the lab model list (R1-FE-06, A4)', () => {
     })
 
     it('lets the markup toolbar follow the listed flags', async () => {
-        mock().listAdminLabModels.mockResolvedValue({ models: [a4Row({ model_alias: 'el_flash_v2_5', label: 'Flash', audio_tags: true, breaks: false, inline_ipa: false })] })
+        mock().listAdminLabModels.mockResolvedValue({ models: [a4Row({ model_alias: 'el_v4', label: 'Flash', audio_tags: true, breaks: false, inline_ipa: false })] })
         await renderLab()
-        // The A4 label ("Flash") replaces the R0 one ("Flash v2.5").
+        // The A4 label ("Flash") replaces the R0 one ("v4").
         await waitFor(() => expect(screen.getByRole('combobox', { name: 'Model' })).not.toHaveTextContent('v2.5'))
         expect(screen.getByRole('combobox', { name: 'Model' })).toHaveTextContent('Flash')
         chooseOption('Markup mode', 'Model native')

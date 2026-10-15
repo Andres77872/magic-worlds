@@ -1,5 +1,7 @@
 # Default-on moderation controls for LLM and image profiles
 
+**Lifecycle: active implementation proposal, unimplemented native integration. Reviewed 2026-10-15.** Requirements and examples below define the intended feature; they do not establish current support. Use [00](00_current_status_and_findings.md) for source status and [10](10_rollout_risks_and_decisions.md) for scope/delivery.
+
 Date: **2026-10-15**. Feature specification and limited implementation plan; not implemented.
 
 ## 1. Meaning of the feature

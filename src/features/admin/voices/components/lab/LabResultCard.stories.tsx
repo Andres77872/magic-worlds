@@ -9,7 +9,7 @@ const SILENT_BYTES = Uint8Array.from(atob(SILENT_WAV.slice(SILENT_WAV.indexOf(',
 function result(overrides: Partial<LabResult> = {}): LabResult {
     return {
         id: 1,
-        title: 'Maren, Flash v2.5',
+        title: 'Maren, v4',
         blob: new Blob([SILENT_BYTES], { type: 'audio/wav' }),
         contentType: 'audio/wav',
         outputFormat: 'wav_24000',

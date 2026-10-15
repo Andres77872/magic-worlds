@@ -1,123 +1,41 @@
 # Plan de implementación y criterios de aceptación
 
-**Reconciliación documental 2026-10-14: diseño/contratos del dossier original.** El código de perfiles existe y varios entregables se cerraron localmente después. Las propuestas y criterios de este archivo no acreditan rollout; usar [16](16_current_status_and_roadmap.md) para implementación actual, WIP operativo y TBD, y 12 para historia de pruebas.
+**Revisado 2026-10-15. Estado: fundamento implementado, remediación y aceptación abiertas.** El checklist inicial mezclaba tareas ya implementadas con garantías pendientes. El estado de cada pendiente se mantiene en [16](16_current_status_and_roadmap.md), sin usar casillas antiguas como nueva autorización de ejecución.
 
-Este backlog conserva el alcance completo; el avance local y sus límites se registran en [12](12_implementation_status.md). Se ordena por dependencias y riesgo; no se asignan fechas sin estimar el trabajo en cada repositorio. La secuencia de rollout está en [09](09_migration_and_rollout.md).
+## Entregables y disposición
 
-**Criterio adicional obligatorio del usuario (2026-10-09):** retirar todo legacy del refactor LLM. No entregar aliases antiguos, hydrators, configuración de modelos por feature en env, provider_key en DB, DTOs/wrappers ni caminos de ejecución/cobro/restore de compatibilidad. El código anterior que aún aparece en el working tree es trabajo pendiente de eliminación, no una excepción aceptada.
+| Área | Disposición actual | Aceptación pendiente |
+|---|---|---|
+| Root/user profiles, revisiones, resolución y selección | Implementados en frontend/BFF | Ownership, compatibilidad y publicación/defaults por entorno |
+| Admisión, planes, reservas y pagador | Implementados en BFF | Replay/retry/fallo/cancelación/resultado tardío y conciliación de efectos/cuotas/cargos |
+| Memoria BYOK del navegador | Implementada; sin almacenamiento web persistente para la clave | Aislamiento y limpieza en cuenta/proyecto/target, recarga y credencial reingresada |
+| Copy de custodia BYOK en UI | Publicado; sobreafirma la no persistencia en servidores (F11) | Limitar a propiedades verificadas de memoria de pestaña hasta cerrar F04; prueba de regresión del copy EN/ES |
+| Transporte protegido | **Brecha activa**: BFF usa graph materializado en completion original | Clave fuera de graph/snapshot/hash y cliente privado autorizado; canario end-to-end |
+| Runtime/nodos genéricos | **Hallazgos abiertos** | Cierre individual de F01–F11; helper aislado no protege los demás caminos |
+| Planner de chat | Corregido en fuente `2c2973d`; smoke fechado registrado en voz | Mantener regresión y aceptación del artefacto desplegado |
+| Calidad y defaults | Preparación offline del 2026-10-10, sin publicar ni evaluar ([16](16_current_status_and_roadmap.md#evidencia-y-precedencia)) | Evals por feature/grafo/modelo, provisión y precios actuales |
+| Schema y rollout | Herramientas y contratos existen; revisión depende del artefacto | Preflight/restore y aceptación del entorno real; [09](09_migration_and_rollout.md) |
+| Media/callbot BYOK personal | Fuera de la activación personal actual | Decisión explícita y contratos completos antes de exponer selección |
 
-## Entregables por repositorio
+La decisión del 2026-10-09 de retirar compatibilidad antigua sigue siendo criterio del refactor, no prueba de que cada runtime instalado la satisfaga. El cleanup no cambia esa decisión ni permite atribuir al camino actual los cierres del log histórico.
 
-| Repositorio | Cambios necesarios |
+## Matriz de aceptación que permanece vigente
+
+| Dimensión | Casos que deben tener evidencia ligada a revisión/entorno |
 |---|---|
-| magic-worlds-api | Schema/migrations/queries de perfiles, ownership, resolver, planes/capacidad, root/user APIs, payloads de features, defaults, idempotencia, cobro y redacción |
-| api.magic_llm | Targets/connections/catalog DTOs, servicio de credenciales, gate de delegación, envelope seguro, admisión/snapshots, billing BYOK=0, usage y errores |
-| magic-agents | Binding/dependency de clientes sin serializar secret, lifecycle de cliente y restore sin credencial; tests hooks/debug/checkpoints |
-| magic-llm | Verificar/adaptar parámetros por provider, aislamiento auth/transport, errores sanitizados y cliente que recibe credencial transitoria; no añadir DB/owner policy |
-| magic-worlds | Pantallas root/usuario, tipos/API, memoria BYOK, selectores por feature, HTTP/streams/WS, auth lifecycle, i18n, stories y pruebas |
-| api.auth | Reusar identidad/delegación actual; cambio solo si faltan capabilities de servicio, sin almacenar claves personales |
-| Despliegue | Env/gestor platform, egress, TLS, límites/logging/APM/dumps, provisión de aliases y rotación |
+| Configuración | Herencia, override, selección inválida, publish/rollback, edición concurrente y catálogo incompatible/retirado |
+| Identidad | Cross-user/project/workspace, root scope, cliente directo/delegado y bindings/destinos autorizados |
+| Ejecución | Feature/rol, HTTP/SSE/WS, salida validada, cancelación, nuevo intento y resultado tardío |
+| Cobro | BYOK con saldo cero/cargo app cero, capacidad por pagador, platform sin doble débito/refund y media independiente |
+| Seguridad | Canario ficticio en éxito/error/422/timeout/retry/nested/restore; ausencia del valor/derivados en todos los sinks aplicables |
+| Retención | Contexto/prompts deliberadamente congelados documentados; TTL, acceso, borrado y backups separados de secretos |
+| Operación | Schema exacto, locks/restart/drain, provisión, rotación y rollback compatible |
+| Calidad | Evals en/es por workflow y latencia real, sin inferir calidad de un capability o JSON offline |
 
-## Backlog ordenado
+[El registro de seguridad](../security/README.md) especifica el cierre por hallazgo; [05](05_security_and_secrets.md) conserva el requisito. La verificación canaria debe recorrer **el transporte usado**, no solo una factory alternativa.
 
-### P0: contrato seguro de ejecución
+## Verificación al implementar
 
-- [ ] Definir `ResolvedLlmExecution`, client bindings y `ExecutionCredentials` separados.
-- [ ] Proteger envelope en API LLM con identidad/capabilities de BFF y contexto de proyecto/usuario.
-- [ ] Exigir handshake de versión/capacidades antes de reenviar credenciales y fallar explícitamente ante réplicas legacy; readiness no prueba soporte del envelope.
-- [ ] Evitar dumps/fingerprints/persistencia del secret antes de admisión; error handlers seguros incluso para JSON inválido/422.
-- [ ] Inyectar clientes mediante dependency/factory después del snapshot; cubrir aliases y subgraphs.
-- [ ] Evitar secretos en hooks/debug/usage y shared client caches.
-- [ ] Migrar envío platform del BFF; revisar todas las funciones de hidratación actuales, no solo content_generation.
-- [ ] Retirar headers sensibles de catálogo y preparar conexiones platform externas a DB.
-- [ ] Ensayar canary y configurar infraestructura sin captura de bodies.
+Ejecutar pruebas relevantes de los repositorios modificados y conservar resultados sanitizados con revisiones. En frontend, `pnpm build` es la señal principal; stories requieren `pnpm typecheck:stories` cuando cambian. No sumar grupos históricos solapados ni citar `/tmp/` como única evidencia durable.
 
-**Salida verificable:** una solicitud real en entorno de prueba usa una clave ficticia en el adapter mock y esa clave no aparece en artefactos persistidos ni eventos. Se preserva el hash/reconstrucción del grafo sin secrets.
-
-### P1: datos, catálogo y perfiles system
-
-- [ ] Implementar tablas/constraints/índices, migrations upgrade y schema fresh.
-- [ ] Sustituir catálogo por target/model descriptor/connection y retirar aliases, credenciales en DB, APIs y lectores anteriores.
-- [ ] Registro de features/roles, caps, supported params y flags de selección/BYOK.
-- [ ] Resolver cadena de herencia, autorización, revisión congelada e invalidación de caché.
-- [ ] APIs root draft/validate/test/publish/rollback/policy/audit.
-- [ ] Provisionar explícitamente perfiles/defaults nuevos sin importar secretos ni conservar un importer/runtime de configuración anterior.
-- [ ] Pantallas root con componentes Reverie y permisos backend.
-- [ ] Separar Studio de perfiles, corregir default marker y documentar qué cambia al publicar.
-
-**Salida verificable:** root configura novel y RP de forma independiente; las features sin override heredan el default; publish/rollback no altera llamadas en curso.
-
-### P1: preferencias personales y BYOK
-
-- [ ] APIs propias de perfil/revisiones/defaults/asignaciones con owner y optimistic concurrency.
-- [ ] Capacidad independiente de débito, cargo cero BYOK y adaptación de la reserva de chat.
-- [ ] Asegurar que saldo cero no bloquea BYOK ni descuenta saldo en API LLM.
-- [ ] UI de perfiles propios/system, compatibilidad, herencia y coste; clave volátil aislada.
-- [ ] Validar revisión esperada antes de enviar key al target; nunca cambiar payer por error.
-- [ ] Adaptar cards, novel, card/lorebook assistant, extraction y tres variantes de chat.
-- [ ] Adaptar HTTP y stream en pareja, WS, retries y cancelación; todas las llamadas helper usan plan.
-- [ ] Registrar provenance y usage seguro por perfil/revisión/rol/intento.
-- [ ] Ajustar respuestas y vistas membership/usage root/usuario para separar cupos BYOK, créditos app y costo de proveedor.
-- [ ] Declarar comportamiento tras recarga, auth expired, cambio de cuenta y restart.
-
-**Salida verificable:** usuario A usa su perfil novel/RP, cards heredan el default configurado; perfil persiste al recargar pero la clave no; usuario B no accede a A.
-
-### P2: ampliación y operación
-
-- [ ] Activar por cohorts/features con telemetry segura y evals.
-- [ ] Retirar todos los paths/env/provider_key legacy, shims, wrappers y DTOs de compatibilidad antes de entregar.
-- [ ] Ejecutar runbook de rotación platform y revisión de retención.
-- [ ] Añadir pruebas/contratos de media writers y voz antes de ofrecer BYOK allí.
-- [ ] Revisar modelo de IDs privados, nuevos targets o varios proveedores solo con ADR adicional.
-
-## Matriz de pruebas funcionales
-
-| Área | Casos obligatorios |
-|---|---|
-| Herencia | Sin prefs; user default; user feature; root recommendation; default global; quitar override; preset RP atómico |
-| Selección inválida | Perfil archivado/ajeno; revisión ajena; feature desconocida; incompatible; no key; no fallback |
-| Publicación | Draft no afecta runtime, revisión nueva, rollback mismo perfil, concurrent edit 409, archivo con referencias bloqueado |
-| Roles | Primary/metadata/preflight; override ausente; proveedor homogéneo; calls ocultas bloqueadas |
-| Catalog | Modelo retirado, capability unknown, supported params, destino correcto, cache expiry e invalidación |
-| Output | Cards schema; assistants tools/patch; novel candidate; chat metadata y streaming; extracción schema |
-| Transporte | POST y stream equivalentes, WS frame nuevo, cliente antiguo sin llm, auth refresh vs provider rejection |
-| Corte de contrato | Capability/version handshake, rechazo de contrato/alias antiguo, sin shim ni fallback que ejecute el camino retirado |
-| Identidad | Ownership por project/user, cross-project, root API scope, direct API caller no autorizado |
-| Idempotencia | Doble click, timeout, refresh, reconnect, retry tras publish, key distinta con mismo intent, replay completed |
-| Cancelación | Liberar slot una vez; no doble refund/débito; key no retenida en pending queue |
-| Cobro | BYOK saldo cero, cargo app cero, contador/caps, helper/retry, platform billing sin regresión, media separado |
-| Restore | Restart sin key, reingreso autorizado, nunca recuperar desde env/root para BYOK |
-
-## Pruebas de seguridad
-
-Tests con adapter mock y canarias, sin llamadas ni claves reales por defecto. Verificar cuerpos/errores JSON malformados y 422; DB logs/snapshots/checkpoints; debug SSE; request fingerprints; audit/usage; exporters/frontend analytics; requests nested/aliases y tools. Probar credencial personal adjunta a perfil platform y connection/env ref inyectado en perfil personal: deben rechazarse antes de una llamada externa.
-
-Probar SSRF/redirects/destinos privados en catálogo/discovery, key en URL/headers y acceso por servicio no autorizado. Una prueba unit de SecretStr/repr no basta: la ausencia de key se verifica en serializers y sink reales de test.
-
-La auditoría de deployment incluye buffers temporales de proxy, agentes de APM y dumps. CI puede cubrir el código; el release checklist debe cubrir también esa infraestructura. No buscar ni imprimir secrets reales en producción para demostrar la prueba.
-
-## Validación de base y cuentas
-
-- Fresh install y upgrade producen estructura equivalente según bootstrap.
-- Revisión/roles/current nunca mezclan perfiles; defaults no cruzan proyecto/owner.
-- Datos de usuario/agente/idempotencia/chat migrados al contrato actual cuando corresponda; ningún lector runtime del contrato retirado.
-- BYOK no produce débitos en membership_usage_day, PAYG ni ledger monetario de API LLM.
-- Capacity under concurrent admission no excede cap, y lease expiry no deja slots permanentemente ocupados.
-- Contadores/refunds/idempotencia funcionan exclusivamente con el contrato nuevo; histórico convertido una vez, sin lectores de compatibilidad.
-- Archivo/borrado no destruye provenance y sigue la política de privacidad de usuario.
-
-## Comandos de validación al implementar
-
-Frontend: `pnpm build` es la señal principal. Ejecutar tests relevantes con `pnpm test` en modo no-watch según configuración; `pnpm typecheck:stories` si cambia una story y lint con baseline conocido de errores existentes. No cambiar package manager.
-
-Backend: ejecutar suites específicas de schemas/repositorios/rutas, reserva y cobro, graph contracts/security, inline completion/admission/native snapshots, usage y adapters. Usar los entornos locales ya instalados de cada repo y respetar [instrucciones api.magic_llm](/home/andres/PycharmProjects/api.magic_llm/AGENTS.md); no reinstalar paquetes editable para una tarea de configuración.
-
-Pruebas de integración con DB efímera y proveedores mock; pruebas de calidad con proveedor real solo de forma explícita y con credenciales de plataforma provisionadas para evaluación. Ejecutar ambas rutas streaming/no streaming cuando se modifique un consumidor. Las suites locales ya ejecutadas y las pendientes están en [12](12_implementation_status.md); no equivalen a validación del despliegue ni de la entrega completa.
-
-## Definición de terminado
-
-La entrega inicial está lista cuando root administra perfiles system y defaults; el usuario administra sus perfiles/overrides; las features habilitadas resuelven y registran el perfil efectivo; BYOK conserva claves solo de manera transitoria; los roles usan la credencial/payer correctos; saldo cero funciona; ownership y destinos están protegidos; HTTP/WS/stream/retry/cancel/restore tienen resultados definidos; y la verificación canaria end-to-end pasa.
-
-La documentación operativa debe explicar rotación platform, cómo eliminar una asignación, qué pasa al recargar, qué cuesta media y por qué BYOK no se reanuda automáticamente tras perder su clave. No declarar terminada la entrega por tener solo CRUD de perfiles o una pantalla de settings.
-
-La entrega tampoco está terminada mientras quede código, configuración, esquema fresh o pruebas que dependan de un camino LLM legacy. El rollback permitido usa un artefacto con el contrato nuevo; jamás restaura la hidratación de secretos ni el catálogo retirado.
+Este cleanup solo modifica documentación. No ejecutó suites de aplicación, consultas de DB, inferencia, migraciones, provisión ni despliegue. La validación documental comprueba rutas y anchors; no cierra la aceptación del producto.

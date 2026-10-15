@@ -14,6 +14,7 @@ import { organizationWorkspaceId } from '@/shared/hooks/useScopedApi'
 import { useWorkspaceReadOnly } from '@/shared/hooks/useWorkspaceReadOnly'
 import {InteractionCenterPanel, InteractionLeftPanel, InteractionRightPanel, InteractionTopBar, SidePanelDrawer} from './index'
 import { SessionNarrationTierToggle } from './SessionNarrationTierToggle'
+import { SessionSceneNarration } from './SceneNarrationPanel'
 
 export function AdventureInteraction() {
     const { editingInProgress } = useData()
@@ -181,12 +182,17 @@ function AdventureInteractionView() {
                         narratorPickerOpen={narratorPickerOpen && !sessionReadOnly}
                         onNarratorPickerOpenChange={setNarratorPickerOpen}
                         narrationTierSlot={sessionApi && !currentAdventure.draft ? (
+                            <>
                             <SessionNarrationTierToggle
                                 api={sessionApi}
                                 basePath="adventure-sessions"
                                 sessionId={Number(currentAdventure.id)}
                                 readOnly={sessionReadOnly}
                             />
+                            <SessionSceneNarration api={sessionApi} basePath="adventure-sessions" sessionId={Number(currentAdventure.id)}
+                                turns={turns} revision={JSON.stringify([currentAdventure.snapshot?.narrator_voice, currentAdventure.snapshot?.narrate_thoughts,
+                                    currentAdventure.snapshot?.template.characters?.map(card => [card.id, card.voice])])} readOnly={sessionReadOnly} />
+                            </>
                         ) : null}
                     />
                 </SidePanelDrawer>

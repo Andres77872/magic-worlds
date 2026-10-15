@@ -1,5 +1,7 @@
 # Issues, gaps, and risks
 
+**Source/lifecycle reconciliation, 2026-10-15:** this remains an active issue register. Save ordering (NE-001), acceptance after a false flush (NE-003), lowercase offset mapping (NE-007), and missing scene/revision/novel-assistant contracts were rechecked in current source. No controlled reproduction or application test was rerun. All NE-001–NE-023 retain their individual evidence class and remain open until their acceptance criteria are met.
+
 **Documentation review:** 2026-10-14. **Status:** WIP audit backlog — open source concerns, prior controlled reports, target gaps, and unmeasured risks; no remediation shipped by this update. Overall novel availability is **WIP**, disabled in the example configuration and enabled in the reviewed local override. See [actual status and roadmap](14_status_and_roadmap.md) for evidence, rollout gates, and TBDs.
 
 Research snapshot: 2026-10-14. Confidence definitions and reproduction evidence are in [01](01_current_state_and_evidence.md). P1 requires early remediation for manuscript integrity or reliable expanded AI; P2 is important correctness/workflow work; P3 is a later capability or optimization. A gap is not mislabeled as a current defect.
@@ -133,7 +135,7 @@ These risks describe the proposed expanded system, not newly discovered vulnerab
 | Hallucinated canon | New facts become authoritative without author intent | Evidence-linked fact suggestions and explicit promote-to-canon action |
 | Timeline leakage | Future events spoil earlier POV scenes | Separate narrative order, story time, and character knowledge/reveal rules |
 | Cross-workspace retrieval | Private content leaks into another story | Scope filtering before retrieval, server-owned ownership, isolation tests |
-| Provider credential leakage | Secret persistence in prompts/logs/history | Existing transient credential boundary; allowlisted provenance |
+| Provider credential leakage | Secret persistence in graph data/prompts/logs/history | Browser/BFF transient input handling alone is insufficient; close the [actual transport/custody findings](../security/README.md) and verify end-to-end persistence/recovery before expanded novel execution; allowlist provenance |
 | Prompt injection in imported research | External prose attempts to invoke tools or widen scope | Treat source material as data; server validates all operations and permissions |
 | Scope expands into shared editing | Additional synchronization/permission work displaces manuscript reliability | Keep collaboration explicitly out of scope; review dependencies and acceptance gates against the single-author target |
 | Licensing/hosting dependency | Budget or portability constraints | Verify package license and hosting terms before adoption; adapter boundaries |

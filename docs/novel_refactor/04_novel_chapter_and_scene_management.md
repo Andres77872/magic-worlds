@@ -4,7 +4,7 @@
 
 ## Recommended hierarchy
 
-**Current baseline:** [StoryChapter](../../src/shared/types/story.types.ts) owns one Markdown `body`, `order`, `status`, `wordGoal`, and POV/location IDs. [NovelChapterRail](../../src/features/novel/components/NovelChapterRail.tsx) supports selecting, creating, renaming, and confirmed deletion. Chapter order/status/POV/location fields in the DTO and BFF do not imply an atomic structure API or complete metadata UI. The current editor's horizontal rule is a scene-break mark inside the chapter, rather than an independently stored scene. Reorder, split/merge, duplicate, restore, parts, scene documents, and series below remain target work.
+**Current baseline:** [StoryChapter](../../src/shared/types/story.types.ts) owns one Markdown `body`, `order`, `status`, `wordGoal`, and POV/location IDs. [NovelChapterRail](../../src/features/novel/components/NovelChapterRail.tsx) supports selecting, creating, and confirmed deletion; the chapter title field in [NovelStudio](../../src/features/novel/components/NovelStudio.tsx) renames the chapter. Chapter order/status/POV/location fields in the DTO and BFF do not imply an atomic structure API or complete metadata UI. The current editor's horizontal rule is a scene-break mark inside the chapter, rather than an independently stored scene. Reorder, split/merge, duplicate, restore, parts, scene documents, and series below remain target work.
 
 Use optional Series and Part containers around Novel → Chapter → Scene. The scene is the smallest independently organized narrative unit. Paragraphs/blocks belong to a scene document. Notes, beats, research, and snippets are linked working material with explicit inclusion rules.
 

@@ -132,6 +132,19 @@ function fromWorkspace(item: BackgroundTaskPublic, workspaceId: string): Backgro
 }
 
 describe('TasksDrawer', () => {
+    it('hides stored narration jobs and their audio controls while voices are off', () => {
+        vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'false')
+        try {
+            const narration: BackgroundTaskPublic = { ...task('completed', 'hidden-voice'), operation: 'text_to_speech',
+                title: 'Hidden narration', target: { type: 'media', id: 'voice' },
+                result: { assets: [], tts_assets: [{ asset_id: 'voice', url: '/tts/assets/voice.mp3', content_type: 'audio/mpeg' }] } }
+            renderDrawer({ active: [], completed: [narration], failed: [] })
+            fireEvent.click(screen.getByRole('button', { name: /completed/i }))
+            expect(screen.queryByText('Hidden narration')).not.toBeInTheDocument()
+            expect(document.querySelector('audio')).toBeNull()
+        } finally { vi.unstubAllEnvs() }
+    })
+
     it('shows narration as a task with playback and no invented attached card', async () => {
         const narration: BackgroundTaskPublic = { ...task('completed','tts-task'),operation:'text_to_speech',
             title:'Narration',target:{type:'media',id:'tts-task'},cancel_url:null,

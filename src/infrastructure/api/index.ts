@@ -1,3 +1,5 @@
+import { AvailableLibraryPages } from './availableLibraryPage'
+import { assertFeatureEnabled, assertContentTypeFeatureEnabled, assertLlmFeatureEnabled, isLlmFeatureEnabled, isContentTypeFeatureEnabled, isTaskFeatureEnabled, isOperationFeatureEnabled } from '@/shared/featureFlags'
 import { verifyAssistantTurn } from './assistantContract'
 import { trackResourceTaskRequest } from './resourceTaskEvents'
 import { assertPublicLlmData, assertEffectiveLlmProfile, assertLlmCapacityUsage, assertLlmProfileCompatibility, assertLlmProviderUsage } from './llmProfileContract'
@@ -106,7 +108,7 @@ import type {
     PreviewTextsResponse,
     VoicePresetPreviewRequestV2,
     VoicePresetPreviewResponse,
-    VoicePresetV2,
+    VoicePreset,
     VoicePresetV2Write,
 } from '../../shared/types/voicePreset.types'
 import type {
@@ -205,12 +207,7 @@ import { isPatreonFeatureEnabled } from '../../shared/patreonFeatureFlag'
 import {
     isAppAssistantFeatureEnabled,
     isTextStreamingFeatureEnabled,
-    isCallsFeatureEnabled,
-    isCommunityCardsFeatureEnabled,
-    isLorebookResourcesFeatureEnabled,
     isLorebooksFeatureEnabled,
-    isNovelsFeatureEnabled,
-    isVoicesFeatureEnabled,
 } from '../../shared/featureFlags'
 import { makeRequestId } from '../../utils/uuid'
 import { configureChatSocketAuthRefresh } from './chatSocket'
@@ -342,6 +339,20 @@ export interface TtsJobPublicResponse {
     error?: ChatTtsError | null
     /** Workspace R1: the job's durable origin (server-owned). */
     organization?: RootOrganization
+}
+
+export interface SceneNarrationResponse {
+    enabled: boolean
+    available: boolean
+    reason: string | null
+    max_speakers: number
+    max_compiled_chars: number
+    counted_chars: number
+    estimated_credits: number
+    current_identity: string | null
+    matches_current: boolean
+    job: TtsJobPublicResponse | null
+    manifest: import('@/shared/types/voiceScene.types').SceneManifest | null
 }
 
 export interface ApiHealthResponse {
@@ -628,6 +639,7 @@ type AuthRequestOwner = Pick<AuthSessionSnapshot, 'authEpoch' | 'accountKey' | '
 
 class ApiService {
     private baseUrl: string
+    private readonly libraryPages = new AvailableLibraryPages()
     /**
      * The captured workspace of a scoped client from {@link withWorkspace};
      * always `null` on the exported singleton (document 15: the singleton never
@@ -700,11 +712,13 @@ class ApiService {
         return result
     }
 
-    getLlmFeatures(): Promise<{ features: LlmFeatureView[] }> {
-        return this.profileRequest('/llm/features')
+    async getLlmFeatures(): Promise<{ features: LlmFeatureView[] }> {
+        const result = await this.profileRequest<{ features: LlmFeatureView[] }>('/llm/features')
+        return { ...result, features: result.features.filter(feature => isLlmFeatureEnabled(feature.feature_key)) }
     }
 
     getLlmModels(params: { feature?: LlmFeature; provider_target?: string; role?: string; credential_mode?: string; limit?: number; offset?: number } = {}): Promise<LlmPage<LlmCatalogModel>> {
+        if (params.feature) assertLlmFeatureEnabled(params.feature)
         const query = new URLSearchParams(Object.entries(params).filter(([, value]) => value !== undefined).map(([key, value]) => [key, String(value)]))
         return this.profileRequest(`/llm/models?${query}`)
     }
@@ -736,18 +750,21 @@ class ApiService {
     }
 
     async resolveLlmProfile(feature: LlmFeature, selection: LlmSelection = { mode: 'inherit' }): Promise<EffectiveLlmProfile> {
+        assertLlmFeatureEnabled(feature)
         const result = await this.profileRequest<EffectiveLlmProfile>(`/llm/features/${encodeURIComponent(feature)}/resolve`, 'POST', selection)
         assertEffectiveLlmProfile(result)
         return result
     }
 
     async getLlmRetryProfile(feature: LlmFeature, executionId: string): Promise<EffectiveLlmProfile> {
+        assertLlmFeatureEnabled(feature)
         const result = await this.profileRequest<EffectiveLlmProfile>(`/llm/features/${encodeURIComponent(feature)}/retry-profiles/${encodeURIComponent(executionId)}`)
         assertEffectiveLlmProfile(result)
         return result
     }
 
     async getLlmRecoveryProfile(feature: LlmFeature, requestId: string, signal?: AbortSignal): Promise<EffectiveLlmProfile> {
+        assertLlmFeatureEnabled(feature)
         const result = await this.authenticatedRequest<EffectiveLlmProfile>(`/llm/features/${feature}/executions/${encodeURIComponent(requestId)}/profile`,
             this.getStoredToken(), { method: 'GET', cache: 'no-store', timeoutMs: 5000, signal })
         assertEffectiveLlmProfile(result)
@@ -805,6 +822,7 @@ class ApiService {
 
     /** Test one feature contract (every role it uses) against a published revision or, for root, the saved draft version. */
     async testLlmProfile(id: string, target: LlmProfileTestTarget, feature: LlmFeature, requestId: string, systemAdmin: boolean, credentials?: { api_key: string }, retryOfExecutionId?: string): Promise<LlmProfileTestResult> {
+        assertLlmFeatureEnabled(feature)
         const owner = authSession.getSnapshot()
         if (credentials && !this.baseUrl.startsWith('https://')) throw new Error('Personal credentials require HTTPS.')
         if (systemAdmin && credentials) throw new Error('Platform tests cannot use personal credentials.')
@@ -839,6 +857,7 @@ class ApiService {
     }
 
     async getLlmExecutionState(feature: LlmFeature, requestId: string, signal?: AbortSignal): Promise<LlmExecutionState> {
+        assertLlmFeatureEnabled(feature)
         const value = await this.authenticatedRequest<Record<string, unknown>>(`/llm/features/${feature}/executions/${encodeURIComponent(requestId)}`,
             this.getStoredToken(), { method: 'GET', cache: 'no-store', timeoutMs: 5000, signal })
         const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -873,7 +892,7 @@ class ApiService {
     }
 
     private assertCommunityCardsEnabled() {
-        if (!isCommunityCardsFeatureEnabled()) throw new Error('Community card sharing is disabled.')
+        assertFeatureEnabled('communityCards')
     }
 
     /** Card assistants are always on; lorebook and app assistants follow their feature flags. */
@@ -885,27 +904,27 @@ class ApiService {
 
     private assertAssistantKindEnabled(kind: AssistantKind) {
         if (kind === 'lorebook') this.assertLorebooksEnabled()
-        if (kind === 'app' && !isAppAssistantFeatureEnabled()) throw new Error('The app assistant is disabled.')
+        if (kind === 'app') assertFeatureEnabled('appAssistant')
     }
 
     private assertLorebooksEnabled() {
-        if (!isLorebooksFeatureEnabled()) throw new Error('Lorebooks are disabled.')
+        assertFeatureEnabled('lorebooks')
     }
 
     private assertLorebookResourcesEnabled() {
-        if (!isLorebookResourcesFeatureEnabled()) throw new Error('Lorebook resources are disabled.')
+        assertFeatureEnabled('lorebookResources')
     }
 
     private assertVoicesEnabled() {
-        if (!isVoicesFeatureEnabled()) throw new Error('Voices are disabled.')
+        assertFeatureEnabled('voices')
     }
 
     private assertCallsEnabled() {
-        if (!isCallsFeatureEnabled()) throw new Error('Calls are disabled.')
+        assertFeatureEnabled('calls')
     }
 
     private assertNovelsEnabled() {
-        if (!isNovelsFeatureEnabled()) throw new Error('Novels are disabled.')
+        assertFeatureEnabled('novels')
     }
 
     /**
@@ -919,6 +938,8 @@ class ApiService {
     ): Promise<T> {
         const url = `${this.baseUrl}${endpoint}`
         const { timeoutMs, rejectAccepted, omitWorkspaceScope, onResponse, ...fetchOptions } = options
+        const changesContent = !SAFE_HTTP_METHODS.has((fetchOptions.method ?? 'GET').toUpperCase())
+        if (changesContent) this.libraryPages.clear()
         if (workspaceWritesBlocked && !SAFE_HTTP_METHODS.has((fetchOptions.method ?? 'GET').toUpperCase())
             && (this.workspaceScope !== null || endpoint.startsWith('/workspaces'))) {
             throw blockedWorkspaceWriteError()
@@ -958,6 +979,7 @@ class ApiService {
         const headers: HeaderRecord = {
             ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
             'Accept': 'application/json',
+            'X-MW-Voice-Contract': '4',
             ...this.toHeaderRecord(fetchOptions.headers),
             ...(omitWorkspaceScope ? {} : this.workspaceHeaders()),
         }
@@ -1072,6 +1094,7 @@ class ApiService {
             throw error
         } finally {
             if (timeoutHandle) clearTimeout(timeoutHandle)
+            if (changesContent) this.libraryPages.clear()
         }
     }
 
@@ -1616,6 +1639,7 @@ class ApiService {
     private async withLlmIntent<T>(feature: LlmFeature, requestId: string, supplied: LlmRequest | undefined, signal: AbortSignal | undefined,
         send: (llm: LlmRequest) => Promise<T>, finished: (value: T) => boolean = () => true,
         settleError: (error: unknown) => boolean = isLlmRequestSpent): Promise<T> {
+        assertLlmFeatureEnabled(feature)
         const owner = authSession.getSnapshot()
         // Workspace R1: retained retry/recovery profile reads ride this client's captured origin.
         const origin = this.workspaceScope?.workspaceId
@@ -1675,6 +1699,7 @@ class ApiService {
         options: { signal?: AbortSignal; requestId?: string; timeoutMs?: number; idempotencyKey?: string } = {},
     ): Promise<void> {
         if (workspaceWritesBlocked && this.workspaceScope !== null) throw blockedWorkspaceWriteError()
+        this.libraryPages.clear()
         const token = this.getStoredToken()
         const owner = { ...authSession.getSnapshot(), token }
         const requestId = options.requestId || this.createClientId('mw-stream')
@@ -1743,6 +1768,7 @@ class ApiService {
             throw error
         } finally {
             clearTimeout(timeout)
+            this.libraryPages.clear()
             unsubscribe()
             options.signal?.removeEventListener('abort', abort)
             controller.abort()
@@ -1851,6 +1877,7 @@ class ApiService {
     }
 
     async createWorkspace(body: WorkspaceCreate): Promise<Workspace> {
+        assertFeatureEnabled('workspaces')
         const value = await this.workspaceRequest<unknown>('/workspaces', { method: 'POST', body })
         this.assertWorkspaceContract(verifyWorkspace(value), 'workspace')
         return value as Workspace
@@ -1858,6 +1885,7 @@ class ApiService {
 
     /** `version` is the workspace's current `row_version` (sent as `If-Match`); a stale one is `WORKSPACE_VERSION_CONFLICT`. */
     async updateWorkspace(workspaceId: string, version: number, patch: WorkspaceUpdate): Promise<Workspace> {
+        assertFeatureEnabled('workspaces')
         const value = await this.workspaceRequest<unknown>(this.workspacePath(workspaceId), { method: 'PATCH', body: patch, version })
         this.assertWorkspaceContract(verifyWorkspace(value) && value.id === workspaceId, 'workspace')
         return value as Workspace
@@ -1865,36 +1893,42 @@ class ApiService {
 
     /** The default is `WORKSPACE_DEFAULT_PROTECTED`; a live call is `WORKSPACE_ACTIVE_CALL`. Replaying with the current version is a no-op. */
     async archiveWorkspace(workspaceId: string, version: number): Promise<Workspace> {
+        assertFeatureEnabled('workspaces')
         const value = await this.workspaceRequest<unknown>(this.workspacePath(workspaceId, '/archive'), { method: 'POST', body: {}, version })
         this.assertWorkspaceContract(verifyWorkspace(value) && value.id === workspaceId, 'workspace')
         return value as Workspace
     }
 
     async restoreWorkspace(workspaceId: string, version: number): Promise<Workspace> {
+        assertFeatureEnabled('workspaces')
         const value = await this.workspaceRequest<unknown>(this.workspacePath(workspaceId, '/restore'), { method: 'POST', body: {}, version })
         this.assertWorkspaceContract(verifyWorkspace(value) && value.id === workspaceId, 'workspace')
         return value as Workspace
     }
 
     async listCollections(workspaceId: string): Promise<CollectionList> {
+        assertFeatureEnabled('workspaces')
         const value = await this.workspaceRequest<unknown>(this.workspacePath(workspaceId, '/collections'))
         this.assertWorkspaceContract(verifyCollectionList(value, workspaceId), 'collection list')
         return value as CollectionList
     }
 
     async getCollection(workspaceId: string, collectionId: string): Promise<Collection> {
+        assertFeatureEnabled('workspaces')
         const value = await this.workspaceRequest<unknown>(this.collectionPath(workspaceId, collectionId))
         this.assertWorkspaceContract(verifyCollection(value, workspaceId) && value.id === collectionId, 'collection')
         return value as Collection
     }
 
     async createCollection(workspaceId: string, body: CollectionCreate): Promise<Collection> {
+        assertFeatureEnabled('workspaces')
         const value = await this.workspaceRequest<unknown>(this.workspacePath(workspaceId, '/collections'), { method: 'POST', body })
         this.assertWorkspaceContract(verifyCollection(value, workspaceId), 'collection')
         return value as Collection
     }
 
     async updateCollection(workspaceId: string, collectionId: string, version: number, patch: CollectionUpdate): Promise<Collection> {
+        assertFeatureEnabled('workspaces')
         const value = await this.workspaceRequest<unknown>(this.collectionPath(workspaceId, collectionId), { method: 'PATCH', body: patch, version })
         this.assertWorkspaceContract(verifyCollection(value, workspaceId) && value.id === collectionId, 'collection')
         return value as Collection
@@ -1902,11 +1936,13 @@ class ApiService {
 
     /** Deleting a collection keeps its cards (204). */
     async deleteCollection(workspaceId: string, collectionId: string, version: number): Promise<void> {
+        assertFeatureEnabled('workspaces')
         await this.workspaceRequest<void>(this.collectionPath(workspaceId, collectionId), { method: 'DELETE', version })
     }
 
     /** A set operation: already present/absent memberships count as `unchanged`. */
     async setCollectionMembers(workspaceId: string, collectionId: string, command: MembershipCommand): Promise<MembershipResult> {
+        assertFeatureEnabled('workspaces')
         const value = await this.workspaceRequest<unknown>(this.collectionPath(workspaceId, collectionId, '/members'), {
             method: 'PUT', body: { add: command.add ?? [], remove: command.remove ?? [] },
         })
@@ -1918,6 +1954,12 @@ class ApiService {
     async listLibraryCards(workspaceId: string, query: LibraryQuery = {}, options: { signal?: AbortSignal } = {}): Promise<LibraryPage> {
         if (query.collection_id !== undefined && query.uncollected) throw new Error('Collection and uncollected filters are exclusive.')
         if (query.character_role !== undefined && query.card_type !== 'character') throw new Error('A character role needs the character card type.')
+        const owner = authSession.getSnapshot()
+        const scope = JSON.stringify([owner.authEpoch, owner.accountKey, workspaceId])
+        return this.libraryPages.read((pageQuery) => this.listLibraryCardsPage(workspaceId, pageQuery, options), query, scope, options.signal)
+    }
+
+    private async listLibraryCardsPage(workspaceId: string, query: LibraryQuery, options: { signal?: AbortSignal }): Promise<LibraryPage> {
         const params = new URLSearchParams()
         if (query.card_type) params.set('card_type', query.card_type)
         if (query.character_role) params.set('character_role', query.character_role)
@@ -1951,6 +1993,7 @@ class ApiService {
      * Copy again or any change of cards, destination or collections.
      */
     async copyCardsToWorkspace(destinationId: string, command: CopyCommand): Promise<CopyOutcome> {
+        assertFeatureEnabled('workspaces')
         const cardKeys = command.cards.map((card) => `${card.card_type}:${card.card_id}`)
         if (!isCopyRequestId(command.request_id)) throw new Error('Copy request IDs match [A-Za-z0-9._:-]{1,64}.')
         if (!isWorkspaceUuid(command.source_workspace_id)) throw new Error('The copy source must be a workspace UUID.')
@@ -2072,8 +2115,9 @@ class ApiService {
      * the cache. A body that is not a capabilities object rejects.
      */
     async getVoiceCapabilities(options: { fresh?: boolean } = {}): Promise<VoiceCapabilities> {
+        this.assertVoicesEnabled()
         const token = this.getStoredToken()
-        const read = cachedVoiceCapabilities(token, async () => {
+        const read = cachedVoiceCapabilities(`voice-v3:${token}`, async () => {
             const raw = await this.authenticatedRequest<unknown>('/voices/capabilities', token, {
                 method: 'GET',
                 omitWorkspaceScope: true,
@@ -2279,6 +2323,32 @@ class ApiService {
 
     async listAdminCatalog(query: AdminCatalogQuery = {}, signal?: AbortSignal): Promise<AdminCatalogPage> {
         return this.adminVoiceRequest(`/admin/voices/catalog${this.adminVoiceQuery(query)}`, 'GET', undefined, signal)
+    }
+
+    async getFishInventory(): Promise<import('@/shared').FishInventoryResponse> {
+        return this.adminVoiceRequest('/admin/voices/fish/inventory', 'GET')
+    }
+
+    async getFishReferences(language: string, query = '', page = 1): Promise<import('@/shared').FishReferencePage> {
+        const params = new URLSearchParams({ language, page: String(page) })
+        if (query.trim()) params.set('q', query.trim())
+        return this.adminVoiceRequest(`/admin/voices/fish/references?${params}`, 'GET')
+    }
+
+    async getFishDesignCapabilities(signal?: AbortSignal): Promise<import('@/shared').FishDesignCapabilities> {
+        return this.adminVoiceRequest('/admin/voices/fish/design/capabilities', 'GET', undefined, signal)
+    }
+
+    async designFishVoice(body: import('@/shared').FishDesignRequest, signal?: AbortSignal): Promise<import('@/shared').VoiceDesignResponse> {
+        return this.adminVoiceRequest('/admin/voices/fish/design', 'POST', body, signal)
+    }
+
+    async saveFishDesign(body: import('@/shared').VoiceDesignSaveRequest): Promise<import('@/shared').AdminCatalogVoice> {
+        return this.adminVoiceRequest('/admin/voices/fish/design/save', 'POST', body)
+    }
+
+    async importFishReference(body: import('@/shared').FishReferenceImport): Promise<{ voice_key: string }> {
+        return this.adminVoiceRequest('/admin/voices/fish/import', 'POST', body)
     }
 
     /**
@@ -2713,28 +2783,28 @@ class ApiService {
     // --- Voice presets (user-facing) ---------------------------------------
 
     /** The caller's presets plus the globals the BFF shows them (EP-4), never filtered here (R-15). */
-    async listVoicePresets(q?: string): Promise<VoicePresetV2[]> {
+    async listVoicePresets(q?: string): Promise<VoicePreset[]> {
         this.assertVoicesEnabled()
         const token = this.getStoredToken()
         const query = q && q.trim() ? `?q=${encodeURIComponent(q.trim())}` : ''
-        return this.authenticatedRequest<VoicePresetV2[]>(`/voice-presets${query}`, token, { method: 'GET' })
+        return this.authenticatedRequest<VoicePreset[]>(`/voice-presets${query}`, token, { method: 'GET' })
     }
 
     /** EP-3: a V2 body. */
-    async createVoicePreset(body: VoicePresetV2Write): Promise<VoicePresetV2> {
+    async createVoicePreset(body: VoicePresetV2Write): Promise<VoicePreset> {
         this.assertVoicesEnabled()
         const token = this.getStoredToken()
-        return this.authenticatedRequest<VoicePresetV2>('/voice-presets', token, {
+        return this.authenticatedRequest<VoicePreset>('/voice-presets', token, {
             method: 'POST',
             body: stripVoiceProjections(body) as unknown as BodyInit,
         })
     }
 
     /** EP-3: a V2 body; the row keeps its preset_id. */
-    async updateVoicePreset(presetId: string, body: VoicePresetV2Write): Promise<VoicePresetV2> {
+    async updateVoicePreset(presetId: string, body: VoicePresetV2Write): Promise<VoicePreset> {
         this.assertVoicesEnabled()
         const token = this.getStoredToken()
-        return this.authenticatedRequest<VoicePresetV2>(`/voice-presets/${encodeURIComponent(presetId)}`, token, {
+        return this.authenticatedRequest<VoicePreset>(`/voice-presets/${encodeURIComponent(presetId)}`, token, {
             method: 'PUT',
             body: stripVoiceProjections(body) as unknown as BodyInit,
         })
@@ -2765,6 +2835,29 @@ class ApiService {
             signal: options.signal,
             omitWorkspaceScope: true,
         })
+    }
+
+    async getVoicePerformanceCapabilities(): Promise<import('@/shared').VoicePerformanceCapabilities> {
+        return this.authenticatedRequest('/voice-performance/capabilities', this.getStoredToken(), { omitWorkspaceScope: true })
+    }
+
+    async listPronunciationDictionaries(): Promise<{ items: import('@/shared').PronunciationDictionary[] }> {
+        return this.authenticatedRequest('/voice-performance/dictionaries', this.getStoredToken(), { omitWorkspaceScope: true })
+    }
+
+    async savePronunciationDictionary(body: import('@/shared').PronunciationDictionaryWrite, dictionaryId?: string): Promise<import('@/shared').PronunciationDictionary> {
+        return this.authenticatedRequest(`/voice-performance/dictionaries${dictionaryId ? `/${encodeURIComponent(dictionaryId)}` : ''}`, this.getStoredToken(), {
+            method: dictionaryId ? 'PUT' : 'POST', body: body as unknown as BodyInit, omitWorkspaceScope: true,
+        })
+    }
+
+    async archivePronunciationDictionary(dictionaryId: string): Promise<void> {
+        await this.authenticatedRequest(`/voice-performance/dictionaries/${encodeURIComponent(dictionaryId)}`, this.getStoredToken(), { method: 'DELETE', omitWorkspaceScope: true })
+    }
+
+    async previewVoicePerformance(body: import('@/shared').AuthoredVoicePreview, signal?: AbortSignal): Promise<VoicePresetPreviewResponse> {
+        this.assertVoicesEnabled()
+        return this.authenticatedRequest('/voice-performance/preview', this.getStoredToken(), { method: 'POST', body: body as unknown as BodyInit, signal, omitWorkspaceScope: true })
     }
 
     /**
@@ -2897,6 +2990,7 @@ class ApiService {
     /** Root test run; sending the same request ID again resumes it with the target it first froze. */
     async testAgent(workflowKey: string, body: Omit<AgentTestRequest, 'llm'> & { llm?: LlmRequest }, requestId: string,
         feature: LlmFeature = 'card_generation'): Promise<AgentTestResponse> {
+        assertLlmFeatureEnabled(feature)
         const owner = authSession.getSnapshot()
         return this.withLlmIntent(feature, requestId, body.llm, undefined, async (llm) => {
             try {
@@ -2950,6 +3044,7 @@ class ApiService {
     }
 
     async exportCardImage(cardType: CardExportType, cardId: string): Promise<Blob> {
+        if (cardType) assertContentTypeFeatureEnabled(cardType)
         return this.authenticatedBlob(
             `/cards/${cardType}/${encodeURIComponent(cardId)}/export.png`,
             'Card image could not be exported.',
@@ -2958,6 +3053,7 @@ class ApiService {
     }
 
     async createCardShareLink(cardType: CardShareType, cardId: string): Promise<CardShareLinkResponse> {
+        if (cardType) assertContentTypeFeatureEnabled(cardType)
         this.assertCommunityCardsEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<CardShareLinkResponse>(
@@ -2994,6 +3090,7 @@ class ApiService {
     }
 
     async publishCard(cardType: CardShareType, cardId: string): Promise<SharedCardResource> {
+        if (cardType) assertContentTypeFeatureEnabled(cardType)
         this.assertCommunityCardsEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<SharedCardResource>(
@@ -3004,6 +3101,7 @@ class ApiService {
     }
 
     async unpublishCard(cardType: CardShareType, cardId: string): Promise<SharedCardResource> {
+        if (cardType) assertContentTypeFeatureEnabled(cardType)
         this.assertCommunityCardsEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<SharedCardResource>(
@@ -3014,6 +3112,7 @@ class ApiService {
     }
 
     async cloneCard(cardType: CardShareType, cardId: string, opts?: { force?: boolean }): Promise<CardCloneResponse> {
+        if (cardType) assertContentTypeFeatureEnabled(cardType)
         this.assertCommunityCardsEnabled()
         const token = this.getStoredToken()
         const query = opts?.force ? '?force=true' : ''
@@ -3025,6 +3124,7 @@ class ApiService {
     }
 
     async duplicateCard(cardType: CardShareType, cardId: string): Promise<CardCloneResponse> {
+        if (cardType) assertContentTypeFeatureEnabled(cardType)
         const token = this.getStoredToken()
         return this.authenticatedRequest<CardCloneResponse>(
             `/cards/${cardType}/${encodeURIComponent(cardId)}/duplicate`,
@@ -3037,6 +3137,7 @@ class ApiService {
 
     /** Route prefix for the versionable card type (characters/worlds/items). */
     private versionBasePath(cardType: VersionableCardType): string {
+        if (cardType) assertContentTypeFeatureEnabled(cardType)
         if (cardType === 'world') return '/worlds'
         if (cardType === 'item') return '/items'
         return '/characters'
@@ -3044,6 +3145,7 @@ class ApiService {
 
     /** List a card's saved versions (newest first) plus its current latest pointer. */
     async listCardVersions(cardType: VersionableCardType, cardId: string): Promise<CardVersionList> {
+        if (cardType) assertContentTypeFeatureEnabled(cardType)
         const token = this.getStoredToken()
         return this.authenticatedRequest<CardVersionList>(
             `${this.versionBasePath(cardType)}/${encodeURIComponent(cardId)}/versions`,
@@ -3054,6 +3156,7 @@ class ApiService {
 
     /** Snapshot the card's current content as a new immutable version ("Save version"). */
     async saveCardVersion(cardType: VersionableCardType, cardId: string, label?: string): Promise<CardVersion> {
+        if (cardType) assertContentTypeFeatureEnabled(cardType)
         const token = this.getStoredToken()
         return this.authenticatedRequest<CardVersion>(
             `${this.versionBasePath(cardType)}/${encodeURIComponent(cardId)}/versions`,
@@ -3068,6 +3171,7 @@ class ApiService {
 
     /** Restore an earlier version into the live card (in place). Returns the updated card. */
     async restoreCardVersion(cardType: VersionableCardType, cardId: string, versionNumber: number): Promise<any> {
+        if (cardType) assertContentTypeFeatureEnabled(cardType)
         const token = this.getStoredToken()
         return this.authenticatedRequest(
             `${this.versionBasePath(cardType)}/${encodeURIComponent(cardId)}/versions/${versionNumber}/restore`,
@@ -3078,6 +3182,7 @@ class ApiService {
 
     /** Derived usage for a card: distinct sessions (adventures + chats) and stories. */
     async getCardUsage(cardType: VersionableCardType, cardId: string): Promise<CardUsage> {
+        if (cardType) assertContentTypeFeatureEnabled(cardType)
         const token = this.getStoredToken()
         return this.authenticatedRequest<CardUsage>(
             `${this.versionBasePath(cardType)}/${encodeURIComponent(cardId)}/usage`,
@@ -3092,6 +3197,7 @@ class ApiService {
 
     /** Fetch the editable body: the private draft if present, else the published body. */
     async getCardDraft(cardType: VersionableCardType, cardId: string): Promise<CardDraftDocument> {
+        if (cardType) assertContentTypeFeatureEnabled(cardType)
         const token = this.getStoredToken()
         return this.authenticatedRequest<CardDraftDocument>(
             `${this.versionBasePath(cardType)}/${encodeURIComponent(cardId)}/draft`,
@@ -3102,6 +3208,7 @@ class ApiService {
 
     /** Write the editor's payload into the private draft (does not touch the live card). */
     async saveCardDraft(cardType: VersionableCardType, cardId: string, body: unknown): Promise<CardDraftDocument> {
+        if (cardType) assertContentTypeFeatureEnabled(cardType)
         const token = this.getStoredToken()
         return this.authenticatedRequest<CardDraftDocument>(
             `${this.versionBasePath(cardType)}/${encodeURIComponent(cardId)}/draft`,
@@ -3119,6 +3226,7 @@ class ApiService {
         cardType: VersionableCardType,
         cardId: string,
     ): Promise<{ card_id: string; discarded: boolean; has_draft: boolean }> {
+        if (cardType) assertContentTypeFeatureEnabled(cardType)
         const token = this.getStoredToken()
         return this.authenticatedRequest(
             `${this.versionBasePath(cardType)}/${encodeURIComponent(cardId)}/draft`,
@@ -3129,6 +3237,7 @@ class ApiService {
 
     /** Promote the draft → live and cut a new version (v{n+1}). 409 when there's nothing to publish. */
     async publishCardDraft(cardType: VersionableCardType, cardId: string, label?: string): Promise<CardPublishResult> {
+        if (cardType) assertContentTypeFeatureEnabled(cardType)
         const token = this.getStoredToken()
         return this.authenticatedRequest<CardPublishResult>(
             `${this.versionBasePath(cardType)}/${encodeURIComponent(cardId)}/publish`,
@@ -3147,6 +3256,7 @@ class ApiService {
         cardId: string,
         versionNumber: number,
     ): Promise<CardDraftDocument> {
+        if (cardType) assertContentTypeFeatureEnabled(cardType)
         const token = this.getStoredToken()
         return this.authenticatedRequest<CardDraftDocument>(
             `${this.versionBasePath(cardType)}/${encodeURIComponent(cardId)}/versions/${versionNumber}/restore`,
@@ -3164,6 +3274,7 @@ class ApiService {
         cardId: string,
         versionNumber: number,
     ): Promise<CardHistoricalDocument> {
+        if (cardType) assertContentTypeFeatureEnabled(cardType)
         const token = this.getStoredToken()
         return this.authenticatedRequest<CardHistoricalDocument>(
             `${this.versionBasePath(cardType)}/${encodeURIComponent(cardId)}/versions/${versionNumber}`,
@@ -3174,6 +3285,7 @@ class ApiService {
 
     /** Fetch the latest PUBLISHED body for a versionable card (ignores any private draft). */
     async getPublishedBody(cardType: VersionableCardType, cardId: string): Promise<CardDraftDocument> {
+        if (cardType) assertContentTypeFeatureEnabled(cardType)
         if (cardType === 'world') return (await this.getWorld(cardId)) as CardDraftDocument
         if (cardType === 'item') return (await this.getItem(cardId)) as CardDraftDocument
         return (await this.getCharacter(cardId)) as CardDraftDocument
@@ -3189,6 +3301,7 @@ class ApiService {
         cardId: string,
         media: { image_url?: string | null; theme_song_url?: string | null },
     ): Promise<CardDraftDocument> {
+        if (cardType) assertContentTypeFeatureEnabled(cardType)
         const token = this.getStoredToken()
         return this.authenticatedRequest<CardDraftDocument>(
             `${this.versionBasePath(cardType)}/${encodeURIComponent(cardId)}/media`,
@@ -3257,6 +3370,7 @@ class ApiService {
         cardType?: CardShareType,
         role?: 'character' | 'persona',
     ): string {
+        if (cardType) assertContentTypeFeatureEnabled(cardType)
         const params = new URLSearchParams()
         params.set('skip', String(skip))
         params.set('limit', String(limit))
@@ -3273,6 +3387,7 @@ class ApiService {
         cardType?: CardShareType,
         role?: 'character' | 'persona',
     ): Promise<SharedCardListResponse> {
+        if (cardType) assertContentTypeFeatureEnabled(cardType)
         this.assertCommunityCardsEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<SharedCardListResponse>(
@@ -3283,6 +3398,7 @@ class ApiService {
     }
 
     async getPublicCard(cardType: CardShareType, cardId: string): Promise<SharedCardResource> {
+        if (cardType) assertContentTypeFeatureEnabled(cardType)
         this.assertCommunityCardsEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<SharedCardResource>(
@@ -3299,6 +3415,7 @@ class ApiService {
         cardType?: CardShareType,
         role?: 'character' | 'persona',
     ): Promise<SharedCardListResponse> {
+        if (cardType) assertContentTypeFeatureEnabled(cardType)
         this.assertCommunityCardsEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<SharedCardListResponse>(
@@ -3315,6 +3432,7 @@ class ApiService {
         cardType?: CardShareType,
         role?: 'character' | 'persona',
     ): Promise<SharedCardListResponse> {
+        if (cardType) assertContentTypeFeatureEnabled(cardType)
         this.assertCommunityCardsEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<SharedCardListResponse>(
@@ -3360,6 +3478,7 @@ class ApiService {
      * Get adventure templates list with pagination and optional search
      */
     async getAdventureTemplates(skip: number = 0, limit: number = 100, q?: string): Promise<any> {
+        assertFeatureEnabled('adventures')
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/adventure-templates/${this.listQuery(skip, limit, q)}`, token, {
             method: 'GET'
@@ -3905,6 +4024,7 @@ class ApiService {
      * Get adventure sessions list
      */
     async getAdventureSessions(): Promise<any> {
+        assertFeatureEnabled('adventures')
         const token = this.getStoredToken()
         try {
             return await this.authenticatedRequest('/adventure-sessions/', token, {
@@ -3923,6 +4043,7 @@ class ApiService {
      * Create a new adventure template
      */
     async createAdventureTemplate(templateData: any): Promise<any> {
+        assertFeatureEnabled('adventures')
         const token = this.getStoredToken()
         return this.authenticatedRequest('/adventure-templates/', token, {
             method: 'POST',
@@ -3938,6 +4059,7 @@ class ApiService {
      * endpoint. The backend creates the card and returns it.
      */
     async createAdventureTemplateAI(description: string, options: AiCardRequestOptions = {}): Promise<AiCardGeneratedResult<AdventureTemplateCardResponse>> {
+        assertFeatureEnabled('adventures')
         return this.generateCard<AdventureTemplateCardResponse>('/adventure-templates/ai', description, options)
     }
 
@@ -3951,6 +4073,7 @@ class ApiService {
         options: AssistantRequestOptions = {},
     ): Promise<AssistantConversationResponse<K>> {
         this.assertAssistantKindEnabled(body.kind)
+        if (body.kind === 'card') assertContentTypeFeatureEnabled(body.card_type)
         return this.authenticatedRequest<AssistantConversationResponse<K>>('/assistant/conversations', this.getStoredToken(), {
             method: 'POST',
             body: body as unknown as BodyInit,
@@ -3972,9 +4095,10 @@ class ApiService {
                 method: 'GET',
                 ...this.assistantRequestOptions(options),
             })
-            return { conversations: history.conversations.filter((conversation) => this.assistantKindEnabled(conversation.kind)) }
+            return { conversations: history.conversations.filter((conversation) => this.assistantKindEnabled(conversation.kind) && (conversation.kind !== 'card' || isContentTypeFeatureEnabled(conversation.card_type ?? ''))) }
         }
         this.assertAssistantKindEnabled(scope.kind)
+        if (scope.kind === 'card') assertContentTypeFeatureEnabled(scope.card_type)
         const params = new URLSearchParams({ kind: scope.kind })
         if (scope.kind === 'card') {
             params.set('card_type', scope.card_type)
@@ -4124,6 +4248,7 @@ class ApiService {
      * Update an existing adventure template
      */
     async updateAdventureTemplate(templateId: string, templateData: any): Promise<any> {
+        assertFeatureEnabled('adventures')
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/adventure-templates/${templateId}`, token, {
             method: 'PUT',
@@ -4138,6 +4263,7 @@ class ApiService {
      * Delete an adventure template
      */
     async deleteAdventureTemplate(templateId: string): Promise<any> {
+        assertFeatureEnabled('adventures')
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/adventure-templates/${templateId}`, token, {
             method: 'DELETE'
@@ -4219,6 +4345,7 @@ class ApiService {
      * Get a specific adventure template by ID
      */
     async getAdventureTemplate(templateId: string): Promise<any> {
+        assertFeatureEnabled('adventures')
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/adventure-templates/${templateId}`, token, {
             method: 'GET'
@@ -4229,6 +4356,7 @@ class ApiService {
      * Get a specific adventure session by ID
      */
     async getAdventureSession(sessionId: number): Promise<any> {
+        assertFeatureEnabled('adventures')
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/adventure-sessions/${sessionId}`, token, {
             method: 'GET'
@@ -4236,6 +4364,7 @@ class ApiService {
     }
 
     async getAdventureSessionMessages(sessionId: number): Promise<AdventureSessionMessagesResponse> {
+        assertFeatureEnabled('adventures')
         const token = this.getStoredToken()
         const limit = 200
         let beforeSequence: number | undefined
@@ -4302,6 +4431,7 @@ class ApiService {
         messageId: number,
         content: string,
     ): Promise<StoredConversationMessage> {
+        assertFeatureEnabled('adventures')
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/adventure-sessions/${sessionId}/messages/${messageId}`, token, {
             method: 'PATCH',
@@ -4312,6 +4442,7 @@ class ApiService {
 
     /** Make this reply the active version of the latest exchange; the others stay stored. */
     async activateAdventureSessionMessage(sessionId: number, messageId: number): Promise<StoredConversationMessage> {
+        assertFeatureEnabled('adventures')
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/adventure-sessions/${sessionId}/messages/${messageId}/activate`, token, {
             method: 'POST'
@@ -4319,6 +4450,7 @@ class ApiService {
     }
 
     async deleteAdventureSessionMessage(sessionId: number, messageId: number): Promise<any> {
+        assertFeatureEnabled('adventures')
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/adventure-sessions/${sessionId}/messages/${messageId}`, token, {
             method: 'DELETE'
@@ -4326,6 +4458,7 @@ class ApiService {
     }
 
     async clearAdventureSessionMessages(sessionId: number): Promise<any> {
+        assertFeatureEnabled('adventures')
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/adventure-sessions/${sessionId}/messages`, token, {
             method: 'DELETE'
@@ -4348,12 +4481,12 @@ class ApiService {
 
     /* ------------------------------ voice call ------------------------------ */
 
-    async saveVoiceConsent(sessionId: number, options: { signal?: AbortSignal } = {}): Promise<VoiceConsentResponse> {
+    async saveVoiceConsent(sessionId: number, options: { signal?: AbortSignal; consentVersion?: 'voice-v2' | 'voice-v3' } = {}): Promise<VoiceConsentResponse> {
         this.assertCallsEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<VoiceConsentResponse>(`/character-chats/${sessionId}/voice-consent`, token, {
             method: 'POST',
-            body: {} as unknown as BodyInit,
+            body: (options.consentVersion ? { consent_version: options.consentVersion } : {}) as unknown as BodyInit,
             signal: options.signal,
         })
     }
@@ -4411,7 +4544,21 @@ class ApiService {
 
     /* ------------------------------ chat tts ------------------------------ */
 
+    async getSceneNarration(basePath: VoiceSessionBasePath, sessionId: number, turn: import('@/shared/types/voiceScene.types').SceneNarrationRequest): Promise<SceneNarrationResponse> {
+        this.assertVoicesEnabled()
+        const query = new URLSearchParams({ assistant_message_id: String(turn.assistant_message_id), turn_id: turn.turn_id })
+        return this.authenticatedRequest(`/${basePath}/${sessionId}/scene-narration?${query}`, this.getStoredToken(), { method: 'GET' })
+    }
+
+    async generateSceneNarration(basePath: VoiceSessionBasePath, sessionId: number, turn: import('@/shared/types/voiceScene.types').SceneNarrationRequest): Promise<SceneNarrationResponse> {
+        this.assertVoicesEnabled()
+        return this.authenticatedRequest(`/${basePath}/${sessionId}/scene-narration`, this.getStoredToken(), {
+            method: 'POST', body: turn as unknown as BodyInit,
+        })
+    }
+
     async getTtsJob(jobId: string): Promise<TtsJobPublicResponse> {
+        this.assertVoicesEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/tts/jobs/${encodeURIComponent(jobId)}`, token, {
             method: 'GET'
@@ -4425,6 +4572,7 @@ class ApiService {
      * here and play from an object URL instead.
      */
     async fetchTtsAudioBlob(url: string): Promise<Blob> {
+        this.assertVoicesEnabled()
         return this.fetchProtectedMediaBlob(url, 'audio/mpeg')
     }
 
@@ -4865,20 +5013,25 @@ class ApiService {
             params.append('status', status)
         }
         const query = params.toString()
-        return this.authenticatedRequest(`/tasks?${query}`, token, { method: 'GET' })
+        if (operation !== 'all' && !isOperationFeatureEnabled(operation)) return { items: [], limit, offset, next_offset: null }
+        const result = await this.authenticatedRequest<BackgroundTaskListResponse>(`/tasks?${query}`, token, { method: 'GET' })
+        return { ...result, items: result.items.filter(isTaskFeatureEnabled) }
     }
 
     async getTask(operation: BackgroundTaskOperation, taskId: string): Promise<BackgroundTaskPublic> {
+        if (!isOperationFeatureEnabled(operation)) throw new Error('This task feature is disabled.')
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/tasks/${encodeURIComponent(operation)}/${encodeURIComponent(taskId)}`, token, { method: 'GET' })
     }
 
     async cancelTask(operation: BackgroundTaskOperation, taskId: string): Promise<BackgroundTaskPublic> {
+        if (!isOperationFeatureEnabled(operation)) throw new Error('This task feature is disabled.')
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/tasks/${encodeURIComponent(operation)}/${encodeURIComponent(taskId)}`, token, { method: 'DELETE' })
     }
 
     async archiveTask(operation: BackgroundTaskOperation, taskId: string): Promise<BackgroundTaskPublic> {
+        if (!isOperationFeatureEnabled(operation)) throw new Error('This task feature is disabled.')
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/tasks/${encodeURIComponent(operation)}/${encodeURIComponent(taskId)}/archive`, token, { method: 'POST' })
     }
@@ -4896,6 +5049,7 @@ class ApiService {
      * Create a new adventure session
      */
     async createAdventureSession(adventureTemplate: string, personaId: string): Promise<any> {
+        assertFeatureEnabled('adventures')
         const token = this.getStoredToken()
         return this.authenticatedRequest('/adventure-sessions/', token, {
             method: 'POST',
@@ -4912,6 +5066,7 @@ class ApiService {
      * library cards are never touched. The chat AI reads its context from here.
      */
     async updateAdventureSnapshot(sessionId: number, snapshot: AdventureSnapshot): Promise<any> {
+        assertFeatureEnabled('adventures')
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/adventure-sessions/${sessionId}/template-snapshot`, token, {
             method: 'PUT',
@@ -4931,6 +5086,7 @@ class ApiService {
      * Delete an adventure session
      */
     async deleteAdventureSession(sessionId: number): Promise<any> {
+        assertFeatureEnabled('adventures')
         const token = this.getStoredToken()
         return this.authenticatedRequest(`/adventure-sessions/${sessionId}`, token, {
             method: 'DELETE'
@@ -4957,6 +5113,7 @@ class ApiService {
      * Unlike 1:1 chat, this intentionally creates a fresh room every time.
      */
     async createCharacterGroupChat(characterIds: string[], personaId: string): Promise<any> {
+        assertFeatureEnabled('groupChats')
         const token = this.getStoredToken()
         return this.authenticatedRequest('/character-chats/groups', token, {
             method: 'POST',

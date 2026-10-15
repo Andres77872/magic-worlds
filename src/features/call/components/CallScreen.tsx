@@ -44,6 +44,7 @@ import {
 } from '@/features/interaction/voiceCallLabels'
 import { CallWaveform } from './CallWaveform'
 import { LlmFeatureControl } from '@/features/llmProfiles/LlmFeatureControl'
+import type { ConsentVersion } from '@/features/legal/documents'
 
 interface CallScreenProps {
     character?: Character
@@ -61,6 +62,7 @@ export function CallScreen({ character, sessionId, workspaceId, ensureSession, o
     const voiceEnabled = isFrontendVoiceModeEnabled()
     const [consentOpen, setConsentOpen] = useState(true)
     const [isAccepting, setIsAccepting] = useState(false)
+    const availability = useVoiceAvailability(apiService, voiceEnabled && isAuthenticated, 0, character?.voice?.provider ?? 'elevenlabs')
 
     const controller = useVoiceCallController({
         sessionId: voiceEnabled && isAuthenticated && token && !Number.isNaN(sessionId) ? sessionId : null,
@@ -68,6 +70,7 @@ export function CallScreen({ character, sessionId, workspaceId, ensureSession, o
         ensureSession,
         authKey: token ?? null,
         consentGranted: true,
+        consentVersion: availability.consentVersion,
         enabled: voiceEnabled,
         // VAD turn-taking tuning. Add `speechThreshold` here (0..1 RMS) to override the
         // worklet default if mics under-/over-trigger; lower = more sensitive.
@@ -81,7 +84,6 @@ export function CallScreen({ character, sessionId, workspaceId, ensureSession, o
 
     // 09 §7: the server reports calls switched off for this account (`capabilities.status`,
     // fail open).
-    const availability = useVoiceAvailability(apiService, voiceEnabled && isAuthenticated)
 
     // Consent copy (D25): always the voice-v2 copy, the version the BFF records and
     // requires (I-68), so the consent needs no version read and is never pending.
@@ -141,6 +143,7 @@ export function CallScreen({ character, sessionId, workspaceId, ensureSession, o
 
     return (
         <CallScreenView
+            consentVersion={availability.consentVersion}
             profileControl={<LlmFeatureControl feature="callbot" />}
             name={name}
             imageUrl={character?.image_url ?? null}
@@ -179,6 +182,7 @@ export function CallScreen({ character, sessionId, workspaceId, ensureSession, o
 }
 
 export interface CallScreenViewProps {
+    consentVersion?: ConsentVersion
     profileControl?: ReactNode
     name: string
     imageUrl?: string | null
@@ -221,6 +225,7 @@ export interface CallScreenViewProps {
 }
 
 export function CallScreenView({
+    consentVersion = 'voice-v2',
     profileControl,
     name,
     imageUrl,
@@ -437,10 +442,11 @@ export function CallScreenView({
             )}
 
             <p className="relative z-10 shrink-0 px-6 pb-4 text-center text-caption text-parchment-400">
-                {t('call.screen.privacyNote')}
+                {t(consentVersion === 'voice-v3' ? 'call.transcript.privacyNote' : 'call.screen.privacyNote')}
             </p>
 
             <VoiceConsentModal
+                consentVersion={consentVersion}
                 open={consentOpen}
                 staleConsent={error?.category === 'consent_stale'}
                 isAccepting={isAccepting}

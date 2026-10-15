@@ -13,6 +13,7 @@ import { formatRelativeTime } from '@/utils/time'
 import { EmptyState, LoadingSpinner } from '@/ui/components'
 import { WorkspaceOriginLabel } from '@/ui/components/WorkspaceOriginLabel'
 import { Badge, Button, Callout, Icon, IconButton, PageHeader } from '@/ui/primitives'
+import { notificationActionAvailable } from '../notificationAvailability'
 
 const severityIcon = {
     info: Info,
@@ -206,6 +207,7 @@ export function NotificationsPage() {
         setUnavailableIds((current) => new Set(current).add(notificationId))
 
     const followAction = async (item: UserNotification) => {
+        if (!notificationActionAvailable(item)) return
         if (!(await markRead(item))) return
         const hash = actionHash(item)
         const page = hash ? pageFromHash(hash) : null
@@ -288,7 +290,7 @@ export function NotificationsPage() {
                 <div className="flex flex-col" aria-busy={loading}>
                     {items.map((item) => {
                         const SeverityIcon = severityIcon[item.severity]
-                        const actionable = Boolean(item.action_url || item.metadata?.job_kind)
+                        const actionable = notificationActionAvailable(item) && Boolean(item.action_url || item.metadata?.job_kind)
                         const pending = pendingIds.has(item.notification_id)
                         return (
                             <article key={item.notification_id} className="flex items-start gap-3 border-b border-line-faint py-5 last:border-b-0 sm:gap-4">

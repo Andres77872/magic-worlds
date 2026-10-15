@@ -2,7 +2,7 @@
 
 **Status reconciliation 2026-10-14: historical bounded audit; remediation WIP.** Findings below retain their original date, source heads, canary/database evidence and limitations. They were not all rerun by this documentation review, and no live database was scanned again. A finding is closed only with current path-specific evidence; see **SEC-01** in [roadmap](../ROADMAP.md).
 
-Current protected profile execution uses `api.magic_llm/src/services/llm_execution.py` and private `client_binding` custody, described in [LLM current status](../llm_profiles/16_current_status_and_roadmap.md). Generic node/template execution has a different trust boundary; its shared template source still creates an ordinary Jinja `Environment`. Do not treat profile implementation as proof that every generic-node finding is fixed, or an old generic-node finding as proof that the protected profile path stores BYOK. Deployment exposure and finding-by-finding closure remain **TBD**.
+Current execution custody is governed by [Current execution boundary](README.md#current-execution-boundary) in the security register, which supersedes this audit on that point: the BFF uses the inline path, not protected profile execution or private `client_binding` custody. Deployment exposure and finding-by-finding closure remain **TBD**.
 
 Date: 2026-10-11. Scope: the current local working trees of Magic Worlds, its BFF, the agents API, the graph runtime, and the provider library.
 

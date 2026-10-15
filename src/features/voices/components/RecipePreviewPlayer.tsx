@@ -1,4 +1,3 @@
-import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { VoiceClipPlayer } from '@/ui/components/audio'
 import { cx } from '@/ui/primitives'
@@ -36,23 +35,20 @@ interface RecipePreviewPlayerProps {
     transcript: string | null
     /** The transcript's language (`PreviewTranscript`'s `lang`). */
     lang?: string
+    /** Play the clip as soon as it loads (it answers a Preview press); default on. */
+    autoPlay?: boolean
     className?: string
 }
 
-/** An ephemeral preview clip with its transcript underneath. */
-export function RecipePreviewPlayer({ src, volume, title, transcript, lang, className }: RecipePreviewPlayerProps) {
+/**
+ * An ephemeral preview clip with its transcript underneath. The clip's level
+ * rides the player's `volume`, so a replay keeps the thought attenuation (D16).
+ */
+export function RecipePreviewPlayer({ src, volume, title, transcript, lang, autoPlay = true, className }: RecipePreviewPlayerProps) {
     const { t } = useTranslation()
-    const frame = useRef<HTMLDivElement>(null)
-
-    // VoiceClipPlayer owns its <audio>; the level is set on that element once per clip.
-    useEffect(() => {
-        const audio = frame.current?.querySelector('audio')
-        if (audio) audio.volume = Math.min(1, Math.max(0, volume))
-    }, [src, volume])
-
     return (
-        <div ref={frame} className={cx('flex flex-col gap-3', className)}>
-            <VoiceClipPlayer src={src} title={title} />
+        <div className={cx('flex flex-col gap-3', className)}>
+            <VoiceClipPlayer src={src} title={title} volume={volume} autoPlay={autoPlay} />
             {transcript === null
                 ? <p className="font-ui text-caption text-fg-muted">{t('voices.preview.freeSample')}</p>
                 : <PreviewTranscript text={transcript} lang={lang} />}

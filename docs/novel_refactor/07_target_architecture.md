@@ -36,7 +36,7 @@ flowchart LR
   Docs --> Compiler[Import / export compiler]
 ~~~
 
-The assistant receives server-validated tools and context. The frontend never receives provider credentials for direct vendor calls as a consequence of this refactor. Existing BYOK transport remains transient and uses the established profile execution boundary.
+The proposed assistant receives server-validated tools and context. The frontend continues through the BFF and receives no platform provider key. Personal BYOK input uses the browser/BFF's transient input handling, but the current BFF materializes that key in the outbound agent graph; end-to-end custody remains open under the [LLM status](../llm_profiles/16_current_status_and_roadmap.md) and [security findings](../security/README.md). Expanded novel execution must close and verify that path rather than assume the current profile boundary prevents persistence.
 
 ## Proposed domain model
 
@@ -54,9 +54,12 @@ The assistant receives server-validated tools and context. The frontend never re
 | AssistantConversation | Novel binding, scope, version and request lifecycle |
 | ChangeSet | Proposed operations, base revision vector, dependencies, approval/application status |
 | GenerationRecord | Exact instruction, authorized context manifest, profile/graph revisions, output and lineage |
+| StashEntry | Novel ownership, optional scene association, reusable text/note, source label and available passage/revision or generation lineage |
 | ExportJob | Frozen revision manifest, format/options, progress, artifact and warnings |
 
 Names illustrate domain boundaries. Adapt actual tables and DTO conventions during implementation. Keep raw legacy Markdown and source lineage during conversion.
+
+R11/A11 require reusable stash entries rather than treating the current generation `stashed` status as a complete snippet store. Manual clippings/ideas and generated alternatives share a browser but retain their source and review state. Insertion creates a separate manuscript operation without deleting the entry. This is a proposed domain responsibility, not an existing table or endpoint; define retention/export behavior with the novel's revision and portability contracts.
 
 ## Canonical document format
 

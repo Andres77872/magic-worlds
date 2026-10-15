@@ -32,3 +32,4 @@ export * from './world.types'
 export * from './workspace.types'
 
 export * from './textGeneration.types'
+export * from './voicePerformance.types'

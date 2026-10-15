@@ -1,6 +1,10 @@
 # Current status and findings
 
-Review date: **2026-10-15**. Read [README](README.md) for owner constraints and evidence labels.
+Review date: **2026-10-15**. **Lifecycle: maintained status; implementation is partial and the native replacement is planned.** Read [README](README.md) for scope and evidence labels. [01](01_code_review_and_gaps.md) maintains the findings and [10](10_rollout_risks_and_decisions.md) the proposed delivery.
+
+**Cleanup source recheck:** frontend HEAD `5a29ad5` and BFF `2c2973d`, with concurrent working-tree edits. The direct Clef/Decisions adapter and requested `moderation_enabled` fields are still absent from LLM/image DTOs/repositories. In the BFF working tree (uncommitted, 2026-10-15) the shared synthesis boundary also dispatches Fish after the existing text gate; this is not raw-audio moderation. Vendor `live_moderation_enabled` metadata does not implement the requested profile switch. [Synthesis](../../../../PycharmProjects/magic-worlds-api/src/services/speech/synthesis.py), [LLM DTO](../../../../PycharmProjects/magic-worlds-api/src/models/llm_profiles.py), [image DTO](../../../../PycharmProjects/magic-worlds-api/src/models/image_profiles.py). Recent moderation commits are legacy-path only: api.magic_llm `c1afb8a` registers the `moderation` feature ([llm_features.py](../../../../PycharmProjects/api.magic_llm/src/services/llm_features.py)); BFF `6d6138d` adds the classifier transport, `speech_moderation.v1.json` graph, `FeatureKey` literal and `db.sql` seed row; frontend `946961c` exposes 'Speech moderation' in the profile voice group ([llmProfileModel.ts](../../src/features/llmProfiles/llmProfileModel.ts)); and BFF `a3f1b53` logs `unmoderated` counts while the metrics event still omits them (G11 in progress). Native work has not started in any repository (recheck 2026-10-15).
+
+The runtime response, offline probes and test counts below belong to the preceding dated review. This cleanup did not rerun them, read local configuration again, call a runtime/provider or inspect a database. The optional-mode and metrics mechanisms remain in current source; configuration observations do not certify a running deployment.
 
 This is a broad audit of current behavior. The latest plan adds actual text/image/audio checks and default-on controls on LLM/image profiles, while keeping execution native inside magic-worlds-api. Historical moderator-profile execution below is the path to replace. Reporting, companion safety, and unrelated enforcement work remain separate.
 
@@ -8,7 +12,7 @@ This is a broad audit of current behavior. The latest plan adds actual text/imag
 
 Moderation is **partly implemented and operationally incomplete**. The strongest existing component is a shared pre-TTS gate. It is not a general BFF admission gate, and the observed local configuration bypasses classification when the classifier is absent.
 
-Baseline commits inspected were frontend **a158e90** and backend **2c2973d**. Local untracked documents and environment files existed. Additional voice-related edits in both repositories appeared during documentation research; they were not made or reverted by this task. Test evidence below belongs to the preceding review snapshot, not a certification of later concurrent edits.
+Baseline commits inspected were frontend **a158e90** and backend **2c2973d**. Local untracked documents and environment files existed. Additional voice-related edits in both repositories appeared during the preceding documentation research; they were not made or reverted by that review or this cleanup. Test evidence below belongs to the preceding review snapshot, not a certification of later concurrent edits.
 
 ## 2. Capability inventory
 
@@ -58,7 +62,7 @@ The current implementation logs this bypass on startup. It is an explicit testin
 - Verdict cache: process-local, 10,000 entries, 24-hour TTL; keyed by text, base language, and policy version.
 - Block deduplication: per user and text key, also process-local and time limited.
 
-The classifier deadline does not currently bound the whole call gate: a slow block callback can extend the check. A new offline probe during this task confirmed this separately from provider latency; see G16 in [01](01_code_review_and_gaps.md).
+The classifier deadline does not currently bound the whole call gate: a slow block callback can extend the check. A dated offline probe in the preceding review confirmed this separately from provider latency; see G16 in [01](01_code_review_and_gaps.md).
 
 These are implementation facts from [moderation.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/speech/moderation.py), not proposed Clef settings. Any retained cache must match the actual checked evidence. A new cache, receipt system, or distributed cache is not required for the native integration.
 
@@ -72,7 +76,7 @@ These tests use mocks or fakes. Some intentionally assert that policy lists are 
 
 ## 6. Previously recorded provider evidence
 
-The [October 14 voice smoke notes](../voice_refactor/15_implementation_plan_and_acceptance.md) recorded approximately **2.3 seconds** per old classifier batch against a 2-second budget, with intermittent transport errors. That test used the old generation-profile classifier, not Clef Omni. It explains the testing bypass but is not a benchmark of the proposed transport.
+The October 14 voice smoke (kept as a dated baseline under V-01 in the [voice status](../voice_refactor/00_current_status_and_roadmap.md)) recorded approximately **2.3 seconds** per old classifier batch against a 2-second budget, with intermittent transport errors. That test used the old generation-profile classifier, not Clef Omni. It explains the testing bypass but is not a benchmark of the proposed transport.
 
 The model and latency research in [02](02_clef_omni_research.md) is external evidence. No paid OpenRouter/Cloudflare inference or prohibited-content-to-TTS testing was performed for this documentation task.
 
@@ -80,7 +84,7 @@ The model and latency research in [02](02_clef_omni_research.md) is external evi
 
 ~~~text
 CURRENT SPEECH CLASSIFICATION
-BFF speech gate -> api.magic_llm -> published moderation graph/profile -> classifier
+BFF speech gate -> api.magic_llm "moderation" feature -> published moderation graph/profile -> classifier
 
 REQUESTED DIRECTION
 BFF request moderation -> direct Clef adapter -> allow decision

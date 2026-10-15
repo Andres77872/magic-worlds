@@ -18,7 +18,7 @@ import {
     DEFAULT_ELIGIBLE_SOURCE_KINDS,
     EXPRESSIVE_MODEL_ID,
     FALLBACK_POOL_MIN,
-    FLASH_MODEL_ID,
+    STANDARD_MODEL_ID,
     HEARD_SOURCE_KINDS,
     LIBRARY_MIN_NOTICE_DAYS,
     LIBRARY_PUBLIC_USE_CONFIRMED,
@@ -49,8 +49,8 @@ export function isAccepted(voice: AdminCatalogVoice, modelId: string, language: 
     return voice.acceptance.some((row) => row.model_id === modelId && row.language === language && row.verdict === 'pass')
 }
 
-/** Languages accepted on the given model (Flash by default). */
-export function acceptedLanguages(voice: AdminCatalogVoice, modelId: string = FLASH_MODEL_ID): string[] {
+/** Languages accepted on the given model (v4 by default). */
+export function acceptedLanguages(voice: AdminCatalogVoice, modelId: string = STANDARD_MODEL_ID): string[] {
     const languages = new Set<string>()
     for (const row of voice.acceptance) {
         if (row.model_id === modelId && row.verdict === 'pass') languages.add(row.language)
@@ -66,9 +66,9 @@ export function hasSample(voice: AdminCatalogVoice, language: string): boolean {
     return Boolean(sampleUrl(voice, language))
 }
 
-/** `consistency_vs_v4` of the Flash row in `language`, or null without one. */
+/** `consistency_vs_v4` of the v4 row in `language`, or null without one. */
 export function flashConsistency(voice: AdminCatalogVoice, language: string): number | null {
-    const row = voice.acceptance.find((entry) => entry.model_id === FLASH_MODEL_ID && entry.language === language)
+    const row = voice.acceptance.find((entry) => entry.model_id === STANDARD_MODEL_ID && entry.language === language)
     const score = row?.scores?.consistency_vs_v4
     return typeof score === 'number' && Number.isFinite(score) ? score : null
 }
@@ -120,6 +120,16 @@ function replacementCheck(voice: AdminCatalogVoice, replacement: AdminCatalogVoi
  * codes, which the drawer lists (`publishFailures`).
  */
 export function publishChecklist(voice: AdminCatalogVoice, context: PublishContext): RuleCheck[] {
+    if (voice.provider === 'fish_audio') {
+        const languages = voice.acceptance.filter((row) => row.model_id === 'drama-3' && row.verdict === 'pass').map((row) => row.language)
+        return [
+            { id: 'fishAccepted', passed: languages.length > 0, labelKey: 'admin.voices.fish.accepted' },
+            { id: 'samples', passed: languages.length > 0 && languages.every((language) => hasSample(voice, language)), labelKey: 'admin.voices.catalog.publishChecklist.samples' },
+            { id: 'sourceKind', passed: ['owned_reference', 'licensed_reference', 'designed'].includes(voice.source_kind), labelKey: 'admin.voices.fish.source' },
+            { id: 'narrationOnly', passed: !voice.call_eligible, labelKey: 'admin.voices.fish.narrationOnly' },
+            ...(context.visibility === 'plan_gated' ? [{ id: 'minPlan', passed: Boolean(voice.min_plan?.trim()), labelKey: 'admin.voices.catalog.publishChecklist.minPlan' }] : []),
+        ]
+    }
     const flashLanguages = acceptedLanguages(voice)
     const missingSamples = flashLanguages.filter((language) => !hasSample(voice, language))
     const missingExpressive = flashLanguages.filter((language) => !isAccepted(voice, EXPRESSIVE_MODEL_ID, language))
@@ -239,9 +249,9 @@ export function verdictBlocker(verdict: AcceptanceVerdict | null, integratedLufs
     return exceedsAttenuation(integratedLufs) ? 'gain_out_of_range' : null
 }
 
-/** D09: call eligible only with a Flash pass and consistency ≥ 4. */
+/** D09: call eligible only with a v4 pass and consistency ≥ 4. */
 export function callEligibleFrom(modelId: string, verdict: AcceptanceVerdict | null, scores: Partial<AcceptanceScores>): boolean {
-    return modelId === FLASH_MODEL_ID && verdict === 'pass' && (scores.consistency_vs_v4 ?? 0) >= CALL_ELIGIBLE_MIN_CONSISTENCY
+    return modelId === STANDARD_MODEL_ID && verdict === 'pass' && (scores.consistency_vs_v4 ?? 0) >= CALL_ELIGIBLE_MIN_CONSISTENCY
 }
 
 // ---- Remix (05 §8.9) ----
@@ -252,6 +262,7 @@ export interface RemixEligibility {
 }
 
 export function remixEligibility(voice: AdminCatalogVoice): RemixEligibility {
+    if (voice.provider === 'fish_audio') return { eligible: false, reasonKey: 'admin.voices.fish.remixUnavailable' }
     if (voice.status === 'removed' || voice.status === 'blocked') return { eligible: false, reasonKey: 'admin.voices.remix.unavailable' }
     if (voice.source_kind === 'designed' || voice.source_kind === 'remixed') return { eligible: true, reasonKey: null }
     // IVC needs a consent scope covering derivatives (proposed; LEGAL).
@@ -275,7 +286,7 @@ export function readinessChecks(voice: AdminCatalogVoice, language: string, lang
         { id: 'callEligible', passed: voice.call_eligible, labelKey: 'admin.voices.defaults.readiness.callEligible' },
         {
             id: 'flashAccepted',
-            passed: isAccepted(voice, FLASH_MODEL_ID, language),
+            passed: isAccepted(voice, STANDARD_MODEL_ID, language),
             labelKey: 'admin.voices.defaults.readiness.flashAccepted',
             labelValues: { language: languageName },
         },
@@ -414,7 +425,7 @@ export interface PublishProgress {
     byLanguage: Record<string, number>
 }
 
-/** Prefers the server summary; otherwise counts published voices per Flash-accepted language. */
+/** Prefers the server summary; otherwise counts published voices per v4-accepted language. */
 export function publishProgress(
     voices: readonly AdminCatalogVoice[],
     summary?: { published_total: number; published_by_language: Record<string, number> } | null,

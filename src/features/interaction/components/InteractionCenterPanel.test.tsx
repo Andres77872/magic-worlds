@@ -42,6 +42,8 @@ vi.mock('@/app/hooks/usePageFocus', () => ({
     isPageFocused: () => hookMocks.pageFocused,
 }))
 
+afterEach(() => vi.unstubAllEnvs())
+
 const initialTurns: TurnEntry[] = [
     { id: '100', type: 'user', content: 'Open the door', timestamp: '2026-06-04T00:00:00' },
     { id: '101', type: 'ai', content: 'The door opens.', timestamp: '2026-06-04T00:00:01', assistantMessageId: 101, turnId: 'turn-1' },
@@ -1330,7 +1332,27 @@ describe('InteractionCenterPanel auto-narration pause (D37)', () => {
         })
     }
 
-    it('auto-narrates a finished turn when the server reports no pause (status absent: fail open)', async () => {
+    it('hides narration and makes no voice requests with voices off, even with calls and a saved preference on', async () => {
+        vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'false')
+        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
+        const getCapabilities = vi.spyOn(apiService, 'getVoiceCapabilities').mockResolvedValue(capabilities())
+        const getTtsJob = vi.spyOn(apiService, 'getTtsJob')
+        const socket = captureSocket()
+        renderPanel(makeConfig())
+        await act(async () => {})
+        expect(screen.queryByRole('button', { name: /auto.narrat/i })).not.toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: /narrat/i })).not.toBeInTheDocument()
+        expect(screen.queryByTestId('narration-availability-status')).not.toBeInTheDocument()
+        await finishTurn(socket)
+        expect(socket.sendTts).not.toHaveBeenCalled()
+        expect(getCapabilities).not.toHaveBeenCalled()
+        expect(getTtsJob).not.toHaveBeenCalled()
+        expect(localStorage.getItem('test:autonarrate:7')).toBe('1')
+    })
+
+    it('auto-narrates with calls off when the parent voices flag is on', async () => {
+        vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'true')
+        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'false')
         const getCapabilities = vi.spyOn(apiService, 'getVoiceCapabilities').mockResolvedValue(capabilities())
         const socket = captureSocket()
         renderPanel(makeConfig())

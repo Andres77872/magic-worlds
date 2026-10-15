@@ -36,7 +36,7 @@ Continue through the existing backend/provider integration. An OpenAI example us
 
 ## Controls that fit this app
 
-The source of truth for currently registered settings is the [local catalog](/home/andres/PycharmProjects/magic-worlds-api/src/services/image_generation/catalog.py). A research suggestion for a control does not mean the current UI accepts a per-request override.
+The source of truth for currently registered settings is the [local catalog](../../../../PycharmProjects/magic-worlds-api/src/services/image_generation/catalog.py). A research suggestion for a control does not mean the current UI accepts a per-request override.
 
 | Control | Current evidence | Suggested presentation |
 |---|---|---|

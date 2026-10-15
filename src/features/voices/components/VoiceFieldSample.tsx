@@ -46,7 +46,7 @@ export function VoiceFieldSample({ voiceKey, name, language = null, className }:
             >
                 {t('voices.catalog.sampleButton')}
             </Button>
-            {sample.clip && <VoiceClipPlayer className="w-full" src={sample.clip.src} title={t('voices.catalog.playSample', { name: heardName })} />}
+            {sample.clip && <VoiceClipPlayer className="w-full" src={sample.clip.src} volume={sample.clip.volume} autoPlay title={t('voices.catalog.playSample', { name: heardName })} />}
             {sample.error && <p role="alert" className="font-ui text-caption text-blood-300">{sample.error}</p>}
         </div>
     )

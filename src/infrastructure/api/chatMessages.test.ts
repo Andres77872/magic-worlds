@@ -24,8 +24,8 @@ describe('chat message API methods', () => {
 
     it('deletes and clears adventure messages through stored endpoints', async () => {
         fetchMock
-            .mockResolvedValueOnce(jsonResponse({ adventure_last_turn: '{"turns":[]}' }))
-            .mockResolvedValueOnce(jsonResponse({ adventure_last_turn: '{"turns":[]}' }))
+            .mockResolvedValueOnce(jsonResponse({ adventure_id: 7, conversation_version: 1 }))
+            .mockResolvedValueOnce(jsonResponse({ adventure_id: 7, conversation_version: 1 }))
 
         await apiService.deleteAdventureSessionMessage(7, 100)
         await apiService.clearAdventureSessionMessages(7)
@@ -42,8 +42,8 @@ describe('chat message API methods', () => {
 
     it('deletes and clears character chat messages through stored endpoints', async () => {
         fetchMock
-            .mockResolvedValueOnce(jsonResponse({ last_turn: '{"turns":[]}' }))
-            .mockResolvedValueOnce(jsonResponse({ last_turn: '{"turns":[]}' }))
+            .mockResolvedValueOnce(jsonResponse({ chat_id: 9, conversation_version: 1 }))
+            .mockResolvedValueOnce(jsonResponse({ chat_id: 9, conversation_version: 1 }))
 
         await apiService.deleteCharacterChatMessage(9, 199)
         await apiService.clearCharacterChatMessages(9)

@@ -29,7 +29,7 @@ import { CardPreviewModal } from '@/features/cards/components/CardPreviewModal'
 type AuthValue = NonNullable<ComponentProps<typeof AuthContext.Provider>['value']>
 type DataValue = NonNullable<ComponentProps<typeof DataContext.Provider>['value']>
 type NavValue = NonNullable<ComponentProps<typeof NavigationContext.Provider>['value']>
-type Route = 'landing' | 'gallery' | 'community' | 'shared' | 'media' | 'docs' | 'about' | 'contact' | 'privacy' | 'disclaimer' | 'reset' | 'verify' | 'google' | 'notFound' | 'preview'
+type Route = 'landing' | 'gallery' | 'community' | 'shared' | 'media' | 'docs' | 'docsRoadmap' | 'about' | 'contact' | 'privacy' | 'disclaimer' | 'reset' | 'verify' | 'google' | 'notFound' | 'preview'
 type State = 'populated' | 'empty' | 'loading' | 'error' | 'guest' | 'public' | 'alreadyImported' | 'missing' | 'success' | 'importing' | 'mismatch'
 interface AuditArgs { route: Route; state: State; type: GalleryType }
 const noop = () => {}
@@ -116,7 +116,7 @@ function Providers({ args, children }: { args: AuditArgs; children: ReactNode })
         stories: empty ? [] : novels, lorebooks: empty ? [] : lorebooks, isLoading: args.state === 'loading', loadingState: { isLoading: args.state === 'loading', error: args.state === 'error' ? fixtureError.message : null },
         error: args.state === 'error' ? fixtureError.message : null,
     }, { get: (target, key) => key in target ? Reflect.get(target, key) : asyncNoop }) as unknown as DataValue
-    const navigation: NavValue = { currentPage: 'landing', previousPage: 'landing', currentHash: window.location.hash, cardEdit: null, resourceEdit: null, setPage: page => setNotice(`Navigation action: ${page}`), goBack: () => setNotice('Back action'), replaceHash: noop, registerNavigationInterceptor: () => noop }
+    const navigation: NavValue = { currentPage: 'landing', previousPage: 'landing', currentHash: args.route === 'docsRoadmap' ? '#/docs?view=roadmap' : window.location.hash, cardEdit: null, resourceEdit: null, setPage: page => setNotice(`Navigation action: ${page}`), goBack: () => setNotice('Back action'), replaceHash: noop, registerNavigationInterceptor: () => noop }
     return <CookieConsentProvider><AuthContext.Provider value={auth}><DataContext.Provider value={data}><NavigationContext.Provider value={navigation}>
         {notice && <p role="status" className="p-3 text-caption text-fg-subtle">{notice}</p>}{children}
     </NavigationContext.Provider></DataContext.Provider></AuthContext.Provider></CookieConsentProvider>
@@ -138,7 +138,7 @@ function Screen(args: AuditArgs) {
         case 'community': return <CommunityGalleryPage />
         case 'shared': return <SharedCardPage />
         case 'media': return <MediaGalleryPage />
-        case 'docs': return <DocsPage />
+        case 'docs': case 'docsRoadmap': return <DocsPage />
         case 'about': case 'contact': case 'privacy': case 'disclaimer': return <LegalPage page={args.route} />
         case 'reset': return <PasswordResetPage />
         case 'verify': return <EmailVerifyPage />
@@ -208,6 +208,7 @@ export const MediaLoading: Story = { args: { route: 'media', state: 'loading' } 
 export const MediaError: Story = { args: { route: 'media', state: 'error' } }
 export const MediaGuest: Story = { args: { route: 'media', state: 'guest' } }
 export const Guide: Story = { args: { route: 'docs' } }
+export const GuideRoadmap: Story = { args: { route: 'docsRoadmap' } }
 export const About: Story = { args: { route: 'about' } }
 export const Contact: Story = { args: { route: 'contact' } }
 export const Privacy: Story = { args: { route: 'privacy' } }

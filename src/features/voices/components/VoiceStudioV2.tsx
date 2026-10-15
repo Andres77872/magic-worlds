@@ -1,40 +1,18 @@
 /**
- * The Voice studio (R1-FE-02, 05 §5, 09 §4): ElevenLabs voices, mounted by
- * `VoiceStudioPage` for every signed-in account.
- *
- * - Header with the narration-tier setting (R1-FE-04), refresh and "New preset".
- * - The language note (voices are tuned for English and Spanish).
- * - "My presets" and "Global presets". Rows come from `GET /voice-presets`
- *   unfiltered (R-15): user rows are edited, previewed and deleted; global
- *   rows are read-only and duplicate.
- * - Owner prompts on user cards (05 §7.8): "Switch to {replacement}" writes
- *   the replacement voice with the preset's own settings and emotion; "Choose a
- *   voice" / "Pick another" open the editor on the picker.
- * - `not_tested_language` is checked against each preset's language, else the
- *   account's preferred language (05 §5.5).
- * - Card previews default to the same language as the editor (05 §5.5, D17).
- * - The usage strip (AC-S3): previews, narration characters and call minutes
- *   left today, from the usage DTO the preview allowance already reads.
- * - Past the free renders a card whose preview is a render (not the voice's
- *   free sample, `isFreeSamplePreview`) reads "Preview · 1 credit", and the
- *   account's first paid render of the session asks once (AC-P5, 05 §6.3).
- *   A card whose preview is that free sample says "Free: voice sample" (AC-P2).
- * - Preview errors carry their 05 §6.4 action: "Not enough credits" links to
- *   the membership page; a 409 `voice_unavailable` offers "Pick another
- *   voice", which opens the editor on the picker. Saving or switching that
- *   preset drops the card's clip and notice (they were for the old recipe).
- * - At the daily hard limit card previews are disabled, except a card whose
- *   preview is the free sample, which the BFF serves at the limit (the editor's rule).
+ * Signed-in voices workspace: explore distinct speakers first, then save a
+ * selected voice's delivery settings. Saved settings retain previews, owner
+ * prompts, credit accounting and provider-specific controls. Root creation
+ * and catalogue management are explicit navigation actions.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AudioLines, Loader2, Plus, RefreshCw } from 'lucide-react'
+import { AudioLines, Loader2, Plus, RefreshCw, Settings2 } from 'lucide-react'
 import { useAuth } from '@/app/hooks'
 import { apiService } from '@/infrastructure/api'
-import type { PreviewTextId, VoiceCapabilities, VoicePresetV2 } from '@/shared'
+import type { CatalogVoice, PreviewTextId, VoiceCapabilities, VoicePreset } from '@/shared'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
 import { EmptyState } from '@/ui/components/common/EmptyState'
-import { Button, Callout, Icon, IconTile, PageHeader, Toast } from '@/ui/primitives'
+import { Badge, Button, Callout, Icon, IconButton, IconTile, PageHeader, TabPanel, Tabs, Toast } from '@/ui/primitives'
 import { useCatalogLookup } from '../hooks/useCatalogLookup'
 import { usePreferredLanguage } from '../hooks/usePreferredLanguage'
 import {
@@ -59,6 +37,7 @@ import { RecipePreviewPlayer } from './RecipePreviewPlayer'
 import { defaultPreviewTier } from './TierToggle'
 import type { VoiceReplacement } from './VoiceOwnerPrompts'
 import { VoiceUsageStrip } from './VoiceUsageStrip'
+import { CatalogVoicePicker } from './CatalogVoicePicker'
 
 /** Preset cards audition the narration line; the editor offers all three texts (D18). */
 const CARD_PREVIEW_TEXT: PreviewTextId = 'narration'
@@ -66,28 +45,45 @@ const CARD_PREVIEW_TEXT: PreviewTextId = 'narration'
 interface EditorState {
     open: boolean
     mode: PresetEditorV2Mode
-    source: VoicePresetV2 | null
+    source: VoicePreset | null
     /** Open on the voice picker (an owner prompt). */
     pickVoice?: boolean
+    initialVoice?: CatalogVoice
 }
 
 const CLOSED: EditorState = { open: false, mode: 'create', source: null }
+
+export type VoiceStudioTab = 'catalog' | 'saved'
 
 interface VoiceStudioV2Props {
     capabilities: VoiceCapabilities | null
     /** Re-read the capabilities (the recipe controls' retry). */
     onRetryCapabilities?: () => void
+    initialTab?: VoiceStudioTab
+    /** The open tab changed (the page keeps it in the URL). */
+    onTabChange?: (tab: VoiceStudioTab) => void
+    /** Root only: open the console on voice creation. */
+    onCreateVoice?: () => void
+    /** Root only: open the console's catalog. */
+    onManageVoices?: () => void
+    /** Root only: open one catalog voice in the console. */
+    onManageVoice?: (voice: CatalogVoice) => void
 }
 
-export function VoiceStudioV2({ capabilities, onRetryCapabilities }: VoiceStudioV2Props) {
+export function VoiceStudioV2({ capabilities, onRetryCapabilities, initialTab = 'catalog', onTabChange, onCreateVoice, onManageVoices, onManageVoice }: VoiceStudioV2Props) {
     const { t } = useTranslation()
     const { isAuthenticated, openLoginModal, userHash } = useAuth()
-    const [rows, setRows] = useState<VoicePresetV2[]>([])
+    const [rows, setRows] = useState<VoicePreset[]>([])
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [toast, setToast] = useState<PresetEditorV2Toast | null>(null)
     const [editor, setEditor] = useState<EditorState>(CLOSED)
-    const [pendingDelete, setPendingDelete] = useState<VoicePresetV2 | null>(null)
+    const [tab, setTabState] = useState<VoiceStudioTab>(initialTab)
+    const setTab = useCallback((next: VoiceStudioTab) => {
+        setTabState(next)
+        onTabChange?.(next)
+    }, [onTabChange])
+    const [pendingDelete, setPendingDelete] = useState<VoicePreset | null>(null)
     const [deletingId, setDeletingId] = useState<string | null>(null)
     const [previewId, setPreviewId] = useState<string | null>(null)
     // The card the hook's preview belongs to, read after an await (a save or a switch).
@@ -101,7 +97,7 @@ export function VoiceStudioV2({ capabilities, onRetryCapabilities }: VoiceStudio
     const credit = usePreviewCreditConfirm(userHash)
     const appLanguage = usePreviewLanguage()
     // The editor's default (05 §5.5, D17): language_code, then primary language, then the preferred one.
-    const languageOf = useCallback((row: VoicePresetV2) => studioPreviewLanguage(row.voice_key ? lookup.get(row.voice_key) : null, {
+    const languageOf = useCallback((row: VoicePreset) => studioPreviewLanguage(row.voice_key ? lookup.get(row.voice_key) : null, {
         languageCode: row.language_code,
         preferredLanguage: preferred.language,
         fallback: appLanguage,
@@ -109,13 +105,13 @@ export function VoiceStudioV2({ capabilities, onRetryCapabilities }: VoiceStudio
     const previewTexts = usePreviewTextSets(rows.map(languageOf), isAuthenticated)
     const cardTier = defaultPreviewTier(capabilities)
     /** The BFF answers this card's preview with the voice's own sample: an untuned recipe whose voice has one (EP-6, AC-P2). */
-    const cardIsFreeSample = (row: VoicePresetV2) =>
-        isFreeSamplePreview(row.settings, row.emotion, lookup.get(row.voice_key), previewTexts(languageOf(row)).language, cardTier)
+    const cardIsFreeSample = (row: VoicePreset) =>
+        !(row.provider === 'fish_audio' && row.performance) && isFreeSamplePreview(row.settings, row.emotion, lookup.get(row.voice_key), previewTexts(languageOf(row)).language, cardTier)
     /**
      * A card preview past the free renders costs 1 credit unless the BFF serves the
      * voice's own sample (AC-P5). Until the catalog item is in, it counts as paid.
      */
-    const cardCostsCredit = (row: VoicePresetV2) => recipePreview.nextCostsCredit && !cardIsFreeSample(row)
+    const cardCostsCredit = (row: VoicePreset) => recipePreview.nextCostsCredit && !cardIsFreeSample(row)
 
     const mine = rows.filter((row) => !row.is_global)
     const globals = rows.filter((row) => row.is_global)
@@ -139,7 +135,7 @@ export function VoiceStudioV2({ capabilities, onRetryCapabilities }: VoiceStudio
         void refresh()
     }, [isAuthenticated, refresh])
 
-    const openEditorFor = (row: VoicePresetV2, pickVoice = false) =>
+    const openEditorFor = (row: VoicePreset, pickVoice = false) =>
         setEditor({ open: true, mode: editorModeFor(row), source: row, pickVoice })
 
     /** A rewritten preset's card clip and 05 §6.4 notice were for its old recipe: drop them. */
@@ -151,7 +147,7 @@ export function VoiceStudioV2({ capabilities, onRetryCapabilities }: VoiceStudio
     }
 
     // 05 §7.8 "Switch to {replacement}": the same preset, the replacement voice, its own settings and emotion.
-    const switchVoice = async (row: VoicePresetV2, replacement: VoiceReplacement) => {
+    const switchVoice = async (row: VoicePreset, replacement: VoiceReplacement) => {
         if (switchingId) return
         setSwitchingId(row.preset_id)
         try {
@@ -172,13 +168,15 @@ export function VoiceStudioV2({ capabilities, onRetryCapabilities }: VoiceStudio
         }
     }
 
-    const preview = (row: VoicePresetV2) => {
+    const preview = (row: VoicePreset) => {
         if (previewId === row.preset_id && recipePreview.loading) {
             recipePreview.stop()
             return
         }
         const input = {
             voiceKey: row.voice_key,
+            ...(row.provider === 'fish_audio' && row.performance ? { performance: row.performance } : {}),
+            provider: row.provider,
             settings: row.settings ?? null,
             emotion: row.emotion ?? null,
             textId: CARD_PREVIEW_TEXT,
@@ -230,7 +228,7 @@ export function VoiceStudioV2({ capabilities, onRetryCapabilities }: VoiceStudio
         )
     }
 
-    const renderRow = (row: VoicePresetV2) => {
+    const renderRow = (row: VoicePreset) => {
         const previewing = previewId === row.preset_id && recipePreview.loading
         const clip = recipePreview.clip?.key === row.preset_id ? recipePreview.clip : null
         const previewProblem = previewId === row.preset_id ? recipePreview.problem : null
@@ -281,6 +279,9 @@ export function VoiceStudioV2({ capabilities, onRetryCapabilities }: VoiceStudio
     }
 
     const newPreset = () => setEditor({ open: true, mode: 'create', source: null })
+    const exploreVoices = () => setTab('catalog')
+    const hasAllowance = recipePreview.previewsLeft !== null || Boolean(recipePreview.usage?.narration || recipePreview.usage?.call)
+    const rootActions = onManageVoices || onCreateVoice
 
     return (
         <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-6 px-5 py-8 sm:px-8 sm:py-10" data-testid="voice-studio-v2">
@@ -291,82 +292,127 @@ export function VoiceStudioV2({ capabilities, onRetryCapabilities }: VoiceStudio
                 title={t('voices.studio.title')}
                 subtitle={t('voices.studio.subtitle')}
                 size="lg"
-                actions={
-                    <div className="flex gap-2">
-                        <Button
-                            variant="secondary"
-                            size="sm"
-                            iconLeft={<Icon icon={RefreshCw} size={15} className={loading ? 'animate-spin' : undefined} />}
-                            onClick={() => void refresh()}
-                            disabled={loading}
-                        >
-                            {t('voices.studio.refresh')}
-                        </Button>
-                        <Button variant="primary" size="sm" iconLeft={<Icon icon={Plus} size={15} />} onClick={newPreset}>
-                            {t('voices.studio.newPreset')}
-                        </Button>
+                // Root tools only; tab-specific actions live in their tab, so the header never shifts.
+                actions={rootActions && (
+                    <div className="flex flex-wrap gap-2">
+                        {onManageVoices && <Button variant="secondary" size="sm" iconLeft={<Icon icon={Settings2} size={15} />} onClick={onManageVoices}>
+                            {t('voices.studio.v2.manageVoices')}
+                        </Button>}
+                        {onCreateVoice && <Button variant="primary" size="sm" iconLeft={<Icon icon={Plus} size={15} />} onClick={onCreateVoice}>
+                            {t('voices.studio.v2.createVoice')}
+                        </Button>}
                     </div>
-                }
+                )}
                 divider
             />
 
-            <NarrationTierSetting />
-            <VoiceUsageStrip usage={recipePreview.usage} previewsLeft={recipePreview.previewsLeft} />
+            <Tabs options={[
+                { value: 'catalog', label: t('voices.studio.v2.catalogTab') },
+                {
+                    value: 'saved',
+                    label: t('voices.studio.v2.savedTab'),
+                    // A glance at how many there are; the list itself names each one.
+                    trailing: rows.length > 0 ? <Badge tone="neutral" aria-hidden="true">{rows.length}</Badge> : undefined,
+                },
+            ]} value={tab} onChange={setTab} idBase="voice-studio-sections" aria-label={t('voices.studio.v2.tabsLabel')} />
 
-            <p className="font-ui text-caption text-fg-muted">{t('voices.notice.language_scope')}</p>
+            <TabPanel value="catalog" active={tab} idBase="voice-studio-sections">
+                <CatalogVoicePicker enabled={tab === 'catalog' && !editor.open} allLanguagesInitially capabilities={capabilities}
+                    pickLabel={t('voices.studio.v2.configureVoice')}
+                    onManage={onManageVoice}
+                    onPick={(voice) => setEditor({ open: true, mode: 'create', source: null, initialVoice: voice })} />
+            </TabPanel>
 
-            {error && (
-                <Callout
-                    tone="danger"
-                    role="alert"
-                    action={<Button variant="secondary" size="sm" onClick={() => setError(null)}>{t('voices.studio.dismiss')}</Button>}
-                >
-                    {error}
-                </Callout>
-            )}
+            <TabPanel value="saved" active={tab} idBase="voice-studio-sections">
+                <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_17.5rem] lg:items-start">
+                    <div className="flex min-w-0 flex-col gap-5">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                            <p className="max-w-2xl font-ui text-body text-parchment-300">{t('voices.studio.v2.savedHelp')}</p>
+                            <div className="flex items-center gap-2">
+                                <IconButton label={t('voices.studio.v2.refreshSaved')} size="sm" disabled={loading} onClick={() => void refresh()}>
+                                    <Icon icon={RefreshCw} size={15} className={loading ? 'animate-spin' : undefined} />
+                                </IconButton>
+                                <Button variant="secondary" size="sm" iconLeft={<Icon icon={Plus} size={15} />} onClick={newPreset}>{t('voices.studio.newPreset')}</Button>
+                            </div>
+                        </div>
 
-            {loading && rows.length === 0 ? (
-                <div role="status" className="flex items-center gap-2 py-8 text-body text-parchment-300">
-                    <Icon icon={Loader2} size={18} className="animate-spin" />
-                    {t('common.loading')}
-                </div>
-            ) : rows.length === 0 && !error ? (
-                <EmptyState
-                    icon={<Icon icon={AudioLines} size={40} />}
-                    message={t('voices.studio.emptyMessage')}
-                    secondaryText={t('voices.studio.emptyHelper')}
-                    button={{ label: t('voices.studio.newPreset'), onClick: newPreset }}
-                />
-            ) : (
-                <div className="flex flex-col gap-6">
-                    <PreviewAllowanceHint previewsLeft={recipePreview.previewsLeft} loading={recipePreview.loading} />
-                    <section aria-labelledby="voice-studio-mine" className="flex flex-col gap-1">
-                        <h2 id="voice-studio-mine" className="font-display text-h3 text-parchment-50">{t('voices.studio.v2.myPresets')}</h2>
-                        {mine.length === 0 ? (
-                            <p className="py-3 font-ui text-sm text-parchment-300">{t('voices.studio.emptyHelper')}</p>
-                        ) : (
-                            <div className="flex flex-col divide-y divide-line-faint">{mine.map(renderRow)}</div>
+                        {error && (
+                            <Callout
+                                tone="danger"
+                                role="alert"
+                                action={<Button variant="secondary" size="sm" onClick={() => setError(null)}>{t('voices.studio.dismiss')}</Button>}
+                            >
+                                {error}
+                            </Callout>
                         )}
-                    </section>
-                    {globals.length > 0 && (
-                        <section aria-labelledby="voice-studio-global" className="flex flex-col gap-1">
-                            <h2 id="voice-studio-global" className="font-display text-h3 text-parchment-50">{t('voices.studio.v2.globalPresets')}</h2>
-                            <div className="flex flex-col divide-y divide-line-faint">{globals.map(renderRow)}</div>
+
+                        {loading && rows.length === 0 ? (
+                            <div role="status" className="flex items-center gap-2 py-8 text-body text-parchment-300">
+                                <Icon icon={Loader2} size={18} className="animate-spin" />
+                                {t('common.loading')}
+                            </div>
+                        ) : rows.length === 0 && !error ? (
+                            <EmptyState
+                                icon={<Icon icon={AudioLines} size={40} />}
+                                message={t('voices.studio.emptyMessage')}
+                                secondaryText={t('voices.studio.emptyHelper')}
+                                button={{ label: t('voices.studio.v2.exploreVoices'), onClick: exploreVoices }}
+                            />
+                        ) : (
+                            <div className="flex flex-col gap-6">
+                                <PreviewAllowanceHint previewsLeft={recipePreview.previewsLeft} loading={recipePreview.loading} />
+                                <section aria-labelledby="voice-studio-mine" className="flex flex-col gap-1">
+                                    <h2 id="voice-studio-mine" className="font-display text-h3 text-parchment-50">{t('voices.studio.v2.myPresets')}</h2>
+                                    {mine.length === 0 ? (
+                                        <div className="flex flex-wrap items-center gap-3 py-3">
+                                            <p className="font-ui text-sm text-parchment-300">{t('voices.studio.emptyHelper')}</p>
+                                            <Button variant="ghost" size="sm" onClick={exploreVoices}>{t('voices.studio.v2.exploreVoices')}</Button>
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col divide-y divide-line-faint">{mine.map(renderRow)}</div>
+                                    )}
+                                </section>
+                                {globals.length > 0 && (
+                                    <section aria-labelledby="voice-studio-global" className="flex flex-col gap-1">
+                                        <h2 id="voice-studio-global" className="font-display text-h3 text-parchment-50">{t('voices.studio.v2.globalPresets')}</h2>
+                                        <p className="font-ui text-caption text-fg-muted">{t('voices.studio.v2.readOnlyGlobal')}</p>
+                                        <div className="flex flex-col divide-y divide-line-faint">{globals.map(renderRow)}</div>
+                                    </section>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    <aside className="flex flex-col gap-4 lg:sticky lg:top-6" aria-label={t('voices.studio.v2.accountSettings')}>
+                        <section className="flex flex-col gap-3 rounded-lg border border-line-faint bg-surface-raised p-4" aria-labelledby="voice-studio-quality">
+                            <div className="flex flex-col gap-1">
+                                <h2 id="voice-studio-quality" className="font-ui text-label font-semibold text-parchment-100">{t('voices.studio.v2.elevenLabsQuality')}</h2>
+                                <p className="font-ui text-caption text-fg-muted">{t('voices.studio.v2.fishQuality')}</p>
+                            </div>
+                            <NarrationTierSetting />
                         </section>
-                    )}
+                        {hasAllowance && (
+                            <section className="flex flex-col gap-2 rounded-lg border border-line-faint bg-surface-raised p-4" aria-labelledby="voice-studio-allowance">
+                                <h2 id="voice-studio-allowance" className="font-ui text-label font-semibold text-parchment-100">{t('voices.studio.v2.allowanceTitle')}</h2>
+                                <VoiceUsageStrip usage={recipePreview.usage} previewsLeft={recipePreview.previewsLeft} stacked />
+                            </section>
+                        )}
+                    </aside>
                 </div>
-            )}
+            </TabPanel>
 
             <PresetEditorV2
                 open={editor.open}
                 mode={editor.mode}
                 source={editor.source}
+                initialVoice={editor.initialVoice}
                 capabilities={capabilities}
                 onRetryCapabilities={onRetryCapabilities}
                 pickVoiceOnOpen={editor.pickVoice}
                 userHash={userHash}
                 onClose={closeEditor}
                 onSaved={(row) => {
+                    setTab('saved')
                     // An edit rewrote the source row in place.
                     const rewritten = editor.mode === 'edit' ? editor.source?.preset_id ?? row?.preset_id : null
                     if (rewritten) forgetCardPreview(rewritten)

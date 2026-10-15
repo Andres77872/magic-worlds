@@ -1,0 +1,45 @@
+{
+  "catalog_import_and_negotiation": "passed",
+  "preset_roundtrip": "passed",
+  "paid_preview_credits": [
+    0,
+    0,
+    0,
+    1
+  ],
+  "cache_hit_supplier_requests": 0,
+  "preview_renders": [
+    {
+      "language": "en",
+      "emotion": "calm",
+      "audio_bytes": 154226,
+      "sha256": "ac1f35d60e514fba84a249d0b95f17d1b38d98b4daf08c1e232d6b92833b80b4"
+    },
+    {
+      "language": "en",
+      "emotion": "happy",
+      "audio_bytes": 140851,
+      "sha256": "7c24c7f51c8af0f3f61d2d3b17f1dc32d8819a155fca27760622c60451eafff3"
+    },
+    {
+      "language": "en",
+      "emotion": "sad",
+      "audio_bytes": 144612,
+      "sha256": "dc9a07d1afeae1b8d060fbad065edb5ed86e4d43c1e4ebefd3dd9f0573b85a6c"
+    },
+    {
+      "language": "es",
+      "emotion": null,
+      "audio_bytes": 152554,
+      "sha256": "662c1a21e06ab64be99d159546cf82808706eab5214736def6a3792c3424b2c4"
+    }
+  ],
+  "narration_job_and_owned_asset": "passed",
+  "narration_turn_charges": 1,
+  "narration_reuse": "passed",
+  "native_supplier_requests": 5,
+  "auth_account_prerequisites_and_moderation": "synthetic fixtures",
+  "listening_acceptance": false,
+  "shared_application_database_modified": false,
+  "temporary_database_removed": true
+}

@@ -68,16 +68,16 @@ These are not GPT Image 2.5 benchmark results. Novelty and an author's reported 
 | Workspace discovery versus card-tagged jobs | [useMediaGallery.ts](../../src/features/gallery/media/hooks/useMediaGallery.ts) |
 | Included chat cards and image result UI | [CharacterChatCodexPanel.tsx](../../src/features/characterChat/components/CharacterChatCodexPanel.tsx), [GeneratedImage.tsx](../../src/features/interaction/components/GeneratedImage.tsx) |
 | Existing UI vocabulary | [UI primitives](../../src/ui/primitives/index.ts), [UI components](../../src/ui/components/index.ts), [theme.css](../../src/ui/styles/theme.css) |
-| Image request boundary | [frontend media types](../../src/shared/types/media.types.ts), [backend models](/home/andres/PycharmProjects/magic-worlds-api/src/models/image_generation.py) |
-| Registered models/settings and reserved fields | [catalog.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/image_generation/catalog.py) |
-| Job execution and portrait linking | [engine.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/image_generation/engine.py), [images router](/home/andres/PycharmProjects/magic-worlds-api/src/routes/images.py) |
-| Existing OpenRouter transport | [openrouter_adapter.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/image_generation/openrouter_adapter.py) |
-| Scene generation and text-only enqueue | [route_chat.py](/home/andres/PycharmProjects/magic-worlds-api/src/routes/user/route_chat.py), [scene_prompt.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/image_generation/scene_prompt.py), [engine.py](/home/andres/PycharmProjects/magic-worlds-api/src/services/image_generation/engine.py) |
+| Image request boundary | [frontend media types](../../src/shared/types/media.types.ts), [backend models](../../../../PycharmProjects/magic-worlds-api/src/models/image_generation.py) |
+| Registered models/settings and reserved fields | [catalog.py](../../../../PycharmProjects/magic-worlds-api/src/services/image_generation/catalog.py) |
+| Job execution and portrait linking | [engine.py](../../../../PycharmProjects/magic-worlds-api/src/services/image_generation/engine.py), [images router](../../../../PycharmProjects/magic-worlds-api/src/routes/images.py) |
+| Existing OpenRouter transport | [openrouter_adapter.py](../../../../PycharmProjects/magic-worlds-api/src/services/image_generation/openrouter_adapter.py) |
+| Scene generation and text-only enqueue | [route_chat.py](../../../../PycharmProjects/magic-worlds-api/src/routes/user/route_chat.py), [scene_prompt.py](../../../../PycharmProjects/magic-worlds-api/src/services/image_generation/scene_prompt.py), [engine.py](../../../../PycharmProjects/magic-worlds-api/src/services/image_generation/engine.py) |
 | Feature availability | [featureFlags.ts](../../src/shared/featureFlags.ts), [AppRouter.tsx](../../src/app/router/AppRouter.tsx), [.env.example](../../.env.example) |
 
 Both repositories contain unrelated working-tree changes. This is a targeted source review, not a deployment audit. Existing test files were read as contract evidence; tests and paid provider calls were not run for this Markdown-only update.
 
-Older [backend image documentation](/home/andres/PycharmProjects/magic-worlds-api/docs/api_usage/image_generation.md) describes an edit route absent from current source. The pack records this discrepancy rather than treating the old guide as an implemented contract.
+Older [backend image documentation](../../../../PycharmProjects/magic-worlds-api/docs/api_usage/image_generation.md) describes an edit route absent from current source. The pack records this discrepancy rather than treating the old guide as an implemented contract.
 
 ## How to interpret the recommendations
 

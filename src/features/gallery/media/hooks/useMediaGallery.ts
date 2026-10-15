@@ -22,6 +22,7 @@
  * append covers the rare boundary repeat — the same trade-off
  * MediaHistoryDrawer accepts.
  */
+import { isContentTypeFeatureEnabled } from '@/shared/featureFlags'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { i18n } from '@/app/i18n'
@@ -163,6 +164,7 @@ export function useMediaGallery(pageSize = MEDIA_PAGE_SIZE, options: MediaGaller
 
     const fetchImagesPage = useCallback(
         async (f: MediaGalleryFilters, src: SourceState, feed: FeedContext) => {
+            if (!isContentTypeFeatureEnabled(f.cardType) || (f.card && !isContentTypeFeatureEnabled(f.card.type))) { src.done = true; return }
             if (feed.discovery) return fetchWorkspaceMediaPage('image', src, feed, pageSize)
             const res = await feed.api.listImageJobs({
                 status: 'completed',
@@ -171,7 +173,7 @@ export function useMediaGallery(pageSize = MEDIA_PAGE_SIZE, options: MediaGaller
                 cardType: f.card ? f.card.type : f.cardType !== 'all' ? f.cardType : undefined,
                 cardId: f.card?.id,
             })
-            src.buffer.push(...res.items.flatMap(imageJobToItems))
+            src.buffer.push(...res.items.flatMap(imageJobToItems).filter(item => !item.card || isContentTypeFeatureEnabled(item.card.type)))
             src.offset = res.next_offset ?? src.offset
             src.done = res.next_offset == null
         },
@@ -180,6 +182,7 @@ export function useMediaGallery(pageSize = MEDIA_PAGE_SIZE, options: MediaGaller
 
     const fetchThemesPage = useCallback(
         async (f: MediaGalleryFilters, src: SourceState, feed: FeedContext) => {
+            if (!isContentTypeFeatureEnabled(f.cardType) || (f.card && !isContentTypeFeatureEnabled(f.card.type))) { src.done = true; return }
             if (feed.discovery) return fetchWorkspaceMediaPage('theme_song', src, feed, pageSize)
             const res = await feed.api.listUserThemeSongs({
                 status: 'completed',
@@ -188,7 +191,7 @@ export function useMediaGallery(pageSize = MEDIA_PAGE_SIZE, options: MediaGaller
                 targetType: f.card ? f.card.type : f.cardType !== 'all' ? f.cardType : undefined,
                 targetId: f.card?.id,
             })
-            src.buffer.push(...res.items.map(themeJobToItem).filter((item) => item !== null))
+            src.buffer.push(...res.items.map(themeJobToItem).filter((item) => item !== null).filter(item => !item.card || isContentTypeFeatureEnabled(item.card.type)))
             src.offset = res.next_offset ?? src.offset
             src.done = res.next_offset == null
         },
@@ -303,12 +306,14 @@ export function useMediaGallery(pageSize = MEDIA_PAGE_SIZE, options: MediaGaller
     }, [])
 
     const setCardType = useCallback((cardType: CardTypeFilter) => {
+        if (!isContentTypeFeatureEnabled(cardType)) return
         setFilters((prev) =>
             prev.cardType === cardType && !prev.card ? prev : { ...prev, cardType, card: undefined },
         )
     }, [])
 
     const setCard = useCallback((card: CardRef | undefined) => {
+        if (card && !isContentTypeFeatureEnabled(card.type)) return
         setFilters((prev) => {
             if (prev.card?.id === card?.id && prev.card?.type === card?.type) return prev
             // Clearing the card keeps the type scope; picking one narrows to its type.

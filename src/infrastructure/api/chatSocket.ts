@@ -8,6 +8,7 @@
  * `cancel`, and `ping` frames. Auth rides the handshake via the
  * `Sec-WebSocket-Protocol` subprotocol since browsers can't set headers on a WS.
  */
+import { isVoicesFeatureEnabled } from '@/shared/featureFlags'
 
 import type { LlmRequest } from '@/shared/types/llm.types'
 import type { ChatSocketServerMessage } from '../../shared/types/interaction.types'
@@ -331,7 +332,7 @@ export class ChatSocket {
      * reused rather than re-enqueued).
      */
     sendTts(assistantMessageId: number, turnId: string, requestId?: string): void {
-        if (!this.isOpen) return
+        if (!isVoicesFeatureEnabled() || !this.isOpen) return
         const frame: Record<string, unknown> = { type: 'tts', assistant_message_id: assistantMessageId, turn_id: turnId }
         if (requestId) frame.request_id = requestId
         this.ws!.send(JSON.stringify(frame))

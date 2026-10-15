@@ -88,7 +88,8 @@ export function Modal({
                         )}
                     </div>
                 )}
-                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-6">{children}</div>
+                {/* `relative` keeps absolute content (`sr-only` labels) inside this scroller. */}
+                <div className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-6">{children}</div>
                 {footer && (
                     <div className="flex flex-col items-stretch gap-2 border-t border-parchment-50/10 px-6 py-4 sm:flex-row sm:items-center sm:justify-end">
                         {footer}

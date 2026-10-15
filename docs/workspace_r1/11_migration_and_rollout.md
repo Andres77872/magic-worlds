@@ -1,22 +1,23 @@
 # Migration, coordinated rollout, and recovery
 
-> **Scope / status (reviewed 2026-10-14):** R1 design/coverage contract and dated implementation evidence. Source is implemented; default product UI rollout remains **WIP**, locally opted in. [02](02_current_status_and_findings.md) owns current status and schema compatibility; [04](04_gaps_and_priorities.md) owns remaining gaps/TBD. Historical test totals, branch state and migration notes below apply to their stated dates, not deployment availability.
+> **Lifecycle: active R1 contract. Documentation reconciliation: 2026-10-15.** The foundation is implemented; rollout and specific integrity acceptance remain open. [02](02_current_status_and_findings.md) owns source/status and schema compatibility; [04](04_gaps_and_priorities.md) owns remaining work. Normative requirements below remain acceptance/regression contracts, not claims that every guarantee has runtime evidence. Dated implementation/validation records are in git history.
 
-**Status: WIP rollout.** Migration/resume tooling exists and dated dev/rehearsal runs are recorded in [13](13_validation_and_coverage.md); production migration/deployment is not established.
-**Refreshed:** 2026-10-14.
-**Supported starting revision:** Frozen `2026_10_image_profiles` plus the resource-task predecessor contract. **R1 target:** Frozen `2026_10_workspace_r1`. **Current canonical BFF schema:** `2026_10_voice_native`. Supported later voice schemas verify as `superseded`, without reapplying R1. The workspace capability marker remains stable at R1.
+**Status: WIP rollout.** Migration/resume tooling exists and dated 2026-10-12 dev/rehearsal runs were recorded locally (baseline under W-05 in [04](04_gaps_and_priorities.md); full record in git history); production migration/deployment is not established. The `.90` test database was migrated 2026-10-12 and serves the 2026-10-14 test deployment, outside this production runbook; production still requires every step below.
+**Source/documentation reconciliation:** 2026-10-15.
+**Supported starting revision:** Frozen `2026_10_image_profiles` plus the resource-task predecessor contract. **R1 target:** Frozen `2026_10_workspace_r1`. **Current source bootstrap revision:** the revision named by `CONTENT_SCHEMA_REVISION` in the BFF bootstrap (owned by the active Fish/voice execution; not asserted here). Supported later revisions verify as `superseded`, without reapplying R1. Verification does not upgrade an R1 database through subsequent migrations. The workspace capability marker remains stable at R1.
 
 ## Current constraints and prerequisites
 
 The [bootstrap verifier](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/bootstrap.py) and [database guide](/home/andres/PycharmProjects/magic-worlds-api/docs/database.md) require exact schema metadata/seeds. Runtime never repairs it. Preserve the existing [image-profile upgrade](/home/andres/PycharmProjects/magic-worlds-api/scripts/migrations/20261012_image_profiles.py), unified assistants, profile/payer/provider fields, and data.
 
-If deployed marker is older, report unsupported workspace-migration baseline and use the existing documented upgrade chain first. Do not silently chain upgrades: the historical unified-assistant cutover has destructive history semantics and its earlier owner authorization is not blanket authorization for this feature. Unknown/newer revisions stop without mutation.
+If deployed marker is older, report unsupported workspace-migration baseline and use the existing documented upgrade chain first. Do not silently chain upgrades: the historical unified-assistant cutover has destructive history semantics and its earlier owner authorization is not blanket authorization for this feature. Unsupported revisions stop without mutation; explicitly supported later revisions are verified without applying R1.
 
 Before an apply:
 - Record deployed marker, MySQL version/storage metadata, table/owner counts and relationship validation.
 - Verify database and owned-blob backups through an isolated restore rehearsal.
 - Use the implemented workspace tool and frozen preceding/target schema contracts; rerun environment-specific checks rather than deriving R1 from the changed canonical `db.sql`.
-- Ship the frontend compatibility release (document 08, Stale browser tabs) before the window and confirm it is live.
+- If the target database lacks `resource_task` (an image-profiles schema from before `21127be`), run `scripts/migrations/20261012_resource_tasks.py --apply` first. The R1 tool stops before any change with that instruction, and the resource-task script refuses databases that already have the R1 schema.
+- Ship the frontend compatibility release (document 08, Stale browser tabs) before the window and confirm it is live. Its changes are currently uncommitted in worktree `magic-worlds-compat` (branch `workspace-r1-compat`); commit them and build from that commit first.
 - Stop admitting all content writes, socket/voice turns, extraction/assistant/story requests, media submissions/uploads, imports and copies; drain/terminalize existing work as below.
 - Deploy the R1 frontend with `VITE_FEATURE_WORKSPACES_ENABLED=false` and the matching API/schema in the order below, inside one maintenance window.
 
@@ -33,13 +34,13 @@ How the tool works:
 - **Fingerprint.** The fingerprint is a row count plus two SHA-256 aggregates per predecessor table, over the original columns only. It is printed by the check and re-checked before the marker advances. Keep the check output: its digest must equal the apply output's.
 - **Timestamps.** Backfill `UPDATE`s explicitly keep `ON UPDATE CURRENT_TIMESTAMP` columns, so assignment does not look like an edit.
 
-Real MySQL tests, interruption/restore rehearsals and the dev-database migration are recorded in document 13. These are dated local evidence; Phase 6 production checks remain open.
+Real MySQL tests, interruption/restore rehearsals and the dev-database migration ran locally on 2026-10-12 (baseline under W-05 in [04](04_gaps_and_priorities.md); full record in git history). These are dated local evidence; the production revision inventory, backup/restore and quiescence/restart checks remain open.
 
 | Invocation | Required behavior |
 |---|---|
 | Default, no apply flag | Acquire existing database-scoped migration advisory lock; verify supported exact/known partial state; print a redacted check-only report; no schema/data mutation |
 | `--apply` | Apply/resume the reviewed supported state; verify preservation and exact target |
-| Run on exact target | Verify only; create no new default workspaces or data |
+| Run on exact R1 target or a supported later revision | Verify the corresponding schema only; later revisions report `superseded`; create no new default workspaces or data |
 | Unknown revision/partial drift | Stop with redacted state/reason, preserving all data |
 
 Use the existing `mw-llm-schema-` advisory-lock naming convention, bounded metadata-lock timeout, and connection-discard cleanup on uncertain state. No startup migration, hidden repair, provider submission, or secret output.
@@ -102,7 +103,7 @@ The frontend and API must never run a mismatched pair with users on it. Ordered 
 6. **Smoke-check with the flag `false`:** default-workspace transport on the existing galleries/editors, scoped direct-ID/list, manual/AI destination, persona/lore, assistant, media/notice, voice-history and legacy links. Also check that a pre-R1 tab receiving `WORKSPACE_REQUIRED` shows the reload dialog.
 7. **Verify** preserved preexisting snapshots and account cleanup on the isolated rehearsal.
 8. **Resume admission** intentionally.
-9. **Enable the UI** by redeploying the frontend with the flag `true`, only after the release acceptance matrix has passed in rehearsal. Then smoke-check the R1 UI:
+9. **Enable the UI** by redeploying the frontend with the flag `true`, only after the [release acceptance guarantees A01–A27](10_risks_and_decisions.md#acceptance-guarantees-a01-a27) have passed in rehearsal. Then smoke-check the R1 UI:
    - the single Library sidebar entry, compact collection folders and mixed cards, and persistent root/folder search;
    - all enabled New-menu types/persona/imports, direct generation/card-assistant destination, and the same saved identity after editor save;
    - legacy type links resolving to library filters;

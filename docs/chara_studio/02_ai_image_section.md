@@ -2,7 +2,7 @@
 
 **Research updated:** 2026-10-15. **Status:** Proposed experience; editing and reusable references remain WIP. This is a source-based design review, without a rendered UI audit or user testing. See [current implementation](01_current_project.md).
 
-The strongest fit is an image workspace opened from the character card: select an image, describe a change, inspect the result, and keep useful assets with that character. GPT Image 2.5 powers generation and editing. The character's name, appearance and existing images provide context throughout.
+The strongest fit is an image workspace opened from the character card: select an image, describe a change, inspect the result, and keep useful assets with that character. In this target workflow, GPT Image 2.5 would power generation and editing; the app currently registers only its text-to-image endpoints. The character's name, appearance and existing images provide context throughout.
 
 ## Entry point and layout
 

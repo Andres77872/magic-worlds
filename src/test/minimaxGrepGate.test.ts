@@ -102,14 +102,9 @@ const ALLOWLIST: readonly AllowRule[] = [
         reason: 'MPEG-1 table, bitrate floor, text cap, sample counts, LLM token limits: not MiniMax',
     },
     {
-        globs: [
-            'docs/voice_refactor/**',
-            'docs/voice-calls-review-2026-10-11.md',
-            'docs/voice-calls-latency-review-2026-10-11.md',
-            'docs/ui-audit-2026-09-19-play-admin.md',
-        ],
+        globs: ['docs/voice_refactor/**'],
         line: ANY_LINE,
-        reason: 'Dated history and the plan',
+        reason: 'The voice plan and its pointer to the removed dated history',
     },
     {
         globs: ['docs/llm_profiles/**'],
@@ -120,11 +115,6 @@ const ALLOWLIST: readonly AllowRule[] = [
     SELF_ROW,
     // Q1 is closed (I-71, 2026-10-14): the Privacy page publishes the ElevenLabs variant, so the
     // legal copy keeps no allowance (the self-tests below pin the former rows as refused).
-    {
-        globs: ['docs/llm_profiles/12_implementation_status.md'],
-        line: /`MINIMAX_API_KEY` \(sin lector\)/i,
-        reason: 'Retired LLM catalog key history (MiniMax as an LLM provider is out of scope)',
-    },
     {
         globs: ['docs/**'],
         line: /MiniMax-(?:M\d|Text)|\bLLM providers?\b|proveedor(?:es)? (?:de )?LLM/i,
@@ -432,7 +422,7 @@ describe('MiniMax and legacy-voice grep gate logic', () => {
         expect(allowed('docs/llm_profiles/a.md', 'los aliases `ace_step`/`minimax_music_3`')).toBe(true)
         expect(allowed('docs/llm_profiles/a.md', 'la canción y la voz de MiniMax')).toBe(false)
         // docs: MiniMax as an LLM vendor or model (out of scope), never as a voice.
-        expect(allowed('docs/novel_refactor/02_competitive_landscape.md', '| MiniMax-M2 | 200k context |')).toBe(true)
+        expect(allowed('docs/novel_refactor/02.md', '| MiniMax-M2 | 200k context |')).toBe(true)
         expect(allowed('docs/novel_refactor/03.md', 'OpenAI, Anthropic and MiniMax are LLM providers behind magic-llm')).toBe(true)
         expect(allowed('docs/novel_refactor/03.md', 'MiniMax como proveedor de LLM')).toBe(true)
         expect(allowed('docs/novel_refactor/03.md', 'Narration is spoken with MiniMax text-to-speech')).toBe(false)

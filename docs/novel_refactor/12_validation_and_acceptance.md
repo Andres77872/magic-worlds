@@ -1,6 +1,6 @@
 # Validation, evaluations, and acceptance
 
-**Documentation review:** 2026-10-14. **Status:** WIP release gates — 211 focused tests pass; backend, end-to-end, migration, AI-quality, and live accessibility gates remain open. Overall novel availability is **WIP**, disabled in the example configuration and enabled in the reviewed local override. See [actual status and roadmap](14_status_and_roadmap.md) for evidence, rollout gates, and TBDs.
+**Source/lifecycle reconciliation:** 2026-10-15. **Status:** Open release gates. The October 14 record reports 211 focused tests passing; that result was not rerun by this cleanup. Backend, end-to-end, migration, AI-quality, and live accessibility gates remain open. Novel rollout is disabled in the example configuration and enabled in the dated local override. See [actual status and roadmap](14_status_and_roadmap.md) for evidence, rollout gates, and TBDs.
 
 **UI/UX acceptance update:** 2026-10-15. The UX-01–UX-12 matrix below translates the [demo findings and interaction contracts](06_ui_ux_and_accessibility.md) into planned release checks. Passing prototype assertions does not complete those checks in the application.
 
@@ -58,6 +58,18 @@ Exercise concurrent reorder, missing/deleted parents, duplicate IDs, cycles, inv
 
 Frontend feature checks use pnpm. After implementation, run targeted tests, `pnpm build` as the primary frontend green/red signal, relevant lint with baseline attribution, and `pnpm typecheck:stories` when stories change. Run backend unit and real-database integration tests from its documented environment. Do not infer database correctness from mocked SQL calls alone.
 
+## Consolidated writing requirements
+
+These are planned acceptance checks for details retained from the June 2026 storytelling brief (consolidated 2026-10-15), not new features or passing test results. Existing catalog IDs and D1–D6 assignments remain authoritative.
+
+| Existing capabilities | Acceptance task | Required result |
+|---|---|---|
+| R11 / A11 / R12 · Reusable stash | Save manual clippings, an idea, critique notes, cut text, and two generated alternatives; filter/search by novel and scene; insert one twice and reopen | Source labels and available passage/revision/generation lineage remain. Explicit insertion targets the chosen revision, follows review/undo rules, and leaves the stash original intact. No drag-only action or silent acceptance |
+| E14 / K02 / K03 / K10 · Mention/context inspection | Use duplicate names/aliases, a renamed pinned source, a recent reference, empty content, and a detected-but-excluded mention; inspect with pointer and keyboard | Stable references and explicit disambiguation survive. Active/pinned/recent choices are prioritized; detection alone does not include full content. Preview shows actual ordered sources, warnings, skips and estimates without executing generation |
+| K01 / K03 / K05 / K10 / K11 / K14 · Precedence and spoilers | Change a library source behind a novel pin; contradict an automatic suggestion with explicit selection; compare scene drafting and an explicit future-revelation analysis | Approved novel state/pins are retained until reviewed update. Manual priority cannot bypass access or reveal policy. Scene drafting excludes future knowledge; analysis is labeled and does not leak its scope into later drafts. Trace equals execution |
+| A18 / K04 / K11 / K12 / R07 / R12 · Editorial feedback | Extract a supported fact and an uncertain claim; edit one proposed field, reject another, select an authorized target, then change that target's version and retry application | Passage/revision, before/after and destination are visible. No prose action silently promotes facts or mutates a library. Stale acceptance is blocked; an approved independent selection applies the exact variant idempotently with evidence and revision provenance; other novels' pins remain unchanged |
+| A20 / U11 · AI context disclosure | Start ordinary writing without AI, then inspect a request's context and applicable provider data policy | Writing remains usable. Shared content, execution route and verified retention/training policy are understandable before the request; no unsupported guarantee or fabricated token certainty |
+
 ## AI evaluation corpus
 
 Use author-approved or synthetic manuscripts, with a frozen model/profile/graph version for each run. Include at least:
@@ -95,7 +107,7 @@ Test 200% text enlargement and 400% browser zoom/reflow, mobile keyboards, long 
 
 Use NVDA with a supported Windows browser and VoiceOver with Safari, supplemented by other supported combinations. Validate naming, active-option announcements, meaningful save/error state, focus return, toolbar/menu interaction and non-drag structure controls. [W3C dragging movements](https://www.w3.org/WAI/WCAG22/Understanding/dragging-movements.html)
 
-Recruit discovery writers, outline-first writers, experienced editors and assistive-technology users. Observe the seven journeys in [06](06_ui_ux_and_accessibility.md). Record problems with comprehension, accidental commits, position loss, and recovery, not just satisfaction scores.
+Recruit discovery writers, outline-first writers, experienced editors and assistive-technology users. Observe the essential author journeys in [06](06_ui_ux_and_accessibility.md). Record problems with comprehension, accidental commits, position loss, and recovery, not just satisfaction scores.
 
 ## UI/UX acceptance matrix
 
@@ -114,7 +126,7 @@ These are **planned application checks**, not results obtained from the standalo
 | UX-09 · Memory and planning | Move a flashback, edit source prose, inspect a stale summary, follow a continuity citation and return, approve a fact, and review a series version update | Outline, summary, speculation, and approved canon remain distinguishable. Stale derived data is disclosed/excluded according to policy. POV knowledge does not follow a naive date/reading-position shortcut. Citations preserve the return position; prior version pins remain stable. |
 | UX-10 · Delivery | Import supported/unsupported content, inspect losses, choose scenes/notes and an available format, edit after compilation starts, then cancel/retry an export | Source/loss report is retained before commit. Unsupported formats are explained rather than presented as working. Export identifies frozen inputs and exclusions. Progress and owned download reflect actual results; export never silently publishes. |
 | UX-11 · First use and failures | Start with a blank novel and no Codex, then exercise loading, archived read-only, missing profile/quota, offline, provider error, and interrupted generation | Ordinary writing starts without required planning/AI setup. Retained content, restrictions, and a useful next action are explicit. Read-only access preserves allowed history/export. No fabricated progress or unbounded paid retry is introduced. |
-| UX-12 · Author/accessibility validation | Run the seven author journeys with discovery/outline-first writers, an editor, and assistive-technology users, with English/Spanish copy and real-device input | Retain task observations, author explanations of target/context/save state, focus/contrast/zoom results, and mistakes. Any observed lost writing or unintended commit blocks that workflow's release. Define usefulness/efficiency thresholds after the pilot, not from prototype pass counts. |
+| UX-12 · Author/accessibility validation | Run the essential author journeys with discovery/outline-first writers, an editor, and assistive-technology users, with English/Spanish copy and real-device input | Retain task observations, author explanations of target/context/save state, focus/contrast/zoom results, and mistakes. Any observed lost writing or unintended commit blocks that workflow's release. Define usefulness/efficiency thresholds after the pilot, not from prototype pass counts. |
 
 Use browser assertions for state/identity/selection and accessible names, automated accessibility tooling for detectable violations, and manual keyboard/screen-reader/touch sessions for behavior they cannot establish. A keyboard-only alternative to a drag operation is insufficient for users who need click/tap controls. Review sticky controls against [W3C focus not obscured](https://www.w3.org/WAI/WCAG22/Understanding/focus-not-obscured-minimum.html) and movement alternatives against [Dragging movements](https://www.w3.org/WAI/WCAG22/Understanding/dragging-movements.html).
 

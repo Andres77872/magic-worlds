@@ -1,5 +1,7 @@
 # Bounded delivery plan and risks
 
+**Lifecycle: active implementation proposal, unimplemented native integration. Reviewed 2026-10-15.** Requirements and examples below define the intended feature; they do not establish current support. Use [00](00_current_status_and_findings.md) for source status; this document owns scope and delivery.
+
 Date: **2026-10-15**. Proposed implementation; Markdown only in this task.
 
 ## 1. Accepted requirements
@@ -26,6 +28,8 @@ D05/D06 expand the earlier text/speech-only scope. They permit application metad
 | MOD-04 | Small common input/output guards at current feature boundaries and native replacement of legacy speech classifier | N03/N04/N07; on/off truth table and revision consistency |
 | MOD-05 | Actual image/audio checks, private candidate staging/release holds, upload/cache/download/music coverage | M01–M11; no unchecked media exposure or live producer stall |
 | MOD-06 | Relevant regressions, safe provider canaries, policy evaluation, measured text/media latency and compatible rollout notes | All [09](09_validation_and_benchmarks.md) evidence; no claims based only on mocks |
+
+The [ROADMAP](../ROADMAP.md) moderation row tracks the whole program; MOD-01–MOD-06 here are its delivery packages, and MOD-01 here means only the client package.
 
 MOD-01/02 establish behavior; MOD-03 exposes the requested control; MOD-04/05 wire content and delivery; MOD-06 verifies the result. These are feature slices, not new services or infrastructure projects.
 

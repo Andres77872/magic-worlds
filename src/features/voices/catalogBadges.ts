@@ -55,8 +55,9 @@ export function catalogBadges(item: CatalogVoice, { language, isCurrent = false 
 /** The row's sample in the wanted language, else in its primary language, else the first one. */
 export function catalogSampleUrl(item: CatalogVoice, language?: string | null): string | null {
     const wanted = language ? baseLanguage(language) : ''
-    const match = (wanted && item.languages.find((entry) => baseLanguage(entry.language) === wanted))
-        || item.languages.find((entry) => entry.language === item.primary_language)
-        || item.languages[0]
+    const samples = item.languages.filter((entry) => entry.sample_url)
+    const match = (wanted && samples.find((entry) => baseLanguage(entry.language) === wanted))
+        || samples.find((entry) => baseLanguage(entry.language) === baseLanguage(item.primary_language))
+        || samples[0]
     return match?.sample_url || null
 }

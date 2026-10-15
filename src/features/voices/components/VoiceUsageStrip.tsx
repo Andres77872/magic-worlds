@@ -8,6 +8,8 @@ interface VoiceUsageStripProps {
     usage: VoiceUsageView | null
     /** Recipe previews left today, kept current by each preview answer; null hides the item. */
     previewsLeft: number | null
+    /** One item per line, without separators (a narrow side panel). */
+    stacked?: boolean
     className?: string
 }
 
@@ -26,7 +28,7 @@ interface StripItem {
  * narration left today the danger `daily_limit` badge follows the narration
  * item (05 §7.7, 03 §5.12 copy).
  */
-export function VoiceUsageStrip({ usage, previewsLeft, className }: VoiceUsageStripProps) {
+export function VoiceUsageStrip({ usage, previewsLeft, stacked = false, className }: VoiceUsageStripProps) {
     const { t, i18n } = useTranslation()
     const items: StripItem[] = []
     const text = (key: string, content: string) => items.push({ key, content, separated: items.length > 0 })
@@ -49,11 +51,15 @@ export function VoiceUsageStrip({ usage, previewsLeft, className }: VoiceUsageSt
         <ul
             aria-label={t('voices.usage.label')}
             data-testid="voice-usage-strip"
-            className={cx('flex flex-wrap items-center gap-x-2 gap-y-1 font-ui text-caption text-fg-muted', className)}
+            className={cx(
+                'flex font-ui text-caption',
+                stacked ? 'flex-col items-start gap-1.5 text-parchment-300' : 'flex-wrap items-center gap-x-2 gap-y-1 text-fg-muted',
+                className,
+            )}
         >
             {items.map((item) => (
                 <li key={item.key}>
-                    {item.separated && <span aria-hidden className="mr-2 text-parchment-500">·</span>}
+                    {item.separated && !stacked && <span aria-hidden className="mr-2 text-parchment-500">·</span>}
                     {item.content}
                 </li>
             ))}

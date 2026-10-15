@@ -1,68 +1,54 @@
-# Perfiles LLM: reporte y plan de implementación
+# Perfiles LLM: implementación y aceptación pendiente
 
-Fecha de revisión inicial: **2026-10-08**. **Revisión de estado: 2026-10-14 — WIP operativo, código implementado localmente.** Ver [estado actual y roadmap](16_current_status_and_roadmap.md) y [gates de producto](../FEATURE_STATUS.md). [12](12_implementation_status.md) conserva el historial de implementación y pruebas fechadas; no es un estado de despliegue actualizado automáticamente.
+**Revisión de fuentes/documentación: 2026-10-15. Estado: fundamento implementado; custodia end-to-end y aceptación operativa abiertas.** El [ledger 16](16_current_status_and_roadmap.md) es la autoridad de estado. No confundir la implementación de perfiles con una garantía de que las claves personales nunca se persisten.
 
-**Decisión del usuario, 2026-10-09:** eliminar toda compatibilidad legacy del refactor LLM. La entrega final debe usar exclusivamente perfiles, catálogo seguro, bindings y admisión nuevos; retirar aliases antiguos, hydrators, env de configuración de modelos, lectura de credenciales en DB y fallbacks. Esta decisión reemplaza las propuestas iniciales de conservar consumidores o contratos antiguos. Se preparan los cambios de datos y despliegue; no se aplican automáticamente a la instancia `.90`.
+Frontend y BFF implementan perfiles de sistema/personales, revisiones, selección por feature, admisión y pagador. La SPA conserva BYOK en memoria transitoria. Sin embargo, el BFF actual coloca esa clave dentro de `agt` al llamar al completion original, y el ejecutor conserva el graph authored. **F04 sigue abierto.** La factory protegida de otro módulo no acredita que este camino la use. Ver [API vigente](07_api_changes.md) y [seguridad](../security/README.md).
 
-El objetivo es guardar en base de datos los perfiles LLM y sus asignaciones por feature. Existen dos ámbitos: perfiles de sistema creados por root y perfiles personales creados por cada usuario. Las claves personales BYOK se introducen en el navegador y se transportan de forma transitoria para ejecutar una solicitud; **no se guardan en el servidor**. Los únicos secretos persistentes del servidor son los de la plataforma, en variables de entorno del backend o en un gestor de secretos.
+## Requisitos que siguen vigentes
 
-## Requisitos confirmados
+- Root administra perfiles system y recomendaciones/defaults; cada usuario administra sus perfiles personales y selecciones autorizadas.
+- Resolución por asignación presente: feature del usuario → default personal → recomendación root → default global. Una selección inválida falla; no cambia silenciosamente proveedor/pagador.
+- Configuración personal persistible, clave personal transitoria separada; sin custodia BYOK durable, incluso cifrada, como requisito todavía pendiente end-to-end.
+- BYOK tiene cargo de plataforma cero; conserva límites de capacidad/abuso. El proveedor puede cobrar al usuario. Media tiene cobro y autorización independientes.
+- Grafos, herramientas, validaciones y límites permanecen bajo control del backend.
+- La decisión del usuario del 2026-10-09 exige retirar compatibilidad antigua del refactor. Es criterio de entrega, no prueba de que cada checkout/paquete/entorno ya lo cumpla.
 
-- Root administra un catálogo de perfiles de sistema y un default global, con recomendaciones específicas por feature.
-- Cada usuario puede seleccionar perfiles de sistema o crear perfiles personales, establecer su default y sobrescribirlo para novela, RP, asistentes u otras features.
-- Una feature sin selección explícita hereda su perfil; no se copian defaults a todas las filas.
-- BYOK no tiene cargo de plataforma por ahora. El proveedor puede cobrar a la cuenta del usuario. Se conservan límites de concurrencia y de abuso.
-- Se guarda la configuración del perfil personal, pero ninguna API key personal, ni siquiera cifrada en el servidor.
-- La propuesta inicial conserva la clave únicamente en memoria del cliente. No incorpora localStorage, sessionStorage, IndexedDB ni cookies para BYOK.
-- No hay fallback automático de una clave personal a una credencial de plataforma.
-- Los grafos, herramientas, validaciones de salida y límites máximos siguen bajo control del backend.
+Writers de media/callbot no ofrecen selección personal donde el registro la deshabilita. El [registro de features](../../../../PycharmProjects/magic-worlds-api/src/services/llm_features.py) y los DTOs/rutas son el contrato instalado; las tablas propuestas del dossier original son diseño.
 
-## Orden de resolución
+## Documentos y ciclo de vida
 
-```text
-Selección del usuario para la feature
-  → default personal del usuario
-  → recomendación root para la feature
-  → default global root
-```
-
-Este orden se aplica a las features configurables por el usuario cuando una asignación **no existe**. Una selección existente pero incompatible, archivada, no autorizada o sin clave debe devolver un error accionable. No se omite silenciosamente para elegir otro pagador o proveedor. Las features todavía no habilitadas para selección personal, como media writers y callbot en la primera fase, resuelven únicamente recomendaciones/default root; la API y la UI declaran ese alcance.
-
-Ejemplo: root publica `General`; el usuario elige `Mi novela` para novela y `Mi RP` para conversación. Cards y lorebooks heredan `General` mientras el usuario no configure un default personal. Si luego establece `Mi general` como default personal, las demás features pasan a heredarlo.
-
-## Documentos
-
-| Documento | Contenido |
+| Documento | Disposición / uso |
 |---|---|
-| [01_findings.md](01_findings.md) | Estado real de frontend, BFF, catálogo, runtime, base y cobro; evidencia local |
-| [02_gaps_and_risks.md](02_gaps_and_risks.md) | Brechas, riesgos, prioridades y bloqueos de lanzamiento |
-| [03_architecture_and_approach.md](03_architecture_and_approach.md) | ADR, ámbitos, resolución, roles internos y flujos de ejecución |
-| [04_model_catalog_and_best_practices.md](04_model_catalog_and_best_practices.md) | Catálogo, capacidades, selección, evaluaciones y mantenimiento |
-| [05_security_and_secrets.md](05_security_and_secrets.md) | Modelo de amenazas y ciclo de vida de claves de usuario y plataforma |
-| [06_database_changes.md](06_database_changes.md) | Tablas, integridad, índices, transacciones y cambios en las dos bases |
-| [07_api_changes.md](07_api_changes.md) | APIs root/usuario, transporte BYOK, streaming, WS, errores e idempotencia |
-| [08_web_client_root_and_user.md](08_web_client_root_and_user.md) | Pantallas, permisos, memoria de credenciales y cambios por feature |
-| [09_migration_and_rollout.md](09_migration_and_rollout.md) | Migración desde env y catálogo actual, despliegue y recuperación |
-| [10_implementation_plan_and_acceptance.md](10_implementation_plan_and_acceptance.md) | Trabajo por repositorio, dependencias, pruebas y definición de terminado |
-| [11_sources_and_open_decisions.md](11_sources_and_open_decisions.md) | Fuentes, alcance de verificación y decisiones pendientes |
-| [12_implementation_status.md](12_implementation_status.md) | Avance local del refactor, pruebas, capacidades desplegadas y alcance pendiente |
-| [13_historical_provenance.md](13_historical_provenance.md) | Decisión sobre recibos históricos, idempotencia y capacidad sin procedencia verificable |
-| [14_operations_runbook.md](14_operations_runbook.md) | Gates de activación, provisión, rotación platform, asignaciones, BYOK tras recarga, media, retención y corte |
-| [15_openrouter_defaults.md](15_openrouter_defaults.md) | Preparación offline y elección fechada de defaults; requiere evaluaciones/provisión |
-| [16_current_status_and_roadmap.md](16_current_status_and_roadmap.md) | Estado de fuentes/configuración al 2026-10-14, WIP operativo y aceptación pendiente |
+| [02 Gaps](02_gaps_and_risks.md) | Riesgos/requisitos; 16 mantiene disposición actual |
+| [03 Arquitectura](03_architecture_and_approach.md) | ADR y contrato objetivo; no prueba de custodia implementada |
+| [04 Catálogo](04_model_catalog_and_best_practices.md) | Requisitos/diseño y evaluación; no catálogo desplegado |
+| [05 Seguridad](05_security_and_secrets.md) | Garantía requerida y canarios; garantía aún incumplida por el camino actual |
+| [07 API](07_api_changes.md) | Rutas y transporte usados |
+| [09 Rollout](09_migration_and_rollout.md) | Preparación por revisión/entorno y rollback |
+| [10 Aceptación](10_implementation_plan_and_acceptance.md) | Entregables y criterios aún aplicables |
+| [14 Runbook](14_operations_runbook.md) | Referencia operativa del transporte actual |
+| [16 Ledger](16_current_status_and_roadmap.md) | Estado, riesgos y trabajo restante mantenidos |
 
-## Hallazgos históricos que motivaron el plan (2026-10-08)
+## Evidencia y límites
 
-El inventario siguiente describe el baseline previo al refactor. Las variables, hydrators y riesgos del camino anterior no deben interpretarse como el routing de perfiles actual. La factory protegida y el ejecutor genérico tienen límites distintos; consultar 16 y el audit antes de afirmar cierre de seguridad.
+Esta revisión inspeccionó fuentes de frontend/BFF y los checkouts de ejecutor/runtime, incluidos rendering BYOK, snapshot, templates y cliente. Las revisiones de referencia y los límites están en 16. No se ejecutaron proveedores, consultas de base, migraciones, configuración, despliegues ni suites de aplicación.
 
-1. La configuración actual está repartida entre `CARD_LLM_*`, `ADVENTURE_CHAT_LLM_*`, asistentes y extracción. Novela reutiliza la configuración de cards.
-2. Agent Studio administra agentes, no perfiles por usuario. Publicar un custom agent no cambia los grafos productivos de las features.
-3. `api.magic_llm` ya tiene catálogo de modelos, capacidades, precios y grupos. Su tabla de proveedores admite credenciales JSON; no debe convertirse en un almacén BYOK.
-4. El BFF hidrata claves en el grafo enviado. El runtime conserva el grafo authored y puede persistirlo como snapshot exacto. Es un riesgo concreto que debe corregirse antes de introducir BYOK.
-5. Cobro, cuotas y uso deben distinguir `platform` y `user_byok` en ambos backends; no basta con ocultar el costo en la UI.
+El copy actual de las pantallas Modelos/BYOK ([`llmProfiles.ts`](../../src/app/i18n/locales/llmProfiles.ts), `key.explanation` y `byok.body`, EN/ES) ya afirma que la clave no se guarda en nuestros servidores. Eso contradice F04 abierto; su corrección se registra como F11 en [seguridad](../security/README.md) y en LLM-R3 del [ledger 16](16_current_status_and_roadmap.md).
 
-## Límites de la revisión inicial
+El contenido del usuario puede conservarse intencionalmente en prompts/payloads congelados para replay, incluido el digest del app assistant. Esa política de privacidad/retención es independiente del requisito de excluir claves; [seguridad](../security/README.md#content-retention-is-a-separate-contract) mantiene el límite. El operador puede observar una clave durante ejecución; cumplir no persistencia tampoco equivale a impedir acceso al proceso.
 
-Estos límites corresponden al reporte inicial del 2026-10-08: se revisaron archivos de esquema y persistencia, rutas, DTOs, grafos y bibliotecas locales, sin consultar una DB ni ejecutar proveedores. La implementación posterior tiene pruebas con MySQL efímero y mocks, descritas en [12](12_implementation_status.md). No se han inspeccionado claves reales, contenido de bases/backups/logs desplegados ni infraestructura de observabilidad. Las rutas/tablas propuestas se consideran disponibles solo cuando lo prueba el estado actual.
+Estado global: [matriz](../STATUS_MATRIX.md), [gates](../FEATURE_STATUS.md) y [roadmap](../ROADMAP.md). La ejecución [Fish](../fish_audio_support/11_implementation_status.md) conserva su propio estado y no se modificó.
 
-La promesa de seguridad es ausencia de persistencia intencional de claves personales, con controles para demostrarla. El backend ve la clave temporalmente al llamar al proveedor. Impedir incluso el acceso del operador requeriría un ejecutor controlado por el usuario y otra arquitectura.
+<details>
+<summary>Established section anchors retained after reconciliation</summary>
+
+<a id="documentos"></a>
+<a id="hallazgos-históricos-que-motivaron-el-plan-2026-10-08"></a>
+<a id="límites-de-la-revisión-inicial"></a>
+<a id="orden-de-resolución"></a>
+<a id="perfiles-llm-reporte-y-plan-de-implementación"></a>
+<a id="requisitos-confirmados"></a>
+
+The maintained source/status sections above replace the older headings.
+
+</details>

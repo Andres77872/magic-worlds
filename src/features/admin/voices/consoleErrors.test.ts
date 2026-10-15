@@ -32,8 +32,8 @@ describe('describeConsoleError', () => {
 
     it('gives the global preset refusals (EP-5) their own copy, in both locales', () => {
         const notEligible = new ApiError(422, 'Voice is not eligible.', { code: 'voice_not_eligible', details: { code: 'voice_not_eligible', path: 'voice' } })
-        expect(describeConsoleError(notEligible, en).message).toBe('This voice cannot back a global preset: it must be active in the catalog and accepted on Flash.')
-        expect(describeConsoleError(notEligible, es).message).toBe('Esta voz no puede respaldar un preset global: debe estar activa en el catálogo y aceptada en Flash.')
+        expect(describeConsoleError(notEligible, en).message).toBe('This voice cannot back a global preset: it must be active in the catalog and accepted on v4.')
+        expect(describeConsoleError(notEligible, es).message).toBe('Esta voz no puede respaldar un preset global: debe estar activa en el catálogo y aceptada en v4.')
         expect(describeConsoleError(new ApiError(409, 'x', { code: 'global_preset_seed_exists' }), t).message).toBe('admin.voices.globalPresets.errors.seedExists')
     })
 
@@ -62,7 +62,7 @@ describe('describeConsoleError', () => {
             details: { failed: ['expressive_not_passed:es', 'no_expressive_sample:en', 'ivc_publish_blocked'] },
         })
         expect(describeConsoleError(error, en, languageName).message).toBe(
-            'The voice does not meet the publish rules. Expressive (v4) has no pass in Spanish. No own Expressive showcase sample in English. Instant clones are not published until P-15 is answered.',
+            'The voice does not meet the publish rules. Expressive (v4) has no pass in Spanish. No own Expressive showcase sample in English. Instant clones are not published until the instant clone publishing decision (P-15) is answered.',
         )
         expect(describeConsoleError(new ApiError(422, 'The replacement voice is not valid for this voice.', { code: 'replacement_not_call_eligible' }), es).message).toBe(
             'La voz de reemplazo no es apta para llamadas.',

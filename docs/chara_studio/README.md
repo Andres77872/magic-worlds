@@ -1,8 +1,10 @@
 # Character image studio research
 
-**Updated:** 2026-10-15. **Focus:** UI/UX, integration with this app, character image practices and current product/research references. **Implementation status:** Existing portrait generation is present; editing, reusable character references and their use in chat are WIP.
+**Source and lifecycle review:** 2026-10-15. **Focus:** UI/UX, integration with this app, character image practices and dated product/research references. **Implementation status:** Existing portrait generation is present; editing, reusable character references and their use in chat remain planned. Individual owners, delivery dates and release acceptance are unassigned.
 
-The recommended starting experience is simple: open **Character images** from a character card, select or generate artwork, describe an edit, compare the result, and keep useful images with the character. Choosing the card portrait remains an explicit action. When an included character appears in a chat illustration, its relevant assets provide visual references.
+The [CHARA-1–9 backlog](08_roadmap_and_gaps.md) is this area's status authority. The [project inventory](01_current_project.md) describes existing source; documents 02–05 describe proposed interaction/provider behavior, and 07 records their evidence dates. This cleanup rechecked the local request/router/catalog boundary; it did not refresh external provider research or run image generation. The [shared matrix](../STATUS_MATRIX.md) distinguishes implementation from release availability.
+
+The proposed starting experience is to open **Character images** from a character card, select or generate artwork, describe an edit, compare the result, and keep useful images with the character. In that target workflow, choosing the card portrait is explicit and relevant character assets can provide references for chat illustrations. These editing/reference interactions are not current application behavior.
 
 **GPT Image 2.5 Flare and Sunburst, through the project's existing fal/OpenRouter integrations, are the only models considered for this feature.** Other studios and research projects supply interaction examples and best practices.
 
@@ -14,14 +16,13 @@ The recommended starting experience is simple: open **Character images** from a 
 - **Show references in chat context.** Included cards can expose their available images; generation should use the relevant depicted subjects and outfits.
 - **Let the user start with one image.** Full-body views, expressions, sheets and masks are useful additions when needed.
 
-The refreshed comparison covers Leonardo, Midjourney, Recraft, NovelAI, Scenario, InvokeAI, Krita AI Diffusion, SillyTavern and fal's character assets. Recommendations are based on primary documentation and source review, not hands-on product testing or a model leaderboard.
+The product references in [07](07_sources.md) cover Leonardo, Midjourney, Recraft, NovelAI, Scenario, InvokeAI, Krita AI Diffusion, SillyTavern and fal's character assets. Recommendations are based on primary documentation and source review, not hands-on product testing or a model leaderboard.
 
 ## Reading guide
 
 | Document | Contents |
 |---|---|
 | [02 — Studio UI/UX](02_ai_image_section.md) | Entry point, layout, task suggestions, asset actions, comparison, states, mobile/accessibility and component reuse |
-| [06 — SOTA and comparable projects](06_sota_and_examples.md) | Nine product/project comparisons, useful patterns, limitations and relevant research |
 | [01 — Current project review](01_current_project.md) | Source-backed behavior, UI friction, registered GPT models and missing connections |
 | [03 — GPT generation and editing](03_gpt_generation_and_editing.md) | Current provider support, supported settings and honest controls |
 | [04 — Assets in chat](04_assets_in_chat.md) | Included-card reference UX, subject/outfit selection, delivery and session behavior |
@@ -41,4 +42,4 @@ The refreshed comparison covers Leonardo, Midjourney, Recraft, NovelAI, Scenario
 
 The missing integration is supplying authorized source/reference pixels and retaining their character association. Text descriptions or asset URLs pasted into a prompt do not create image inputs. Current portrait completion also links the result as the cover, which must be distinguished from keeping a variant.
 
-Documents 02–06 are research and design guidance. The retained backlog in 08 is proposed work, without committed dates. No application code, provider calls, image generation or paid evaluation was performed. Deployment gates and static test evidence are recorded in [01](01_current_project.md).
+Documents 02–05 are research and design guidance. The retained backlog in 08 is proposed work, without committed dates. No application code, provider calls, image generation or paid evaluation was performed. Deployment gates and static test evidence are recorded in [01](01_current_project.md).

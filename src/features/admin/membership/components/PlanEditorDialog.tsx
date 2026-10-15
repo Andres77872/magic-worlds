@@ -19,6 +19,7 @@
  * The parent remounts this component (via `key`) whenever a different plan is
  * opened, so the initial state is derived once and never re-seeded.
  */
+import { isOperationFeatureEnabled } from '@/shared/featureFlags'
 import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Layers, Loader2, Pencil } from 'lucide-react'
@@ -150,14 +151,22 @@ export function PlanEditorDialog({
     const [credits, setCredits] = useState(() => (editing ? String(plan.daily_credit_limit) : ''))
     const [active, setActive] = useState(() => (editing ? plan.is_active : true))
     const [preset, setPreset] = useState('')
-    const [limits, setLimits] = useState<LimitsDraft>(() => draftFromLimits(operations, editing ? plan.limits : undefined))
+    const [limits, setLimits] = useState<LimitsDraft>(() => {
+        const defaults = plans.find((candidate) => candidate.is_default) ?? plans[0]
+        const draft = draftFromLimits(operations, editing ? plan.limits : defaults?.limits)
+        // New plans still require deliberate values for the visible rows. Hidden
+        // rows retain the server's default limits, including voice quantity caps.
+        if (!editing) for (const operation of operations.filter(isOperationFeatureEnabled)) draft[operation] = { ...EMPTY_DRAFT }
+        return draft
+    })
     const [withQuantity] = useState(() => serverHasQuantityLimits(editing ? [plan, ...plans] : plans))
 
     const codeValid = editing || PLAN_CODE_PATTERN.test(code)
     const nameValid = name.trim().length > 0 && name.trim().length <= 64
     const creditsValue = Number(credits)
     const creditsValid = credits.trim() !== '' && Number.isInteger(creditsValue) && creditsValue >= 0
-    const parsedLimits = parseLimits(operations, limits, withQuantity)
+    const visibleOperations = operations.filter(isOperationFeatureEnabled)
+    const parsedLimits = parseLimits(editing ? visibleOperations : operations, limits, withQuantity)
     const limitsValid = parsedLimits != null
     const canSubmit = codeValid && nameValid && creditsValid && limitsValid && !saving
 
@@ -205,7 +214,7 @@ export function PlanEditorDialog({
         if (!billingSynced && name.trim() !== plan.display_name) body.display_name = name.trim()
         if (!billingSynced && creditsValue !== plan.daily_credit_limit) body.daily_credit_limit = creditsValue
         if (!isDefault && active !== plan.is_active) body.is_active = active
-        if (!limitsEqual(parsedLimits, plan.limits, operations, withQuantity)) body.limits = parsedLimits
+        if (!limitsEqual(parsedLimits, plan.limits, visibleOperations, withQuantity)) body.limits = { ...plan.limits, ...parsedLimits }
         if (Object.keys(body).length === 0) {
             onClose()
             return
@@ -310,7 +319,7 @@ export function PlanEditorDialog({
                                 </tr>
                             </thead>
                             <tbody>
-                                {operations.map((operation) => {
+                                {visibleOperations.map((operation) => {
                                     const draft: LimitDraft = limits[operation] ?? EMPTY_DRAFT
                                     const rowValid = parseLimit(operation, draft, withQuantity) != null
                                     const quantityUnit = QUANTITY_UNITS[operation]

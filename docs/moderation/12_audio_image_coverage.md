@@ -1,5 +1,7 @@
 # Audio and image review and integration plan
 
+**Lifecycle: active implementation proposal, unimplemented native integration. Reviewed 2026-10-15.** Requirements and examples below define the intended feature; they do not establish current support. Use [00](00_current_status_and_findings.md) for source status and [10](10_rollout_risks_and_decisions.md) for scope/delivery.
+
 Reviewed: **2026-10-15**. Static repository review and primary-source research; no provider inference or new application code executed.
 
 ## 1. Current gaps
@@ -15,7 +17,9 @@ Reviewed: **2026-10-15**. Static repository review and primary-source research; 
 | M07 Profiles have no moderation field | [LLM config](/home/andres/PycharmProjects/magic-worlds-api/src/models/llm_profiles.py), [image fields/view](/home/andres/PycharmProjects/magic-worlds-api/src/models/image_profiles.py) | Neither profile family can persist or enforce the requested default-on control |
 | M08 Live production depends on playback | [flush gate and drainer](/home/andres/PycharmProjects/magic-worlds-api/src/services/voice_orchestration/call_tts_elevenlabs.py:156) | Holding an entire long turn can stall production before end_turn; current first_chunk_at is set before delivery |
 
-The current call drainer delivers provider audio chunks as they arrive. Strict audio moderation requires a release hold, not a post-playback check. The image finalizer performs storage and asset/card-link writes under its completion transaction; adding another awaited external request inside that lock would increase contention.
+M01–M08 are gap findings; acceptance cases with the same prefix (M01–M11) are in [09](09_validation_and_benchmarks.md) §3.
+
+In the BFF working tree (uncommitted, 2026-10-15) the shared synthesis path also dispatches Fish after the pre-TTS text gate; adding a provider does not close M01/M05/M06. The current call drainer delivers provider audio chunks as they arrive. Strict audio moderation requires a release hold, not a post-playback check. The image finalizer performs storage and asset/card-link writes under its completion transaction; adding another awaited external request inside that lock would increase contention.
 
 ## 2. Required coverage
 

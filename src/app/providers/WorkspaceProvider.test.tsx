@@ -2,6 +2,7 @@ import { useContext, useLayoutEffect } from 'react'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Workspace, WorkspaceList } from '@/shared/types'
+import { FRONTEND_FEATURE_ENV } from '@/shared/featureFlags'
 
 const apiStatusState = vi.hoisted(() => ({ status: 'online' as 'checking' | 'online' | 'degraded' | 'offline' }))
 
@@ -121,7 +122,8 @@ describe('WorkspaceProvider startup handshake', () => {
         setWorkspaceWritesBlocked(false)
     })
 
-    it('runs capabilities then the archived-inclusive list before selecting the protected default', async () => {
+    it('runs the handshake and scopes the protected default with every product flag disabled', async () => {
+        for (const env of Object.values(FRONTEND_FEATURE_ENV)) vi.stubEnv(env, 'false')
         listWorkspaces.mockResolvedValue(list(workspace(DEFAULT_ID), workspace(SECOND_ID)))
         renderProvider()
         expect(screen.getByTestId('status')).toHaveTextContent('loading')

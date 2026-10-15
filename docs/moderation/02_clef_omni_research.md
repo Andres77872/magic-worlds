@@ -1,6 +1,8 @@
 # Clef Omni research and model fit
 
-Research date: **2026-10-15**. Primary sources only. Full citations and evidence limits are in [11](11_sources_and_evidence.md). Facts below are provider documentation, not local inference measurements.
+**Lifecycle: dated research/proposed contract, 2026-10-15.** Provider facts and external-source observations retain the research date; this cleanup did not browse, make provider calls or refresh measurements. Revalidate the alpha protocol/account behavior before implementation. This file is not release evidence; [00](00_current_status_and_findings.md) owns current status.
+
+Research date: **2026-10-15**. Primary sources only, cited inline; evidence limits are in the [README](README.md#evidence-and-limits) and [00](00_current_status_and_findings.md). Facts below are provider documentation, not local inference measurements.
 
 ## 1. Why this is a different integration
 

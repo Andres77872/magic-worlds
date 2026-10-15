@@ -1,11 +1,13 @@
 # Novel refactor — WIP status, research, and roadmap
 
-**Research date:** 2026-10-14, America/Mexico_City.\
+**Source/lifecycle review:** 2026-10-15, America/Mexico_City. **Research cutoff:** 2026-10-14.\
 **UI/UX plan update:** 2026-10-15, informed by the standalone demo and selected official accessibility/human–AI guidance.\
 **Status:** WIP. A chapter-based Story Studio is implemented behind a frontend flag; the expanded refactor remains proposed. The checked-in example disables novels, while this checkout's local environment enables them. See [14 — Actual status and roadmap](14_status_and_roadmap.md) for the exact gates and remaining work. No application implementation, database migration, deployment, or provider call was performed by this documentation pass.\
 **Target:** A complete novel-writing editor with an integrated, story-aware AI assistant.
 
-The dossier contains 15 documents, 136 target capabilities, 23 NE findings, 12 prioritized UI/UX work items, and 62 primary references. Comparisons cover eight writing/planning products and four editor or open-source foundations. Findings distinguish prior controlled reproductions, source-confirmed concerns, prototype observations, target gaps, and unmeasured risks. Vendor/model research retains its 2026-10-14 cutoff. The original documentation review verified local source and focused tests; the 2026-10-15 addendum adds prototype findings and rechecked UI/UX guidance without refreshing vendor claims.
+The dossier contains 13 Markdown documents, a standalone HTML prototype, 136 target capabilities, 23 NE findings, 12 prioritized UI/UX work items, and 62 primary references. The references cover eight writing/planning products and four editor or open-source foundations. Findings distinguish prior controlled reproductions, source-confirmed concerns, prototype observations, target gaps, and unmeasured risks. Vendor/model research retains its 2026-10-14 cutoff. The earlier review recorded local source and focused tests; the UI/UX addendum adds prototype findings and guidance. The October 15 cleanup rechecked save ordering, AI acceptance, search offsets, current DTOs and flags without rerunning those application/prototype tests or refreshing vendor claims.
+
+[14 — Status and roadmap](14_status_and_roadmap.md) is the sole delivery authority. Documents 01/10 maintain current evidence and findings; 04–09/11–12 are target design and acceptance; 13 records the dated product/research references, their limits, and unresolved decisions. The June 2026 storytelling brief was consolidated into this dossier on 2026-10-15; its retained writing requirements are folded into the catalog and design documents, with the clarified contracts in 06–08 and their acceptance checks in 12. All 136 novel capabilities and D1–D6 remain; no NE finding or future phase is closed by this documentation merge.
 
 ## Actual availability
 
@@ -48,8 +50,6 @@ The 2026-10-14 documentation review reran the focused suite: **211 tests across 
 | Document | Purpose |
 |---|---|
 | [01 — Current state and evidence](01_current_state_and_evidence.md) | Source inventory, preserved strengths, test/reproduction evidence, boundaries |
-| [02 — Competitive landscape](02_competitive_landscape.md) | Fiction tools, planning tools, editorial tools, and similar open-source projects |
-| [03 — AI writing state of the art](03_ai_writing_state_of_the_art.md) | Current capability patterns, research findings, limits, evaluation implications |
 | [04 — Novel, chapter, and scene management](04_novel_chapter_and_scene_management.md) | Hierarchy, ordering, lifecycle, split/merge, series, summaries, and timelines |
 | [05 — Feature catalog](05_feature_catalog.md) | Complete target capability inventory, current coverage, delivery sequence |
 | [06 — UI/UX and accessibility](06_ui_ux_and_accessibility.md) | Prototype findings, UX-01–UX-12 priorities, writing/review flows, responsive behavior, keyboard and accessibility |
@@ -64,7 +64,7 @@ The 2026-10-14 documentation review reran the focused suite: **211 tests across 
 
 ## Evidence and precedence
 
-- **Reproduced:** A controlled check exercised the current implementation and observed the failure. It is not evidence of production incidence.
+- **Reproduced:** A controlled check exercised the implementation at its recorded date and observed the failure. A historical reproduction is not a fresh test or evidence of production incidence.
 - **Source-confirmed:** The reviewed code demonstrates the mechanism or missing contract. Runtime consequences may still need integration testing.
 - **Gap:** A capability absent from the reviewed implementation but required by the proposed target.
 - **Risk:** A plausible failure or scaling concern that has not been measured or reproduced.
@@ -73,10 +73,10 @@ The 2026-10-14 documentation review reran the focused suite: **211 tests across 
 - **Vendor-documented:** An official product describes a capability. This is not an independent usability or quality benchmark.
 - **Research:** A paper or research project supports a design direction within its studied setting. Older-model or short-story results do not certify current models or complete novels.
 
-Current source is the baseline. Existing [storytelling research](../story_telling/README.md) supplies historical product intent, but some descriptions refer to an older textarea editor. Do not implement from those descriptions without reconciling them with this dossier and current source.
+Current source is the implementation baseline; this dossier is the current novel target. The earlier brief's textarea advice, raw-offset DTO sketches and MVP exclusions do not override the current editor or full feature catalog.
 
 Workspace and profile boundaries remain governed by [Workspace R1](../workspace_r1/README.md), [LLM profiles](../llm_profiles/README.md), and the actual implementation. This dossier proposes additions, not changes to approved workspace ownership or credential rules.
 
 ## Scope of this work
 
-This dossier documents the current foundation and proposed expansion. Proposed DTOs, tables, tools, state machines, and component names are illustrative design contracts, not existing APIs. No licensed package, new service, or model is selected for purchase. Live browser, screen-reader, performance, migration, and production evidence remain explicitly separate from source review. The sibling storytelling research is reconciled with the current editor and links back to this suite.
+This dossier documents the current foundation and proposed expansion. Proposed DTOs, tables, tools, state machines, and component names are illustrative design contracts, not existing APIs. No licensed package, new service, or model is selected for purchase. Live browser, screen-reader, performance, migration, and production evidence remain explicitly separate from source review. Storytelling requirements are maintained here only where they serve the novel/writing system. Approved card and adventure material remains a manuscript source with pins and provenance (N02/K01); covers/illustrations, read-aloud, dictation, research and reviewed publication handoff already belong to the catalog. Excluded from this plan: game launchers, live session-history integration, campaign runtime, combat/economy/inventory mechanics and prose-to-game writeback (K06 tracks facts in the manuscript, not live game state); marketplace, billing/admin consoles, social publishing or public story hosting, standalone worldbuilding/map/family-tree platforms, a generalized moderation redesign, and new card families. The explicit publication handoff (X12, D6) does not authorize building a publishing platform. Collaboration stays excluded as stated under **Product scope** above.

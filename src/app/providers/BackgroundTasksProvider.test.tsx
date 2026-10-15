@@ -121,6 +121,7 @@ describe('BackgroundTasksProvider', () => {
     afterEach(() => {
         vi.useRealTimers()
         vi.restoreAllMocks()
+        vi.unstubAllEnvs()
     })
 
     it('fetches all task operations and keeps polling while a resource request is running', async () => {
@@ -297,6 +298,33 @@ describe('BackgroundTasksProvider', () => {
         await act(async () => {
             await vi.advanceTimersByTimeAsync(30_000)
         })
+        expect(screen.getByTestId('completed-count')).toHaveTextContent('0')
+    })
+
+    it('loads and clears visible completed tasks after a page of hidden voice jobs', async () => {
+        vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'false')
+        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
+        vi.mocked(apiService.listTasks).mockImplementation(async (opts) => {
+            const offset = opts?.offset ?? 0
+            if (!opts?.statuses?.includes('completed')) return { items: [], limit: 20, offset, next_offset: null }
+            // The API filters voice jobs but keeps their server pagination cursor.
+            return offset === 0
+                ? { items: [], limit: 20, offset, next_offset: archived ? null : 20 }
+                : { items: archived ? [] : [completedTask], limit: 20, offset, next_offset: null }
+        })
+        renderProvider()
+        await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+        expect(screen.getByTestId('completed-count')).toHaveTextContent('0')
+        expect(screen.getByTestId('completed-has-more')).toHaveTextContent('true')
+
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', { name: 'load completed' }))
+            await vi.advanceTimersByTimeAsync(0)
+        })
+        expect(screen.getByTestId('completed-count')).toHaveTextContent('1')
+        await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'clear completed' })) })
+
+        expect(apiService.archiveTask).toHaveBeenCalledExactlyOnceWith('theme_song', 'task-1')
         expect(screen.getByTestId('completed-count')).toHaveTextContent('0')
     })
 

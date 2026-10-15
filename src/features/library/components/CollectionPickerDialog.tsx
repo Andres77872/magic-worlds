@@ -9,6 +9,7 @@ import { Folder, FolderPlus, Loader2 } from 'lucide-react'
 import type { Collection } from '@/shared/types'
 import { Button, Callout, Icon, Modal, SelectionCheck, cx } from '@/ui/primitives'
 import { SELECTED_CARD_CLASS } from '@/ui/components/lists/Card/cardStyles'
+import { isLibraryCardCountAvailable } from '@/shared/featureFlags'
 
 interface CollectionPickerDialogProps {
     open: boolean
@@ -111,7 +112,7 @@ export function CollectionPickerDialog({
                                         <Icon icon={Folder} size={16} className="shrink-0 text-ember-400" />
                                         <span className="min-w-0 flex-1 truncate font-semibold text-fg">{collection.name}</span>
                                         <span className="shrink-0 text-caption text-fg-muted">
-                                            {t('library.folder.cardCount', { count: collection.card_count })}
+                                            {isLibraryCardCountAvailable() && t('library.folder.cardCount', { count: collection.card_count })}
                                         </span>
                                         <span className="flex h-5 w-5 shrink-0 items-center justify-center">
                                             <SelectionCheck selected={isSelected} />

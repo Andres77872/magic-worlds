@@ -8,7 +8,7 @@ The target is one author working with AI. Multi-user editing, presence, invitati
 
 Delivery sequence: **D1** reliable editor/persistence; **D2** novel and scene organization; **D3** grounded assistant; **D4** planning, continuity and personal editorial review; **D5** portability, production and productivity; **D6** author-owned series and advanced extension. Each phase includes accessibility, internationalization, failure recovery, and appropriate validation. Phase placement is a recommendation and later phases remain part of the target.
 
-The market evidence is in [02](02_competitive_landscape.md), research in [03](03_ai_writing_state_of_the_art.md), implementation baseline in [01](01_current_state_and_evidence.md), and detailed contracts in [04](04_novel_chapter_and_scene_management.md), [06](06_ui_ux_and_accessibility.md), [08](08_ai_assistant_context_and_tools.md), and [09](09_persistence_revisions_and_recovery.md).
+Market and research sources are in [13](13_sources_and_open_decisions.md), implementation baseline in [01](01_current_state_and_evidence.md), and detailed contracts in [04](04_novel_chapter_and_scene_management.md), [06](06_ui_ux_and_accessibility.md), [08](08_ai_assistant_context_and_tools.md), and [09](09_persistence_revisions_and_recovery.md).
 
 ## Novel and library management
 

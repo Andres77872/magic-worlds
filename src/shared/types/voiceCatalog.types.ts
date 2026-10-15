@@ -9,6 +9,7 @@
  */
 
 import type { NarrationTier } from './auth.types'
+import type { VoiceProvider } from './voicePreset.types'
 
 /** 03 §5.4.2 — values verbatim. */
 export type VoiceSubstitutionReason =
@@ -26,7 +27,7 @@ export interface EffectiveVoice {
     voice_key: string | null
     display_name: string
     /** Always `elevenlabs`; `readEffectiveVoice` reads a missing route as it. */
-    provider_route: 'elevenlabs'
+    provider_route: VoiceProvider
     substitution_reason: VoiceSubstitutionReason | null
     badges: VoiceBadgeKey[]  // unknown values are ignored by the UI (forward compatible)
 }
@@ -65,6 +66,8 @@ export interface CatalogVoiceLanguage {
 }
 
 export interface CatalogVoice {
+    provider?: VoiceProvider
+    profile_id?: string
     voice_key: string
     display_name: string
     description: string | null
@@ -88,6 +91,7 @@ export interface CatalogVoice {
 
 /** `GET /voices/catalog` filters, verbatim from 03 §5.12. `after` is passed separately as the cursor. */
 export interface CatalogQuery {
+    provider?: VoiceProvider
     language?: string
     accent?: string
     gender?: string
@@ -144,6 +148,17 @@ export interface VoiceSurfaceCapabilities {
     healthy: boolean
 }
 
+export interface VoiceProviderCapabilities {
+    provider: VoiceProvider
+    profile_id: string
+    label: string
+    surfaces: VoiceSurfaceCapabilities[]
+    tiers_allowed: NarrationTier[]
+    languages: string[]
+    output_format: string
+    operations: string[]
+}
+
 /**
  * Companion-safety switches (EP-11). The BFF always sends `safeguards`;
  * `readSafeguards` in `@/shared/voice` defaults a missing one to all-off.
@@ -163,6 +178,8 @@ export interface VoiceCapabilityStatus {
 }
 
 export interface VoiceCapabilities {
+    contract_version?: 3
+    providers?: VoiceProviderCapabilities[]
     surfaces: VoiceSurfaceCapabilities[]
     // Client switches: a proposal of 09 §1.5, not in 08 yet. Null / empty / fail-open defaults
     // when the server does not send them.
@@ -175,8 +192,8 @@ export interface VoiceCapabilities {
     tiers_allowed: NarrationTier[]
     /** `user_preferences.narration_tier` (D05); null when not reported. */
     narration_tier: NarrationTier | null
-    /** Required consent copy version (D25): always `voice-v2` (I-68), whatever the wire says. */
-    consent_version_required: 'voice-v2'
+    /** Fish calls require the expanded processing disclosure in voice-v3. */
+    consent_version_required: 'voice-v2' | 'voice-v3'
     status: VoiceCapabilityStatus
     /** EP-11; always sent by the BFF, optional on read (all-off when missing). */
     safeguards?: VoiceCapabilitySafeguards

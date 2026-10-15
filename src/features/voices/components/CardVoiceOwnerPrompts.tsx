@@ -19,7 +19,7 @@
  * goes to the host's `returnFocus` target instead of falling to the page.
  */
 import type { MouseEvent } from 'react'
-import type { CatalogVoice, CharacterVoiceV2, EffectiveVoice, StoredCharacterVoice } from '@/shared'
+import type { CatalogVoice, EffectiveVoice, StoredCharacterVoice } from '@/shared'
 import { isElevenLabsProjection } from '@/shared/voice'
 import { leavingVoiceKey, useLeavingVoice } from '../hooks/useLeavingVoice'
 import { voiceWithReplacement } from '../voiceFromCatalog'
@@ -29,7 +29,7 @@ interface CardVoiceOwnerPromptsProps {
     stored: StoredCharacterVoice | null | undefined
     effective: EffectiveVoice | null | undefined
     /** Writes the switched voice into the form (the host also drops the stale projection). */
-    onSwitch: (next: CharacterVoiceV2) => void
+    onSwitch: (next: StoredCharacterVoice) => void
     /** Opens the host's voice picker. */
     onChoose: () => void
     /**

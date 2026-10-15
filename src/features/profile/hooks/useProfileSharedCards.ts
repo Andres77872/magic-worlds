@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/app/hooks'
 import { useWorkspace } from '@/app/hooks/useWorkspace'
 import type { SharedCardResource } from '@/shared'
-import { isCommunityCardsFeatureEnabled } from '@/shared/featureFlags'
+import { isCommunityCardsFeatureEnabled, isContentTypeFeatureEnabled } from '@/shared/featureFlags'
 
 export interface ProfileSharedCardsState {
     publicCards: SharedCardResource[]
@@ -87,8 +87,8 @@ export function useProfileSharedCards(): ProfileSharedCardsState {
     // Lists of a previously selected workspace are never shown for the new one.
     const current = loaded && loaded.workspaceId === selectedWorkspaceId ? loaded : null
     return {
-        publicCards: current?.publicCards ?? [],
-        shareLinks: current?.shareLinks ?? [],
+        publicCards: (current?.publicCards ?? []).filter(card => isContentTypeFeatureEnabled(card.card_type)),
+        shareLinks: (current?.shareLinks ?? []).filter(card => isContentTypeFeatureEnabled(card.card_type)),
         isLoading,
         error,
         refresh,

@@ -1,3 +1,4 @@
+import { isOperationFeatureEnabled } from '@/shared/featureFlags'
 import { CheckCircle2, ChevronDown, Coins, Crown, Lock, Rocket, Sparkles, WalletCards } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -211,11 +212,11 @@ function PaygCard({ card, t, locale }: { card: MembershipPaygProfileCard; t: TFu
                         </div>
                     </div>
 
-                    {card.covered_operations.length > 0 && (
+                    {card.covered_operations.some(isOperationFeatureEnabled) && (
                         <div className="flex flex-col gap-1.5">
                             <Eyebrow tone="muted">{t('membership.covers')}</Eyebrow>
                             <div className="flex flex-wrap gap-2">
-                                {card.covered_operations.map((operation) => (
+                                {card.covered_operations.filter(isOperationFeatureEnabled).map((operation) => (
                                     <Tag key={operation}>{operationName(operation, t)}</Tag>
                                 ))}
                             </div>

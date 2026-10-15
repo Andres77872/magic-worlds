@@ -5,7 +5,7 @@
  * duplicated.
  */
 import type { TFunction } from 'i18next'
-import type { CatalogVoice, NarrationTier, VoiceBadgeKey, VoiceEmotion, VoicePresetV2, VoiceSettingsV2 } from '@/shared'
+import type { CatalogVoice, NarrationTier, VoiceBadgeKey, VoiceEmotion, VoicePreset, VoiceSettingsV2 } from '@/shared'
 import { isElevenLabsProjection } from '@/shared/voice'
 import { normalizeLanguage } from '@/app/i18n/languages'
 import { acceptedLanguages, catalogBadges, speaksLanguage } from './catalogBadges'
@@ -53,12 +53,12 @@ export function emotionEffectLabel(emotion: VoiceEmotion, t: TFunction): string 
 }
 
 /** The editor mode a row's main action opens: a user row is edited, a global row duplicated. */
-export function editorModeFor(row: VoicePresetV2): PresetEditorV2Mode {
+export function editorModeFor(row: VoicePreset): PresetEditorV2Mode {
     return row.is_global ? 'duplicate' : 'edit'
 }
 
 /** The editor's starting values. Duplicates are renamed "{{name}} (copy)". */
-export function editorSeed(mode: PresetEditorV2Mode, row: VoicePresetV2 | null, t: TFunction): PresetEditorSeed {
+export function editorSeed(mode: PresetEditorV2Mode, row: VoicePreset | null, t: TFunction): PresetEditorSeed {
     if (!row || mode === 'create') return EMPTY_SEED
     const name = mode === 'duplicate' ? t('voices.studio.v2.duplicateName', { name: row.name }) : row.name
     return {
@@ -72,7 +72,7 @@ export function editorSeed(mode: PresetEditorV2Mode, row: VoicePresetV2 | null, 
 }
 
 /** Every catalog voice key the rows reference, once each (the Studio's and the picker's lookup). */
-export function presetVoiceKeys(rows: readonly VoicePresetV2[]): string[] {
+export function presetVoiceKeys(rows: readonly VoicePreset[]): string[] {
     const keys = rows.map((row) => row.voice_key).filter((key): key is string => typeof key === 'string' && key.length > 0)
     return [...new Set(keys)]
 }
@@ -94,7 +94,7 @@ export function catalogStateBadges(item: CatalogVoice): VoiceBadgeKey[] {
  * has no accepted row for the voice (05 §5.5, §7.7; derived here because the
  * BFF does not emit it).
  */
-export function presetRowBadges(row: VoicePresetV2, item: CatalogVoice | null | undefined, language: string | null = null): VoiceBadgeKey[] {
+export function presetRowBadges(row: VoicePreset, item: CatalogVoice | null | undefined, language: string | null = null): VoiceBadgeKey[] {
     const badges: VoiceBadgeKey[] = []
     const projection = row.effective_voice
     if (isElevenLabsProjection(projection)) badges.push(...projection.badges)
@@ -114,7 +114,7 @@ export function baseVoiceBadges(item: CatalogVoice, language: string | null = nu
  * The language a preset is checked against for `not_tested_language`: its own
  * `language_code` when stored, else the account's preferred language (05 §5.5).
  */
-export function presetLanguage(row: VoicePresetV2 | null | undefined, preferredLanguage: string | null): string | null {
+export function presetLanguage(row: VoicePreset | null | undefined, preferredLanguage: string | null): string | null {
     return (row?.language_code ?? '').trim() || preferredLanguage || null
 }
 
@@ -224,7 +224,7 @@ export function studioPreviewLanguage(item: CatalogVoice | null | undefined, { l
  * The editor drawer's title (05 §10 Modals: it states the preset name): the
  * edited or duplicated row's name; a blank preset has none yet.
  */
-export function editorTitle(mode: PresetEditorV2Mode, row: VoicePresetV2 | null, t: TFunction): string {
+export function editorTitle(mode: PresetEditorV2Mode, row: VoicePreset | null, t: TFunction): string {
     const name = row?.name?.trim()
     if (!name || mode === 'create') return t('voices.editor.newTitle')
     if (mode === 'duplicate') return t('voices.studio.v2.duplicateTitle', { name })

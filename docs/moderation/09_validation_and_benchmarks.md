@@ -1,5 +1,7 @@
 # Native multimodal and profile-control validation
 
+**Lifecycle: active implementation proposal, unimplemented native integration. Reviewed 2026-10-15.** Requirements and examples below define the intended feature; they do not establish current support. Use [00](00_current_status_and_findings.md) for source status and [10](10_rollout_risks_and_decisions.md) for scope/delivery.
+
 Date: **2026-10-15**. Acceptance plan only; no new application tests or paid provider evaluation were run for these documents.
 
 ## 1. Native integration invariants
@@ -36,6 +38,8 @@ Use recording fakes at actual generation, asset creation/linking, frame delivery
 Independence applies to the service, not to banning an ordinary caller from reading a generation profile's application flag. Do not fail N01 because profile-control integration exists outside the service.
 
 ## 3. Actual-media coverage
+
+M01–M11 here are acceptance cases; the M01–M08 IDs in [12](12_audio_image_coverage.md) §1 are gap findings.
 
 | ID | Cases to verify |
 |---|---|
@@ -86,3 +90,5 @@ Run relevant backend profile/repository/route, moderation, speech/call, image, a
 The earlier **797 backend tests, 97 frontend tests, and successful build** remain dated historical evidence in [00](00_current_status_and_findings.md), not results for this feature.
 
 Attach N01–N07, P01–P12, M01–M11 results, actual contract fixtures, evaluated policy, measured latency/failure share, migration compatibility, and configuration/rollback evidence. Reporting, companion detection, warning/penalty redesign, and separate publication workflows are not made prerequisites.
+
+Recheck the Decisions protocol, modality support, price, endpoint policy and model identity again at rollout, not only before implementation. Keep the dated contract fixtures and benchmark artifacts with the deployed adapter/policy version.

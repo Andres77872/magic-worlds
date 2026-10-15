@@ -1,0 +1,85 @@
+{
+  "stored": {
+    "schema_version": 3,
+    "provider": "fish_audio",
+    "voice_key": "vk_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "voice_name": "Lantern",
+    "settings": null,
+    "emotion": "calm",
+    "language_code": "en"
+  },
+  "preset": {
+    "schema_version": 3,
+    "provider": "fish_audio",
+    "voice_key": "vk_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "voice_name": "Lantern",
+    "settings": null,
+    "emotion": "calm",
+    "language_code": "en",
+    "preset_id": "fish-lantern",
+    "name": "Lantern keeper",
+    "description": null,
+    "is_global": false
+  },
+  "capabilities": {
+    "contract_version": 3,
+    "surfaces": {},
+    "providers": [
+      {
+        "provider": "fish_audio",
+        "profile_id": "fish_drama_3",
+        "label": "Fish Audio · Drama 3",
+        "surfaces": {
+          "preview": {
+            "standard": {
+              "controls": [],
+              "ranges": {},
+              "defaults": {},
+              "steps": {},
+              "user_editable": {},
+              "supports_emotion": true,
+              "supports_speed": false,
+              "max_chars": 1200,
+              "max_turn_chars": null,
+              "healthy": true,
+              "unavailable_reason": null
+            }
+          },
+          "narration": {
+            "standard": {
+              "controls": [],
+              "ranges": {},
+              "defaults": {},
+              "steps": {},
+              "user_editable": {},
+              "supports_emotion": true,
+              "supports_speed": false,
+              "max_chars": 1200,
+              "max_turn_chars": 2500,
+              "healthy": true,
+              "unavailable_reason": null
+            }
+          }
+        },
+        "tiers_allowed": [
+          "standard"
+        ],
+        "languages": [
+          "en",
+          "es"
+        ],
+        "output_format": "mp3_44100_128",
+        "operations": [
+          "preview",
+          "narration"
+        ]
+      }
+    ],
+    "tiers_allowed": [
+      "standard"
+    ],
+    "narration_tier": "standard",
+    "provider_route": "elevenlabs",
+    "consent_version_required": "voice-v2"
+  }
+}

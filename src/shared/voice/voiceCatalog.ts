@@ -59,6 +59,7 @@ function replacement(value: unknown): CatalogVoice['replacement'] {
 /** One catalog item, or null when it has no voice key or display name. */
 export function toCatalogVoice(raw: unknown): CatalogVoice | null {
     const wire = record(raw)
+    if (wire?.provider != null && wire.provider !== 'elevenlabs' && wire.provider !== 'fish_audio') return null
     const voiceKey = text(wire?.voice_key)
     const displayName = text(wire?.display_name)
     if (!wire || !voiceKey || !displayName) return null
@@ -68,6 +69,7 @@ export function toCatalogVoice(raw: unknown): CatalogVoice | null {
     const status = STATUSES.find((value) => value === wire.status) ?? 'active'
     return {
         voice_key: voiceKey,
+        ...(wire.provider === 'fish_audio' ? { provider: 'fish_audio' as const, profile_id: text(wire.profile_id) ?? 'fish_drama_3' } : {}),
         display_name: displayName,
         description: text(wire.description),
         gender: text(wire.gender),
@@ -105,6 +107,7 @@ export function catalogQueryString(query: CatalogQuery = {}, cursor?: string | n
         if (trimmed) search.set(key, trimmed)
     }
     put('language', query.language)
+    put('provider', query.provider)
     put('accent', query.accent)
     put('gender', query.gender)
     put('age', query.age)

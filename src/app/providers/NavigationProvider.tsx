@@ -18,7 +18,7 @@ import { createContext, useCallback, useContext, useEffect, useLayoutEffect, use
 import type { PageType, NavigationState } from '../../shared'
 import type { Workspace } from '../../shared/types'
 import { ApiError, apiService, isWorkspaceApiError } from '../../infrastructure/api'
-import { isWorkspacesFeatureEnabled } from '../../shared/featureFlags'
+import { isWorkspacesFeatureEnabled, isPageFeatureEnabled } from '../../shared/featureFlags'
 import { endActiveVoiceCall, hasActiveVoiceCall } from '../../features/call/activeVoiceCall'
 import {
     legacyContentRef,
@@ -583,7 +583,7 @@ export function NavigationProvider({ children }: NavigationProviderProps) {
         if (workspaceStatus !== 'ready' || !selectedWorkspaceId) return
         const { hash } = verification
         const page = committedRef.current.page
-        if (committedRef.current.hash !== hash || !isWorkspaceContentPage(page)) {
+        if (committedRef.current.hash !== hash || !isWorkspaceContentPage(page) || !isPageFeatureEnabled(page)) {
             setVerification(null)
             return
         }

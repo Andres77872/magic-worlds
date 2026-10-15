@@ -54,7 +54,7 @@ For two included characters:
 
 > Mara from image 1 stands on the left in the green coat. Iven from image 2 stands on the right in silver armor. They exchange a letter beside a stone gate. Keep their appearances, outfits and props separate.
 
-These are original, untested instructions. They make the mapping explicit; they do not guarantee subject separation. [Multi-subject research](06_sota_and_examples.md#research-what-consistency-includes) explains why attribute swaps deserve inspection.
+These are original, untested instructions. They make the mapping explicit; they do not guarantee subject separation. Multi-subject personalization research such as [MS-Diffusion](https://arxiv.org/abs/2406.07209) treats subject separation and layout as a distinct problem, and NovelAI warns that [multiple character references can blend](https://docs.novelai.net/en/image/precisereference/); inspect results for attribute swaps.
 
 ## Fit with the current app
 
@@ -62,8 +62,8 @@ These are original, untested instructions. They make the mapping explicit; they 
 |---|---|
 | [CharacterChatCodexPanel](../../src/features/characterChat/components/CharacterChatCodexPanel.tsx) | Add reference availability/details to the enabled card context |
 | [Card preview](../../src/features/cards/components/CardPreviewBody.tsx) | Inspect permitted assets and reach character image editing from the card |
-| [Shared chat route](/home/andres/PycharmProjects/magic-worlds-api/src/routes/user/route_chat.py) | Resolve relevant included-card references when an illustration is requested |
-| [Image engine](/home/andres/PycharmProjects/magic-worlds-api/src/services/image_generation/engine.py) | Supply authorized pixels and subject mapping through the existing GPT provider path |
+| [Shared chat route](../../../../PycharmProjects/magic-worlds-api/src/routes/user/route_chat.py) | Resolve relevant included-card references when an illustration is requested |
+| [Image engine](../../../../PycharmProjects/magic-worlds-api/src/services/image_generation/engine.py) | Supply authorized pixels and subject mapping through the existing GPT provider path |
 | [GeneratedImage](../../src/features/interaction/components/GeneratedImage.tsx) | Retain stage/loading/error feedback and lightbox; optionally expose reference details |
 
 Today the chat image enqueue uses a default **platform-backed** profile and skips a BYOK default because the background turn carries no personal provider key. It does not filter specifically for this studio's GPT scope or select character references. A reference-enabled illustration must resolve a compatible GPT Image 2.5 profile and explain unavailable configuration; success in manual BYOK studio generation does not establish background chat support.

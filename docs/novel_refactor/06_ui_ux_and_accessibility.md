@@ -91,6 +91,20 @@ For UX-03/06/08, identify the affected scene and passage before the decision con
 
 Keep the same target, instruction, and draft composer when moving between Ask, Context, and Changes. Cite exact source passages for factual claims, label inference and alternatives, and separate manuscript style preferences from the assistant's conversational style. Stop/retry/recover controls must describe the actual job outcome, including partial results, rather than implying a cancelled transport guarantees no execution or charge. This applies the human-control direction of [Microsoft's human–AI guidelines](https://www.microsoft.com/en-us/research/publication/guidelines-for-human-ai-interaction/) to the contracts in [08](08_ai_assistant_context_and_tools.md).
 
+### Reuse alternatives and writing snippets
+
+For R11/A11, provide a searchable novel-owned stash for alternate prose, cut text, manual clippings, ideas, and critique notes. Allow optional scene filters and show source labels; retain source passage/revision and generation lineage where available. Preview before inserting and offer a labeled insert/copy action usable without dragging. Inserting copies the material into the explicitly chosen passage; it does not consume the stash original. Removing a stash entry is a separate deliberate action. Generated material remains a proposal until accepted through the common review flow.
+
+### Inspect mentions and writing context
+
+For E14/K02/K03/K10, rank active or pinned novel sources and recently used references ahead of the remaining authorized library. Disambiguate equal names and aliases with type, source, and version; never silently relink a manuscript reference by its label. Hover or keyboard focus can preview a reference, with an explicit action to include/exclude it and an explanation of the result.
+
+A detected name, alias, or trigger suggests a reference; it does not force the full card into a paid request. Distinguish active, detected, suggested, and excluded sources. Show relevant warnings for ambiguous matches, empty descriptions, conflicting source versions, and unrevealed lore. Context inspection exposes included excerpts, source ordering, exclusions/truncation reasons, and estimated budget before execution, using the same compiler as the request. Compact/focus mode retains a route to that inspection. These are writing-context controls, not a new card-management or game interface.
+
+### Review discoveries from prose
+
+For A18/K04/K12, a proposed character, setting, or lore fact shows its supporting passage and manuscript revision, the explicitly selected destination, and field-level before/after values. The author can edit proposed values, reject them, or select independent fields to apply. Preserve novel-local facts and snapshots unless the author deliberately chooses an authorized library target. Apply the revision, dependency, and idempotency rules in [08](08_ai_assistant_context_and_tools.md#editorial-feedback-to-codex-and-library); drafting or accepting prose alone does not approve a canon/library change.
+
 ### Run a structural or book-wide task
 
 An instruction such as “move the reveal later and update the affected scenes” creates a plan with affected units, constraints, and anticipated change groups. A plan approval authorizes that bounded work; it is distinct from approval of the final changes. Show reviewable results per scene and an operation summary. Keep unrelated scenes available for ordinary editing.

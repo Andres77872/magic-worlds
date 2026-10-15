@@ -1,0 +1,146 @@
+{
+  "date": "2026-10-15",
+  "provider": "fish_audio",
+  "model": "drama-3",
+  "distinct_references": 8,
+  "languages": {
+    "es": 4,
+    "en": 4
+  },
+  "native_audition_requests": 8,
+  "voices": [
+    {
+      "name": "Gabriel",
+      "provider_title": "GABRIEL VO - Professional Spanish Narrator",
+      "language": "es",
+      "reference_id": "53ac6dc4ad314fed88aa28732ad9c87d",
+      "voice_key": "vk_35d9b99bf23f45704a705c2724f97582",
+      "gender": "male",
+      "duration_ms": 10083,
+      "sample_asset_id": "vsa_7149a0616d5a4aa69348c21f54eea947",
+      "audio_sha256": "0588f6bf8be601cc29e4009492ecdacde41bc708599353d6ce63f9b6a2521d29",
+      "audio_bytes": 161331,
+      "status": "draft",
+      "listening_approved": true
+    },
+    {
+      "name": "Brian",
+      "provider_title": "BRIAN - Voz Tranquila y Reflexiva",
+      "language": "es",
+      "reference_id": "f40c5dc43e7e4e3ba641b6e8b53ad7c2",
+      "voice_key": "vk_e92317f40fce9a9bd6663f0909e1d8bd",
+      "gender": "male",
+      "duration_ms": 9535,
+      "sample_asset_id": "vsa_1b6b9ae300474a3588bce1ae31314fa7",
+      "audio_sha256": "146d9dcf729e9a44537902706085bbaaf73d4a246ffed5909b9dc9907045414c",
+      "audio_bytes": 152554,
+      "status": "draft",
+      "listening_approved": false
+    },
+    {
+      "name": "Serena Castellana",
+      "provider_title": "Reflexión Serena Castellana",
+      "language": "es",
+      "reference_id": "c14f0bb61ede464cad73ab2067cd7840",
+      "voice_key": "vk_842dbb8c7864cd8b873bbbebb1b85843",
+      "gender": "female",
+      "duration_ms": 9587,
+      "sample_asset_id": "vsa_e4fd206f28ac42efba3820611b73b6a3",
+      "audio_sha256": "319f55e1b310f916b2c72780f9bdda5c831c7a9eda2707117a515f68e56e7ce4",
+      "audio_bytes": 153390,
+      "status": "draft",
+      "listening_approved": false
+    },
+    {
+      "name": "Rusa Latina",
+      "provider_title": "Rusa latina con acento",
+      "language": "es",
+      "reference_id": "fd675e15d1344f7a9948c84584b17f07",
+      "voice_key": "vk_2b41d796ee99f579818554217df13cb3",
+      "gender": "female",
+      "duration_ms": 7027,
+      "sample_asset_id": "vsa_469320725b80422899bcc377c3c3c13d",
+      "audio_sha256": "bf110867dc561899b07f007f74c0caf612b7b9663ce8877a89a4ee4b71dae5fd",
+      "audio_bytes": 112430,
+      "status": "draft",
+      "listening_approved": false
+    },
+    {
+      "name": "Dave Australian",
+      "provider_title": "Dave - Australian Male",
+      "language": "en",
+      "reference_id": "a754ca8729d642d9a918a42b5b6a77d1",
+      "voice_key": "vk_a7ee93b567267eca790e1b5cd58e3c79",
+      "gender": "male",
+      "duration_ms": 9587,
+      "sample_asset_id": "vsa_5324ea7d728040fba77e65cd281c8422",
+      "audio_sha256": "9ed879e12f1a6912a6d5d94698a8c229f1e33457e6ee113081305d1c2ead84e4",
+      "audio_bytes": 153390,
+      "status": "draft",
+      "listening_approved": false
+    },
+    {
+      "name": "Reflective Male",
+      "provider_title": "Calm Reflective Male",
+      "language": "en",
+      "reference_id": "afe69eaecd7b49d1b564b06421ce3706",
+      "voice_key": "vk_cba3445f9c476f6d83def07700766966",
+      "gender": "male",
+      "duration_ms": 8046,
+      "sample_asset_id": "vsa_579b99edab2847e28f59b99c1781de0f",
+      "audio_sha256": "d7cf0db954aad44d9355dd3215da5c74766ba43fd7bbee48ac9ef260275b74f6",
+      "audio_bytes": 128730,
+      "status": "draft",
+      "listening_approved": false
+    },
+    {
+      "name": "Luminous Female",
+      "provider_title": "Luminous Expressive Female",
+      "language": "en",
+      "reference_id": "57bdc0132f1d4e658a3e0f418d4d939d",
+      "voice_key": "vk_f8e0db2f3cb2e098390c640441718cce",
+      "gender": "female",
+      "duration_ms": 11207,
+      "sample_asset_id": "vsa_69e81de8b2be48dea5dbd0d455e076e4",
+      "audio_sha256": "8caafa1d38f7c72bb09efc3484a49c2cf7bda37de22a99a5ba8def916ddee763",
+      "audio_bytes": 179303,
+      "status": "draft",
+      "listening_approved": false
+    },
+    {
+      "name": "Sofiah",
+      "provider_title": "Sofiah",
+      "language": "en",
+      "reference_id": "14e37eff00a843ed9a9daa5ece7988da",
+      "voice_key": "vk_8ea22ff06ad2d5b0d770d894c445e036",
+      "gender": "female",
+      "duration_ms": 7967,
+      "sample_asset_id": "vsa_d439d5e1074b4ff5ac9383027d98dfd7",
+      "audio_sha256": "0529472ac654c459b7b3d855e77b419f0b8ca0437b93f6d3b4645a6685aa9103",
+      "audio_bytes": 127476,
+      "status": "draft",
+      "listening_approved": false
+    }
+  ],
+  "public_published": false,
+  "user_generation_enabled": false,
+  "production_acceptance": false,
+  "licensed_browse": {
+    "es": {
+      "visible_items": 12,
+      "supplier_total": 12,
+      "next_page": null
+    },
+    "en": {
+      "visible_items": 20,
+      "supplier_total": 35,
+      "next_page": 2
+    }
+  },
+  "subsequent_owner_direction": {
+    "starter": "Gabriel",
+    "expand_initial_catalogue": false,
+    "priority": "English and Spanish original voice creation",
+    "current_release_evidence": "2026-10-15-voice-creation.json"
+  }
+}

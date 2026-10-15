@@ -64,7 +64,7 @@ describe('mergeLabModels (A4)', () => {
     })
 
     it('keeps the R0 value for a field the server omits or sends malformed', () => {
-        const [model] = mergeLabModels({ models: [{ model_alias: 'el_flash_v2_5', output_formats: ['flac'], text_normalization: 'auto', max_chars: -1 }] })!
+        const [model] = mergeLabModels({ models: [{ model_alias: 'el_v4', output_formats: ['flac'], text_normalization: 'auto', max_chars: -1 }] })!
         expect(model).toMatchObject({
             ...LAB_MODELS[0],
             label: null,

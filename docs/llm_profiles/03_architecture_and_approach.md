@@ -1,6 +1,6 @@
 # ADR-LLM-001: perfiles en DB y credenciales BYOK transitorias
 
-**Reconciliación documental 2026-10-14: diseño/contratos del dossier original.** El código de perfiles existe y varios entregables se cerraron localmente después. Las propuestas y criterios de este archivo no acreditan rollout; usar [16](16_current_status_and_roadmap.md) para implementación actual, WIP operativo y TBD, y 12 para historia de pruebas.
+**Lifecycle: diseño/requisitos y decisiones conservados. Revisado 2026-10-15.** Este archivo define el objetivo, no un inventario de lo ya instalado. El [ledger 16](16_current_status_and_roadmap.md), la [API actual 07](07_api_changes.md) y el [registro F01–F11](../security/README.md) tienen precedencia. La custodia end-to-end sigue abierta.
 
 **Estado:** implementación autorizada; requisitos de propiedad, no persistencia y retiro completo de legacy confirmados por el usuario. **Fecha:** 2026-10-09. **Responsable de decisión final:** propietario del proyecto.
 
@@ -49,7 +49,7 @@ Las cachés de resolución usan proyecto, subject, feature y generaciones de pre
 
 ## Features y roles propuestos
 
-Los nombres siguientes son nuevos identificadores de política, no endpoints existentes. El registro de features en código es el contrato; su proyección en DB permite administrar recomendaciones, no inventar workflows.
+Los identificadores siguientes pertenecen al registro de política, no son endpoints. La tabla se reconcilió con [el registro fuente](../../../../PycharmProjects/magic-worlds-api/src/services/llm_features.py) el 2026-10-15; su proyección en DB permite administrar recomendaciones, no inventar workflows. El resto de la ADR conserva el contrato objetivo de seguridad.
 
 | Feature key | Pantalla/consumidor | Roles LLM internos | Requisito principal |
 |---|---|---|---|
@@ -60,10 +60,12 @@ Los nombres siguientes son nuevos identificadores de política, no endpoints exi
 | `chat_character` | Chat 1:1 | `primary`, `metadata`, `preflight` | Mismo contrato con contexto de personaje |
 | `chat_group` | Chat de grupo | `primary`, `metadata`, `preflight` | Roles/personajes y metadata coherentes |
 | `lorebook_assistant` | Asistente lorebook | `primary` | Herramientas y validación de cambios |
+| `app_assistant` | Guía de aplicación | `primary` | Texto/stream sin herramientas de escritura |
 | `lorebook_extraction` | Recursos/importación | `primary` | Extracción estructurada |
 | `image_prompt` | Escritor de prompt visual | `primary` | JSON/contrato del escritor; media se cobra aparte |
 | `theme_song_writer` | Escritor de prompt y letras | `primary` | Contrato según modelo musical seleccionado |
-| `callbot` | Conversación de voz | `primary`, `metadata` | Compatibilidad y latencia de pipeline de voz |
+| `callbot` | Conversación de voz | `primary` | Reply streaming; el registro actual no espera una fase metadata |
+| `moderation` | Clasificador speech anterior | `primary` | JSON/schema y presupuesto corto; su reemplazo nativo está planificado en el dossier de moderación |
 
 La primera activación BYOK cubre texto interactivo: cards, asistentes, novela y chats. Los escritores de media y callbot deben migrar a resolución de perfiles de sistema, pero su BYOK queda deshabilitado hasta completar transporte, presupuestos y recuperación específicos. La UI no ofrece una opción BYOK que el consumidor aún no soporte.
 
@@ -79,7 +81,7 @@ La revisión contiene `primary` obligatorio y overrides opcionales `metadata` y 
 
 Para la primera entrega, **todos los roles del perfil comparten proveedor target y modo de credencial**. BYOK necesita una sola clave por ejecución. Si el modelo principal no satisface un helper, debe configurarse un modelo compatible del mismo target o rechazarse la asignación. No se toma un modelo root como helper de un perfil personal.
 
-Si en el futuro se incorporan embeddings, resúmenes, moderation o subagentes con llamadas externas, se agregan como roles/dependencias explícitas al plan antes de activarlos. Algunas rutas genéricas de la API LLM tienen un cliente de embeddings con clave de plataforma; no deben quedar accesibles como dependencia oculta de una ejecución BYOK.
+Embeddings, resúmenes y subagentes con llamadas externas requieren dependencias/custodia explícitas antes de activarse. La propuesta original de modelar moderation como dependencia de generación queda sustituida para la integración solicitada: [moderación nativa](../moderation/README.md) ejecuta en BFF con credencial propia y fuera de los grafos/perfiles LLM del moderador. Algunas rutas genéricas de la API LLM tienen un cliente de embeddings con clave de plataforma; no deben quedar accesibles como dependencia oculta de una ejecución BYOK.
 
 ### Autoridad sobre settings
 
@@ -93,6 +95,8 @@ input_budget + output_budget + margen <= model_context_cap
 Si no se puede estimar contexto/modelo con confianza, se usa un límite conservador explícito o se bloquea esa combinación. No se ignoran parámetros rechazados silenciosamente. Una feature que exige tools/JSON no permite desactivarlos desde el perfil.
 
 ## Plan de ejecución sin secrets
+
+**Arquitectura objetivo, pendiente en el límite real BFF → ejecutor.** El diagrama siguiente no representa el transporte actual; [07](07_api_changes.md) muestra su rendering dentro de `agt`.
 
 `ResolvedLlmExecution` debe contener identidad, feature, perfil/revisión, origen de resolución, revisión de política/catálogo, graph ID/hash, roles, provider target, modelos, settings efectivos, modo `platform|user_byok` y payer. Se puede persistir esa estructura por allowlist.
 
@@ -144,4 +148,4 @@ Los permisos de feature y límites app siguen aplicando a BYOK. El acceso a un m
 
 ## Consecuencias
 
-La configuración se vuelve consistente y trazable sin almacenar BYOK. Se pierde la posibilidad de reanudar automáticamente una llamada personal tras perder memoria del proceso. Publicar un perfil no actualiza prompts ni workflows; cualquier cambio de agente sigue su propio proceso. Introducir proveedores nativos requiere adaptar/validar grafos y contratos actualmente orientados a OpenAI; la lista de engines de la biblioteca no prueba compatibilidad de cada feature.
+La arquitectura objetivo busca configuración consistente y trazable sin almacenar BYOK. La implementación actual del transporte aún no satisface esa parte de la decisión. Se pierde la posibilidad de reanudar automáticamente una llamada personal tras perder memoria del proceso. Publicar un perfil no actualiza prompts ni workflows; cualquier cambio de agente sigue su propio proceso. Introducir proveedores nativos requiere adaptar/validar grafos y contratos actualmente orientados a OpenAI; la lista de engines de la biblioteca no prueba compatibilidad de cada feature.

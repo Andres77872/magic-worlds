@@ -21,6 +21,8 @@ import { InteractionCenterPanel, InteractionTopBar, SidePanelDrawer } from '../.
 import { CallScreen } from '../../call'
 import { chatDisplayTitle } from '@/utils/chatTitle'
 import { CharacterChatSidebar } from './CharacterChatSidebar'
+import { SessionSceneNarration } from '@/features/interaction/components/SceneNarrationPanel'
+import { useWorkspaceReadOnly } from '@/shared/hooks/useWorkspaceReadOnly'
 
 export function CharacterChat() {
     const { goBack, setPage } = useNavigation()
@@ -136,6 +138,7 @@ function CharacterChatView({
     const [sidebarOpen, setSidebarOpen] = useState(false)
     // Workspace R1: the chat keeps its own workspace (this view remounts per chat).
     const { workspaceId: sessionWorkspaceId, api: sessionApi } = useSessionWorkspace(organizationWorkspaceId(chat))
+    const readOnly = useWorkspaceReadOnly(sessionWorkspaceId)
 
     // Text-only here — voice is its own CallScreen surface. Stable config per character.
     const chatConfig = useMemo(
@@ -185,6 +188,8 @@ function CharacterChatView({
                         onSetMode={onSetMode}
                         onBack={onBack}
                         onEditCharacter={onEditCharacter}
+                        sceneNarration={sessionApi && !chat.isDraft ? <SessionSceneNarration api={sessionApi} basePath="character-chats"
+                            sessionId={Number(chat.id)} turns={turns} revision={JSON.stringify(cast.map(card => [card.id, card.voice]))} readOnly={readOnly} /> : null}
                     />
                 </SidePanelDrawer>
 

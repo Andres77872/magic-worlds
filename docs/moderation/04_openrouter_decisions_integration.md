@@ -1,5 +1,7 @@
 # OpenRouter Decisions integration specification
 
+**Lifecycle: dated research/proposed contract, 2026-10-15.** Provider facts and external-source observations retain the research date; this cleanup did not browse, make provider calls or refresh measurements. Revalidate the alpha protocol/account behavior before implementation. This file is not release evidence; [00](00_current_status_and_findings.md) owns current status.
+
 Date: **2026-10-15**. Status: **proposed adapter; examples are documentation, not executed provider requests**.
 
 Implement this as a small native client inside magic-worlds-api, with its own credential. No moderator LLM profile, generation feature registration, graph, api.magic_llm execution, or generic multi-provider framework is involved. The caller's LLM/image profile flag controls invocation; the adapter inspects text, actual images, and actual audio.
@@ -81,7 +83,7 @@ The provider's documented maximum question count is not the old implementation's
 
 Use a dedicated platform key with a budget and least necessary account permissions. A generation BYOK credential or the user's api.auth Bearer token must never be forwarded to OpenRouter.
 
-Candidate request preferences are `allow_fallbacks=false` and the approved privacy filters. Verify these against the Decisions contract and a real canary. Do not copy a provider display label into a provider slug field; discover actual endpoint identifiers from metadata. If a privacy filter leaves no eligible endpoint, refuse rather than retry with a weaker filter.
+Candidate request preferences are `allow_fallbacks=false` and the approved privacy filters. Verify these against the Decisions contract and a real canary. Do not copy a provider display label into a provider slug field; discover actual endpoint identifiers from metadata through the [model endpoints API](https://openrouter.ai/docs/api/api-reference/endpoints/list-all-endpoints-for-a-model); account-specific endpoint and filter availability has not been queried yet. If a privacy filter leaves no eligible endpoint, refuse rather than retry with a weaker filter.
 
 OpenRouter documents provider allow-lists, data collection filters, ZDR, and latency preferences in its [routing guide](https://openrouter.ai/docs/guides/routing/provider-selection). Those controls do not prove the selected endpoint's negotiated privacy terms. Latency preferences are soft routing preferences, not hard deadlines. Do not add model fallbacks: the owner's current selection is Omni.
 

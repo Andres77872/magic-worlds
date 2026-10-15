@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { ApiError } from '@/infrastructure/api'
-import type { AdminCatalogVoice, AdminVoiceLimits } from '@/shared'
+import type { AdminCatalogPage, AdminCatalogQuery, AdminCatalogVoice, AdminVoiceLimits } from '@/shared'
 import { auditLimits, draftVoice, libraryVoice, readyVoice, replacementVoice } from '../../fixtures'
 import { chooseOption, consoleApiMock, renderInConsole, type ConsoleApiMock } from '../../testUtils'
 import { CatalogManager } from './CatalogManager'
@@ -35,14 +35,32 @@ describe('CatalogManager (AC-R2)', () => {
         Object.assign(api, consoleApiMock())
     })
 
-    it('lists voices with provider-name drift, acceptance ticks and reference counts', async () => {
+    it('keeps Fish call approval off without the native release and hides foreign numeric controls', async () => {
+        const fish: AdminCatalogVoice = { ...draftVoice, provider: 'fish_audio', source_kind: 'licensed_reference',
+            display_name: 'Fish fixture', call_eligible: false, default_settings: null }
+        mock().listAdminCatalog.mockResolvedValue({ items: [fish], next_cursor: null, summary: null })
+        mock().updateAdminCatalogVoice.mockResolvedValue(fish)
+        renderInConsole(<CatalogManager />)
+        const drawer = await openVoice('Fish fixture')
+        expect(within(drawer).getByRole('switch', { name: 'Approve this voice for calls' })).toBeDisabled()
+        expect(within(drawer).queryByRole('slider')).not.toBeInTheDocument()
+        fireEvent.click(within(drawer).getByRole('button', { name: 'Save metadata' }))
+        await waitFor(() => expect(mock().updateAdminCatalogVoice).toHaveBeenCalled())
+        expect(mock().updateAdminCatalogVoice.mock.calls[0][1]).not.toHaveProperty('default_settings')
+    })
+
+    it('lists provider, acceptance and reference counts, with source details in the drawer', async () => {
         renderInConsole(<CatalogManager />)
         const table = await screen.findByRole('table', { name: 'Catalog voices' })
         const row = within(table).getByRole('row', { name: /Maren/ })
-        expect(within(row).getByText('Provider name: Maren (designed)')).toBeInTheDocument()
-        expect(within(row).getByText('English: Flash, v4')).toBeInTheDocument()
+        expect(within(row).getByText('ElevenLabs')).toBeInTheDocument()
+        expect(within(row).queryByText('Provider name: Maren (designed)')).not.toBeInTheDocument()
+        expect(within(row).getByText('English: v4')).toBeInTheDocument()
         expect(within(row).getByText('42')).toBeInTheDocument()
         expect(screen.getByText('4 voices')).toBeInTheDocument()
+        const drawer = await openVoice('Maren')
+        expect(within(drawer).getByTitle('Voice provider: ElevenLabs')).toBeVisible()
+        expect(within(drawer).getByText('Provider name: Maren (designed)')).toBeVisible()
     })
 
     it('sends server filters when a filter changes', async () => {
@@ -52,12 +70,31 @@ describe('CatalogManager (AC-R2)', () => {
         await waitFor(() => expect(mock().listAdminCatalog).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'hidden', limit: 50 }), expect.any(AbortSignal)))
     })
 
+    it('filters Fish voices on the server and identifies their actual acceptance model', async () => {
+        const fish: AdminCatalogVoice = { ...readyVoice, provider: 'fish_audio', source_kind: 'licensed_reference',
+            display_name: 'Gabriel', acceptance: [{ ...readyVoice.acceptance[0], model_id: 'drama-3', language: 'es' }],
+            languages: [{ language: 'es', locale: null, accent: null, model_ids: ['drama-3'], sample_url: null }] }
+        mock().listAdminCatalog.mockResolvedValue({ items: [fish], next_cursor: null, summary: null })
+        renderInConsole(<CatalogManager />)
+        const table = await screen.findByRole('table', { name: 'Catalog voices' })
+        const row = within(table).getByRole('row', { name: /Gabriel/ })
+        expect(within(row).getByText('Fish Audio')).toBeInTheDocument()
+        expect(within(row).getByTitle('Voice provider: Fish Audio')).toHaveAttribute('data-voice-provider', 'fish_audio')
+        expect(within(row).getByText('Spanish: Drama 3')).toBeInTheDocument()
+        expect(within(row).queryByText('Spanish: not accepted')).not.toBeInTheDocument()
+        chooseOption('Voice provider', 'Fish Audio')
+        await waitFor(() => expect(mock().listAdminCatalog).toHaveBeenLastCalledWith(
+            expect.objectContaining({ provider: 'fish_audio', limit: 50 }), expect.any(AbortSignal)))
+        fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
+        await waitFor(() => expect(mock().listAdminCatalog.mock.lastCall?.[0].provider).toBeUndefined())
+    })
+
     it('keeps Publish disabled until every checklist item passes', async () => {
         renderInConsole(<CatalogManager />)
         const drawer = await openVoice('Eldrin')
         const publish = within(drawer).getByRole('button', { name: 'Publish' })
         expect(publish).toBeDisabled()
-        expect(within(drawer).getByText(/Accepted on Flash for at least one language/)).toHaveTextContent('Not met')
+        expect(within(drawer).getByText(/Accepted on v4 for at least one language/)).toHaveTextContent('Not met')
     })
 
     it('publishes a ready hidden voice through the PATCH route', async () => {
@@ -97,9 +134,9 @@ describe('CatalogManager (AC-R2)', () => {
         const items = within(refusal).getAllByRole('listitem').map((item) => item.textContent)
         expect(items).toEqual([
             'Expressive (v4) has no pass in Spanish.',
-            'Consistency with v4 is below 4 on the Flash review in Spanish.',
+            'Consistency with v4 is below 4 on the v4 review in Spanish.',
             'No own Expressive showcase sample in English.',
-            'Instant clones are not published until P-15 is answered.',
+            'Instant clones are not published until the instant clone publishing decision (P-15) is answered.',
             'This source kind cannot be published.',
             'The replacement voice is not call eligible.',
             'Not met: brand_new_rule',
@@ -262,7 +299,7 @@ describe('CatalogManager (AC-R2)', () => {
     it('warns about replacement orphans reported by a sync answer', async () => {
         mock().syncAdminCatalog.mockResolvedValue({ job: 'B', run_id: 'run-2', status: 'completed', detail: 'removed=1 present=0 errors=0 skipped=0 replacement_orphans=2' })
         renderInConsole(<CatalogManager />)
-        chooseOption('Sync job', 'Job B: refresh voice details')
+        chooseOption('Sync job', 'Update voice details')
         fireEvent.click(screen.getByRole('button', { name: 'Sync now' }))
         expect(await screen.findByTestId('sync-replacement-orphans')).toHaveTextContent(
             'The removal left 2 voices without a valid replacement. Open each one and pick a new replacement.',
@@ -272,7 +309,7 @@ describe('CatalogManager (AC-R2)', () => {
     it('shows no orphan warning when the sync answer reports none', async () => {
         mock().syncAdminCatalog.mockResolvedValue({ job: 'B', run_id: 'run-3', status: 'completed', detail: 'removed=1 present=0 errors=0 skipped=0 replacement_orphans=0' })
         renderInConsole(<CatalogManager />)
-        chooseOption('Sync job', 'Job B: refresh voice details')
+        chooseOption('Sync job', 'Update voice details')
         fireEvent.click(screen.getByRole('button', { name: 'Sync now' }))
         expect(await screen.findByText('Sync job B queued')).toBeInTheDocument()
         expect(screen.queryByTestId('sync-replacement-orphans')).not.toBeInTheDocument()
@@ -302,7 +339,7 @@ describe('CatalogManager (AC-R2)', () => {
         it('sends confirm_removal for the selected voices behind the impact warning, then reports orphans', async () => {
             mock().syncAdminCatalog.mockResolvedValue({ job: 'B', run_id: 'run-9', status: 'completed', detail: 'removed=1 present=0 errors=0 skipped=0 replacement_orphans=2' })
             const dialog = await openOverride()
-            expect(screen.getByTestId('sync-mass-removal')).toHaveTextContent('Job B stopped on mass removal')
+            expect(screen.getByTestId('sync-mass-removal')).toHaveTextContent('The voice details update stopped on mass removal')
             expect(within(dialog).getByText(/This cannot be undone from the console/)).toBeInTheDocument()
             expect(within(dialog).getByRole('button', { name: 'Confirm removal of 0 voices' })).toBeDisabled()
 
@@ -343,7 +380,7 @@ describe('CatalogManager (AC-R2)', () => {
             fireEvent.click(within(dialog).getByRole('checkbox', { name: 'I checked the provider account: these voices are gone there.' }))
             fireEvent.click(within(dialog).getByRole('button', { name: 'Confirm removal of 1 voice' }))
             const error = await within(dialog).findByTestId('mass-removal-error')
-            expect(error).toHaveTextContent('There is no recent Job B mass-removal stop to override: the last Job B run did not stop, or the stop is more than 24 hours old. Run Job B again, or wait for its next run.')
+            expect(error).toHaveTextContent('There is no recent mass-removal stop to override: the last voice details update did not stop, or the stop is more than 24 hours old. Run the update again, or wait for its next run.')
             expect(error).not.toHaveTextContent(/refresh/i)
         })
     })
@@ -351,7 +388,7 @@ describe('CatalogManager (AC-R2)', () => {
     it('shows "Blocked until L-2" for Library voices and never offers a provider delete', async () => {
         renderInConsole(<CatalogManager />)
         const drawer = await openVoice('Harbor watch')
-        expect(within(drawer).getByRole('button', { name: 'Blocked until L-2' })).toBeDisabled()
+        expect(within(drawer).getByRole('button', { name: 'Awaiting licence answer (L-2)' })).toBeDisabled()
         expect(within(drawer).queryByRole('button', { name: 'Delete from provider' })).not.toBeInTheDocument()
         expect(within(drawer).getByText('Library copies are never deleted from the provider.')).toBeInTheDocument()
     })
@@ -424,7 +461,7 @@ describe('CatalogManager (AC-R2)', () => {
 
     it('queues a sync job', async () => {
         renderInConsole(<CatalogManager />)
-        chooseOption('Sync job', 'Job C: subscription limits')
+        chooseOption('Sync job', 'Check subscription limits')
         fireEvent.click(screen.getByRole('button', { name: 'Sync now' }))
         await waitFor(() => expect(mock().syncAdminCatalog).toHaveBeenCalledWith({ job: 'C' }))
         expect(await screen.findByText('Sync job C queued')).toBeInTheDocument()
@@ -437,7 +474,50 @@ describe('CatalogManager (AC-R2)', () => {
             .mockResolvedValueOnce({ items: [draftVoice], next_cursor: null, summary: null })
         renderInConsole(<CatalogManager />)
         fireEvent.click(await screen.findByRole('button', { name: 'Load more' }))
-        await waitFor(() => expect(mock().listAdminCatalog).toHaveBeenCalledWith(expect.objectContaining({ after: 'c2' })))
+        await waitFor(() => expect(mock().listAdminCatalog).toHaveBeenCalledWith(expect.objectContaining({ after: 'c2' }), expect.any(AbortSignal)))
         expect(await screen.findByRole('button', { name: 'Manage Eldrin' })).toBeInTheDocument()
+    })
+
+    it('aborts an old page when the provider changes and never restores it when filters are cleared', async () => {
+        const fish: AdminCatalogVoice = { ...draftVoice, voice_key: 'vk_fish', provider: 'fish_audio', display_name: 'Lantern' }
+        let resolveOld!: (page: AdminCatalogPage) => void
+        mock().listAdminCatalog.mockImplementation((query: AdminCatalogQuery) => {
+            if (query.limit === 100) return Promise.resolve({ items: [readyVoice, fish], next_cursor: null })
+            if (query.after) return new Promise<AdminCatalogPage>((resolve) => { resolveOld = resolve })
+            return Promise.resolve({ items: [query.provider === 'fish_audio' ? fish : readyVoice], next_cursor: 'c2' })
+        })
+        renderInConsole(<CatalogManager />)
+        fireEvent.click(await screen.findByRole('button', { name: 'Load more' }))
+        await waitFor(() => expect(resolveOld).toBeDefined())
+        const oldPageCall = mock().listAdminCatalog.mock.calls.find(([query]) => query.after === 'c2')!
+        const signal = oldPageCall[1] as AbortSignal | undefined
+
+        chooseOption('Voice provider', 'Fish Audio')
+        await screen.findByRole('button', { name: 'Manage Lantern' })
+        expect(signal?.aborted).toBe(true)
+        await act(async () => resolveOld({ items: [draftVoice], next_cursor: 'stale' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
+        await screen.findByRole('button', { name: 'Manage Maren' })
+        expect(screen.queryByRole('button', { name: 'Manage Eldrin' })).not.toBeInTheDocument()
+        expect(screen.getByText('1 voice')).toBeVisible()
+        expect(screen.getByRole('button', { name: 'Load more' })).toBeEnabled()
+    })
+
+    it('hides old rows and their cursor while the first page for a different provider loads', async () => {
+        const fish: AdminCatalogVoice = { ...draftVoice, voice_key: 'vk_fish', provider: 'fish_audio', display_name: 'Lantern' }
+        let resolveFish!: (page: AdminCatalogPage) => void
+        mock().listAdminCatalog.mockImplementation((query: AdminCatalogQuery) => {
+            if (query.limit === 100) return Promise.resolve({ items: [readyVoice, fish], next_cursor: null })
+            if (query.provider === 'fish_audio') return new Promise<AdminCatalogPage>((resolve) => { resolveFish = resolve })
+            return Promise.resolve({ items: [readyVoice], next_cursor: 'eleven-c2' })
+        })
+        renderInConsole(<CatalogManager />)
+        await screen.findByRole('button', { name: 'Manage Maren' })
+        chooseOption('Voice provider', 'Fish Audio')
+        await waitFor(() => expect(resolveFish).toBeDefined())
+        expect(screen.queryByRole('button', { name: 'Manage Maren' })).not.toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument()
+        await act(async () => resolveFish({ items: [fish], next_cursor: null }))
+        expect(screen.getByRole('button', { name: 'Manage Lantern' })).toBeInTheDocument()
     })
 })

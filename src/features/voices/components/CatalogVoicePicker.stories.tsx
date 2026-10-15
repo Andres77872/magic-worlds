@@ -5,6 +5,7 @@ import { TEST_WORKSPACE_ID } from '@/shared/hooks/testing/workspaceTestUtils'
 import { CATALOG_ELDRIN, CATALOG_IDRIS_ES_UNACCEPTED, CATALOG_PAGE, CATALOG_TOBIAS_LOCKED, VOICE_KEY_SELA, catalogVoice } from '../fixtures'
 import { installVoiceStoryApi, type VoiceStoryApiOptions } from '../storybook/voiceStoryApi'
 import { CatalogVoicePicker } from './CatalogVoicePicker'
+import { CAPABILITIES_FISH, CATALOG_FISH } from '../fishFixtures'
 
 const LOCKED_PAGE = [
     CATALOG_TOBIAS_LOCKED,
@@ -109,4 +110,9 @@ export const Unavailable: Story = {
 /** Two voices per page: "Load more" appends the next page. */
 export const LoadMore: Story = {
     parameters: voiceApi({ catalog: CATALOG_PAGE, catalogPageSize: 2 }),
+}
+
+/** Fish shares the picker and explicitly identifies the narration-only profile. */
+export const FishAudio: Story = {
+    parameters: voiceApi({ catalog: [CATALOG_FISH, CATALOG_ELDRIN], capabilities: CAPABILITIES_FISH }),
 }

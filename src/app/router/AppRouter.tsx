@@ -151,7 +151,11 @@ export function AppRouter() {
                 className="hidden lg:flex"
                 renderTasks={({ collapsed }) => <SidebarTasksMenu collapsed={collapsed} />}
             />
-            <main ref={mainRef} data-app-main className="flex h-dvh min-w-0 flex-1 flex-col overflow-y-auto">
+            {/* `relative`: <main> is the scroller, so it must also be the containing
+                block — an absolute descendant with no positioned ancestor (an
+                `sr-only` label) would otherwise anchor to the document, escape
+                this scroll and give the whole page a second scrollbar. */}
+            <main ref={mainRef} data-app-main className="relative flex h-dvh min-w-0 flex-1 flex-col overflow-y-auto">
                 <MobileTopBar onOpenNav={() => setMobileNavOpen(true)} />
                 <ServicesDownBanner />
                 {/* A stale build keeps the update banner up even after "Not now". */}

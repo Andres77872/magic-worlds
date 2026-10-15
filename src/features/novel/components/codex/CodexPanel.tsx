@@ -13,6 +13,7 @@
  * shelf is read-only — entries stay filterable and open for reading, while Add,
  * remove, the enable switches and snapshot edits are disabled.
  */
+import { isLorebooksFeatureEnabled } from '@/shared/featureFlags'
 
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -50,7 +51,7 @@ export function CodexPanel({ codex, workspaceId, requireAuth, onOpenCardPicker, 
     const readOnly = codex.readOnly
     // A remove confirmation left open when the shelf turns read-only goes with it.
     if (readOnly && pendingRemove) setPendingRemove(null)
-    const openLorebookPicker = () => !readOnly && requireAuth() && setLorebookPickerOpen(true)
+    const openLorebookPicker = () => isLorebooksFeatureEnabled() && !readOnly && requireAuth() && setLorebookPickerOpen(true)
 
     const query = filter.trim().toLowerCase()
     const groups = query
@@ -138,7 +139,7 @@ export function CodexPanel({ codex, workspaceId, requireAuth, onOpenCardPicker, 
                 )}
             </div>
 
-            <CodexLorebookPickerDrawer
+            {isLorebooksFeatureEnabled() && <CodexLorebookPickerDrawer
                 open={lorebookPickerOpen}
                 workspaceId={workspaceId}
                 busy={codex.busy}
@@ -146,7 +147,7 @@ export function CodexPanel({ codex, workspaceId, requireAuth, onOpenCardPicker, 
                 existingEntryIds={codex.existingEntryIds}
                 onClose={() => setLorebookPickerOpen(false)}
                 onClone={codex.cloneLorebookEntries}
-            />
+            />}
             <CodexEntryDrawer
                 entry={editingEntry}
                 busy={codex.busy}
@@ -252,7 +253,7 @@ function AddMenu({ disabled, onAddCards, onAddLorebook }: { disabled: boolean; o
                         <Icon icon={LayoutGrid} size={14} className="shrink-0 text-parchment-300" />
                         {t('novelEditor.codex.addCards')}
                     </button>
-                    <button
+                    {isLorebooksFeatureEnabled() && <button
                         type="button"
                         role="menuitem"
                         className={item}
@@ -260,7 +261,7 @@ function AddMenu({ disabled, onAddCards, onAddLorebook }: { disabled: boolean; o
                     >
                         <Icon icon={BookMarked} size={14} className="shrink-0 text-parchment-300" />
                         {t('novelEditor.codex.addLorebook')}
-                    </button>
+                    </button>}
                 </div>
             )}
         </div>

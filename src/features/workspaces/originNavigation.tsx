@@ -15,6 +15,7 @@
  * Before a coordinator is registered, a same-workspace target navigates
  * directly and any other workspace is 'unavailable' (never the active one).
  */
+import { isPageFeatureEnabled } from '@/shared/featureFlags'
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
 import type { PageType } from '@/shared'
 import { useNavigation } from '@/app/hooks/useNavigation'
@@ -59,6 +60,7 @@ export function useOriginNavigation(): {
     const { selectedWorkspaceId } = useWorkspace()
     const registered = context?.navigator ?? null
     const navigateToOrigin = useCallback<OriginNavigator>(async (target) => {
+        if (!isPageFeatureEnabled(target.page)) return 'unavailable'
         if (registered) return registered(target)
         if (!target.workspaceId || target.workspaceId !== selectedWorkspaceId) return 'unavailable'
         setPage(target.page, target.hash ? { hash: target.hash } : undefined)

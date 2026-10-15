@@ -1,15 +1,15 @@
 # Database model and changes
 
-> **Scope / status (reviewed 2026-10-14):** R1 design/coverage contract and dated implementation evidence. Source is implemented; default product UI rollout remains **WIP**, locally opted in. [02](02_current_status_and_findings.md) owns current status and schema compatibility; [04](04_gaps_and_priorities.md) owns remaining gaps/TBD. Historical test totals, branch state and migration notes below apply to their stated dates, not deployment availability.
+> **Lifecycle: active R1 contract. Documentation reconciliation: 2026-10-15.** The foundation is implemented; rollout and specific integrity acceptance remain open. [02](02_current_status_and_findings.md) owns source/status and schema compatibility; [04](04_gaps_and_priorities.md) owns remaining work. Normative requirements below remain acceptance/regression contracts, not claims that every guarantee has runtime evidence. Dated implementation/validation records are in git history.
 
 **Status:** Schema and executable migration/resume tooling implemented; dated local migration evidence exists. Release environment acceptance is WIP.\
 **Refreshed:** 2026-10-12.\
 **Starting schema:** Exact `2026_10_image_profiles`, including unified assistants and current image-profile/job fields.\
-**Planned target marker:** `2026_10_workspace_r1`; it is not present in the current application.
+**Frozen R1 target marker:** `2026_10_workspace_r1`; implemented and retained as the stable capability marker. Current bootstrap expects the revision named by `CONTENT_SCHEMA_REVISION` in the BFF bootstrap (owned by the active Fish/voice execution; not asserted here).
 
-Use the canonical [schema](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/db.sql), [bootstrap](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/bootstrap.py), and [image cutover](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/image_profile_cutover.py). Preserve the current InnoDB, utf8mb4/column-collation, timestamp, strict row-validation, and transaction-cleanup conventions.
+Use frozen [R1 target DDL](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/migrations/2026_10_workspace_r1.sql) for the R1 cutover and the canonical [schema](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/db.sql), [bootstrap](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/bootstrap.py), and [image cutover](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/image_profile_cutover.py). Preserve the current InnoDB, utf8mb4/column-collation, timestamp, strict row-validation, and transaction-cleanup conventions.
 
-## New structures
+## Implemented R1 structures
 
 Workspace/collection/operation IDs are UUID strings stored as `char(36)` with the existing binary identity collation. References to existing cards/books/resources use their existing `varchar(64)` type/collation. Owner is existing `tb_user.user_id` plus AppScope project/group hashes.
 
@@ -72,7 +72,7 @@ Keep published `is_default_persona` as the single persona-default authority. Sco
 
 Media bytes remain at current account/application scope. tb_workspace_media is a discovery association, not a second asset owner. Its image/theme-song owner is on the asset; TTS owner comes through tts_job because tts_asset has no user/scope columns. Existing asset downloads preserve current authorization.
 
-Populate associations on generation/upload, imports/copies, and retained activity references. Origin association survives target deletion; copying adds destination association. Soft-deleted assets are excluded from gallery lists. Preserve all-workspace reference checks before asset deletion and clear association rows as part of physical/account cleanup.
+Populate associations on generation/upload, imports/copies, and retained activity references. **Known acceptance gaps:** W-03 tracks the card-type FK enum mismatch, and W-04 tracks image-parent restrictions and incomplete reference protection; the lifecycle guarantees here are required contracts, not closure evidence. Origin association survives target deletion; copying adds destination association. Soft-deleted assets are excluded from gallery lists. Preserve all-workspace reference checks before asset deletion and clear association rows as part of physical/account cleanup.
 
 Notification inbox stays account/application scoped. New job notices retain workspace_id in their existing metadata JSON; no workspace-only notification root is introduced. Profile, billing, credit, quota, voice-preset/consent, and user-language schemas retain their current roles.
 
@@ -97,3 +97,12 @@ Backfill roots/relationships/context without changing existing IDs, card JSON, v
 Account wipe removes copy-receipt/context/media-association/membership records before affected roots, then workspace_scope before workspaces, following the current complete content-cleanup order. Quiesce/terminalize in-flight content work so late callbacks cannot recreate wiped content. Account/billing behavior stays as currently documented.
 
 [Document 11](11_migration_and_rollout.md) fixes supported starting states and recovery. [Document 15](15_execution_contracts.md) defines exact operation/lifecycle behavior.
+
+<details>
+<summary>Legacy section anchor</summary>
+
+<a id="new-structures"></a>
+
+The maintained source/status sections above replace the older headings.
+
+</details>

@@ -1,10 +1,11 @@
 import { useTranslation } from 'react-i18next'
 import { Bot, Mic, ShieldCheck, Waves } from 'lucide-react'
-import { IN_APP_COPY_DRAFTS, consentCopyFor, legalLanguage, releasedInAppCopy } from '@/features/legal/documents'
+import { IN_APP_COPY_DRAFTS, consentCopyFor, legalLanguage, releasedInAppCopy, type ConsentVersion } from '@/features/legal/documents'
 import { Badge, Button, Icon, Modal } from '@/ui/primitives'
 
 export interface VoiceConsentModalProps {
     open: boolean
+    consentVersion?: ConsentVersion
     staleConsent?: boolean
     isAccepting?: boolean
     onAccept: () => void | Promise<void>
@@ -18,9 +19,9 @@ export interface VoiceConsentModalProps {
  */
 const DISCLOSURES = ['aiInteraction', 'micAccess', 'processing', 'transcripts', 'noRecordings', 'endAnytime'] as const
 
-export function VoiceConsentModal({ open, staleConsent = false, isAccepting = false, onAccept, onDecline }: VoiceConsentModalProps) {
+export function VoiceConsentModal({ open, consentVersion = 'voice-v2', staleConsent = false, isAccepting = false, onAccept, onDecline }: VoiceConsentModalProps) {
     const { t, i18n } = useTranslation()
-    const copy = consentCopyFor()
+    const copy = consentCopyFor(consentVersion)
     const language = legalLanguage(i18n.language)
     // R2-FE-01 (13 §5.8 "With voice-v2"): the scoped retention line, once its draft is final (voice-v2 is, I-71).
     const noRecordings = releasedInAppCopy('consentNoRecordings', language)

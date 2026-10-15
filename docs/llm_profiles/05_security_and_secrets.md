@@ -1,16 +1,18 @@
 # Seguridad y secretos
 
-**Reconciliación documental 2026-10-14: diseño/contratos del dossier original.** El código de perfiles existe y varios entregables se cerraron localmente después. Las propuestas y criterios de este archivo no acreditan rollout; usar [16](16_current_status_and_roadmap.md) para implementación actual, WIP operativo y TBD, y 12 para historia de pruebas.
+**Lifecycle: diseño/requisitos y decisiones conservados. Revisado 2026-10-15.** Este archivo define el objetivo, no un inventario de lo ya instalado. El [ledger 16](16_current_status_and_roadmap.md), la [API actual 07](07_api_changes.md) y el [registro F01–F11](../security/README.md) tienen precedencia. La custodia end-to-end sigue abierta.
 
 ## Promesa y límites
 
-**Ninguna clave personal se persiste por diseño en infraestructura de la aplicación.** Se conserva temporalmente en memoria del navegador, BFF y ejecutor/proveedor durante una solicitud. No existe endpoint para recuperarla ni estado server-side equivalente a «clave guardada».
+**Requisito objetivo: ninguna clave personal debe persistirse en infraestructura de la aplicación. No está cumplido end-to-end por el transporte actual.** El BFF inserta la clave en el graph outbound y el ejecutor captura ese graph; F04 sigue abierto. Las reglas siguientes describen la garantía que falta implementar/aceptar, no el comportamiento ya certificado. La memoria del navegador sí es transitoria; ausencia de un endpoint de recuperación no demuestra ausencia en snapshots.
 
 Eso no hace invisible la clave al operador: un proceso o infraestructura controlados por el operador pueden observarla durante el tránsito/ejecución. Python y JavaScript tampoco permiten garantizar borrado físico de todas las copias de un string. Se eliminan referencias y se limita su duración, sin prometer zeroization. Para que la infraestructura nunca reciba la clave se necesitaría otro flujo con ejecutor controlado por el usuario.
 
 Memoria del cliente reduce persistencia, pero sigue expuesta a XSS o scripts maliciosos del origen. [OWASP HTML5](https://cheatsheetseries.owasp.org/cheatsheets/HTML5_Security_Cheat_Sheet.html) documenta el acceso de scripts a almacenamiento web. Por este motivo el MVP no usa localStorage, sessionStorage, IndexedDB ni cookies para BYOK.
 
 ## Información y ubicación
+
+La tabla define ubicaciones **permitidas por el contrato objetivo**; no es un resultado de escaneo de persistencia. En particular, «Nunca» para BYOK exige remediar F04.
 
 | Información | DB | Cliente | Servidor |
 |---|---|---|---|
@@ -24,6 +26,8 @@ Memoria del cliente reduce persistencia, pero sigue expuesta a XSS o scripts mal
 No guardar tampoco claves cifradas, hashes de claves, prefijos/sufijos, fingerprints, request bodies o dumps de clientes como sustituto del secreto. El identificador del slot local puede derivarse de provider target/perfil y subject; no de la clave.
 
 ## Ciclo de vida BYOK
+
+Secuencia requerida. Los pasos 6–8 no se acreditan por la implementación actual; ver [07](07_api_changes.md).
 
 1. El usuario guarda un perfil **sin secret**.
 2. Al usarlo, la UI solicita la clave en un input oculto y confirma el destino autorizado.
@@ -103,4 +107,6 @@ Un worker activo puede conservar BYOK solo mientras realiza la operación admiti
 
 Usar una clave canaria ficticia en tests: buscarla en DB de pruebas, snapshots, checkpoints, auditoría, outputs SSE/WS, archivos temporales, logs y exporters de telemetry. Cubrir éxito, 422, JSON inválido, provider error, timeout, cancelación, retry, helpers, subgraphs y restart. La verificación de infraestructura se hace en un entorno controlado con instrumentación; no requiere ni debe exponer claves reales.
 
-La UI debe explicar «La clave se usa temporalmente para esta sesión y no se almacena en nuestros servidores». No afirmar «solo tú puedes verla» ni «jamás llega a nuestros servidores». Un resultado de test no prueba que todas las instalaciones futuras mantengan esa propiedad: convertir estos controles en pruebas de regresión y requisitos de despliegue.
+La frase «La clave se usa temporalmente para esta sesión y no se almacena en nuestros servidores» solo puede publicarse cuando el camino real y su infraestructura satisfagan esta garantía. Mientras F04 permanezca abierto, no anunciar ausencia de persistencia end-to-end. El copy debe limitarse a propiedades verificadas, como la memoria de la pestaña y la necesidad de reingreso tras recargar. No afirmar «solo tú puedes verla» ni «jamás llega a nuestros servidores». Un resultado de test no prueba que todas las instalaciones futuras mantengan esa propiedad: convertir estos controles en pruebas de regresión y requisitos de despliegue.
+
+Estado 2026-10-15: el copy actual de la UI ya incumple esta regla. [`llmProfiles.ts`](../../src/app/i18n/locales/llmProfiles.ts) (`key.explanation` y `byok.body`, EN/ES; renderizado en [`LlmSessionProvider.tsx`](../../src/features/llmProfiles/LlmSessionProvider.tsx) y [`ByokKeyPanel.tsx`](../../src/features/llmProfiles/ByokKeyPanel.tsx)) afirma que la clave no se guarda en nuestros servidores. Debe corregirse a las propiedades verificadas de memoria de pestaña; seguimiento en LLM-R3 ([16](16_current_status_and_roadmap.md)) y F11 ([seguridad](../security/README.md)).

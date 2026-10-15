@@ -65,6 +65,17 @@ describe('root voice console API (08 §5.3)', () => {
         expect((init.headers as Record<string, string>).Authorization).toBe('Bearer root-token')
     })
 
+    it('browses licensed Fish voices with encoded language, name and pagination filters', async () => {
+        await apiService.getFishReferences('es', '  Voz & calma  ', 2)
+        const [url, init] = lastCall()
+        const params = new URL(url, 'http://localhost').searchParams
+        expect(new URL(url, 'http://localhost').pathname).toBe('/admin/voices/fish/references')
+        expect(Object.fromEntries(params)).toEqual({ language: 'es', page: '2', q: 'Voz & calma' })
+        expect(init.method).toBe('GET')
+        expect((init.headers as Record<string, string>).Authorization).toBe('Bearer root-token')
+        expect((init.headers as Record<string, string>)['X-Workspace-Id']).toBeUndefined()
+    })
+
     it.each([
         ['updateAdminCatalogVoice', () => apiService.updateAdminCatalogVoice('vk_1', { status: 'hidden' }), 'PATCH', '/admin/voices/catalog/vk_1', { status: 'hidden' }],
         ['getAdminCatalogImpact', () => apiService.getAdminCatalogImpact('vk_1'), 'GET', '/admin/voices/catalog/vk_1/impact', undefined],

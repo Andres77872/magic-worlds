@@ -7,6 +7,12 @@ import { CONSENT_COPY } from '@/features/legal/documents'
 import { VoiceConsentModal } from './VoiceConsentModal'
 
 describe('VoiceConsentModal', () => {
+    it('shows the expanded Fish processing disclosure before accepting voice-v3', () => {
+        render(<VoiceConsentModal open consentVersion="voice-v3" onAccept={vi.fn()} onDecline={vi.fn()} />)
+        expect(screen.getByText(CONSENT_COPY['voice-v3'].en.processing)).toBeInTheDocument()
+        expect(screen.getByText(/Fish Audio/)).toBeInTheDocument()
+        expect(screen.getByTestId('voice-consent-draft')).toBeInTheDocument()
+    })
     it('renders accessible voice, AI, provider, transcript, and raw-audio disclosures', () => {
         render(<VoiceConsentModal open onAccept={vi.fn()} onDecline={vi.fn()} />)
 

@@ -3,7 +3,7 @@
  * multi-select "Use the cards' current voices" in the left panel.
  */
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '@/infrastructure/api'
 import type { Adventure, Character, EffectiveVoice, SnapshotCard } from '@/shared'
 import {
@@ -103,7 +103,17 @@ beforeEach(() => {
     mocks.library = [libraryCard('c1', el(KEY_B)), libraryCard('c2', el(KEY_B)), libraryCard('c3', el(KEY_B))]
 })
 
+afterEach(() => vi.unstubAllEnvs())
+
 describe('InteractionLeftPanel cast voice refresh (R1-FE-04)', () => {
+    it('hides every cast voice action with voices disabled', () => {
+        vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'false')
+        renderPanel(adventureWith(AFFECTED_CAST))
+        expect(screen.queryByTestId('cast-voice-refresh')).not.toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: /voice options/i })).not.toBeInTheDocument()
+        expect(mocks.refreshAdventureVoices).not.toHaveBeenCalled()
+    })
+
     it('adds nothing without projections (an older session, a share-link reader)', () => {
         mocks.library = [libraryCard('c1', null), libraryCard('c2', null)]
         const { unmount } = renderPanel(adventureWith([{ id: 'c1', name: 'Lyra', voice: STORED_VOICE }, { id: 'c2', name: 'Mirren', voice: STORED_VOICE }]))

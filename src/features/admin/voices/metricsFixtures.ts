@@ -109,7 +109,7 @@ export const providerMetrics: ProviderMetricsResponse = {
     generated_at: GENERATED_AT,
     window: DAY_WINDOW,
     db: {
-        jobs: [{ source: 'chat_tts_request', provider: 'elevenlabs', model_alias: 'eleven_flash_v2_5', status: 'completed', error_category: null, jobs: 9 }],
+        jobs: [{ source: 'chat_tts_request', provider: 'elevenlabs', model_alias: 'eleven_v4', status: 'completed', error_category: null, jobs: 9 }],
         requests_per_day: [],
     },
     process: emptyProcessMetrics({

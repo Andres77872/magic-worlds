@@ -1,5 +1,7 @@
 # Profile data, media privacy, and operations
 
+**Lifecycle: active implementation proposal, unimplemented native integration. Reviewed 2026-10-15.** Requirements and examples below define the intended feature; they do not establish current support. Use [00](00_current_status_and_findings.md) for source status and [10](10_rollout_risks_and_decisions.md) for scope/delivery.
+
 Date: **2026-10-15**. Proposed changes only. The requested profile controls need two small schema additions; this does not create a moderation persistence platform.
 
 ## 1. Native credential and local configuration
@@ -47,11 +49,13 @@ Audio inspection adds a direct processor path for already captured segments. Kee
 
 Verify actual OpenRouter account logging/improvement settings and selected endpoint retention filters before live use. The review did not inspect those settings. [OpenRouter data collection](https://openrouter.ai/docs/guides/privacy/data-collection), [provider logging](https://openrouter.ai/docs/guides/privacy/provider-logging), [ZDR](https://openrouter.ai/docs/guides/features/zdr).
 
-Cloudflare's Workers AI policy does not establish every OpenRouter configuration or region guarantee. [Workers AI data usage](https://developers.cloudflare.com/workers-ai/platform/data-usage/).
+The provider-logging page uses broader, older wording than the ZDR and [routing](https://openrouter.ai/docs/guides/routing/provider-selection) guides; provision from endpoint-specific policy and the actual account/request settings.
+
+Cloudflare's Workers AI policy does not establish every OpenRouter configuration or region guarantee. [Workers AI data usage](https://developers.cloudflare.com/workers-ai/platform/data-usage/). No zero-retention, regional-residency or compliance guarantee has been established.
 
 Moderation is platform cost even for personal/BYOK generation. Use the dedicated key budget and existing limits; record supplied usage/cost safely. Do not manufacture normal generation execution rows, change credit pricing, or promise refunds for output already generated but withheld. A timeout can still cost money.
 
-Update directly affected processing/coverage copy accurately. No broad legal-page or billing refactor is required.
+Update directly affected processing/coverage copy accurately. The current voice privacy copy ([privacyVoiceCopy.ts](../../src/features/legal/documents/privacyVoiceCopy.ts), mirrored in `en.ts`) says the pre-speech check uses the AI providers that already process stories for generation; at cutover it must name the native moderation processor (G12 in [01](01_code_review_and_gaps.md)). No broad legal-page or billing refactor is required.
 
 ## 6. Minimal observability
 

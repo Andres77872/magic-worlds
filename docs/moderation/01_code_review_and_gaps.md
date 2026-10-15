@@ -1,5 +1,7 @@
 # Code review, gaps, and remediation criteria
 
+**Lifecycle: open audit findings with dated evidence. Cleanup source recheck: 2026-10-15.** Findings remain open unless current path-specific closure is recorded; prior probes/tests below were not rerun. Scope exclusions defer work; they do not resolve findings. Status: [00](00_current_status_and_findings.md).
+
 Review date: **2026-10-15**. Severity describes the broader project's exposure, not whether an intentional testing exception is a coding mistake. All fixes below are **proposed**.
 
 **Scope:** this is a broad audit backlog. The latest integration includes native text/image/audio checks, default-on LLM/image profile controls, and necessary release guards. Report fixes, companion safety, penalty redesign, and separate public-card text review stay outside it. [07](07_surface_integration_and_refactor.md) and [10](10_rollout_risks_and_decisions.md) define the boundary.
@@ -18,12 +20,14 @@ Review date: **2026-10-15**. Severity describes the broader project's exposure, 
 | G08 | P2 defect | Queue cursor skips timestamp ties larger than a page | 51 reports in one second: 50 returned, next page empty | Composite timestamp/ID cursor; no skips or duplicates across arbitrary ties |
 | G09 | P2 defect | Failed abuse writes suppress retries | Dedup marker written before callback; retry never calls recovered writer | Durable idempotent event write or marker only after success with safe retry coordination |
 | G10 | P2 defect | More than 32 uncached narration units are refused together | 33 synthetic units returned unavailable before any transport invocation | Supported bounded partitioning, ordered results, one overall deadline, no bypass |
-| G11 | P2 assurance gap | Unmoderated allows disappear into allow metrics | Log has count; emitted metrics event omits it | Explicit unmoderated unit counter, mode gauge, alerts, and release checks |
-| G12 | P2 UX gap | Privacy text promises a check before every spoken output | English voice privacy copy versus optional runtime mode | Copy and rollout mode agree; no enforcement promise in a bypassed release |
+| G11 | P2 assurance gap | Unmoderated allows disappear into allow metrics | Log has count (added by BFF `a3f1b53`, log only); emitted metrics event still omits it, so the gap is in progress | Explicit unmoderated unit counter, mode gauge, alerts, and release checks |
+| G12 | P2 UX gap | Privacy text promises a check before every spoken output | English voice privacy copy versus optional runtime mode | Copy and rollout mode agree; no enforcement promise in a bypassed release; after the native cutover the copy names the actual moderation processor instead of the generation providers |
 | G13 | P2 delivery gap | Three-event warnings have no visible delivery from moderation callback | Callback discards AbuseOutcome, including warning flag | User notification contract and once-per-threshold delivery test |
 | G14 | Design risk | Existing cache does not bind verdict to context, surface, model deployment, or question/threshold revision | Text/language/policy key only | Versioned context-aware identity and invalidation on every decision-relevant change |
 | G15 | Validation gap | No application-domain Clef accuracy or latency evidence exists | Research is documentation-only; old smoke used a different classifier | Frozen en/es corpus, held-out calibration, measured end-to-end distributions |
 | G16 | P2 latency defect | Call classifier timeout does not bound the whole gate, including block persistence | A 350 ms fake block callback made a check take about 352 ms against a 300 ms classifier budget | One overall deadline; bounded action handling; never continue a restricted operation because persistence was deferred |
+
+G02, G05–G09 and G13 are outside the native slice and have no named owning ledger yet (owner TBD).
 
 Additional static review for the latest request:
 
@@ -49,7 +53,7 @@ These findings are static evidence, not new runtime reproductions. Exact current
 - G09/G14: [block event deduplication](/home/andres/PycharmProjects/magic-worlds-api/src/services/speech/moderation.py:753), [cache lookup](/home/andres/PycharmProjects/magic-worlds-api/src/services/speech/moderation.py:606).
 - G10: [classifier bounds](/home/andres/PycharmProjects/magic-worlds-api/src/services/speech/moderation.py:337).
 - G16: [callback awaited after classification](/home/andres/PycharmProjects/magic-worlds-api/src/services/speech/moderation.py:642), [block callback awaiting](/home/andres/PycharmProjects/magic-worlds-api/src/services/speech/moderation.py:769).
-- G12: [voice privacy copy](/home/andres/WebstormProjects/magic-worlds/src/app/i18n/locales/en.ts).
+- G12: [voice privacy copy](/home/andres/WebstormProjects/magic-worlds/src/app/i18n/locales/en.ts); the runtime source is [privacyVoiceCopy.ts](../../src/features/legal/documents/privacyVoiceCopy.ts), with the `en.ts` keys as fallback. Both say the pre-speech check uses the AI providers that already process stories for generation.
 
 Line numbers describe the review snapshot and can move with concurrent edits. Function/module names are the more durable anchors.
 
@@ -85,7 +89,7 @@ Build an otherwise valid completed image job with an asset safety flag set to tr
 
 ### G16: classifier deadline versus whole-gate latency
 
-Use a synthetic deterministic blocking rule and an async block callback that sleeps 350 ms. The real call-surface gate returns a block after about 352 ms although `timeout_for('call')` reports 300 ms. The callback executes after the classifier deadline scope. This probe was run during the documentation task and used neither a database nor a provider. The same design must account for caller resolution, which also has its own timeout scope.
+Use a synthetic deterministic blocking rule and an async block callback that sleeps 350 ms. The real call-surface gate returns a block after about 352 ms although `timeout_for('call')` reports 300 ms. The callback executes after the classifier deadline scope. This probe was run during the preceding 2026-10-15 review (not rerun by the cleanup) and used neither a database nor a provider. The same design must account for caller resolution, which also has its own timeout scope.
 
 ## 4. Integration hazards and separate enforcement work
 
