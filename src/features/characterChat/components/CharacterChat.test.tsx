@@ -176,12 +176,12 @@ describe('CharacterChat voice mode wiring', () => {
 
     it('runs the chat and its call in the chat workspace (organization.workspace_id)', () => {
         activeCharacterChat = { ...CHAT, organization: { workspace_id: OTHER_WORKSPACE_ID } }
-        render(<CharacterChat />)
+        const view = render(<CharacterChat />)
         expect(screen.getByTestId('center-workspace')).toHaveTextContent(OTHER_WORKSPACE_ID)
 
         activeCharacterChatMode = 'voice'
         setTestFeatureFlags({ calls: true })
-        render(<CharacterChat />)
+        view.rerender(<CharacterChat />)
         expect(screen.getByTestId('call-workspace')).toHaveTextContent(OTHER_WORKSPACE_ID)
     })
 })

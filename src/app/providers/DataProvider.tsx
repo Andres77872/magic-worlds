@@ -41,6 +41,7 @@ import type {
 } from '../../shared'
 import { apiService, ApiError } from '../../infrastructure'
 import type { ApiService } from '../../infrastructure/api'
+import { readRootOrganization } from '@/infrastructure/api/workspaceContract'
 import {
     isAdventuresFeatureEnabled,
     isCallsFeatureEnabled,
@@ -360,6 +361,7 @@ function normalizeCharacterChat(
     const personaId = String(chat.persona_id ?? '')
     const livePersona = personaId ? libraryCharacters.find((character) => character.id === personaId) : undefined
     const persona = snapshotPersona ?? fallbackPersona ?? livePersona
+    const organization = readRootOrganization(chat.organization)
 
     return {
         id: String(chat.chat_id ?? chat.id),
@@ -371,6 +373,7 @@ function normalizeCharacterChat(
         characters: sessionCharacters.length > 0 ? sessionCharacters : undefined,
         persona_id: personaId || undefined,
         persona,
+        ...(organization ? { organization } : {}),
         codexCards: normalizeCharacterChatCodexCards(chat.codex_cards ?? chat.codexCards),
         // Conversation rows are loaded by the chat surface from `/messages`.
         turns: [],
@@ -1137,7 +1140,17 @@ export function DataProvider({ children }: DataProviderProps) {
         setActiveCharacterChat(chat)
     }
 
-    const upsertCharacterChat = (chat: CharacterChatSession) => {
+    const characterChatOwnerIsCurrent = (owner: typeof authOwnerRef.current, chat: CharacterChatSession) => {
+        const current = authOwnerRef.current
+        return current.authEpoch === owner.authEpoch && current.accountKey === owner.accountKey
+            && current.workspaceId === owner.workspaceId && current.workspaceEpoch === owner.workspaceEpoch
+            && (!chat.organization || chat.organization.workspace_id === owner.workspaceId)
+    }
+
+    // A completed write still belongs to its caller, but only the captured
+    // owner may publish it into the current workspace's list and active room.
+    const upsertCharacterChat = (chat: CharacterChatSession, owner: typeof authOwnerRef.current) => {
+        if (!characterChatOwnerIsCurrent(owner, chat)) return chat
         if (!chat.isDraft) setCharacterChats((prev) => [chat, ...prev.filter((existing) => existing.id !== chat.id)])
         setActiveCharacterChat((prev) => (prev && prev.id === chat.id ? chat : prev))
         return chat
@@ -1150,9 +1163,11 @@ export function DataProvider({ children }: DataProviderProps) {
         }
         const normalizedId = String(chatId).trim()
         if (!normalizedId) return false
+        const owner = authOwnerRef.current
         const existing = (activeCharacterChat && activeCharacterChat.id === normalizedId ? activeCharacterChat : undefined)
             ?? characterChats.find((chat) => chat.id === normalizedId)
         if (existing) {
+            if (!characterChatOwnerIsCurrent(owner, existing)) return false
             resumeCharacterChat(existing, options)
             navigation?.setPage('character-chat')
             return true
@@ -1161,7 +1176,9 @@ export function DataProvider({ children }: DataProviderProps) {
         if (!Number.isInteger(numericId) || numericId <= 0) return false
         try {
             const loaded = await requireApi().getCharacterChat(numericId)
-            const normalized = upsertCharacterChat(normalizeCharacterChat(loaded, characters))
+            const normalized = normalizeCharacterChat(loaded, characters)
+            if (!characterChatOwnerIsCurrent(owner, normalized)) return false
+            upsertCharacterChat(normalized, owner)
             resumeCharacterChat(normalized, options)
             navigation?.setPage('character-chat')
             return true
@@ -1179,6 +1196,7 @@ export function DataProvider({ children }: DataProviderProps) {
             openLoginModal()
             throw new Error('Login required to edit chat codex')
         }
+        const owner = authOwnerRef.current
         if (cards.length === 0) {
             const current = activeCharacterChat && activeCharacterChat.id === chatId
                 ? activeCharacterChat
@@ -1202,10 +1220,10 @@ export function DataProvider({ children }: DataProviderProps) {
                 staged.push({ id: `draft-${generateUUID()}`, kind, cardId, enabled: true, precedence: staged.length,
                     snapshot: structuredClone(card) as unknown as Record<string, unknown> })
             }
-            return upsertCharacterChat({ ...activeCharacterChat, codexCards: staged })
+            return upsertCharacterChat({ ...activeCharacterChat, codexCards: staged }, owner)
         }
         const updated = await requireApi().addCharacterChatCodexCards(Number(chatId), cards)
-        return upsertCharacterChat(normalizeCharacterChat(updated, characters))
+        return upsertCharacterChat(normalizeCharacterChat(updated, characters), owner)
     }
 
     const toggleCharacterChatCodexCard = async (
@@ -1217,16 +1235,17 @@ export function DataProvider({ children }: DataProviderProps) {
             openLoginModal()
             throw new Error('Login required to edit chat codex')
         }
+        const owner = authOwnerRef.current
         if (activeCharacterChat?.id === chatId && activeCharacterChat.isDraft) {
             const card = activeCharacterChat.codexCards?.find((entry) => entry.id === codexCardId)
             if (enabled && card && characterChatParticipantIds(activeCharacterChat).has(card.cardId)) {
                 throw new Error(i18n.t('characterChat.codex.participantConflict'))
             }
             return upsertCharacterChat({ ...activeCharacterChat,
-                codexCards: activeCharacterChat.codexCards?.map((card) => card.id === codexCardId ? { ...card, enabled } : card) })
+                codexCards: activeCharacterChat.codexCards?.map((card) => card.id === codexCardId ? { ...card, enabled } : card) }, owner)
         }
         const updated = await requireApi().updateCharacterChatCodexCard(Number(chatId), codexCardId, enabled)
-        return upsertCharacterChat(normalizeCharacterChat(updated, characters))
+        return upsertCharacterChat(normalizeCharacterChat(updated, characters), owner)
     }
 
     const removeCharacterChatCodexCard = async (chatId: string, codexCardId: string): Promise<CharacterChatSession> => {
@@ -1234,12 +1253,13 @@ export function DataProvider({ children }: DataProviderProps) {
             openLoginModal()
             throw new Error('Login required to edit chat codex')
         }
+        const owner = authOwnerRef.current
         if (activeCharacterChat?.id === chatId && activeCharacterChat.isDraft) {
             return upsertCharacterChat({ ...activeCharacterChat,
-                codexCards: activeCharacterChat.codexCards?.filter((card) => card.id !== codexCardId) })
+                codexCards: activeCharacterChat.codexCards?.filter((card) => card.id !== codexCardId) }, owner)
         }
         const updated = await requireApi().deleteCharacterChatCodexCard(Number(chatId), codexCardId)
-        return upsertCharacterChat(normalizeCharacterChat(updated, characters))
+        return upsertCharacterChat(normalizeCharacterChat(updated, characters), owner)
     }
 
     const refreshCharacterChatVoice = async (chatId: string, api?: ApiService | null): Promise<CharacterChatSession> => {
@@ -1247,8 +1267,9 @@ export function DataProvider({ children }: DataProviderProps) {
             openLoginModal()
             throw new Error('Login required to refresh the chat voice')
         }
+        const owner = authOwnerRef.current
         const updated = await (api ?? requireApi()).refreshChatVoice(Number(chatId))
-        return upsertCharacterChat(normalizeCharacterChat(updated, characters))
+        return upsertCharacterChat(normalizeCharacterChat(updated, characters), owner)
     }
 
     const deleteCharacterChat = async (id: string) => {
