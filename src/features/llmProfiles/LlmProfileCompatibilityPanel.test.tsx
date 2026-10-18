@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
 import { render, screen, within } from '@testing-library/react'
 import { expect, it } from 'vitest'
 import { LlmProfileCompatibilityPanel } from './LlmProfileCompatibilityPanel'

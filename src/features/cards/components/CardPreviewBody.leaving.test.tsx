@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
 /**
  * 03 §5.12 / 05 §9.3 (R1-FE-03): the card preview modal dates a leaving voice
  * ("Leaving on {date}") from the catalog `disable_at` of the stored voice; the

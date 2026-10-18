@@ -17,7 +17,7 @@ function ref(overrides: Partial<StoryCardRef> = {}): StoryCardRef {
     return {
         id: 'ref-1',
         storyId: 'story-1',
-        chapterId: null,
+        chapterId: null, sceneId: null, removedAt: null,
         kind: 'character',
         cardId: 'card-1',
         source: 'manual',

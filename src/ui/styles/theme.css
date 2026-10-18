@@ -118,6 +118,19 @@
   --text-prose-h2: 26px;
   --text-prose-h3: 22px;
 
+  /* Author-selected manuscript appearance; component code chooses names only. */
+  --text-manuscript-small: 16px;
+  --text-manuscript-standard: 18px;
+  --text-manuscript-large: 22px;
+  --leading-manuscript-compact: 1.55;
+  --leading-manuscript-comfortable: 1.78;
+  --leading-manuscript-roomy: 2;
+  --spacing-manuscript-paragraph-compact: 0.75rem;
+  --spacing-manuscript-paragraph-comfortable: 1rem;
+  --spacing-manuscript-paragraph-roomy: 1.25rem;
+  --spacing-manuscript-scroll-tail: 45vh;
+  --spacing-manuscript-link-underline: 0.18em;
+
   /* ---------- semantic / role tokens → bg-/text-/border- utilities ----------
      Prefer these over raw ramps so intent reads clearly and a palette shift is a
      token edit, not a find/replace. The raw ramps stay available underneath. */
@@ -185,6 +198,8 @@
      column's 28px gutters. Absolute, so the editor's chrome can line up with
      the prose without inheriting its font. */
   --width-manuscript: 640px;
+  --width-manuscript-narrow: 560px;
+  --width-manuscript-wide: 800px;
   --width-drawer-sm: 360px;
   --width-drawer-md: 440px;
   --width-drawer-lg: 600px;
@@ -567,8 +582,42 @@
     background: transparent;
   }
 
+  .novel-reading-room {
+    --manuscript-font: var(--font-narrative);
+    --manuscript-heading-font: var(--font-display);
+    --manuscript-size: var(--text-manuscript-standard);
+    --manuscript-leading: var(--leading-manuscript-comfortable);
+    --manuscript-paragraph-gap: var(--spacing-manuscript-paragraph-comfortable);
+    --manuscript-foreground: var(--color-parchment-100);
+    --manuscript-subtle: var(--color-parchment-300);
+    --manuscript-background: var(--color-ink-800);
+  }
+  .novel-reading-room[data-reading-font="sans"] {
+    --manuscript-font: var(--font-ui);
+    --manuscript-heading-font: var(--font-ui);
+  }
+  .novel-reading-room[data-reading-size="small"] { --manuscript-size: var(--text-manuscript-small); }
+  .novel-reading-room[data-reading-size="large"] { --manuscript-size: var(--text-manuscript-large); }
+  .novel-reading-room[data-reading-spacing="compact"] {
+    --manuscript-leading: var(--leading-manuscript-compact);
+    --manuscript-paragraph-gap: var(--spacing-manuscript-paragraph-compact);
+  }
+  .novel-reading-room[data-reading-spacing="roomy"] {
+    --manuscript-leading: var(--leading-manuscript-roomy);
+    --manuscript-paragraph-gap: var(--spacing-manuscript-paragraph-roomy);
+  }
+  .novel-reading-room[data-reading-width="narrow"] { --width-manuscript: var(--width-manuscript-narrow); }
+  .novel-reading-room[data-reading-width="wide"] { --width-manuscript: var(--width-manuscript-wide); }
+  .novel-reading-room[data-reading-contrast="strong"] {
+    --manuscript-foreground: var(--color-parchment-50);
+    --manuscript-subtle: var(--color-parchment-100);
+    --manuscript-background: var(--color-ink-900);
+  }
+  .novel-reading-surface { background: var(--manuscript-background, var(--color-ink-800)); }
+
   .story-editor-prose {
-    flex: 1 1 auto;
+    /* Keep the actual prose/tail height inside the outer scrollport. */
+    flex: 1 0 auto;
     min-height: 560px;
     /* Line length is the single biggest readability lever in a manuscript
        editor, and it was unset. */
@@ -577,12 +626,30 @@
     margin: 0 auto;
     padding: 28px;
     outline: none;
-    font-family: var(--font-narrative);
-    font-size: 18px;
-    line-height: 1.78;
-    color: var(--color-parchment-100);
+    font-family: var(--manuscript-font, var(--font-narrative));
+    font-size: var(--manuscript-size, var(--text-manuscript-standard));
+    line-height: var(--manuscript-leading, var(--leading-manuscript-comfortable));
+    color: var(--manuscript-foreground, var(--color-parchment-100));
     caret-color: var(--color-ember-400);
   }
+  .story-editor-prose.manuscript-reader-prose { min-height: 0; padding: 0; white-space: pre-wrap; }
+  /* Inline references keep prose typography and selection instead of the
+     shared action button's layout. Explicit resets override utility layers. */
+  .manuscript-reader-reference {
+    display: inline !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: unset !important;
+    background: transparent !important;
+    font: inherit !important;
+    line-height: inherit !important;
+    color: var(--color-ember-300) !important;
+    white-space: normal !important;
+    user-select: text !important;
+    text-decoration: underline;
+    text-underline-offset: var(--spacing-manuscript-link-underline);
+  }
+
   /* Focus mode hides the rails: give the measured column more vertical room
      to breathe so drafting feels distraction-free. */
   .story-editor-shell[data-focus] .story-editor-prose {
@@ -591,22 +658,31 @@
   }
   /* Typewriter mode keeps the active line centered; pad the tail so the last
      lines can still scroll to the middle of the viewport. */
-  .story-editor-shell[data-typewriter] .story-editor-prose {
-    padding-bottom: 45vh;
+  .story-editor-shell[data-typewriter] .story-editor-prose,
+  .story-editor-prose[data-manuscript-search-target] {
+    padding-bottom: var(--spacing-manuscript-scroll-tail);
   }
 
   .story-editor-prose:focus-visible {
     box-shadow: none;
   }
+  .story-editor-prose a[href] {
+    color: var(--color-ember-300);
+    text-decoration: underline;
+    text-decoration-color: var(--color-ember-400);
+    text-underline-offset: var(--spacing-manuscript-link-underline);
+    text-decoration-thickness: from-font;
+  }
+  .story-editor-prose a[href]:hover { color: var(--color-ember-200); }
 
   .story-editor-prose > *:first-child { margin-top: 0; }
   .story-editor-prose > *:last-child { margin-bottom: 0; }
-  .story-editor-prose p { margin: 0 0 1rem; }
+  .story-editor-prose p { margin: 0 0 var(--manuscript-paragraph-gap, var(--spacing-manuscript-paragraph-comfortable)); }
   .story-editor-prose h1,
   .story-editor-prose h2,
   .story-editor-prose h3 {
     margin: 1.5rem 0 0.75rem;
-    font-family: var(--font-display);
+    font-family: var(--manuscript-heading-font, var(--font-display));
     color: var(--color-parchment-50);
     font-weight: 600;
     line-height: 1.16;
@@ -614,9 +690,26 @@
   .story-editor-prose h1 { font-size: 36px; }
   .story-editor-prose h2 { font-size: 29px; }
   .story-editor-prose h3 { font-size: 23px; }
+  .story-editor-prose .manuscript-invisible-marker {
+    display: inline-block;
+    width: 0;
+    overflow: visible;
+    pointer-events: none;
+    user-select: none;
+    white-space: pre;
+    color: var(--manuscript-subtle, var(--color-parchment-300));
+    font-family: var(--font-ui);
+  }
+
+  .story-editor-prose .manuscript-invisible-marker::before { content: attr(data-invisible-symbol); }
+
+  .story-editor-prose mark.manuscript-highlight {
+    @apply bg-ember-500/20 text-inherit;
+  }
+
   .story-editor-prose strong { color: var(--color-parchment-50); font-weight: 700; }
-  .story-editor-prose em { color: var(--color-parchment-100); }
-  .story-editor-prose s { color: var(--color-parchment-300); }
+  .story-editor-prose em { color: inherit; }
+  .story-editor-prose s { color: var(--manuscript-subtle, var(--color-parchment-300)); }
   .story-editor-prose ul,
   .story-editor-prose ol {
     margin: 0.85rem 0 1rem;
@@ -631,7 +724,7 @@
     padding: 0.65rem 1rem;
     border-left: 2px solid var(--color-arcane-400);
     background: rgba(143, 111, 227, 0.1);
-    color: var(--color-parchment-100);
+    color: var(--manuscript-foreground, var(--color-parchment-100));
     font-style: italic;
   }
   /* Scene break: a centered ember ornament rather than a flat rule, so a
@@ -695,6 +788,12 @@
     transition:
       color 220ms var(--ease-out),
       background 220ms var(--ease-out);
+  }
+  /* Size suggestion prose to its content inside the editor scrollport. */
+  .story-editor-prose .ai-suggestion-text.story-editor-prose {
+    flex: none;
+    min-height: 0;
+    padding: 0;
   }
   /* Selected passage being rewritten while the request is in flight. */
   .story-editor-prose .ai-pending-source {

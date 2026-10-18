@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * useCardPickerOptions — debounced, type-scoped card search feeding the media
  * gallery's "filter by card" picker (and the novel's "begin from a card").
@@ -13,6 +14,7 @@ import { useEffect, useRef, useState } from 'react'
 import { i18n } from '@/app/i18n'
 import { useWorkspace } from '@/app/hooks/useWorkspace'
 import type { CardMediaTargetType, LibraryItem } from '@/shared'
+import type { CardSourceStatus } from '@/shared/types/workspace.types'
 import { resolveMediaUrl, type ApiService } from '@/infrastructure/api'
 import { asArray } from '../../../../utils/cardTransforms'
 import type { CardRef, CardTypeFilter } from '../mediaGalleryTypes'
@@ -20,6 +22,7 @@ import type { CardRef, CardTypeFilter } from '../mediaGalleryTypes'
 export interface CardPickerOption extends CardRef {
     name: string
     imageUrl?: string
+    sourceStatus?: CardSourceStatus
 }
 
 const SEARCH_DEBOUNCE_MS = 300
@@ -32,6 +35,9 @@ interface RawCardRow {
     uuid?: string
     name?: string
     image_url?: string
+    latest_version_id?: string | null
+    latest_version_number?: number
+    has_draft?: boolean
 }
 
 function toOption(row: RawCardRow, type: CardMediaTargetType): CardPickerOption {
@@ -40,6 +46,11 @@ function toOption(row: RawCardRow, type: CardMediaTargetType): CardPickerOption 
         id: (row.id || row.uuid || '') as string,
         name: row.name?.trim() || i18n.t('mediaGallery.picker.untitled'),
         imageUrl: resolveMediaUrl(row.image_url),
+        ...(type === 'adventure_template' || (typeof row.latest_version_number === 'number' && Number.isSafeInteger(row.latest_version_number)
+            && row.latest_version_number >= 0 && (row.latest_version_number === 0 ? row.latest_version_id === null : typeof row.latest_version_id === 'string'))
+            ? { sourceStatus: { card_type: type, card_id: row.id || row.uuid || '', available: true,
+                latest_version_id: row.latest_version_id ?? null, latest_version_number: row.latest_version_number ?? 0,
+                has_draft: row.has_draft ?? false } } : {}),
     }
 }
 
@@ -83,6 +94,7 @@ export function useCardPickerOptions(
     enabled: boolean,
     limit?: number,
 ): { options: CardPickerOption[]; loading: boolean } {
+    useFeatureFlags()
     const { api, selectedWorkspaceId, workspaceEpoch, capture, isCurrent } = useWorkspace()
     const [options, setOptions] = useState<CardPickerOption[]>([])
     const [loading, setLoading] = useState(false)

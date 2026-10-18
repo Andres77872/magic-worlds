@@ -5,7 +5,7 @@ import { frameBatch } from '@/utils/frameBatch'
  * useInlineAI — orchestrates the inline suggestion lifecycle around the
  * AiSuggestion extension: flush-save → generate (stale-token guarded) → insert
  * the whole generation in one transaction → accept / regenerate / decline,
- * including the implicit accept on user edits and Escape semantics per phase.
+ * including explicit acceptance and Escape semantics per phase.
  * The extension owns the document and the phase; this hook owns everything
  * async.
  *
@@ -19,9 +19,13 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Editor } from '@tiptap/core'
 import type { StoryGeneration, StoryGenerationCommand } from '@/shared'
-import { wordCount } from '../../utils/novelUtils'
-import type { InlineAIPhase } from '../types'
-import type { MarkdownSelection } from '../markdownSelection'
+import { wordCount,plainTextWordCount } from '../../utils/novelUtils'
+import type { InlineAIPhase, SavedGenerationReview } from '../types'
+import { savedGenerationTarget } from '../savedGenerationTarget'
+import { editorCursorOffset, editorRangeSelection, type DocumentSelection } from '../documentSelection'
+import { aiTrackKey } from '../extensions/aiSuggestion'
+import type { StoryVariantSnapshot } from '@/shared/types/storyVariant.types'
+import { documentText } from '@/shared/storyDocument'
 
 // Commands that REPLACE a selected passage rather than adding after it. 'custom'
 // is here because a beat fired on a selection means "do this to that passage".
@@ -29,7 +33,7 @@ const SELECTION_COMMANDS: ReadonlySet<StoryGenerationCommand> = new Set(['rewrit
 
 export interface InlineAISubmitOptions {
     /** Markdown offsets for the backend prompt. */
-    selection?: MarkdownSelection
+    selection?: DocumentSelection
     /** Document range the suggestion replaces (rewrite/expand/condense). */
     replaceRange?: { from: number; to: number }
     /** Row anchor; defaults to the current selection end. */
@@ -42,7 +46,8 @@ export interface InlineAISubmitOptions {
 interface InlineAIRequestState {
     command: StoryGenerationCommand
     instruction?: string
-    selection?: MarkdownSelection
+    selection?: DocumentSelection
+    cursorOffset?: number
     /** Drives `inline` on insert — replayed generations must land the same shape. */
     isReplace: boolean
     /** Words the request replaced, for the row's readout. */
@@ -57,16 +62,18 @@ export interface InlineAICallbacks {
     onGenerate: (request: {
         command: StoryGenerationCommand
         instruction?: string
-        selection?: MarkdownSelection
+        selection?: DocumentSelection
+        cursorOffset?: number
         prompt?: string
     }, options?: TextGenerationOptions) => Promise<StoryGeneration>
-    onAcceptGeneration: (generationId: string) => Promise<void>
+    onAcceptGeneration: (generationId: string, variant?: StoryVariantSnapshot) => Promise<void>
     onDiscardGeneration: (generationId: string) => Promise<void>
     onCritiquePreview?: (text: string, state: 'generating' | 'saving' | 'interrupted' | 'failed') => void
     onCritiqueResult: (generation: StoryGeneration) => void
 }
 
 export interface InlineAIRowMeta {
+    versionTitle?: string
     words: number
     preview?: string
     stage?: string
@@ -78,6 +85,7 @@ export interface InlineAIRowMeta {
 
 export interface InlineAIApi {
     submit: (command: StoryGenerationCommand, instruction?: string, options?: InlineAISubmitOptions) => Promise<void>
+    reviewGeneration: (review: SavedGenerationReview) => boolean
     accept: () => Promise<void>
     reject: () => Promise<void>
     /** Same instruction, same place, no prompt surface. */
@@ -87,7 +95,6 @@ export interface InlineAIApi {
     resolve: (mode: 'accept' | 'reject') => Promise<void>
     /** Phase-aware Escape handler for the extension keymap. */
     handleEscape: (phase: InlineAIPhase) => void
-    handleImplicitAccept: () => void
     /** False until a request has run in this session — the row hides Regenerate. */
     canRegenerate: boolean
     rowMeta: InlineAIRowMeta
@@ -114,6 +121,7 @@ export function useInlineAI(editor: Editor | null, callbacks: InlineAICallbacks)
     const controllerRef = useRef<AbortController | null>(null)
     useEffect(() => () => { tokenRef.current += 1; controllerRef.current?.abort() }, [])
     const generationRef = useRef<StoryGeneration | null>(null)
+    const variantRef = useRef<StoryVariantSnapshot | null>(null)
     const lastRequestRef = useRef<InlineAIRequestState | null>(null)
     const resolvingRef = useRef(false)
 
@@ -153,10 +161,31 @@ export function useInlineAI(editor: Editor | null, callbacks: InlineAICallbacks)
             // The flush can take a while; Escape during it already cancelled the
             // request, and firing the model anyway costs the user a generation.
             if (token !== tokenRef.current) return
+            const editorNow = editorRef.current
+            if (!editorNow) return
+            const track = aiTrackKey.getState(editorNow.state)
+            const cursor = track?.pendingRange?.to ?? track?.pendingPos
+            const mappedCursor=cursor!=null?editorCursorOffset(editorNow,cursor):null
+            if(mappedCursor===null){
+                editorNow.commands.aiCancelPending()
+                setError(tRef.current('novelEditor.editor.flushFailed'))
+                return
+            }
+            request.cursorOffset=mappedCursor
+            if (request.isReplace && track?.pendingRange) {
+                const selection = editorRangeSelection(editorNow, track.pendingRange.from, track.pendingRange.to)
+                if (!selection) {
+                    editorNow.commands.aiCancelPending()
+                    setError(tRef.current('novelEditor.editor.flushFailed'))
+                    return
+                }
+                request.selection = selection
+            }
             const generation = await callbacksRef.current.onGenerate({
                 command: request.command,
                 instruction: request.instruction,
                 selection: request.selection,
+                cursorOffset: request.cursorOffset,
                 prompt: request.prompt,
             }, {
                 signal: controller.signal,
@@ -195,6 +224,7 @@ export function useInlineAI(editor: Editor | null, callbacks: InlineAICallbacks)
                 return
             }
             generationRef.current = generation
+            variantRef.current = null
             setRowMeta({ words: wordCount(generation.output), previous: request.replacedWords, prompt: request.prompt ?? null })
         } catch (generateError) {
             updates.flush()
@@ -223,14 +253,17 @@ export function useInlineAI(editor: Editor | null, callbacks: InlineAICallbacks)
 
             const isReplace = SELECTION_COMMANDS.has(command) && options.replaceRange != null
             const anchor = options.anchorPos ?? options.replaceRange?.to ?? editorNow.state.selection.to
+            const cursorOffset=editorCursorOffset(editorNow,anchor)
+            if(cursorOffset===null){setError(tRef.current('novelEditor.editor.flushFailed'));return}
             if (!editorNow.commands.aiStartPending(anchor, isReplace ? options.replaceRange : undefined)) return
 
             const request: InlineAIRequestState = {
                 command,
                 instruction: instruction?.trim() || undefined,
                 selection: options.selection,
+                cursorOffset,
                 isReplace,
-                replacedWords: isReplace && options.selection ? wordCount(options.selection.text) : null,
+                replacedWords: isReplace && options.selection ? plainTextWordCount(options.selection.text) : null,
                 prompt: options.prompt?.trim() || undefined,
             }
             lastRequestRef.current = request
@@ -240,29 +273,74 @@ export function useInlineAI(editor: Editor | null, callbacks: InlineAICallbacks)
         [phase, runGeneration],
     )
 
+    const reviewGeneration = useCallback((review: SavedGenerationReview) => {
+        const editorNow = editorRef.current
+        if (!editorNow || phase() !== 'idle') return false
+        const target = savedGenerationTarget(editorNow, review)
+        if (!target) return false
+        try {
+            const json = review.variant ? review.variant.operation.document.content : editorNow.markdown!.parse(review.generation.output)
+            if (!editorNow.commands.aiStartPending(target.pos, target.range)) return false
+            if (!editorNow.commands.aiInsertGeneration(json, { inline: target.inline, exactSnapshot: Boolean(review.variant) })) {
+                editorNow.commands.aiCancelPending(); return false
+            }
+        } catch {
+            if (phase() === 'pending') editorNow.commands.aiCancelPending()
+            return false
+        }
+        tokenRef.current++
+        generationRef.current = structuredClone(review.generation)
+        variantRef.current = review.variant ? structuredClone(review.variant) : null
+        lastRequestRef.current = null
+        setCanRegenerate(false)
+        setError(null)
+        setRowMeta({ words: review.variant ? plainTextWordCount(documentText(review.variant.operation.document)) : wordCount(review.generation.output),
+            previous: review.variant ? plainTextWordCount(documentText(review.variant.baseDocument)) : review.generation.inputRange ? plainTextWordCount(review.generation.inputRange.text) : null,
+            ...(review.variant ? { versionTitle: review.variant.title } : {}),
+            prompt: review.generation.instruction ?? null })
+        return true
+    }, [phase])
+
     const accept = useCallback(async () => {
         const editorNow = editorRef.current
         if (!editorNow || phase() !== 'reviewing') return
         const generation = generationRef.current
+        const variant = variantRef.current
+        if (!editorNow.chain().aiAccept().focus(undefined, { scrollIntoView: false }).run()) {
+            setError(tRef.current('novelEditor.editor.flushFailed')); return
+        }
         generationRef.current = null
-        editorNow.commands.aiAccept()
+        variantRef.current = null
         try {
-            await callbacksRef.current.onRequestSaveFlush()
-            if (generation) await callbacksRef.current.onAcceptGeneration(generation.id)
+            if (generation) {
+                if (variant) await callbacksRef.current.onAcceptGeneration(generation.id, variant)
+                else await callbacksRef.current.onAcceptGeneration(generation.id)
+            }
         } catch (acceptError) {
             // Non-fatal: the text is kept either way; the generation simply
             // stays a candidate server-side.
-            console.warn('Failed to record generation acceptance:', acceptError)
+            setError(acceptError instanceof Error ? acceptError.message : tRef.current('novelEditor.editor.flushFailed'))
         }
     }, [phase])
 
     const reject = useCallback(async () => {
         const editorNow = editorRef.current
-        if (!editorNow || phase() !== 'reviewing') return
+        if (!editorNow) return
+        if (phase() === 'pending') {
+            tokenRef.current += 1
+            controllerRef.current?.abort()
+            editorNow.commands.aiCancelPending()
+            return
+        }
+        if (phase() !== 'reviewing') return
         const generation = generationRef.current
+        const variant = variantRef.current
         generationRef.current = null
-        editorNow.commands.aiReject()
-        if (generation) {
+        variantRef.current = null
+        editorNow.chain().aiReject().focus(undefined, { scrollIntoView: false }).run()
+        // Closing an authored review retains that saved version and its original
+        // model parent. Explicit version rejection is a separate saved decision.
+        if (generation && !variant) {
             try {
                 await callbacksRef.current.onDiscardGeneration(generation.id)
             } catch (discardError) {
@@ -323,20 +401,15 @@ export function useInlineAI(editor: Editor | null, callbacks: InlineAICallbacks)
         [abortPending, reject],
     )
 
-    const handleImplicitAccept = useCallback(() => {
-        // Fired from within a transaction dispatch — defer our own dispatches.
-        window.queueMicrotask(() => void accept())
-    }, [accept])
-
     return {
         submit,
+        reviewGeneration,
         accept,
         reject,
         regenerate,
         abortPending,
         resolve,
         handleEscape,
-        handleImplicitAccept,
         canRegenerate,
         rowMeta,
         error,

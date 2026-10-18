@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 import { isOperationFeatureEnabled } from '@/shared/featureFlags'
 import { CheckCircle2, ChevronDown, Coins, Crown, Lock, Rocket, Sparkles, WalletCards } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -39,6 +40,7 @@ const VISUAL_ICONS: Record<string, LucideIcon> = {
 }
 
 export function MembershipSection({ profile, onRedeemed, autoClaimEmailCreditGrants = false, billingEnabled = false }: MembershipSectionProps) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const { intlLocale } = useLanguage()
     const { setPage } = useNavigation()
@@ -78,6 +80,7 @@ export function MembershipSection({ profile, onRedeemed, autoClaimEmailCreditGra
 }
 
 function TierCard({ tier, t, locale }: { tier: MembershipTierProfileCard; t: TFunction; locale: string }) {
+    useFeatureFlags()
     const isCurrent = tier.status === 'current'
     const icon = iconFor(tier.visual.icon)
 
@@ -131,6 +134,7 @@ function TierCard({ tier, t, locale }: { tier: MembershipTierProfileCard; t: TFu
  * reserved for the current plan and arcane for AI/magic, not "locked".
  */
 function TierIcon({ icon, current }: { icon: LucideIcon; current: boolean }) {
+    useFeatureFlags()
     if (current) {
         return <IconTile icon={icon} tone="ember" size="sm" />
     }
@@ -156,6 +160,7 @@ function AllowanceStat({
     t: TFunction
     locale: string
 }) {
+    useFeatureFlags()
     return (
         <div className="flex flex-col gap-1">
             <div className="flex items-baseline gap-1.5">
@@ -177,6 +182,7 @@ function AllowanceStat({
 }
 
 function PaygCard({ card, t, locale }: { card: MembershipPaygProfileCard; t: TFunction; locale: string }) {
+    useFeatureFlags()
     return (
         <section className="border-t border-line-faint py-6">
             <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,250px),1fr))] gap-6">
@@ -243,6 +249,7 @@ function LimitRows({
     t: TFunction
     locale: string
 }) {
+    useFeatureFlags()
     const entries = orderedLimitEntries(limits)
 
     return (

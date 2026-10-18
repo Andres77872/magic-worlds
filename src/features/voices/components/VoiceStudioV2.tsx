@@ -27,14 +27,11 @@ import { normalizeSettingsForWrite } from '../recipeV2'
 import { voiceWriteErrorMessage } from '../voiceWriteError'
 import { usePreviewLanguage, usePreviewTextSets } from '../usePreviewTexts'
 import { clipTranscript, useRecipePreview } from '../useRecipePreview'
-import { usePreviewCreditConfirm } from '../usePreviewCreditConfirm'
-import { NarrationTierSetting } from './NarrationTierSetting'
 import { PresetCardV2 } from './PresetCardV2'
 import { PresetEditorV2, type PresetEditorV2Toast } from './PresetEditorV2'
 import { PreviewAllowanceHint, PreviewProblemNotice } from './PreviewAllowanceHint'
 import { PreviewCreditDialog } from './PreviewCreditDialog'
 import { RecipePreviewPlayer } from './RecipePreviewPlayer'
-import { defaultPreviewTier } from './TierToggle'
 import type { VoiceReplacement } from './VoiceOwnerPrompts'
 import { VoiceUsageStrip } from './VoiceUsageStrip'
 import { CatalogVoicePicker } from './CatalogVoicePicker'
@@ -93,8 +90,8 @@ export function VoiceStudioV2({ capabilities, onRetryCapabilities, initialTab = 
 
     const voiceKeys = useMemo(() => presetVoiceKeys(rows), [rows])
     const lookup = useCatalogLookup(voiceKeys, isAuthenticated)
-    const recipePreview = useRecipePreview({ enabled: isAuthenticated })
-    const credit = usePreviewCreditConfirm(userHash)
+    const recipePreview = useRecipePreview({ enabled: isAuthenticated, userHash })
+    const credit = recipePreview.credit
     const appLanguage = usePreviewLanguage()
     // The editor's default (05 §5.5, D17): language_code, then primary language, then the preferred one.
     const languageOf = useCallback((row: VoicePreset) => studioPreviewLanguage(row.voice_key ? lookup.get(row.voice_key) : null, {
@@ -103,10 +100,10 @@ export function VoiceStudioV2({ capabilities, onRetryCapabilities, initialTab = 
         fallback: appLanguage,
     }), [appLanguage, lookup, preferred.language])
     const previewTexts = usePreviewTextSets(rows.map(languageOf), isAuthenticated)
-    const cardTier = defaultPreviewTier(capabilities)
+    const cardTier = 'standard' as const
     /** The BFF answers this card's preview with the voice's own sample: an untuned recipe whose voice has one (EP-6, AC-P2). */
     const cardIsFreeSample = (row: VoicePreset) =>
-        !(row.provider === 'fish_audio' && row.performance) && isFreeSamplePreview(row.settings, row.emotion, lookup.get(row.voice_key), previewTexts(languageOf(row)).language, cardTier)
+        !(row.provider === 'fish_audio' && (row.performance || row.model_id === 's2.1-pro')) && isFreeSamplePreview(row.settings, row.emotion, lookup.get(row.voice_key), previewTexts(languageOf(row)).language, cardTier)
     /**
      * A card preview past the free renders costs 1 credit unless the BFF serves the
      * voice's own sample (AC-P5). Until the catalog item is in, it counts as paid.
@@ -152,6 +149,7 @@ export function VoiceStudioV2({ capabilities, onRetryCapabilities, initialTab = 
         setSwitchingId(row.preset_id)
         try {
             await apiService.updateVoicePreset(row.preset_id, {
+                ...(row.provider === 'fish_audio' ? { schema_version: 3, provider: 'fish_audio', model_id: row.model_id ?? 'drama-3', performance: row.performance ?? null } : {}),
                 name: row.name,
                 description: row.description ?? null,
                 voice_key: replacement.voice_key,
@@ -174,6 +172,7 @@ export function VoiceStudioV2({ capabilities, onRetryCapabilities, initialTab = 
             return
         }
         const input = {
+            ...(row.provider === 'fish_audio' ? { modelId: row.model_id ?? 'drama-3' } : {}),
             voiceKey: row.voice_key,
             ...(row.provider === 'fish_audio' && row.performance ? { performance: row.performance } : {}),
             provider: row.provider,
@@ -184,12 +183,9 @@ export function VoiceStudioV2({ capabilities, onRetryCapabilities, initialTab = 
             tier: cardTier,
             key: row.preset_id,
         }
-        // The first paid render of the session is confirmed once (05 §6.3).
-        credit.guard(cardCostsCredit(row), () => {
-            previewIdRef.current = row.preset_id
-            setPreviewId(row.preset_id)
-            void recipePreview.run(input)
-        })
+        previewIdRef.current = row.preset_id
+        setPreviewId(row.preset_id)
+        void recipePreview.run(input)
     }
 
     const closeEditor = () => {
@@ -243,8 +239,7 @@ export function VoiceStudioV2({ capabilities, onRetryCapabilities, initialTab = 
                 onSwitchVoice={!row.is_global ? (replacement) => void switchVoice(row, replacement) : undefined}
                 onChooseVoice={mode === 'edit' ? () => openEditorFor(row, true) : undefined}
                 previewing={previewing}
-                // The hard limit stops renders; the free sample still plays (the editor's rule, AC-P2).
-                previewDisabled={recipePreview.limitReached && !cardIsFreeSample(row)}
+                // Only the server knows whether this is a free cache hit, including at the hard limit.
                 previewCostsCredit={cardCostsCredit(row)}
                 // Before it plays: once played, the sample's player says it.
                 previewFree={!clip && cardIsFreeSample(row)}
@@ -384,13 +379,6 @@ export function VoiceStudioV2({ capabilities, onRetryCapabilities, initialTab = 
                     </div>
 
                     <aside className="flex flex-col gap-4 lg:sticky lg:top-6" aria-label={t('voices.studio.v2.accountSettings')}>
-                        <section className="flex flex-col gap-3 rounded-lg border border-line-faint bg-surface-raised p-4" aria-labelledby="voice-studio-quality">
-                            <div className="flex flex-col gap-1">
-                                <h2 id="voice-studio-quality" className="font-ui text-label font-semibold text-parchment-100">{t('voices.studio.v2.elevenLabsQuality')}</h2>
-                                <p className="font-ui text-caption text-fg-muted">{t('voices.studio.v2.fishQuality')}</p>
-                            </div>
-                            <NarrationTierSetting />
-                        </section>
                         {hasAllowance && (
                             <section className="flex flex-col gap-2 rounded-lg border border-line-faint bg-surface-raised p-4" aria-labelledby="voice-studio-allowance">
                                 <h2 id="voice-studio-allowance" className="font-ui text-label font-semibold text-parchment-100">{t('voices.studio.v2.allowanceTitle')}</h2>

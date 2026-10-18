@@ -1,9 +1,9 @@
 import type { ChatTtsAsset, ChatTtsError, ChatTtsSegmentClip, ChatTtsSegmentStatus, ChatSocketServerMessage, TtsLifecycleStatus, TurnEntry } from '../../../shared'
 import { clipGainDb } from '@/shared/voice/clipVolume'
-import { isSafeAssetUrl } from './chatImageTurnState'
+import { isSafeAssetUrl } from './chatImageStore'
 
 /**
- * Per-turn TTS narration state, the audio counterpart of `chatImageTurnState`.
+ * Per-turn TTS narration state, the audio counterpart of the chat image store (`chatImageStore`).
  * Kept as a separate track (own finder keyed on `ttsJobId`, own terminal-status
  * sets) so a turn that has both an image job and a TTS job can't cross-match.
  */
@@ -239,6 +239,7 @@ function sanitizeClip(clip: ChatTtsSegmentClip): ChatTtsSegmentClip {
   const assets = safeAssets(clip.assets ?? [])
   // Hydrated clips are cast from stored metadata: re-validate the voice fields.
   const voice = clipVoiceFields(clip)
+  const rawUrl = clip.url ?? (typeof clip.audio_url === 'string' ? clip.audio_url : undefined)
   return {
     ...clip,
     tier: voice.tier,
@@ -247,7 +248,7 @@ function sanitizeClip(clip: ChatTtsSegmentClip): ChatTtsSegmentClip {
     voice_name: voice.voice_name,
     original_voice_name: voice.original_voice_name,
     assets: assets.length > 0 ? assets : undefined,
-    url: assets[0]?.url ?? (clip.url && isSafeTtsAudioUrl(clip.url) ? clip.url : undefined),
+    url: assets[0]?.url ?? (rawUrl && isSafeTtsAudioUrl(rawUrl) ? rawUrl : undefined),
     error: clip.error ? safeError(clip.error) : undefined,
   }
 }

@@ -8,8 +8,6 @@
 
 import type {
     StoredConversationMessage,
-    ChatImageAsset,
-    ChatImageError,
     ChatResponseSegment,
     ChatTtsSegmentClip,
     ForwardOption,
@@ -17,6 +15,7 @@ import type {
 } from '../../shared'
 import { finalizeResponseSegments, streamingXmlToPlainText, streamingXmlToSegments } from '@/utils/chatSegments'
 import type { ApiService } from '../../infrastructure/api'
+import { legacyGenerationFromMetadata, parseGenerations } from './utils/chatImageStore'
 
 export type SessionKind = 'adventure' | 'character'
 
@@ -84,13 +83,19 @@ export function storedMessagesToTurns(messages: StoredConversationMessage[]): Tu
         .map((message) => {
             const metadata = record(message.metadata)
             const turnMetadata = record(metadata.turn_metadata)
-            const imageJob = record(metadata.image_job)
-            const imageAssets = Array.isArray(metadata.image_assets)
-                ? metadata.image_assets as ChatImageAsset[]
-                : undefined
+            const voiceMeta = record(metadata.voice)
+            const callSessionId = typeof message.call?.voice_session_id === 'string' && message.call.voice_session_id.trim()
+                ? message.call.voice_session_id.trim()
+                : typeof voiceMeta.voice_session_id === 'string' && voiceMeta.voice_session_id.trim()
+                    ? voiceMeta.voice_session_id.trim()
+                    : undefined
             const ttsSegmentsValue = record(metadata.tts_segments)
             const ttsSegments = Object.values(ttsSegmentsValue)
                 .filter((value): value is ChatTtsSegmentClip => Boolean(value && typeof value === 'object'))
+                .map((clip) => {
+                    const url = clip.url ?? (typeof clip.audio_url === 'string' && clip.audio_url ? clip.audio_url : undefined)
+                    return url && !clip.url ? { ...clip, url } : clip
+                })
                 .sort((left, right) => left.segment_index - right.segment_index)
             const segments = Array.isArray(metadata.response_segments)
                 ? metadata.response_segments as ChatResponseSegment[]
@@ -104,6 +109,13 @@ export function storedMessagesToTurns(messages: StoredConversationMessage[]): Tu
             const imagePrompt = typeof turnMetadata.imagePrompt === 'string'
                 ? turnMetadata.imagePrompt
                 : undefined
+
+            // Newer servers list every image job of the reply; older rows keep one slot in the metadata.
+            // An empty list (none yet, or the server could not read them) falls back to that slot too.
+            const listed = message.role === 'assistant' ? parseGenerations(message.image_generations, message.message_id) : null
+            const imageGenerations = message.role !== 'assistant' ? null
+                : listed?.length ? listed
+                    : [legacyGenerationFromMetadata(metadata, message.message_id)].filter((generation) => generation !== null)
 
             const interrupted = message.role === 'assistant' && (message.status === 'interrupted' || message.status === 'failed')
             const partialSegments = interrupted && !segments?.length ? finalizeResponseSegments(streamingXmlToSegments(message.content).segments) : undefined
@@ -119,15 +131,9 @@ export function storedMessagesToTurns(messages: StoredConversationMessage[]): Tu
                 ...(segments?.length ? { segments } : partialSegments?.length ? { segments: partialSegments } : {}),
                 ...(forwardOptions?.length ? { forwardOptions } : {}),
                 ...(imagePrompt ? { imagePrompt } : {}),
-                ...(typeof imageJob.job_id === 'string' ? { imageJobId: imageJob.job_id } : {}),
-                ...(typeof metadata.image_job_status === 'string' ? { imageStatus: metadata.image_job_status as TurnEntry['imageStatus'] } : {}),
-                ...(typeof imageJob.status_url === 'string' ? { imageStatusUrl: imageJob.status_url } : {}),
-                ...(typeof imageJob.result_url === 'string' ? { imageResultUrl: imageJob.result_url } : {}),
-                ...(imageAssets?.length ? { imageAssets, imageUrl: imageAssets[0]?.url } : {}),
-                ...(metadata.image_job_error && typeof metadata.image_job_error === 'object'
-                    ? { imageError: metadata.image_job_error as ChatImageError }
-                    : {}),
+                ...(imageGenerations?.length ? { imageGenerations } : {}),
                 ...(ttsSegments.length ? { ttsSegments } : {}),
+                ...(callSessionId ? { call: { voiceSessionId: callSessionId } } : {}),
             } satisfies TurnEntry & { forwardOptions?: ForwardOption[] }
         })
 }
@@ -223,7 +229,7 @@ export function characterChatConfig({ workspaceId, api }: ChatSessionScope, char
             waitingHint: 'Click to generate a reply (optional)',
             placeholder: opts?.group ? 'Message the group…' : `Message ${name}…`,
             loadingHint: opts?.group ? 'The group is responding…' : `${name} is typing…`,
-            resetConfirm: `Clear your chat with ${name}? All messages will be deleted.`,
+            resetConfirm: `Clear your chat with ${name}? All messages, saved call transcripts, and call audio will be deleted.`,
         },
     }
 }

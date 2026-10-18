@@ -1,3 +1,7 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import type { ComponentProps } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -126,17 +130,17 @@ function stubRect(element: Element) {
 describe('Sidebar API status', () => {
     beforeEach(() => {
         vi.clearAllMocks()
-        vi.stubEnv('VITE_FEATURE_COMMUNITY_CARDS_ENABLED', 'true')
-        vi.stubEnv('VITE_FEATURE_LOREBOOKS_ENABLED', 'true')
-        vi.stubEnv('VITE_FEATURE_LOREBOOK_RESOURCES_ENABLED', 'true')
-        vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'true')
-        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
-        vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'true')
-        vi.stubEnv('VITE_FEATURE_GROUP_CHATS_ENABLED', 'true')
-        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'true')
+        setTestFeatureFlags({ communityCards: true })
+        setTestFeatureFlags({ lorebooks: true })
+        setTestFeatureFlags({ lorebookResources: true })
+        setTestFeatureFlags({ voices: true })
+        setTestFeatureFlags({ calls: true })
+        setTestFeatureFlags({ novels: true })
+        setTestFeatureFlags({ groupChats: true })
+        setTestFeatureFlags({ adventures: true })
         // These cases cover the pre-Workspace navigation; a local .env may turn the flag on
         // (the workspace navigation is covered by Sidebar.workspace.test.tsx).
-        vi.stubEnv('VITE_FEATURE_WORKSPACES_ENABLED', 'false')
+
         window.localStorage.removeItem('magic-worlds-sidebar-collapsed')
         window.localStorage.removeItem('magic-worlds-sidebar-groups')
     })
@@ -177,7 +181,7 @@ describe('Sidebar API status', () => {
         expect(screen.getByRole('button', { name: 'Chatroom' })).toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Started adventures' })).toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Novels' })).toBeInTheDocument()
-        expect(screen.getByRole('button', { name: 'Items' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Library' })).toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Tasks' })).toBeInTheDocument()
 
         fireEvent.click(screen.getByRole('button', { name: 'Account menu' }))
@@ -208,10 +212,10 @@ describe('Sidebar API status', () => {
         ).toHaveAttribute('aria-current', 'page')
     })
 
-    it('opens the item gallery from the library rail', async () => {
+    it('opens the global Library from the navigation rail', async () => {
         renderSidebar({ ...baseAuth, isAuthenticated: true, user: mockUser })
 
-        const items = screen.getByRole('button', { name: 'Items' })
+        const items = screen.getByRole('button', { name: 'Library' })
         fireEvent.click(items)
 
         expect(items).toHaveAttribute('aria-current', 'page')
@@ -221,7 +225,7 @@ describe('Sidebar API status', () => {
         const openLoginModal = vi.fn()
         renderSidebar({ ...baseAuth, openLoginModal })
 
-        const items = screen.getByRole('button', { name: 'Items' })
+        const items = screen.getByRole('button', { name: 'Library' })
         fireEvent.click(items)
 
         expect(items).toHaveAttribute('aria-current', 'page')
@@ -254,7 +258,7 @@ describe('Sidebar API status', () => {
     it('toggles a navigation group from its header', async () => {
         renderSidebar({ ...baseAuth, isAuthenticated: true, user: mockUser })
 
-        const libraryHeader = await screen.findByRole('button', { name: 'Library' })
+        const libraryHeader = await screen.findByRole('button', { name: 'Assets' })
         expect(libraryHeader).toHaveAttribute('aria-expanded', 'true')
 
         fireEvent.click(libraryHeader)
@@ -283,12 +287,12 @@ describe('Sidebar API status', () => {
     })
 
     it('places the assistant next to Explore and Community and opens it', async () => {
-        vi.stubEnv('VITE_FEATURE_APP_ASSISTANT_ENABLED', 'true')
+        setTestFeatureFlags({ appAssistant: true })
         renderSidebar({ ...baseAuth, isAuthenticated: true, user: mockUser })
 
         const nav = screen.getByRole('navigation', { name: 'Primary' })
-        const primary = within(nav).getAllByRole('button').slice(0, 3).map((button) => button.getAttribute('aria-label'))
-        expect(primary).toEqual(['Explore', 'Community', 'Assistant'])
+        const primary = within(nav).getAllByRole('button').slice(0, 4).map((button) => button.getAttribute('aria-label'))
+        expect(primary).toEqual(['Explore', 'Library', 'Community', 'Assistant'])
 
         const assistant = screen.getByRole('button', { name: 'Assistant' })
         fireEvent.click(assistant)
@@ -297,7 +301,7 @@ describe('Sidebar API status', () => {
     })
 
     it('hides the assistant when its feature is off', async () => {
-        vi.stubEnv('VITE_FEATURE_APP_ASSISTANT_ENABLED', 'false')
+        setTestFeatureFlags({ appAssistant: false })
         renderSidebar({ ...baseAuth, isAuthenticated: true, user: mockUser })
 
         expect(await screen.findByRole('button', { name: 'Community' })).toBeInTheDocument()
@@ -305,7 +309,7 @@ describe('Sidebar API status', () => {
     })
 
     it('hides both adventure nav items when the adventures feature is off', async () => {
-        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'false')
+        setTestFeatureFlags({ adventures: false })
         renderSidebar({ ...baseAuth, isAuthenticated: true, user: mockUser })
 
         expect(await screen.findByRole('button', { name: 'Chatroom' })).toBeInTheDocument()
@@ -313,7 +317,7 @@ describe('Sidebar API status', () => {
         expect(screen.queryByRole('button', { name: 'Adventures' })).not.toBeInTheDocument()
         // The groups themselves survive via their other items.
         expect(document.querySelector('#sidebar-group-activity')).toBeInTheDocument()
-        expect(screen.getByRole('button', { name: 'Items' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Library' })).toBeInTheDocument()
     })
 
     it('marks docs as the current view after selecting it from the account menu', async () => {

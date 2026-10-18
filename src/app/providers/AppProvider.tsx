@@ -7,6 +7,7 @@ import { ApiStatusProvider } from './ApiStatusProvider'
 import { AudioPlaylistProvider } from './AudioPlaylistProvider'
 import { FloatingWindowsProvider } from './FloatingWindowsProvider'
 import { AuthProvider } from './AuthProvider'
+import { FeatureFlagProvider } from './FeatureFlagProvider'
 import { BackgroundTasksProvider } from './BackgroundTasksProvider'
 import { CookieConsentProvider } from './CookieConsentProvider'
 import { DataProvider } from './DataProvider'
@@ -17,6 +18,7 @@ import { LlmSessionProvider } from '@/features/llmProfiles/LlmSessionProvider'
 import { CreationOriginProvider } from '@/features/library/creationOrigin'
 import { OriginNavigationProvider } from '@/features/workspaces/originNavigation'
 import { AttestationProvider } from '@/features/legal/attestation/AttestationProvider'
+import { PreviewAllowanceProvider } from '@/features/voices/PreviewAllowanceProvider'
 
 interface AppProviderProps {
     children: ReactNode
@@ -26,6 +28,7 @@ export function AppProvider({ children }: AppProviderProps) {
     return (
         <ApiStatusProvider>
             <AuthProvider>
+                <FeatureFlagProvider>
                 <LlmSessionProvider>
                 <LanguageProvider>
                     {/* Workspace R1: handshake + committed workspace; private loaders wait for it. */}
@@ -40,7 +43,7 @@ export function AppProvider({ children }: AppProviderProps) {
                                         <FloatingWindowsProvider>
                                             {/* D26: 18+ / Terms attestation gate and prompt. */}
                                             <AttestationProvider>
-                                                {children}
+                                                <PreviewAllowanceProvider>{children}</PreviewAllowanceProvider>
                                             </AttestationProvider>
                                         </FloatingWindowsProvider>
                                     </AudioPlaylistProvider>
@@ -53,6 +56,7 @@ export function AppProvider({ children }: AppProviderProps) {
                     </WorkspaceProvider>
                 </LanguageProvider>
                 </LlmSessionProvider>
+                </FeatureFlagProvider>
             </AuthProvider>
         </ApiStatusProvider>
     )

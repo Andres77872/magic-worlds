@@ -1,3 +1,4 @@
+import { novel, storyChapter, storyScene } from '@/test/fixtures/story'
 /**
  * Workspace R1 (document 08): a story whose workspace is archived opens as a
  * reader. Real studio tree — hooks, rail, header, status strip, codex panel and
@@ -10,13 +11,11 @@ import { EditorView } from '@tiptap/pm/view'
 
 const data = vi.hoisted(() => ({
     activeStory: null as unknown,
-    createStoryChapter: vi.fn(),
-    deleteStoryChapter: vi.fn(),
+    changeStoryStructure: vi.fn(),
+    updateStoryScene: vi.fn(),
     updateStory: vi.fn(),
     updateStoryChapter: vi.fn(),
-    addStoryCardRefs: vi.fn(),
-    updateStoryCardRef: vi.fn(),
-    deleteStoryCardRef: vi.fn(),
+    changeStoryCodex: vi.fn(),
     generateStoryCandidate: vi.fn(),
     acceptStoryGeneration: vi.fn(),
     discardStoryGeneration: vi.fn(),
@@ -56,59 +55,20 @@ const ARCHIVED = 'This workspace is archived. Restore it to create or edit conte
 const ARCHIVED_AT = '2026-10-10T00:00:00Z'
 
 function chapter(id: string, title: string, body: string, order: number): StoryChapter {
-    return {
-        id,
-        storyId: 'story-1',
-        title,
-        body,
-        order,
-        status: 'draft',
-        wordGoal: null,
-        povCardId: null,
-        locationCardId: null,
-        activeCardRefs: [],
-        generationHistory: [],
-    }
+    return storyChapter({id,title,order,scenes:[storyScene({id:id+'-scene',chapterId:id,title:'Scene '+(order+1),body})]})
 }
-
 function story(workspaceId: string): Story {
-    return {
-        id: 'story-1',
-        title: 'Glass War',
-        description: null,
-        source: { kind: 'blank', id: null, title: null },
-        chapters: [chapter('ch-1', 'The Gate', 'The gate held.', 0), chapter('ch-2', 'The Wall', 'The wall fell.', 1)],
-        activeCardRefs: [{
-            id: 'ref-1',
-            storyId: 'story-1',
-            chapterId: null,
-            kind: 'character',
-            cardId: 'card-1',
-            source: 'manual',
-            enabled: true,
-            precedence: 0,
-            snapshot: { id: 'card-1', name: 'Aria', description: 'A ranger.', story_card_kind: 'character' },
-        }],
-        activeContext: {
-            includeSelectedCards: true,
-            includeLorebooks: true,
-            includeRecentChapters: 2,
-            tokenBudget: 6000,
-            styleSource: 'whole_story',
-            customStyleInstruction: null,
-        },
-        organization: { workspace_id: workspaceId },
-    }
+    return novel({title:'Glass War',chapters:[chapter('ch-1','The Gate','The gate held.',0),chapter('ch-2','The Wall','The wall fell.',1)],
+        activeCardRefs:[{id:'ref-1',storyId:'story-1',chapterId:null,sceneId:null,removedAt:null,kind:'character',cardId:'card-1',source:'manual',enabled:true,precedence:0,
+            snapshot:{id:'card-1',name:'Aria',description:'A ranger.',story_card_kind:'character'}}],organization:{workspace_id:workspaceId}})
 }
 
 const WRITES = [
-    'createStoryChapter',
-    'deleteStoryChapter',
+    'changeStoryStructure',
+    'updateStoryScene',
     'updateStory',
     'updateStoryChapter',
-    'addStoryCardRefs',
-    'updateStoryCardRef',
-    'deleteStoryCardRef',
+    'changeStoryCodex',
     'generateStoryCandidate',
     'acceptStoryGeneration',
     'discardStoryGeneration',
@@ -160,15 +120,14 @@ describe('NovelStudio in an archived workspace', () => {
         render(inWorkspace(<NovelStudio />))
 
         // The manuscript is not editable.
-        const prose = await screen.findByLabelText('Chapter body')
+        const prose = await screen.findByLabelText('Scene manuscript')
         expect(prose).toHaveAttribute('contenteditable', 'false')
-        expect(screen.getByTestId('novel-chapter-title')).toHaveAttribute('readonly')
-        expect(screen.getByTestId('novel-title')).toBeDisabled()
+        expect(screen.getByTestId('novel-scene-title')).toHaveAttribute('readonly')
+        expect(screen.getByTestId('novel-title')).toHaveAttribute('aria-haspopup','dialog')
 
         // Chapters: no add, no delete.
         expect(screen.getByTestId('novel-chapter-add')).toBeDisabled()
-        expect(screen.getByRole('button', { name: 'Delete The Gate' })).toBeDisabled()
-        expect(screen.getByRole('button', { name: 'Delete The Wall' })).toBeDisabled()
+        expect(screen.queryByRole('button', {name:'Move to Trash'})).not.toBeInTheDocument()
 
         // Generation: the beat shortcut opens nothing and the model picker is off.
         fireEvent.keyDown(screen.getByTestId('novel-editor'), { key: 'Enter', ctrlKey: true })
@@ -191,20 +150,20 @@ describe('NovelStudio in an archived workspace', () => {
 
         await act(async () => {})
         expectNoWrites()
-        expect(window.localStorage.getItem('magic_worlds:novel:wordGoal:story-1:ch-1')).toBe('1800')
+        expect(window.localStorage.getItem('magic_worlds:novel:wordGoal:story-1:ch-1')).toBeNull()
     })
 
     it('still navigates chapters and leaves without holding the navigation', async () => {
         workspace = createWorkspaceTestState({ selectedWorkspaceId: OTHER_WORKSPACE_ID, workspaces: workspaces(true) })
         data.activeStory = story(OTHER_WORKSPACE_ID)
         render(inWorkspace(<NovelStudio />))
-        await screen.findByLabelText('Chapter body')
+        await screen.findByLabelText('Scene manuscript')
 
         fireEvent.click(screen.getAllByTestId('novel-chapter-row')[1])
 
         await waitFor(() => expect(screen.getByTestId('novel-header-chapter')).toHaveTextContent('The Wall'))
-        expect(screen.getByLabelText('Chapter body')).toHaveTextContent('The wall fell.')
-        expect(screen.getByLabelText('Chapter body')).toHaveAttribute('contenteditable', 'false')
+        expect(screen.getByLabelText('Scene manuscript')).toHaveTextContent('The wall fell.')
+        expect(screen.getByLabelText('Scene manuscript')).toHaveAttribute('contenteditable', 'false')
 
         // An app navigation is let straight through: there is nothing to save.
         const [interceptor] = navigation.interceptors
@@ -219,7 +178,7 @@ describe('NovelStudio in an archived workspace', () => {
         workspace = createWorkspaceTestState({ selectedWorkspaceId: OTHER_WORKSPACE_ID, workspaces: workspaces(true) })
         data.activeStory = story(OTHER_WORKSPACE_ID)
         render(inWorkspace(<NovelStudio />))
-        await screen.findByLabelText('Chapter body')
+        await screen.findByLabelText('Scene manuscript')
 
         fireEvent.click(screen.getByTestId('novel-header-more'))
         fireEvent.click(screen.getByRole('menuitem', { name: /Find/ }))
@@ -238,7 +197,7 @@ describe('NovelStudio in an archived workspace', () => {
         render(inWorkspace(<NovelStudio />))
 
         expect(await screen.findByTestId('novel-archived-notice')).toHaveTextContent(ARCHIVED)
-        expect(screen.getByLabelText('Chapter body')).toHaveAttribute('contenteditable', 'false')
+        expect(screen.getByLabelText('Scene manuscript')).toHaveAttribute('contenteditable', 'false')
     })
 
     it('stays a writing room while the workspace is active', async () => {
@@ -246,13 +205,13 @@ describe('NovelStudio in an archived workspace', () => {
         data.activeStory = story(OTHER_WORKSPACE_ID)
         render(inWorkspace(<NovelStudio />))
 
-        expect(await screen.findByLabelText('Chapter body')).toHaveAttribute('contenteditable', 'true')
+        expect(await screen.findByLabelText('Scene manuscript')).toHaveAttribute('contenteditable', 'true')
         expect(screen.getByTestId('novel-chapter-add')).toBeEnabled()
         expect(screen.getByTestId('codex-add')).toBeEnabled()
         expect(screen.queryByTestId('novel-archived-notice')).not.toBeInTheDocument()
 
-        data.createStoryChapter.mockResolvedValue(chapter('ch-3', 'Chapter 3', '', 2))
+        data.changeStoryStructure.mockResolvedValue({structureRevision:2,selectedId:'ch-3',story:{...story(TEST_WORKSPACE_ID),chapters:[chapter('ch-3','Chapter 3','',2)]}})
         fireEvent.click(screen.getByTestId('novel-chapter-add'))
-        await waitFor(() => expect(data.createStoryChapter).toHaveBeenCalledTimes(1))
+        await waitFor(() => expect(data.changeStoryStructure).toHaveBeenCalledTimes(1))
     })
 })

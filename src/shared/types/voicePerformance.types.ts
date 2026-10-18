@@ -45,7 +45,9 @@ export interface VoicePerformanceCapabilities {
     credit_cost_after_free: number
 }
 export interface AuthoredVoicePreview {
+    max_credit_cost?: 0 | 1
     voice_key: string
+    model_id?: import('./voicePreset.types').FishSpeechModel
     text: string
     language: 'en' | 'es'
     kind: 'narration' | 'dialogue' | 'thought'

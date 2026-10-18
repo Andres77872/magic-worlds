@@ -40,7 +40,7 @@ const GROUPS: { key: Exclude<FeatureGroupKey, 'other'>; features: LlmFeature[] }
     { key: 'roleplay', features: ['chat_adventure', 'chat_character', 'chat_group'] },
     { key: 'voice', features: ['callbot', 'moderation'] },
     { key: 'creation', features: ['card_generation', 'card_assistant', 'lorebook_assistant', 'lorebook_extraction'] },
-    { key: 'writing', features: ['novel'] },
+    { key: 'writing', features: ['novel','novel_assistant'] },
     { key: 'media', features: ['image_prompt', 'theme_song_writer'] },
 ]
 

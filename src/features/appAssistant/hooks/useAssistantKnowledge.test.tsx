@@ -1,3 +1,4 @@
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import type { ReactNode } from 'react'
 import { renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -28,8 +29,8 @@ const wrapper = ({ children }: { children: ReactNode }) => <WorkspaceTestProvide
 
 describe('useAssistantKnowledge (Workspace R1)', () => {
     beforeEach(() => {
-        vi.stubEnv('VITE_FEATURE_LOREBOOKS_ENABLED', 'true')
-        vi.stubEnv('VITE_FEATURE_LOREBOOK_RESOURCES_ENABLED', 'true')
+        setTestFeatureFlags({ lorebooks: true })
+        setTestFeatureFlags({ lorebookResources: true })
         api.getLorebookResources.mockResolvedValue([resource('res-a')])
         workspace = createWorkspaceTestState({ api })
     })

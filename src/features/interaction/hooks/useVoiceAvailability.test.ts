@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
 import { renderHook, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { FAIL_OPEN_VOICE_STATUS } from '@/shared/voice'

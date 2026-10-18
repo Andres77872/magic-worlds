@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { i18n } from '@/app/i18n'
-import { callErrorCopy, endReasonCopy, isTerminalVoiceCallError, isWorkspaceCallError } from './voiceCallLabels'
+import { callErrorCopy, endReasonCopy, isSetupCallError, isTerminalVoiceCallError, isWorkspaceCallError } from './voiceCallLabels'
 
 const t = i18n.getFixedT('en')
 
@@ -29,7 +29,7 @@ describe('voiceCallLabels (voice error codes, 09 §4.6)', () => {
         const unavailable = callErrorCopy(t, { category: 'tts_unavailable', code: 'voice_unavailable', message: 'raw', fatal: false })
         const moderation = callErrorCopy(t, { category: 'tts_unavailable', code: 'moderation_unavailable', message: 'raw', fatal: false })
 
-        expect(unavailable).toBe('This character’s voice isn’t available right now. Try calling again in a moment.')
+        expect(unavailable).toBe('This voice can’t take calls right now. Choose another voice in call settings and call again.')
         expect(moderation).toBe('Voice is briefly unavailable. Try again in a moment.')
         expect(unavailable).not.toBe(fallback)
         expect(moderation).not.toBe(fallback)
@@ -37,9 +37,20 @@ describe('voiceCallLabels (voice error codes, 09 §4.6)', () => {
 
     it('localizes both codes in Spanish', () => {
         expect(callErrorCopy(es, { category: 'tts_unavailable', code: 'voice_unavailable', message: 'raw', fatal: false }))
-            .toBe('La voz de este personaje no está disponible ahora mismo. Vuelve a llamar en un momento.')
+            .toBe('Esta voz no puede usarse en llamadas ahora mismo. Elige otra voz en los ajustes de la llamada y vuelve a llamar.')
         expect(callErrorCopy(es, { category: 'tts_unavailable', code: 'moderation_unavailable', message: 'raw', fatal: false }))
             .toBe('La voz no está disponible por un momento. Inténtalo de nuevo en un momento.')
+    })
+})
+
+describe('voiceCallLabels (call setup refusals)', () => {
+    it('sends an unusable voice or a missing conversation model to the call settings', () => {
+        expect(callErrorCopy(t, { category: 'provider_submission', code: 'call_model_unavailable', message: 'raw', fatal: true }))
+            .toBe('No conversation model is set up for calls yet. An admin can choose one in call settings.')
+        expect(isSetupCallError('call_model_unavailable')).toBe(true)
+        expect(isSetupCallError('voice_unavailable')).toBe(true)
+        expect(isSetupCallError('provider_unavailable')).toBe(false)
+        expect(isSetupCallError(undefined)).toBe(false)
     })
 })
 

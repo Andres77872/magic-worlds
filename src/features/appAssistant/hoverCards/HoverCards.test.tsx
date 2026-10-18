@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
 import type { ReactElement } from 'react'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'

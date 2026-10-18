@@ -12,8 +12,38 @@ import type { ChatResponseSegment, TurnEntry } from '@/shared'
 import { stripSpeechMarkupV1 } from '@/shared/voice/speechMarkup'
 
 /** Whether a turn is a reply of a voice call. */
-export function isCallReply(turn: Pick<TurnEntry, 'type' | 'metadata'>): boolean {
+export function isCallReply(turn: Pick<TurnEntry, 'type' | 'metadata'> | null | undefined): boolean {
+    if (!turn) return false
     return turn.type === 'ai' && turn.metadata?.conversation_mode === 'voice_call'
+}
+
+/** Whether a user turn was spoken in a voice call. */
+export function isCallUserTurn(turn: Pick<TurnEntry, 'type' | 'metadata' | 'call'> | null | undefined): boolean {
+    if (!turn || turn.type !== 'user') return false
+    return Boolean(
+        turn.call?.voiceSessionId
+        || turn.metadata?.source === 'voice'
+        || turn.metadata?.conversation_mode === 'voice_call',
+    )
+}
+
+/** Whether a turn (user or assistant) belongs to a voice call. */
+export function isCallTurn(turn: Pick<TurnEntry, 'type' | 'metadata' | 'call'> | null | undefined): boolean {
+    return isCallReply(turn) || isCallUserTurn(turn)
+}
+
+/** Extract the owning voice_session_id for a call turn, when known. */
+export function turnVoiceSessionId(turn: Pick<TurnEntry, 'metadata' | 'call'> | null | undefined): string | undefined {
+    if (!turn) return undefined
+    if (typeof turn.call?.voiceSessionId === 'string' && turn.call.voiceSessionId.trim()) {
+        return turn.call.voiceSessionId.trim()
+    }
+    const voice = turn.metadata?.voice
+    if (voice && typeof voice === 'object' && !Array.isArray(voice)) {
+        const vsId = (voice as Record<string, unknown>).voice_session_id
+        if (typeof vsId === 'string' && vsId.trim()) return vsId.trim()
+    }
+    return undefined
 }
 
 export interface CallTurnDisplay {

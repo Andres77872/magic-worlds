@@ -139,6 +139,7 @@ export function AdminMembershipPage() {
                 </div>
                 <PlanList
                     plans={admin.plans}
+                    flags={admin.flagCatalog}
                     loading={admin.plansLoading}
                     onCreate={() => setEditor({ mode: 'create', plan: null })}
                     onEdit={(plan) => setEditor({ mode: 'edit', plan })}
@@ -187,6 +188,8 @@ export function AdminMembershipPage() {
                     plan={editor.plan}
                     plans={admin.plans}
                     operations={admin.operations}
+                    flags={admin.flagCatalog}
+                    catalogRevision={admin.catalogRevision}
                     saving={admin.savingPlan}
                     onCreate={(body) => void handleCreate(body)}
                     onUpdate={(planCode, body) => void handleUpdate(planCode, body)}

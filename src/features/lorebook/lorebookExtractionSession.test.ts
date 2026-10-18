@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import { ApiError, apiService } from '@/infrastructure/api'
 import { authSession } from '@/infrastructure/api/authSession'
@@ -40,7 +43,7 @@ describe('extraction request receipts', () => {
         expect(workspacesOf(post)).toEqual([TEST_WORKSPACE_ID, TEST_WORKSPACE_ID])
     })
     beforeEach(() => {
-        localStorage.clear(); authSession.authenticate('alice', 'token')
+        localStorage.clear(); authSession.authenticate('alice', 'token'); grantFixtureFeatures(true)
         session = createLorebookExtractionSession()
         post = vi.spyOn(apiService, 'extractLorebookResource')
         get = vi.spyOn(apiService, 'getLorebookResourceExtraction')
@@ -138,6 +141,7 @@ describe('extraction request receipts', () => {
         authSession.authenticate('bob', 'other-token')
         finish(extractionResult())
         await expect(pending).rejects.toMatchObject({ code: 'auth_epoch_changed' })
+        grantFixtureFeatures(true)
         post.mockResolvedValueOnce(extractionResult())
         await session.execute(resource, {}, null, TEST_WORKSPACE_ID)
         expect(get).not.toHaveBeenCalled(); expect(post).toHaveBeenCalledTimes(2)

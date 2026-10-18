@@ -60,6 +60,20 @@ describe('useCatalogBrowser (R1-FE-01)', () => {
         expect(query).not.toHaveProperty('works_in_calls')
     })
 
+    it('lists only call-ready voices for the call voice picker', async () => {
+        const { result } = renderHook(() => useCatalogBrowser({ worksInCalls: true }))
+        await waitFor(() => expect(result.current.items).toHaveLength(2))
+        expect(listVoiceCatalog).toHaveBeenCalledWith(expect.objectContaining({ works_in_calls: true }), null, withSignal)
+
+        // The flag stays on the next page and on every filter change.
+        act(() => result.current.loadMore())
+        await waitFor(() => expect(listVoiceCatalog).toHaveBeenCalledTimes(2))
+        expect(listVoiceCatalog).toHaveBeenLastCalledWith(expect.objectContaining({ works_in_calls: true }), 'c2', withSignal)
+        act(() => result.current.setFilters({ language: 'es' }))
+        await waitFor(() => expect(listVoiceCatalog).toHaveBeenCalledTimes(3))
+        expect(listVoiceCatalog).toHaveBeenLastCalledWith(expect.objectContaining({ language: 'es', works_in_calls: true }), null, withSignal)
+    })
+
     it('drops a late page of an older query', async () => {
         let resolveOld: (page: unknown) => void = () => undefined
         listVoiceCatalog

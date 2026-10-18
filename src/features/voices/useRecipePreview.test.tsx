@@ -79,6 +79,7 @@ describe('useRecipePreview', () => {
 
         const [body, options] = previewVoice.mock.calls[0] as [Record<string, unknown>, { signal: AbortSignal }]
         expect(body).toEqual({
+            max_credit_cost: 0,
             voice_key: VOICE_KEY,
             settings: { stability: 0.5, similarity_boost: 0.75, speed: 1.1 },
             emotion: 'happy',
@@ -369,7 +370,7 @@ describe('EP-6 body and clip', () => {
         vi.unstubAllGlobals()
     })
 
-    it('sends exactly the six EP-6 keys', async () => {
+    it('sends the EP-6 recipe and an explicit zero spending cap', async () => {
         previewVoice.mockResolvedValue({ cache_key: 'v2a', previews_left: 2, tier_used: 'expressive', source: 'render' })
         const { result } = renderHook(() => useRecipePreview())
         await act(() => result.current.run(v2))
@@ -382,8 +383,9 @@ describe('EP-6 body and clip', () => {
             text_id: 'dialogue',
             language: 'es',
             tier: 'expressive',
+            max_credit_cost: 0,
         })
-        expect(Object.keys(body).sort()).toEqual(['emotion', 'language', 'settings', 'text_id', 'tier', 'voice_key'])
+        expect(Object.keys(body).sort()).toEqual(['emotion', 'language', 'max_credit_cost', 'settings', 'text_id', 'tier', 'voice_key'])
         expect(options.signal).toBeInstanceOf(AbortSignal)
         expect(result.current.clip).toMatchObject({ key: 'user-v2', tierUsed: 'expressive', fallback: null, source: 'render' })
         expect(result.current.previewsLeft).toBe(2)

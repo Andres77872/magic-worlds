@@ -1,6 +1,9 @@
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { formatApiTime } from '@/utils/time'
+import type { ChatImageGeneration } from '../../../shared'
+import type { ChatTurnImagesView } from '../hooks/useChatImages'
 import { ChatTurn } from './ChatTurn'
 
 // Pass-through spy: ChatTurn calls formatApiTime during render, so its call
@@ -16,6 +19,10 @@ vi.mock('../../../infrastructure/api/useAuthenticatedMediaUrl', () => ({
 
 const PRIVATE_SENTINEL = 'https://fal.media.example/private.png?signature=secret'
 const originalClipboard = navigator.clipboard
+
+function imagesView(generations: ChatImageGeneration[], extra: Partial<ChatTurnImagesView> = {}): ChatTurnImagesView {
+  return { messageId: 101, generations, selectedJobId: generations[generations.length - 1]?.job_id ?? null, scheduled: false, stalled: false, ...extra }
+}
 
 const baseProps = {
   onForwardOptionClick: vi.fn(),
@@ -55,9 +62,9 @@ Choose carefully.`
             { label: 'Open the door', message: 'Open the door now.' },
             { label: 'Step back', message: 'Step away from the door.' },
           ],
-          imageStatus: 'completed',
-          imageAssets: [{ asset_id: 'asset-1', url: '/generated-images/img-1.png', content_type: 'image/png' }],
+          assistantMessageId: 101,
         }}
+        images={imagesView([{ job_id: 'img-1', status: 'completed', assets: [{ asset_id: 'asset-1', url: '/generated-images/img-1.png', content_type: 'image/png' }] }])}
       />,
     )
 
@@ -168,7 +175,8 @@ Choose carefully.`
     render(
       <ChatTurn
         {...baseProps}
-        turn={{ id: 'ai-1', type: 'ai', content: 'The gate opens.', timestamp: new Date().toISOString(), imageStatus: 'in_progress' }}
+        turn={{ id: 'ai-1', type: 'ai', content: 'The gate opens.', timestamp: new Date().toISOString(), assistantMessageId: 101 }}
+        images={imagesView([{ job_id: 'img-1', status: 'in_progress', assets: [] }])}
       />,
     )
 
@@ -185,12 +193,12 @@ Choose carefully.`
           type: 'ai',
           content: 'The gate opens.',
           timestamp: new Date().toISOString(),
-          imageStatus: 'completed',
-          imageAssets: [
-            { asset_id: 'asset-1', url: '/generated-images/img-1.png', content_type: 'image/png' },
-            { asset_id: 'asset-private', url: PRIVATE_SENTINEL, content_type: 'image/png' },
-          ],
+          assistantMessageId: 101,
         }}
+        images={imagesView([{ job_id: 'img-1', status: 'completed', assets: [
+          { asset_id: 'asset-private', url: PRIVATE_SENTINEL, content_type: 'image/png' },
+          { asset_id: 'asset-1', url: '/generated-images/img-1.png', content_type: 'image/png' },
+        ] }])}
       />,
     )
 
@@ -208,9 +216,9 @@ Choose carefully.`
           type: 'ai',
           content: 'The gate opens.',
           timestamp: new Date().toISOString(),
-          imageStatus: 'failed',
-          imageError: { category: 'provider_completion', detail: 'Image generation failed.' },
+          assistantMessageId: 101,
         }}
+        images={imagesView([{ job_id: 'img-1', status: 'failed', assets: [], error: { category: 'provider_completion', detail: 'Image generation failed.' } }])}
       />,
     )
 
@@ -243,8 +251,8 @@ describe('ChatTurn memoization', () => {
 
 
 it('hides playback for stored narration with voices disabled and calls enabled', () => {
-    vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'false')
-    vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
+    setTestFeatureFlags({ voices: false })
+    setTestFeatureFlags({ calls: true })
     try {
         render(<ChatTurn {...baseProps} turn={{ id: 'narrated', type: 'ai', content: 'A readable reply.',
             timestamp: '2026-10-15T00:00:00Z', ttsStatus: 'completed', ttsUrl: '/tts/assets/stored.mp3',

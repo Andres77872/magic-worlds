@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * Account & settings menu — the anchored popover behind the sidebar avatar.
  * Consolidates the low-frequency identity / settings / meta actions that used to
@@ -72,6 +73,7 @@ function AccountMenuRow({
     title?: string
     trailing?: ReactNode
 }) {
+    useFeatureFlags()
     const className = cx(
         'flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left font-ui text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ember-500',
         current
@@ -124,6 +126,7 @@ export function SidebarAccountMenu({
     onNavigate,
     defaultOpen = false,
 }: SidebarAccountMenuProps) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const { isAuthenticated, user, logout, openLoginModal } = useAuth()
     const { currentPage, setPage } = useNavigation()
@@ -243,6 +246,7 @@ export function SidebarAccountMenu({
                     {isAuthenticated ? (
                         <Avatar
                             name={displayedName || 'You'}
+                            src={user?.avatar_url}
                             size={28}
                             ring="ember"
                             // Active = a circular ring hugging the disc, concentric with the avatar's
@@ -273,7 +277,7 @@ export function SidebarAccountMenu({
                     {/* Identity header. */}
                     <div className="flex items-center gap-2.5 border-b border-parchment-50/10 px-3 py-2.5">
                         {isAuthenticated ? (
-                            <Avatar name={displayedName || 'You'} size={32} ring="ember" />
+                            <Avatar name={displayedName || 'You'} src={user?.avatar_url} size={32} ring="ember" />
                         ) : (
                             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-parchment-50/[.06] text-parchment-300">
                                 <Icon icon={UserRound} size={18} />

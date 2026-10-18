@@ -85,9 +85,19 @@ const CALL_ERROR_CODE_KEY: Record<string, string> = {
     // picks the copy so these never read as the generic provider failure.
     voice_unavailable: 'interaction.callError.voiceUnavailable',
     moderation_unavailable: 'interaction.callError.moderationUnavailable',
+    // A call start with no conversation model that can answer calls (callbot unassigned).
+    call_model_unavailable: 'interaction.callError.callModelUnavailable',
     // R2 safeguards (PC-1, PC-2): a self-harm safety pause, and the `all_voice` geo block.
     voice_safety_pause: 'voices.errors.safetyPause',
     voice_region_unavailable: 'voices.errors.regionUnavailable',
+}
+
+/** Refusals the call setup can fix: another voice, or a conversation model assigned. */
+const SETUP_CALL_ERROR_CODES: ReadonlySet<string> = new Set(['voice_unavailable', 'call_model_unavailable'])
+
+/** True when the call settings (voice, model) are the way past this error. */
+export function isSetupCallError(code: string | undefined | null): boolean {
+    return Boolean(code && SETUP_CALL_ERROR_CODES.has(code))
 }
 
 /** Workspace R1 codes no redial can fix from the call screen. */

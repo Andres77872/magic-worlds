@@ -19,8 +19,8 @@
  * The parent remounts this component (via `key`) whenever a different plan is
  * opened, so the initial state is derived once and never re-seeded.
  */
-import { isOperationFeatureEnabled } from '@/shared/featureFlags'
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
+import type { FeatureFlagDefinition } from '@/shared/featureFlagRuntime'
 import { useTranslation } from 'react-i18next'
 import { Layers, Loader2, Pencil } from 'lucide-react'
 import type {
@@ -43,6 +43,8 @@ interface PlanEditorDialogProps {
     plans: MembershipPlan[]
     /** Every runtime operation a plan must define a limit for, in display order. */
     operations: string[]
+    flags?: readonly FeatureFlagDefinition[]
+    catalogRevision?: string
     saving: boolean
     onCreate: (body: MembershipPlanCreateRequest) => void
     onUpdate: (planCode: string, body: MembershipPlanUpdateRequest) => void
@@ -137,6 +139,8 @@ export function PlanEditorDialog({
     plans,
     operations,
     saving,
+    flags = [],
+    catalogRevision,
     onCreate,
     onUpdate,
     onClose,
@@ -151,12 +155,29 @@ export function PlanEditorDialog({
     const [credits, setCredits] = useState(() => (editing ? String(plan.daily_credit_limit) : ''))
     const [active, setActive] = useState(() => (editing ? plan.is_active : true))
     const [preset, setPreset] = useState('')
+    const [grants, setGrants] = useState<Record<string, boolean>>(() => Object.fromEntries(
+        flags.map(flag => [flag.key, editing && plan.feature_flags?.[flag.key] === true]),
+    ))
+    const mutation = useRef({ input: '', id: '' })
+    const withMutation = <T extends MembershipPlanCreateRequest | MembershipPlanUpdateRequest>(body: T): T => {
+        const input = JSON.stringify(body)
+        if (mutation.current.input !== input) mutation.current = { input, id: crypto.randomUUID() }
+        return { ...body, mutation_id: mutation.current.id }
+    }
+    const toggleGrant = (key: string, value: boolean) => setGrants(current => {
+        const next = { ...current, [key]: value }
+        // Revoke dependent selections explicitly; never auto-grant a parent.
+        for (let pass = 0; pass < flags.length; pass++) {
+            for (const flag of flags) if (flag.requires.some(parent => next[parent] !== true)) next[flag.key] = false
+        }
+        return next
+    })
     const [limits, setLimits] = useState<LimitsDraft>(() => {
         const defaults = plans.find((candidate) => candidate.is_default) ?? plans[0]
         const draft = draftFromLimits(operations, editing ? plan.limits : defaults?.limits)
         // New plans still require deliberate values for the visible rows. Hidden
         // rows retain the server's default limits, including voice quantity caps.
-        if (!editing) for (const operation of operations.filter(isOperationFeatureEnabled)) draft[operation] = { ...EMPTY_DRAFT }
+        if (!editing) for (const operation of operations) draft[operation] = { ...EMPTY_DRAFT }
         return draft
     })
     const [withQuantity] = useState(() => serverHasQuantityLimits(editing ? [plan, ...plans] : plans))
@@ -165,8 +186,8 @@ export function PlanEditorDialog({
     const nameValid = name.trim().length > 0 && name.trim().length <= 64
     const creditsValue = Number(credits)
     const creditsValid = credits.trim() !== '' && Number.isInteger(creditsValue) && creditsValue >= 0
-    const visibleOperations = operations.filter(isOperationFeatureEnabled)
-    const parsedLimits = parseLimits(editing ? visibleOperations : operations, limits, withQuantity)
+    const visibleOperations = operations
+    const parsedLimits = parseLimits(operations, limits, withQuantity)
     const limitsValid = parsedLimits != null
     const canSubmit = codeValid && nameValid && creditsValid && limitsValid && !saving
 
@@ -178,6 +199,7 @@ export function PlanEditorDialog({
         setPreset(planCode)
         const source = plans.find((candidate) => candidate.plan_code === planCode)
         if (!source) return
+        setGrants(Object.fromEntries(flags.map(flag => [flag.key, source.feature_flags?.[flag.key] === true])))
         setLimits((current) => {
             const next = draftFromLimits(operations, source.limits)
             for (const operation of operations) {
@@ -201,25 +223,35 @@ export function PlanEditorDialog({
         event.preventDefault()
         if (!canSubmit || !parsedLimits) return
         if (!editing) {
-            onCreate({
+            const body: MembershipPlanCreateRequest = {
                 plan_code: code.trim(),
                 display_name: name.trim(),
                 daily_credit_limit: creditsValue,
                 is_active: active,
                 limits: parsedLimits,
-            })
+            }
+            if (flags.length && catalogRevision) {
+                body.feature_flags = grants
+                body.catalog_revision = catalogRevision
+            }
+            onCreate(withMutation(body))
             return
         }
         const body: MembershipPlanUpdateRequest = {}
         if (!billingSynced && name.trim() !== plan.display_name) body.display_name = name.trim()
         if (!billingSynced && creditsValue !== plan.daily_credit_limit) body.daily_credit_limit = creditsValue
         if (!isDefault && active !== plan.is_active) body.is_active = active
-        if (!limitsEqual(parsedLimits, plan.limits, visibleOperations, withQuantity)) body.limits = { ...plan.limits, ...parsedLimits }
+        if (!limitsEqual(parsedLimits, plan.limits, operations, withQuantity)) body.limits = parsedLimits
+        if (flags.some(flag => grants[flag.key] !== (plan.feature_flags?.[flag.key] === true))) {
+            body.feature_flags = grants
+            body.catalog_revision = catalogRevision
+        }
         if (Object.keys(body).length === 0) {
             onClose()
             return
         }
-        onUpdate(plan.plan_code, body)
+        if (plan.version) body.expected_version = plan.version
+        onUpdate(plan.plan_code, withMutation(body))
     }
 
     return (
@@ -297,6 +329,25 @@ export function PlanEditorDialog({
                     onChange={setActive}
                     disabled={isDefault || saving}
                 />
+
+                {flags.length > 0 && catalogRevision && (
+                    <section className="flex flex-col gap-3 border-t border-line-faint pt-4" aria-labelledby="plan-features-heading">
+                        <h4 id="plan-features-heading" className="font-ui text-label font-semibold text-parchment-50">
+                            {t('admin.membership.editor.featuresTitle')}
+                        </h4>
+                        <p className="font-ui text-caption text-parchment-300">{t('admin.membership.editor.featuresDescription')}</p>
+                        {flags.map(flag => (
+                            <SwitchRow key={flag.key} variant="plain"
+                                label={t(`featureFlags.labels.${flag.key}`, { defaultValue: flag.key })}
+                                description={flag.requires.length ? t('admin.membership.editor.featureRequires', {
+                                    features: flag.requires.map(key => t(`featureFlags.labels.${key}`, { defaultValue: key })).join(', '),
+                                }) : undefined}
+                                checked={grants[flag.key] === true}
+                                disabled={saving || flag.requires.some(parent => grants[parent] !== true)}
+                                onChange={value => toggleGrant(flag.key, value)} />
+                        ))}
+                    </section>
+                )}
 
                 <section className="flex flex-col gap-2 border-t border-line-faint pt-4" aria-labelledby="plan-limits-heading">
                     <div>

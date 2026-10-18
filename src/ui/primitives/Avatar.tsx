@@ -2,8 +2,10 @@
  * Reverie avatar — character initial on a warm gradient (or image).
  * ring: ember (you) / arcane (AI) / none. status: live / think (pulses) / none.
  */
+import { useState } from 'react'
 import { cx } from './cx'
 import { gradientFor } from './gradient'
+import { resolveAvatarUrlForSize } from '@/infrastructure/api/mediaUrl'
 import { useAuthenticatedMediaUrl } from '@/infrastructure/api/useAuthenticatedMediaUrl'
 
 export type AvatarRing = 'ember' | 'arcane' | 'none'
@@ -34,8 +36,10 @@ export function Avatar({
 }: AvatarProps) {
     const glyph = initial ?? (name.trim().charAt(0).toUpperCase() || '?')
     const dot = Math.max(10, Math.round(size * 0.28))
-    const media = useAuthenticatedMediaUrl(src, 'image/*')
-    const imageSrc = media.src
+    const sizedSrc = resolveAvatarUrlForSize(src, size)
+    const media = useAuthenticatedMediaUrl(sizedSrc, 'image/*')
+    const [failedSrc, setFailedSrc] = useState<string | undefined>(undefined)
+    const imageSrc = media.src && media.src !== failedSrc ? media.src : undefined
     return (
         <span
             className={cx(
@@ -53,7 +57,16 @@ export function Avatar({
                 background: imageSrc ? undefined : gradient || gradientFor(name || 'reverie'),
             }}
         >
-            {imageSrc ? <img src={imageSrc} alt={name} className="h-full w-full object-cover" /> : glyph}
+            {imageSrc ? (
+                <img
+                    src={imageSrc}
+                    alt={name}
+                    className="h-full w-full object-cover"
+                    onError={() => setFailedSrc(imageSrc)}
+                />
+            ) : (
+                glyph
+            )}
             {status === 'live' && (
                 <span
                     className="absolute bottom-0 right-0 rounded-full bg-verdant-500 border-2 border-ink-800"

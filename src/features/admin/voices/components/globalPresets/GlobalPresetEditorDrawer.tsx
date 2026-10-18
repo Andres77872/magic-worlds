@@ -1,6 +1,6 @@
 /**
  * Global preset editor (R1-FE-06, 05 §8.12): the preset editor in "global"
- * mode: a catalog voice, all five settings (SETTING_RANGES), an optional
+ * mode: a catalog voice, the supported settings (SETTING_RANGES), an optional
  * emotion and language. Warns when users could not apply the preset
  * (voice not public, or not active). The rules run before the write
  * (`globalPresetRules`); server refusals use the console copy (`consoleErrors`).
@@ -9,6 +9,7 @@ import { useState, type FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle, RotateCcw } from 'lucide-react'
 import { apiService } from '@/infrastructure/api'
+import { useVoiceCapabilities } from '@/features/voices/hooks/useVoiceCapabilities'
 import type { AdminGlobalPresetRow, VoiceEmotion } from '@/shared'
 import { Button, Callout, Drawer, Field, Icon, Input, Select, Textarea } from '@/ui/primitives'
 import {
@@ -38,12 +39,17 @@ interface GlobalPresetEditorDrawerProps {
 export function GlobalPresetEditorDrawer({ preset = null, onClose, onSaved }: GlobalPresetEditorDrawerProps) {
     const { t } = useTranslation()
     const { catalog, languageName, locale, notify, reportError } = useVoiceConsole()
+    const { capabilities } = useVoiceCapabilities()
     const [draft, setDraft] = useState<GlobalPresetDraft>(() => (preset ? draftFromPreset(preset) : emptyGlobalPresetDraft()))
     const [submitted, setSubmitted] = useState(false)
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
     const voice = draft.voice_key ? catalog.byKey.get(draft.voice_key) : undefined
+    const fishModels = (capabilities?.providers?.find(entry => entry.provider === 'fish_audio')?.models ?? [])
+        .filter(model => voice?.acceptance.some(entry => entry.model_id === model.model_id && entry.verdict === 'pass'))
+    const selectedModel = fishModels.find(model => model.model_id === (draft.model_id ?? 'drama-3'))
+    const modelAvailable = draft.provider !== 'fish_audio' || Boolean(selectedModel)
     const issues = globalPresetIssues(draft, voice)
     const shown = submitted ? issues : []
     const fieldError = (field: GlobalPresetField) => {
@@ -78,6 +84,8 @@ export function GlobalPresetEditorDrawer({ preset = null, onClose, onSaved }: Gl
         setDraft((previous) => ({
             ...previous,
             voice_key: voiceKey,
+            provider: next?.provider === 'fish_audio' ? 'fish_audio' : 'elevenlabs',
+            model_id: next?.acceptance.some(entry => entry.model_id === (previous.model_id ?? 'drama-3') && entry.verdict === 'pass') ? previous.model_id ?? 'drama-3' : next?.acceptance.some(entry => entry.model_id === 's2.1-pro' && entry.verdict === 'pass') ? 's2.1-pro' : 'drama-3',
             // A new preset starts from the voice's own defaults; an edit keeps its settings.
             settings: preset ? previous.settings : next?.default_settings ? { ...next.default_settings } : null,
             language_code: previous.language_code && nextLanguages.length > 0 && !nextLanguages.includes(previous.language_code) ? '' : previous.language_code,
@@ -87,7 +95,7 @@ export function GlobalPresetEditorDrawer({ preset = null, onClose, onSaved }: Gl
     const submit = async (event: FormEvent) => {
         event.preventDefault()
         setSubmitted(true)
-        if (issues.length > 0 || saving) return
+        if (issues.length > 0 || saving || !modelAvailable) return
         setSaving(true)
         setError(null)
         const input = toGlobalPresetInput(draft)
@@ -167,7 +175,11 @@ export function GlobalPresetEditorDrawer({ preset = null, onClose, onSaved }: Gl
                     </Field>
                 </div>
 
-                <fieldset className="flex flex-col gap-2">
+                {draft.provider === 'fish_audio' && <>
+                    <Field label={t('voices.recipe.model')}><Select value={draft.model_id ?? 'drama-3'} options={fishModels.map(model => ({ value: model.model_id, label: model.label }))} onChange={value => update({ model_id: value as 'drama-3' | 's2.1-pro' })} /></Field>
+                    {selectedModel?.supports_direction && <Field label={t('voices.performance.direction')}><Textarea maxLength={300} value={draft.direction ?? ''} onChange={event => update({ direction: event.target.value })} /></Field>}
+                </>}
+                {draft.provider !== 'fish_audio' && <fieldset className="flex flex-col gap-2">
                     <legend className="mb-1 font-ui text-label font-semibold text-fg">{t('admin.voices.globalPresets.editor.settings')}</legend>
                     <VoiceSettingsEditor keys={GLOBAL_PRESET_SETTING_KEYS} value={draft.settings ?? {}} onChange={(settings) => update({ settings })} locale={locale} />
                     {voice && (
@@ -189,7 +201,7 @@ export function GlobalPresetEditorDrawer({ preset = null, onClose, onSaved }: Gl
                             ))}
                         </ul>
                     )}
-                </fieldset>
+                </fieldset>}
 
                 {error && (
                     <p role="alert" className="font-ui text-sm text-blood-300">
@@ -200,7 +212,7 @@ export function GlobalPresetEditorDrawer({ preset = null, onClose, onSaved }: Gl
                     <Button variant="secondary" onClick={onClose}>
                         {t('admin.voices.common.cancel')}
                     </Button>
-                    <Button type="submit" variant="primary" disabled={saving}>
+                    <Button type="submit" variant="primary" disabled={saving || !modelAvailable}>
                         {saving
                             ? t('admin.voices.globalPresets.editor.saving')
                             : preset

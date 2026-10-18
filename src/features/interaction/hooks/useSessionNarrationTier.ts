@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * The per-session narration tier override (R1-FE-04, EP-1) of one adventure
  * session or character chat: `GET|PUT /{basePath}/{id}/voice-settings` on the
@@ -50,6 +51,7 @@ export function useSessionNarrationTier(
     basePath: VoiceSessionBasePath,
     sessionId: number | null | undefined,
 ): SessionNarrationTierState {
+    const featureFlagGeneration = useFeatureFlags().generation
     const { t } = useTranslation()
     const [capabilities, setCapabilities] = useState<VoiceCapabilities | null>(null)
     const [loaded, setLoaded] = useState<{ key: string; settings: SessionVoiceSettings | null } | null>(null)
@@ -96,7 +98,7 @@ export function useSessionNarrationTier(
             savingRef.current = false
             setPending(null)
         }
-    }, [api, basePath, current, key, t])
+    }, [api, basePath, current, key, t, featureFlagGeneration])
 
     const settings = current && pending ? { ...current, tier_override: pending.tier } : current
     return {

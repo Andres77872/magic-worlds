@@ -44,7 +44,6 @@ export function createWorkspaceTestState(options: {
     api?: unknown
     selectedWorkspaceId?: string | null
     workspaces?: Workspace[]
-    featureEnabled?: boolean
     overrides?: Partial<WorkspaceContextValue>
 } = {}): WorkspaceTestState {
     const live = {
@@ -64,14 +63,12 @@ export function createWorkspaceTestState(options: {
         status: live.selectedWorkspaceId ? 'ready' : 'loading',
         unavailableReason: null,
         staleReason: null,
-        featureEnabled: options.featureEnabled ?? true,
         workspaces,
         activeWorkspaces: workspaces.filter((workspace) => workspace.archived_at === null),
         defaultWorkspaceId: TEST_WORKSPACE_ID,
         selectedWorkspaceId: live.selectedWorkspaceId,
         selectedWorkspace: workspaces.find((workspace) => workspace.id === live.selectedWorkspaceId) ?? null,
         workspaceEpoch: live.workspaceEpoch,
-        hasHiddenWorkspaces: false,
         api: live.selectedWorkspaceId ? (options.api as ApiService | undefined) ?? null : null,
         commitWorkspace: () => false,
         refreshWorkspaces: async () => {},

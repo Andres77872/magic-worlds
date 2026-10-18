@@ -167,7 +167,7 @@ function EditorHandoff({ conversation, name, onContinue }: {
                         {t('appAssistant.handoff.title', { kind: t(`appAssistant.kinds.${tag}`) })}
                     </p>
                     <p className="mt-0.5 font-ui text-caption leading-relaxed text-parchment-300">
-                        {bound && name ? t('appAssistant.handoff.bound', { name }) : t('appAssistant.handoff.draft')}
+                        {conversation.kind==='novel'?t('appAssistant.handoff.novel'):bound && name ? t('appAssistant.handoff.bound', { name }) : t('appAssistant.handoff.draft')}
                     </p>
                 </div>
             </div>

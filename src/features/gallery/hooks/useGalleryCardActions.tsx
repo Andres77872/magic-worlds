@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * useGalleryCardActions — the owned-card actions shared by the type galleries
  * and the Workspace R1 Library: open/edit, chat/call/begin, write a novel,
@@ -17,7 +18,10 @@ import { BookOpenText, Copy, Download, Globe2, History, Link2, Loader2, MessageC
 import { useAuth, useData, useNavigation } from '@/app/hooks'
 import { useWorkspace } from '@/app/hooks/useWorkspace'
 import type { ApiService } from '@/infrastructure/api'
-import type { Adventure, Character, Item, VersionableCardType, World } from '@/shared'
+import type { Adventure, Character, Item, StoryCreateRequest, VersionableCardType, World } from '@/shared'
+import type { CardRef } from '@/features/gallery/media/mediaGalleryTypes'
+import { NovelCreateDialog } from '@/features/novel/components/NovelCreateDialog'
+import { NovelPendingCreations } from '@/features/novel/components/NovelPendingCreations'
 import { VersionHistoryDrawer } from '@/features/creation/common/components'
 import { CallStartErrorToast, useStartCall } from '@/features/call'
 import { PersonaPickerDialog, type CardOption } from '@/ui/components'
@@ -27,7 +31,7 @@ import { Badge, Button, Icon } from '@/ui/primitives'
 import { defaultPersonaForCharacter } from '@/utils/characterRoles'
 import { downloadBlob, safeFilename } from '@/utils/download'
 import { errorMessage } from '@/utils/errors'
-import { isFrontendVoiceModeEnabled } from '@/shared/voiceFeatureFlag'
+import { isCallsFeatureEnabled } from '@/shared/featureFlags'
 import { isCommunityCardsFeatureEnabled, isNovelsFeatureEnabled } from '@/shared/featureFlags'
 import { publicItems, type GalleryItem, type GalleryType } from '../galleryConfig'
 import { buildCardEditHash, buildSharedCardUrl } from '../galleryLinks'
@@ -72,6 +76,7 @@ type PersonaPick =
     | { kind: 'group-chat'; items: GalleryItem[]; onStarted?: () => void }
 
 export function useGalleryCardActions({ api, readOnly = false, onItemChanged, onItemRemoved, extraOptions, createApi }: GalleryCardActionsOptions) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const { setPage } = useNavigation()
     const { isAuthenticated, openLoginModal } = useAuth()
@@ -99,10 +104,11 @@ export function useGalleryCardActions({ api, readOnly = false, onItemChanged, on
         startTemplate,
         deleteTemplateById,
         createStory,
+        novelCreations,
     } = useData()
     const communityCardsEnabled = isCommunityCardsFeatureEnabled()
     const novelsEnabled = isNovelsFeatureEnabled()
-    const voiceModeEnabled = isFrontendVoiceModeEnabled()
+    const voiceModeEnabled = isCallsFeatureEnabled()
     const callControls = useStartCall()
     // 09 §7: calls switched off for this account (capabilities `status`, fail open):
     // the Call actions are disabled with the Calls page copy.
@@ -123,6 +129,8 @@ export function useGalleryCardActions({ api, readOnly = false, onItemChanged, on
     const [personaPick, setPersonaPick] = useState<PersonaPick | null>(null)
     const [personaPickError, setPersonaPickError] = useState<string | null>(null)
     const [isPersonaPickConfirming, setIsPersonaPickConfirming] = useState(false)
+    const [novelSource,setNovelSource]=useState<{title:string;card:CardRef;api:ApiService;scope:ReturnType<typeof capture>}|null>(null)
+    const [creatingNovel,setCreatingNovel]=useState(false)
 
     // Per-workspace dialogs never survive a committed switch.
     const scopeKeyRef = useRef(api)
@@ -133,6 +141,8 @@ export function useGalleryCardActions({ api, readOnly = false, onItemChanged, on
         setPendingDefault(null)
         setVersionTarget(null)
         setPersonaPick(null)
+        setNovelSource(null)
+        setCreatingNovel(false)
         setNotice(null)
     }, [api])
 
@@ -280,7 +290,9 @@ export function useGalleryCardActions({ api, readOnly = false, onItemChanged, on
                 ? await client.unpublishCard(item.backendType, item.id)
                 : await client.publishCard(item.backendType, item.id)
             if (!isCurrent(scope)) return
-            const updated = publicItems(resource, item.galleryType)[0]
+            const updated = isPublic
+                ? { ...item, visibility: { ...item.visibility, public: false } }
+                : publicItems(resource, item.galleryType)[0]
             if (updated) onItemChanged(updated)
             setNotice({
                 tone: 'success',
@@ -384,30 +396,21 @@ export function useGalleryCardActions({ api, readOnly = false, onItemChanged, on
 
     const writeFromCard = (item: GalleryItem) =>
         requireAuth(() => {
-            // Non-blank story sources require a stored non-empty title
-            // (DB check constraint) — never pass a blank card name through.
+            if(readOnly||!novelsEnabled||!api)return
             const sourceTitle = item.title.trim() || t('novelGallery.create.untitledFallback')
-            const source =
-                item.galleryType === 'character' || item.galleryType === 'persona'
-                    ? { kind: 'character' as const, id: item.id, title: sourceTitle }
-                    : item.galleryType === 'world'
-                      ? { kind: 'world' as const, id: item.id, title: sourceTitle }
-                      : item.galleryType === 'item'
-                        ? { kind: 'item' as const, id: item.id, title: sourceTitle }
-                        : { kind: 'adventure_template' as const, id: item.id, title: sourceTitle }
-            const cardRefKind =
-                item.galleryType === 'adventure'
-                    ? 'adventure_template'
-                    : item.galleryType === 'persona'
-                      ? 'character'
-                      : item.galleryType
-            void createStory({
-                title: t('gallery.novelTitle', { title: item.title }),
-                source,
-                chapters: [{ title: t('gallery.chapterOne'), body: '', status: 'draft', order: 0 }],
-                cardRefs: [{ kind: cardRefKind, cardId: item.id, source: 'source' }],
-            }).then(() => setPage('story'))
+            const type=item.galleryType==='character'||item.galleryType==='persona'?'character':item.galleryType==='world'?'world':item.galleryType==='item'?'item':'adventure_template'
+            setNovelSource({title:t('gallery.novelTitle',{title:item.title}),card:{type,id:item.id,name:sourceTitle},api,scope:capture()})
         })
+    async function createFromCard(request:StoryCreateRequest){
+        if(!novelSource||readOnly||!isCurrent(novelSource.scope)||novelSource.api!==api)return
+        const scope=novelSource.scope
+        setCreatingNovel(true)
+        try{
+            await createStory(request)
+            if(isCurrent(scope)){setNovelSource(null);setPage('story')}
+        }catch(error){if(isCurrent(scope))setNotice({tone:'error',title:t('novelEditor.creationRecovery.failed')});throw error}
+        finally{if(isCurrent(scope))setCreatingNovel(false)}
+    }
 
     const shareOptionsFor = (item: GalleryItem): CardOption[] => !isContentTypeFeatureEnabled(item.galleryType) ? [] : [
         ...(communityCardsEnabled && !readOnly
@@ -734,6 +737,8 @@ export function useGalleryCardActions({ api, readOnly = false, onItemChanged, on
                 onClose={callControls.closePersonaPick}
             />
             <CallStartErrorToast error={callControls.error} onClose={callControls.clearError} />
+            {novelSource&&novelSource.api===api&&isCurrent(novelSource.scope)&&<NovelCreateDialog open initial={novelSource} creating={creatingNovel}
+                onClose={()=>setNovelSource(null)} onCreate={createFromCard} blocked={readOnly||novelCreations?.items.some((item)=>!item.write.ack&&!item.write.rejected)} recovery={<NovelPendingCreations/>}/>}
         </>
     )
 

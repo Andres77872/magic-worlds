@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
 import { useEffect, useRef, useState } from 'react'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -61,9 +64,8 @@ function renderNavigation() {
 describe('NavigationProvider origin stack', () => {
     beforeEach(() => {
         window.history.replaceState(null, '', '#/')
-        // The galleries below are the pre-Workspace routes; a local .env may turn the flag on
-        // (the workspace routing is covered by NavigationProvider.workspace.test.tsx).
-        vi.stubEnv('VITE_FEATURE_WORKSPACES_ENABLED', 'false')
+        // Legacy type galleries normalize to the globally available Library.
+
     })
 
     afterEach(() => {
@@ -74,16 +76,16 @@ describe('NavigationProvider origin stack', () => {
         renderNavigation()
 
         fireEvent.click(screen.getByRole('button', { name: /open linked gallery/i }))
-        expect(screen.getByTestId('page')).toHaveTextContent('gallery-characters')
-        expect(window.location.hash).toBe('#/gallery/characters?card=c99')
+        expect(screen.getByTestId('page')).toHaveTextContent('library')
+        expect(window.location.hash).toBe('#/library?card_type=character&character_role=character&reveal=character%3Ac99')
 
         fireEvent.click(screen.getByRole('button', { name: /open character editor/i }))
         expect(screen.getByTestId('page')).toHaveTextContent('character')
-        expect(screen.getByTestId('previous')).toHaveTextContent('gallery-characters')
+        expect(screen.getByTestId('previous')).toHaveTextContent('library')
 
         fireEvent.click(screen.getByRole('button', { name: /go back/i }))
-        expect(screen.getByTestId('page')).toHaveTextContent('gallery-characters')
-        expect(window.location.hash).toBe('#/gallery/characters?card=c99')
+        expect(screen.getByTestId('page')).toHaveTextContent('library')
+        expect(window.location.hash).toBe('#/library?card_type=character&character_role=character&reveal=character%3Ac99')
     })
 
     it('falls back to landing when a creator is opened directly', () => {
@@ -154,8 +156,8 @@ describe('NavigationProvider origin stack', () => {
         expect(screen.getByTestId('page')).toHaveTextContent('character-chat')
 
         fireEvent.click(screen.getByRole('button', { name: /go back/i }))
-        expect(screen.getByTestId('page')).toHaveTextContent('gallery-characters')
-        expect(window.location.hash).toBe('#/gallery/characters')
+        expect(screen.getByTestId('page')).toHaveTextContent('library')
+        expect(window.location.hash).toBe('#/library?card_type=character&character_role=character')
     })
 })
 
@@ -186,9 +188,8 @@ function GuardedProbe() {
 describe('NavigationProvider interceptors', () => {
     beforeEach(() => {
         window.history.replaceState(null, '', '#/')
-        // The galleries below are the pre-Workspace routes; a local .env may turn the flag on
-        // (the workspace routing is covered by NavigationProvider.workspace.test.tsx).
-        vi.stubEnv('VITE_FEATURE_WORKSPACES_ENABLED', 'false')
+        // Legacy type galleries normalize to the globally available Library.
+
     })
 
     afterEach(() => {
@@ -211,8 +212,8 @@ describe('NavigationProvider interceptors', () => {
         expect(window.location.hash).toBe('#/')
 
         fireEvent.click(screen.getByRole('button', { name: 'proceed' }))
-        expect(screen.getByTestId('page')).toHaveTextContent('gallery-characters')
-        expect(window.location.hash).toBe('#/gallery/characters')
+        expect(screen.getByTestId('page')).toHaveTextContent('library')
+        expect(window.location.hash).toBe('#/library?card_type=character&character_role=character')
     })
 
     it('an interceptor blocks goBack the same way', () => {
@@ -232,6 +233,6 @@ describe('NavigationProvider interceptors', () => {
         fireEvent.click(screen.getByRole('button', { name: 'disarm' }))
         fireEvent.click(screen.getByRole('button', { name: 'navigate' }))
 
-        expect(screen.getByTestId('page')).toHaveTextContent('gallery-characters')
+        expect(screen.getByTestId('page')).toHaveTextContent('library')
     })
 })

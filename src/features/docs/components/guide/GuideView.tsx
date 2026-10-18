@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * The Docs "Guide" view: an "On this page" nav beside data-driven sections.
  * Section order, tone and copy come from `docsContent.ts`; this file only maps
@@ -48,6 +49,7 @@ export function GuideView({
     roadmapMatches,
     empty,
 }: GuideViewProps) {
+    useFeatureFlags()
     const noMatches = filtering && !docs.sections.some((section) => isMatch(section.id))
 
     const renderBody = (section: NavSection) => {

@@ -4,6 +4,7 @@
  * plugs into `useAssistant` through an adapter of pure functions; the hook owns
  * the conversation, streaming, CAS snapshot, and recovery state.
  */
+import type { NovelAssistantTurnPreview } from '@/shared/types/storyAssistant.types'
 import type { Lorebook } from '@/shared/types/lorebook.types'
 import type {
     AssistantCardType,
@@ -33,6 +34,7 @@ export interface AssistantTurn extends AssistantTurnBase {
 
 /** What each kind's surface hands the hook on every render. */
 export interface AssistantBindings {
+    novel:{storyId:string;title:string;preview:NovelAssistantTurnPreview|null}
     card: {
         cardType: AssistantCardType
         /** The saved card being edited; null while it is still a draft form. */
@@ -59,6 +61,8 @@ export interface AssistantBindings {
 export interface AssistantBoundTarget<K extends AssistantKind> {
     target: AssistantTargetOf<K> | null
     cas: AssistantTargetCas
+    /** The exact history head read beside this source snapshot. */
+    conversation?: AssistantConversation
 }
 
 /** Per-kind behavior for `useAssistant`. Module-level constants of pure functions. */
@@ -83,11 +87,12 @@ export function conversationKey(conversation: { conversation_id: number } | null
 
 /** The saved document a conversation is bound to (only one of the ids is ever set). */
 export function conversationTargetId(conversation: AssistantConversation | null | undefined): string | null {
-    return conversation?.card_id ?? conversation?.lorebook_id ?? null
+    return conversation?.card_id ?? conversation?.lorebook_id ?? conversation?.story_id ?? null
 }
 
 export function scopeTargetId(scope: AssistantConversationScope): string | null {
     if (scope.kind === 'card') return scope.card_id ?? null
     if (scope.kind === 'lorebook') return scope.lorebook_id ?? null
+    if (scope.kind === 'novel') return scope.story_id
     return null
 }

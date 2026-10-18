@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 import { isVoicesFeatureEnabled, isCallsFeatureEnabled } from '@/shared/featureFlags'
 import { useEffect, useState } from 'react'
 import type { ApiService } from '@/infrastructure/api'
@@ -48,6 +49,7 @@ export function useVoiceAvailability(
     refreshKey: unknown = 0,
     provider: VoiceProvider = 'elevenlabs',
 ): VoiceAvailability {
+    useFeatureFlags()
     const active = requestedActive && isVoicesFeatureEnabled()
     const [snapshot, setSnapshot] = useState<VoiceCapabilities | null>(null)
     const availability = snapshot ? availabilityOf(snapshot, provider)

@@ -1,3 +1,5 @@
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
+import { novel, storyChapter, storyScene } from '@/test/fixtures/story'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { i18n } from '@/app/i18n'
 import type { Adventure, Character, Item, Lorebook, LorebookResource, Story, World } from '@/shared'
@@ -37,8 +39,9 @@ const resource: LorebookResource = {
     id: 'r1', title: 'Harbor charter', triggers: ['charter'], fileName: 'charter.md', fileType: 'md', content: '# Charter\nThe harbor belongs to all.',
 }
 const story: Story = {
+    ...novel({chapters:[]}),
     id: 's1', title: 'Fog Bells', description: 'A mystery.', source: { kind: 'blank' } as Story['source'],
-    chapters: [{ id: 'ch1', storyId: 's1', title: 'Low tide', body: 'The water left.', order: 1, status: 'draft', povCardId: null, locationCardId: null, activeCardRefs: [], generationHistory: [] }],
+    chapters: [storyChapter({id:'ch1',storyId:'s1',title:'Low tide',order:1,scenes:[storyScene({storyId:'s1',chapterId:'ch1',body:'The water left.'})]})],
     activeCardRefs: [], activeContext: {} as Story['activeContext'],
 }
 
@@ -94,7 +97,7 @@ describe('buildGuideSection', () => {
     })
 
     it.each(['en', 'es'])('shares localized WIP explanations with Docs while dropping disabled novel routes in %s', (language) => {
-        vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'false')
+        setTestFeatureFlags({ novels: false })
         const translate = i18n.getFixedT(language)
         const docs = getDocsContent(translate)
         const novelBody = withNote(docs.writingGuide.find((item) => item.title === translate('docs.guides.writing.novels.title'))!)
@@ -107,7 +110,7 @@ describe('buildGuideSection', () => {
     })
 
     it.each(['en', 'es'])('keeps disabled and planned roadmap work in assistant knowledge in %s', (language) => {
-        vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'false')
+        setTestFeatureFlags({ novels: false })
         const translate = i18n.getFixedT(language)
         const { roadmap } = getDocsContent(translate)
         const novels = roadmap.items.find((item) => item.id === 'novels')!
@@ -133,7 +136,7 @@ describe('buildGuideSection', () => {
     })
 
     it('uses available novel instructions and routes when the owning flag is on', () => {
-        vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'true')
+        setTestFeatureFlags({ novels: true })
         const guide = buildGuideSection(t, isPageFeatureEnabled)
         const note = t('docs.availability.disabled', { features: t('docs.availability.features.novels') })
 

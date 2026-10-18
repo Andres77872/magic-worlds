@@ -1,6 +1,7 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 import { isVoicesFeatureEnabled } from '@/shared/featureFlags'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { ChatSocketServerMessage, ForwardOption } from '../../../shared'
+import type { ChatImageRequest, ChatSocketCapabilities, ChatSocketServerMessage, ForwardOption, ImageProvider } from '../../../shared'
 import { apiService, ChatSocket, type ChatSocketStatus } from '../../../infrastructure/api'
 import { authSession } from '@/infrastructure/api/authSession'
 import { notifyTaskHistoryChanged } from '@/infrastructure/api/resourceTaskEvents'
@@ -10,6 +11,7 @@ import type { LlmFeature, LlmRequest } from '@/shared/types/llm.types'
 import { generateUUID } from '@/utils/uuid'
 import { i18n } from '@/app/i18n'
 import { useWorkspace } from '@/app/hooks/useWorkspace'
+import { imageCredentialSession } from '@/features/imageProfiles/imageCredentialSession'
 
 function bindPreparedTarget(materialize: () => LlmRequest, target: NonNullable<AdventureChatSocketErrorDetail['llmRetry']>): LlmRequest {
     const value = materialize()
@@ -36,8 +38,11 @@ export interface AdventureChatHandlers {
     onMetadata?: (meta: { forwardOptions?: ForwardOption[]; imagePrompt?: string }) => void
     /** Parsed XML response segments arrived after the narrative stream completed. */
     onSegments?: (frame: Extract<ChatSocketServerMessage, { type: 'segments' }>) => void
-    /** The turn finished streaming (`interrupted` when stopped early). */
-    onDone?: (done: { interrupted: boolean; userMessageId?: number; assistantMessageId?: number; turnId?: string }) => void
+    /**
+     * The turn finished streaming (`interrupted` when stopped early).
+     * `imageScheduled` (newer servers) says a scene image is on its way.
+     */
+    onDone?: (done: { interrupted: boolean; userMessageId?: number; assistantMessageId?: number; turnId?: string; imageScheduled?: boolean }) => void
     onImageJob?: (frame: Extract<ChatSocketServerMessage, { type: 'image_job' }>) => void
     onImageComplete?: (frame: Extract<ChatSocketServerMessage, { type: 'image_complete' }>) => void
     onImageFailed?: (frame: Extract<ChatSocketServerMessage, { type: 'image_failed' }>) => void
@@ -62,10 +67,27 @@ export interface AdventureChatSocketErrorDetail {
     llmRetry?: Pick<LlmRequest, 'retry_of_execution_id' | 'selection' | 'expected_revision_id'>
 }
 
+/**
+ * The image choice a turn is sent with, kept for resends of the same request.
+ * Never holds a key: a personal (BYOK) profile names its provider, and the key
+ * held for that provider is attached only when the frame leaves.
+ */
+export interface ChatImageChoice {
+    generate: boolean
+    image_profile_id?: string
+    byok_provider?: ImageProvider
+}
+
 export interface AdventureChatSocketApi {
     status: ChatSocketStatus
-    /** Sending a request ID again resumes that turn with the target it first froze. */
-    sendChat: (content: string, requestId?: string, existingUserMessageId?: number, llmRetry?: AdventureChatSocketErrorDetail['llmRetry'], resumeExisting?: boolean) => void
+    /** What the server named on its last `ready` frame; null until then, or on an older server. */
+    capabilities: ChatSocketCapabilities | null
+    /**
+     * Sending a request ID again resumes that turn with the target it first froze.
+     * `image` is sent only when the server accepts it (`capabilities.chat_image_request`);
+     * a resend that leaves it out keeps the turn's first choice.
+     */
+    sendChat: (content: string, requestId?: string, existingUserMessageId?: number, llmRetry?: AdventureChatSocketErrorDetail['llmRetry'], resumeExisting?: boolean, image?: ChatImageChoice) => void
     sendTts: (assistantMessageId: number, turnId: string, requestId?: string) => void
     cancel: () => void
 }
@@ -90,6 +112,7 @@ export function useAdventureChatSocket(
     feature: LlmFeature = basePath === 'adventure-sessions' ? 'chat_adventure' : 'chat_character',
     sessionWorkspaceId?: string | null,
 ): AdventureChatSocketApi {
+    useFeatureFlags()
     const handlersRef = useRef(handlers)
     useEffect(() => {
         handlersRef.current = handlers
@@ -105,22 +128,30 @@ export function useAdventureChatSocket(
     const preparation = useRef<AbortController | null>(null)
     const preparing = useRef(false)
     // The frame of the turn in flight, so a key the server asks for can resend it unchanged.
-    const turnRef = useRef<{ requestId: string; content: string; existingUserMessageId?: number; keyed: boolean; target?: LlmRequest; turnId?: string } | null>(null)
+    const turnRef = useRef<{ requestId: string; content: string; existingUserMessageId?: number; keyed: boolean; target?: LlmRequest; turnId?: string; image?: ChatImageChoice } | null>(null)
     const [status, setStatus] = useState<ChatSocketStatus>('closed')
+    // Kept across reconnects of one socket, so a frame flushed on reopen still knows the server's features.
+    const [capabilities, setCapabilities] = useState<ChatSocketCapabilities | null>(null)
+    const capabilitiesRef = useRef<ChatSocketCapabilities | null>(null)
     const intentKey = (id: string) => JSON.stringify([basePath, sessionId, id])
 
     // Dispatch one frame; `check` vets the materialized target (with any key) before it leaves.
-    const dispatch = (socket: ChatSocket, turn: NonNullable<typeof turnRef.current>, materialize: () => LlmRequest, check?: (llm: LlmRequest) => void) =>
-        socket.sendChat(turn.content, turn.requestId, turn.existingUserMessageId, () => {
-            const llm = materialize()
-            check?.(llm)
-            llmIntents.retain(feature, intentKey(turn.requestId), llm)
-            turn.target = { selection: llm.selection ? { ...llm.selection } : { mode: 'inherit' },
-                ...(llm.expected_revision_id ? { expected_revision_id: llm.expected_revision_id } : {}),
-                ...(llm.retry_of_execution_id ? { retry_of_execution_id: llm.retry_of_execution_id } : {}) }
-            turn.keyed = Boolean(llm.credentials)
-            return llm
-        })
+    // The image field is built as the frame leaves, so a key is read then and never kept.
+    const dispatch = (socket: ChatSocket, turn: NonNullable<typeof turnRef.current>, materialize: () => LlmRequest, check?: (llm: LlmRequest) => void) => {
+        const llm = () => {
+            const value = materialize()
+            check?.(value)
+            llmIntents.retain(feature, intentKey(turn.requestId), value)
+            turn.target = { selection: value.selection ? { ...value.selection } : { mode: 'inherit' },
+                ...(value.expected_revision_id ? { expected_revision_id: value.expected_revision_id } : {}),
+                ...(value.retry_of_execution_id ? { retry_of_execution_id: value.retry_of_execution_id } : {}) }
+            turn.keyed = Boolean(value.credentials)
+            return value
+        }
+        const choice = turn.image
+        if (choice) socket.sendChat(turn.content, turn.requestId, turn.existingUserMessageId, llm, () => imageRequest(choice, capabilitiesRef.current))
+        else socket.sendChat(turn.content, turn.requestId, turn.existingUserMessageId, llm)
+    }
 
     const prepare = (socket: ChatSocket | null, id: string, run: (signal: AbortSignal) => Promise<(() => void) | null>) => {
         preparation.current?.abort()
@@ -250,6 +281,12 @@ export function useAdventureChatSocket(
                     case 'segments':
                         current.onSegments?.(message)
                         break
+                    case 'ready': {
+                        const next = readCapabilities(message.capabilities)
+                        capabilitiesRef.current = next
+                        setCapabilities(next)
+                        break
+                    }
                     case 'done':
                         // Completed or stopped, the request is spent. `interrupted` only
                         // answers this client's own cancel, after the server settled the
@@ -260,6 +297,7 @@ export function useAdventureChatSocket(
                             userMessageId: message.user_message_id,
                             assistantMessageId: message.assistant_message_id,
                             turnId: message.turn_id,
+                            ...(typeof message.image_scheduled === 'boolean' ? { imageScheduled: message.image_scheduled } : {}),
                         })
                         break
                     case 'image_job':
@@ -305,7 +343,7 @@ export function useAdventureChatSocket(
                             turnId: message.turn_id,
                         })
                         break
-                    // 'ready' | 'pong' | 'image' | 'action': ignored (forward-compatible).
+                    // 'pong' | 'image' | 'action': ignored (forward-compatible).
                 }
             },
         }, basePath)
@@ -319,12 +357,14 @@ export function useAdventureChatSocket(
             socketRef.current = null
             turnRef.current = null
             requestRef.current = undefined
+            capabilitiesRef.current = null
+            setCapabilities(null)
         }
         // basePath/workspace in deps so switching session kinds tears down + reconnects cleanly,
         // and a workspace switch tears the session's socket down.
     }, [sessionId, authDisabled, basePath, socketWorkspaceId])
 
-    const sendChat = (content: string, requestId?: string, existingUserMessageId?: number, llmRetry?: AdventureChatSocketErrorDetail['llmRetry'], resumeExisting = false) => {
+    const sendChat = (content: string, requestId?: string, existingUserMessageId?: number, llmRetry?: AdventureChatSocketErrorDetail['llmRetry'], resumeExisting = false, image?: ChatImageChoice) => {
         const socket = socketRef.current
         const id = requestId ?? generateUUID()
         const previous = turnRef.current
@@ -334,7 +374,9 @@ export function useAdventureChatSocket(
             return
         }
         requestRef.current = id
-        const turn = { requestId: id, content, existingUserMessageId, keyed: false }
+        // A resend of the same request keeps its first image choice.
+        const choice = image ? imageChoiceSnapshot(image) : previous?.requestId === id ? previous.image : undefined
+        const turn = { requestId: id, content, existingUserMessageId, keyed: false, ...(choice ? { image: choice } : {}) }
         turnRef.current = turn
         // A request already admitted must resend exactly the target it froze, without a key first.
         const frozen = llmIntents.retained(feature, intentKey(id)) ?? (previous?.requestId === id ? previous.target : undefined)
@@ -356,5 +398,32 @@ export function useAdventureChatSocket(
         else socketRef.current?.cancel()
     }
 
-    return { status, sendChat, sendTts, cancel }
+    return { status, capabilities, sendChat, sendTts, cancel }
+}
+
+function readCapabilities(value: unknown): ChatSocketCapabilities | null {
+    if (!value || typeof value !== 'object') return null
+    const raw = value as Record<string, unknown>
+    return { chat_image_request: raw.chat_image_request === true, chat_images: raw.chat_images === true }
+}
+
+/** The stored copy of a choice: only the known fields, never a key. */
+function imageChoiceSnapshot(choice: ChatImageChoice): ChatImageChoice {
+    return {
+        generate: choice.generate === true,
+        ...(choice.image_profile_id ? { image_profile_id: choice.image_profile_id } : {}),
+        ...(choice.byok_provider ? { byok_provider: choice.byok_provider } : {}),
+    }
+}
+
+/** The frame's `image` field, built as it leaves; none for a server that does not accept it. */
+function imageRequest(choice: ChatImageChoice | undefined, capabilities: ChatSocketCapabilities | null): ChatImageRequest | undefined {
+    if (!choice || capabilities?.chat_image_request !== true) return undefined
+    if (!choice.generate) return { generate: false }
+    const credentials = choice.byok_provider ? imageCredentialSession.credentials(choice.byok_provider) : undefined
+    return {
+        generate: true,
+        ...(choice.image_profile_id ? { image_profile_id: choice.image_profile_id } : {}),
+        ...(credentials ? { credentials } : {}),
+    }
 }

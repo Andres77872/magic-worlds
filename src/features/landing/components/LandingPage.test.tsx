@@ -1,3 +1,4 @@
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { Adventure, Character, CharacterChatSession, Lorebook, Story, World } from '@/shared'
@@ -146,13 +147,13 @@ beforeEach(() => {
     inProgressAdventures = IN_PROGRESS
     characterChats = CHATS
     stories = STORIES
-    vi.stubEnv('VITE_FEATURE_LOREBOOKS_ENABLED', 'true')
-    vi.stubEnv('VITE_FEATURE_LOREBOOK_RESOURCES_ENABLED', 'true')
-    vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'true')
-    vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
-    vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'true')
-    vi.stubEnv('VITE_FEATURE_GROUP_CHATS_ENABLED', 'true')
-    vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'true')
+    setTestFeatureFlags({ lorebooks: true })
+    setTestFeatureFlags({ lorebookResources: true })
+    setTestFeatureFlags({ voices: true })
+    setTestFeatureFlags({ calls: true })
+    setTestFeatureFlags({ novels: true })
+    setTestFeatureFlags({ groupChats: true })
+    setTestFeatureFlags({ adventures: true })
 })
 
 afterEach(() => {
@@ -182,7 +183,7 @@ describe('LandingPage (returning dashboard)', () => {
     })
 
     it('hides the adventure rail and begin zone when the adventures feature is off', () => {
-        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'false')
+        setTestFeatureFlags({ adventures: false })
         render(<LandingPage />)
 
         expect(screen.queryByTestId('active-adventures')).toBeNull()

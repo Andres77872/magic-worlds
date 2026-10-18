@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import type { ReactNode } from 'react'
@@ -56,6 +59,7 @@ const page = () => <WorkspaceTestProvider state={workspace}><LorebookResourcesGa
 describe('resource gallery save then extract', () => {
     beforeEach(() => {
         vi.clearAllMocks(); localStorage.clear(); authSession.authenticate('alice', 'token')
+        grantFixtureFeatures(true)
         target = { id: 'draft-resource', title: 'Archive', description: null, triggers: [], fileName: 'archive.md', fileType: 'md', content: 'Court facts.', extractionStatus: 'pending', extraction: null }
         resourceEdit = { resourceId: 'new' }
         galleryItems = []

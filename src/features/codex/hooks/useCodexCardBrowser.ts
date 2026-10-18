@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * useCodexCardBrowser — the Codex card picker's paged browse of one
  * workspace's library (Workspace R1): one card kind at a time, optional search
@@ -7,7 +8,7 @@
  * a page that arrives for older parameters, or after a workspace switch, is
  * ignored.
  */
-import { isContentTypeFeatureEnabled, isWorkspacesFeatureEnabled } from '@/shared/featureFlags'
+import { isContentTypeFeatureEnabled } from '@/shared/featureFlags'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -58,6 +59,7 @@ function appendDeduped(prev: CardPickerOption[], page: CardPickerOption[]): Card
 }
 
 export function useCodexCardBrowser({ workspaceId, kind, query, collectionId, enabled }: CodexCardBrowserOptions): CodexCardBrowser {
+    const featureFlagGeneration = useFeatureFlags().generation
     const { t } = useTranslation()
     const { selectedWorkspaceId, workspaceEpoch, capture, isCurrent } = useWorkspace()
     const api = useScopedApi(workspaceId)
@@ -136,7 +138,7 @@ export function useCodexCardBrowser({ workspaceId, kind, query, collectionId, en
             workspaceId: targetWorkspaceId,
             kind,
             q: query.trim() || undefined,
-            collectionId: isWorkspacesFeatureEnabled() ? collectionId || undefined : undefined,
+            collectionId: collectionId || undefined,
         }
         requestRef.current = request
         seqRef.current += 1
@@ -144,11 +146,10 @@ export function useCodexCardBrowser({ workspaceId, kind, query, collectionId, en
         setLoading(true)
         const timer = setTimeout(() => void fetchPage(request, true), SEARCH_DEBOUNCE_MS)
         return () => clearTimeout(timer)
-    }, [api, collectionId, enabled, fetchPage, kind, query, targetWorkspaceId])
+    }, [api, collectionId, enabled, fetchPage, kind, query, targetWorkspaceId, featureFlagGeneration])
 
     // The collection filter is a workspace product surface; card browsing stays available.
     useEffect(() => {
-        if (!isWorkspacesFeatureEnabled()) return
         if (!enabled || !api || !targetWorkspaceId || !isContentTypeFeatureEnabled(kind)) return
         const scope = capture()
         let live = true
@@ -163,7 +164,7 @@ export function useCodexCardBrowser({ workspaceId, kind, query, collectionId, en
         return () => {
             live = false
         }
-    }, [api, capture, enabled, isCurrent, kind, targetWorkspaceId])
+    }, [api, capture, enabled, isCurrent, kind, targetWorkspaceId, featureFlagGeneration])
 
     const hasMore = !error && loaded < total
 
@@ -173,5 +174,5 @@ export function useCodexCardBrowser({ workspaceId, kind, query, collectionId, en
         void fetchPage(request, false)
     }, [enabled, fetchPage, hasMore, loading, loadingMore])
 
-    return { options: isContentTypeFeatureEnabled(kind) ? options : [], collections: isWorkspacesFeatureEnabled() ? collections : [], total, loading, loadingMore, hasMore, error, loadMore }
+    return { options: isContentTypeFeatureEnabled(kind) ? options : [], collections, total, loading, loadingMore, hasMore, error, loadMore }
 }

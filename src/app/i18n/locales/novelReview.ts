@@ -1,0 +1,48 @@
+export const novelReview={
+    en:{
+        open:'Tasks & stash',title:'Tasks & stash',eyebrow:'Review',label:'Review',
+        tabs:{tasks:'Tasks',stash:'Stash'},
+        loadFailed:'Could not load these items. Your manuscript is unaffected.',retry:'Try again',saveFailed:'That change was not saved. Try again.',
+        readOnly:'This novel is read-only here. Items stay readable.',
+        tasks:{
+            help:'Revision tasks for this novel. Link one to a passage by selecting text in Write first.',
+            new:'New task',titleLabel:'Task',bodyLabel:'Notes (optional)',linkSelection:'Link the selected passage',noSelection:'Select text in Write to link a passage.',
+            add:'Add task',filter:'Show',filters:{open:'Open',done:'Done',all:'All'},empty:'No tasks here.',
+            done:'Mark done',reopen:'Reopen',dismiss:'Dismiss',trash:'Move to Trash',resolutionLabel:'How it was resolved (optional)',confirmDone:'Save as done',cancel:'Cancel',
+            goTo:'Go to passage',openScene:'Open scene',passageChanged:'The linked passage changed; the scene is open instead.',
+            states:{open:'Open',done:'Done',dismissed:'Dismissed',trashed:'Trash'},origins:{author:'You',continuity:'Continuity check',critique:'Critique',plan:'Plan'},
+            resolution:'Resolution: {{text}}',sceneMissing:'Scene no longer in the outline',
+        },
+        stash:{
+            help:'Cut text and alternative takes stay here, searchable, until you reuse or trash them.',
+            cut:'Cut selection to stash',take:'Save selection as a take',needSelection:'Select text in Write first.',
+            search:'Search the stash',empty:'The stash is empty.',noMatch:'Nothing in the stash matches.',
+            insert:'Insert at cursor',copy:'Copy',copied:'Copied',trash:'Move to Trash',kinds:{cut:'Cut',take:'Take'},
+            from:'From {{scene}}',inserted:'Inserted into the scene. Autosave keeps it.',cutDone:'Moved to the stash. Undo in Write restores the text.',
+            insertBlocked:'Open a writable scene and finish the current suggestion first.',
+        },
+    },
+    es:{
+        open:'Tareas y reserva',title:'Tareas y reserva',eyebrow:'Revisión',label:'Revisión',
+        tabs:{tasks:'Tareas',stash:'Reserva'},
+        loadFailed:'No se pudieron cargar estos elementos. Tu manuscrito no se ve afectado.',retry:'Reintentar',saveFailed:'Ese cambio no se guardó. Vuelve a intentarlo.',
+        readOnly:'Esta novela es de solo lectura aquí. Los elementos siguen visibles.',
+        tasks:{
+            help:'Tareas de revisión de esta novela. Para vincular una a un pasaje, selecciona primero el texto en Escribir.',
+            new:'Nueva tarea',titleLabel:'Tarea',bodyLabel:'Notas (opcional)',linkSelection:'Vincular el pasaje seleccionado',noSelection:'Selecciona texto en Escribir para vincular un pasaje.',
+            add:'Añadir tarea',filter:'Mostrar',filters:{open:'Abiertas',done:'Hechas',all:'Todas'},empty:'No hay tareas aquí.',
+            done:'Marcar como hecha',reopen:'Reabrir',dismiss:'Descartar',trash:'Mover a la papelera',resolutionLabel:'Cómo se resolvió (opcional)',confirmDone:'Guardar como hecha',cancel:'Cancelar',
+            goTo:'Ir al pasaje',openScene:'Abrir escena',passageChanged:'El pasaje vinculado cambió; se abrió la escena.',
+            states:{open:'Abierta',done:'Hecha',dismissed:'Descartada',trashed:'Papelera'},origins:{author:'Tú',continuity:'Revisión de continuidad',critique:'Crítica',plan:'Plan'},
+            resolution:'Resolución: {{text}}',sceneMissing:'La escena ya no está en el esquema',
+        },
+        stash:{
+            help:'El texto recortado y las versiones alternativas se guardan aquí, con búsqueda, hasta que los reutilices o los envíes a la papelera.',
+            cut:'Recortar la selección a la reserva',take:'Guardar la selección como versión',needSelection:'Selecciona primero texto en Escribir.',
+            search:'Buscar en la reserva',empty:'La reserva está vacía.',noMatch:'Nada en la reserva coincide.',
+            insert:'Insertar en el cursor',copy:'Copiar',copied:'Copiado',trash:'Mover a la papelera',kinds:{cut:'Recorte',take:'Versión'},
+            from:'De {{scene}}',inserted:'Insertado en la escena. El autoguardado lo conserva.',cutDone:'Movido a la reserva. Deshacer en Escribir recupera el texto.',
+            insertBlocked:'Abre una escena editable y termina primero la sugerencia en curso.',
+        },
+    },
+}

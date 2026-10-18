@@ -13,7 +13,7 @@
 
 import { useTranslation } from 'react-i18next'
 import { Trash2 } from 'lucide-react'
-import { Icon, IconButton, IconTile, Switch } from '@/ui/primitives'
+import { Badge, Icon, IconButton, IconTile, Switch } from '@/ui/primitives'
 import { ReferenceRow } from '@/ui/components'
 import type { CodexEntry } from '../../hooks/useCodex'
 import { KIND_ICONS } from '../../utils/codexUtils'
@@ -24,9 +24,12 @@ interface CodexEntryRowProps {
     onToggle: (entry: CodexEntry) => void
     onEdit: (entry: CodexEntry) => void
     onRemove: (entry: CodexEntry) => void
+    /** A newer saved version of this copy's library card, or a change to its template or lorebook entry, offered for review. */
+    libraryVersion?: number | 'changed' | null
+    onReviewLibrary?: (entry: CodexEntry) => void
 }
 
-export function CodexEntryRow({ entry, disabled, onToggle, onEdit, onRemove }: CodexEntryRowProps) {
+export function CodexEntryRow({ entry, disabled, onToggle, onEdit, onRemove, libraryVersion, onReviewLibrary }: CodexEntryRowProps) {
     const { t } = useTranslation()
     const arcane = entry.kind === 'world' || entry.kind === 'lorebook' || entry.kind === 'lorebook_entry'
 
@@ -41,6 +44,11 @@ export function CodexEntryRow({ entry, disabled, onToggle, onEdit, onRemove }: C
             titleAriaLabel={t('novelEditor.codexRow.edit', { label: entry.label })}
             trailing={
                 <>
+                    {libraryVersion != null && onReviewLibrary && <button type="button" className="rounded-full" onClick={() => onReviewLibrary(entry)}
+                        aria-label={libraryVersion === 'changed' ? t('novelEditor.codexLibrary.reviewRowChanged', { label: entry.label })
+                            : t('novelEditor.codexLibrary.reviewRow', { label: entry.label, version: libraryVersion })}>
+                        <Badge tone="arcane">{libraryVersion === 'changed' ? t('novelEditor.codexLibrary.badgeChanged') : t('novelEditor.codexLibrary.badge', { version: libraryVersion })}</Badge>
+                    </button>}
                     <IconButton
                         label={t('novelEditor.codexRow.remove', { label: entry.label })}
                         size="sm"

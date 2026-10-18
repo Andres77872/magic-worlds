@@ -141,10 +141,22 @@ export const TYPE_SCALE: TypeToken[] = [
   { token: '--text-h2', label: 'h2', family: '--font-display', sample: 'Featured worlds' },
   { token: '--text-h3', label: 'h3', family: '--font-display', sample: 'Your characters' },
   { token: '--text-narrative', label: 'narrative', family: '--font-narrative', sample: 'She looks up — and recognizes you.' },
+  { token: '--text-manuscript-small', label: 'manuscript · small', family: '--font-narrative', sample: 'The letter waited by the window.' },
+  { token: '--text-manuscript-standard', label: 'manuscript · standard', family: '--font-narrative', sample: 'The letter waited by the window.' },
+  { token: '--text-manuscript-large', label: 'manuscript · large', family: '--font-narrative', sample: 'The letter waited by the window.' },
   { token: '--text-body', label: 'body', family: '--font-ui', sample: 'Write your reply — dialogue or action.' },
   { token: '--text-label', label: 'label', family: '--font-ui', sample: 'Character name' },
   { token: '--text-caption', label: 'caption', family: '--font-ui', sample: 'Lyra will remember this.' },
   { token: '--text-eyebrow', label: 'eyebrow · tracked caps', family: '--font-ui', sample: 'CREATION STUDIO' },
   { token: '--text-meta', label: 'meta · badges & counts', family: '--font-ui', sample: 'Featured · 14 turns' },
   { token: '--text-micro', label: 'micro · tiniest meta', family: '--font-mono', sample: 'turn 014 · 21:47' },
+]
+
+/** Reading controls reference these theme names; values stay in theme.css. */
+export const MANUSCRIPT_METRICS = [
+  '--leading-manuscript-compact', '--leading-manuscript-comfortable', '--leading-manuscript-roomy',
+  '--spacing-manuscript-paragraph-compact', '--spacing-manuscript-paragraph-comfortable', '--spacing-manuscript-paragraph-roomy',
+  '--spacing-manuscript-scroll-tail',
+  '--spacing-manuscript-link-underline',
+  '--width-manuscript', '--width-manuscript-narrow', '--width-manuscript-wide',
 ]

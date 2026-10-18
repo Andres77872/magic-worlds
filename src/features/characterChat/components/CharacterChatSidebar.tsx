@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * Character-chat sidebar. Single chats show one profile; group chats show the
  * frozen AI cast plus the user's persona.
@@ -18,6 +19,7 @@ import { apiService, resolveMediaUrl } from '../../../infrastructure/api'
 import { Avatar, Button, Eyebrow, Icon, Portrait } from '@/ui/primitives'
 import { ModeBadge } from '../../../ui/components/common/ModeBadge'
 import { CharacterChatCodexPanel } from './CharacterChatCodexPanel'
+import { characterChatParticipantIds } from '../codexParticipants'
 
 interface CharacterChatSidebarProps {
     sessionId?: string
@@ -60,6 +62,7 @@ export function CharacterChatSidebar({
     sceneNarration,
     onEditCharacter,
 }: CharacterChatSidebarProps) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const cast: Character[] = isGroup ? (characters ?? []) : character ? [character] : []
     const lead = cast[0]
@@ -136,6 +139,10 @@ export function CharacterChatSidebar({
                             {onAddCodexCards && onToggleCodexCard && onRemoveCodexCard && (
                                 <CharacterChatCodexPanel
                                     cards={codexCards}
+                                    participantCardIds={characterChatParticipantIds({ characters: cast, persona })}
+                                    participantCards={[...cast, ...(persona ? [persona] : [])].map((card) => ({
+                                        kind: 'character', cardId: card.id, snapshot: { ...card },
+                                    }))}
                                     onAddCards={onAddCodexCards}
                                     onToggleCard={onToggleCodexCard}
                                     onRemoveCard={onRemoveCodexCard}

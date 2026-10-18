@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 import { isCommunityCardsFeatureEnabled, isContentTypeFeatureEnabled } from '@/shared/featureFlags'
 import { useCallback, useContext, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -52,6 +53,7 @@ export interface CardImportOptions {
  * Workspace R1: imports land in an explicit destination workspace (document 15).
  */
 export function useCardImport(options: CardImportOptions = {}) {
+    const featureFlagGeneration = useFeatureFlags().generation
     const { t } = useTranslation()
     // Tolerant read: public pages (community, shared link) also render this hook.
     const workspace = useContext(WorkspaceContext)
@@ -106,7 +108,7 @@ export function useCardImport(options: CardImportOptions = {}) {
                 setImportingKey(null)
             }
         },
-        [client, loadData, onImported, t],
+        [client, loadData, onImported, t, featureFlagGeneration],
     )
 
     const requestImport = useCallback(
@@ -129,7 +131,7 @@ export function useCardImport(options: CardImportOptions = {}) {
             }
             await runImport(source, false)
         },
-        [importingKey, isAuthenticated, openLoginModal, runImport],
+        [importingKey, isAuthenticated, openLoginModal, runImport, featureFlagGeneration],
     )
 
     const confirmForceImport = useCallback(async () => {
@@ -145,7 +147,7 @@ export function useCardImport(options: CardImportOptions = {}) {
             setPendingConfirm(null)
             setPage(galleryPageForType(galleryType), { hash: buildGalleryCardHash(galleryType, cardId) })
         },
-        [setPage],
+        [setPage, featureFlagGeneration],
     )
 
     return {
@@ -162,6 +164,7 @@ export function useCardImport(options: CardImportOptions = {}) {
 
 /** Tiny holder for the gallery preview modal target (an already-loaded item). */
 export function useGalleryCardPreview() {
+    useFeatureFlags()
     const [previewItem, setPreviewItem] = useState<GalleryItem | null>(null)
     const open = useCallback((item: GalleryItem) => setPreviewItem(item), [])
     const close = useCallback(() => setPreviewItem(null), [])

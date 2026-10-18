@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Loader2, Play, Sparkles } from 'lucide-react'
@@ -17,6 +18,7 @@ interface ActivationPreviewPanelProps {
 }
 
 export function ActivationPreviewPanel({ lorebook, saved: _saved, workspaceId }: ActivationPreviewPanelProps) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const api = useScopedApi(workspaceId)
     const { capture, isCurrent } = useWorkspace()

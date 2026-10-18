@@ -121,12 +121,11 @@ function replacementCheck(voice: AdminCatalogVoice, replacement: AdminCatalogVoi
  */
 export function publishChecklist(voice: AdminCatalogVoice, context: PublishContext): RuleCheck[] {
     if (voice.provider === 'fish_audio') {
-        const languages = voice.acceptance.filter((row) => row.model_id === 'drama-3' && row.verdict === 'pass').map((row) => row.language)
+        const languages = voice.acceptance.filter((row) => ['drama-3', 's2.1-pro'].includes(row.model_id) && row.verdict === 'pass').map((row) => row.language)
         return [
             { id: 'fishAccepted', passed: languages.length > 0, labelKey: 'admin.voices.fish.accepted' },
             { id: 'samples', passed: languages.length > 0 && languages.every((language) => hasSample(voice, language)), labelKey: 'admin.voices.catalog.publishChecklist.samples' },
             { id: 'sourceKind', passed: ['owned_reference', 'licensed_reference', 'designed'].includes(voice.source_kind), labelKey: 'admin.voices.fish.source' },
-            { id: 'narrationOnly', passed: !voice.call_eligible, labelKey: 'admin.voices.fish.narrationOnly' },
             ...(context.visibility === 'plan_gated' ? [{ id: 'minPlan', passed: Boolean(voice.min_plan?.trim()), labelKey: 'admin.voices.catalog.publishChecklist.minPlan' }] : []),
         ]
     }

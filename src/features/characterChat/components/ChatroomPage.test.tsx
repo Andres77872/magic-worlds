@@ -1,3 +1,7 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Character, CharacterChatSession } from '@/shared'
@@ -74,7 +78,7 @@ beforeEach(() => {
     characters = [...CHARACTERS, ...PERSONAS]
     startCharacterChat.mockReset().mockResolvedValue(undefined)
     loadData.mockReset().mockResolvedValue(undefined)
-    vi.stubEnv('VITE_FEATURE_GROUP_CHATS_ENABLED', 'true')
+    setTestFeatureFlags({ groupChats: true })
     // Call availability reads the capabilities; no network in tests, and a failed read fails open.
     vi.spyOn(apiService, 'getVoiceCapabilities').mockRejectedValue(new Error('offline'))
 })
@@ -141,7 +145,7 @@ describe('ChatroomPage', () => {
     })
 
     it('hides voice-call actions while the frontend flag is off', async () => {
-        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'false')
+        setTestFeatureFlags({ calls: false })
         await renderChatroom()
 
         fireEvent.click(screen.getByRole('button', { name: 'Actions for Lyra' }))
@@ -151,7 +155,7 @@ describe('ChatroomPage', () => {
     })
 
     it('resumes an existing chat in voice mode when the flag is enabled', async () => {
-        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
+        setTestFeatureFlags({ calls: true })
         await renderChatroom()
         // The availability read failed (offline): calls stay available.
         await waitFor(() => expect(apiService.getVoiceCapabilities).toHaveBeenCalled())
@@ -164,7 +168,7 @@ describe('ChatroomPage', () => {
     })
 
     it('hides the call start while calls are switched off (calls_available false, 09 §7)', async () => {
-        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
+        setTestFeatureFlags({ calls: true })
         const read = vi.spyOn(apiService, 'getVoiceCapabilities').mockResolvedValue(toVoiceCapabilities({
             surfaces: {},
             status: { narration_available: true, calls_available: false, auto_narration_paused: false },
@@ -186,7 +190,7 @@ describe('ChatroomPage', () => {
     })
 
     it('fails open on a capabilities read without calls_available', async () => {
-        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
+        setTestFeatureFlags({ calls: true })
         const read = vi.spyOn(apiService, 'getVoiceCapabilities').mockResolvedValue(toVoiceCapabilities({
             surfaces: {},
             status: { narration_available: false },
@@ -203,7 +207,7 @@ describe('ChatroomPage', () => {
     })
 
     it('hides voice-call actions for group chats when the flag is enabled', async () => {
-        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
+        setTestFeatureFlags({ calls: true })
         await renderChatroom()
 
         fireEvent.click(screen.getByRole('button', { name: 'Actions for Lyra, Sable' }))
@@ -318,7 +322,7 @@ describe('ChatroomPage', () => {
     })
 
     it('starts one-to-one chats when group chats are disabled', async () => {
-        vi.stubEnv('VITE_FEATURE_GROUP_CHATS_ENABLED', 'false')
+        setTestFeatureFlags({ groupChats: false })
         await renderChatroom()
 
         expect(screen.queryByRole('button', { name: 'New group chat' })).not.toBeInTheDocument()
@@ -348,7 +352,7 @@ describe('ChatroomPage', () => {
 
 describe('ChatroomPage in an archived workspace (Workspace R1)', () => {
     it('keeps chats readable but blocks starting, calling and deleting', async () => {
-        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
+        setTestFeatureFlags({ calls: true })
         const workspace = createWorkspaceTestState({
             workspaces: [testWorkspace(TEST_WORKSPACE_ID, 'Main library', { archived_at: '2026-10-10T00:00:00Z' })],
         })

@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * MediaFilterBar — the media gallery's filter row: media-type chips
  * (All / Images / Themes), card-type chips (All types / Characters / Worlds /
@@ -35,6 +36,7 @@ const CARD_TYPE_CHIPS: Array<{ key: CardTypeFilter; icon?: typeof Users }> = [
 ]
 
 export function MediaFilterBar({ filters, onMediaType, onCardType, onCard }: MediaFilterBarProps) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const showLegacyHint = filters.mediaType !== 'themes' && (filters.cardType !== 'all' || Boolean(filters.card))
 

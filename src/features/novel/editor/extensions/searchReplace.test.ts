@@ -20,6 +20,15 @@ function search(editor: Editor) {
 }
 
 describe('SearchReplace', () => {
+    it('replaces the correct original range after a Unicode character whose lowercase expands', () => {
+        const editor = makeEditor('İ gate GATE')
+        editor.commands.setSearchTerm('gate', false)
+        editor.commands.replaceCurrent('door')
+        expect(editor.getText()).toBe('İ door GATE')
+        editor.commands.replaceAll('wall')
+        expect(editor.getText()).toBe('İ door wall')
+        editor.destroy()
+    })
     it('counts every match of the query', () => {
         const editor = makeEditor('the cat sat on the mat with the hat')
         editor.commands.setSearchTerm('the', false)

@@ -5,7 +5,7 @@ export type LlmFeature =
     | 'chat_adventure' | 'chat_character' | 'chat_group'
     | 'lorebook_assistant' | 'lorebook_extraction'
     | 'image_prompt' | 'theme_song_writer' | 'callbot'
-    | 'app_assistant'
+    | 'app_assistant' | 'novel_assistant'
     | 'moderation'
 
 export type LlmSelection =

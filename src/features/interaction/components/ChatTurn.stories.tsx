@@ -1,15 +1,28 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { useRef, useState } from 'react'
 import type { TurnEntry } from '../../../shared'
+import type { ChatTurnImagesView } from '../hooks/useChatImages'
+import { ChatImageActionsContext } from './chatImageActions'
 import { ChatComposer } from './ChatComposer'
 import { ChatTurn } from './ChatTurn'
+import scene from '@/assets/marketing/features/adventures.webp'
 
 // Mirrors ChatTurn's local ExtendedTurnEntry shape.
 type DemoTurn = TurnEntry & {
   forwardOptions?: { label: string; message: string }[]
   isStreaming?: boolean
-  imagePrompt?: string
 }
+
+const sceneImages = (status: 'completed' | 'in_progress'): ChatTurnImagesView => ({
+  messageId: 101,
+  generations: [
+    { job_id: 'img-1', status: 'completed', assets: [{ asset_id: 'a1', url: new URL(scene, window.location.href).href, content_type: 'image/webp', width: 1536, height: 1024 }], credit_cost: 1 },
+    ...(status === 'in_progress' ? [{ job_id: 'img-2', status: 'in_progress' as const, assets: [], trigger: 'regenerate' as const }] : []),
+  ],
+  selectedJobId: status === 'in_progress' ? 'img-2' : 'img-1',
+  scheduled: false,
+  stalled: false,
+})
 
 const gmTurn: DemoTurn = {
   id: 't-ai-1',
@@ -55,6 +68,7 @@ const meta = {
     onRegenerateClick: { control: false },
     onDeleteClick: { control: false },
     onEditClick: { control: false },
+    images: { control: false },
   },
   args: {
     turn: gmTurn,
@@ -79,6 +93,18 @@ export const StructuredSegments: Story = { args: { turn: structuredTurn } }
 
 /** Streaming — actions are hidden and the thinking dots show. */
 export const Streaming: Story = { args: { turn: { ...gmTurn, forwardOptions: undefined, isStreaming: true } } }
+
+/** The reply's scene image under its prose; hover or focus it for Regenerate and Full size. */
+export const WithSceneImage: Story = {
+  args: { turn: { ...gmTurn, assistantMessageId: 101, imagePrompt: 'A hooded figure in a rain-dark tavern.' }, images: sceneImages('completed') },
+  decorators: [(Story) => <ChatImageActionsContext.Provider value={{ canGenerate: true, regenerate: () => {}, select: () => {} }}><Story /></ChatImageActionsContext.Provider>],
+}
+
+/** A regenerated image is on its way; ‹ › pages back to the first one meanwhile. */
+export const RegeneratingSceneImage: Story = {
+  args: { turn: { ...gmTurn, assistantMessageId: 101 }, images: sceneImages('in_progress') },
+  decorators: WithSceneImage.decorators,
+}
 
 /** Latest reply after two regenerations — ‹ 2 / 3 › switches the version shown and sent to the model. */
 export const WithVersions: Story = {

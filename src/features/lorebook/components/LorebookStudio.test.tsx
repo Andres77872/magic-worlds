@@ -1,3 +1,4 @@
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import type { Lorebook, LorebookResource } from '@/shared'
@@ -64,7 +65,7 @@ function book(id = ''): Lorebook {
 describe('LorebookStudio source save and explicit extraction', () => {
     beforeEach(() => {
         vi.clearAllMocks(); localStorage.clear(); authSession.authenticate('alice', 'token')
-        vi.stubEnv('VITE_FEATURE_LOREBOOKS_ENABLED', 'true'); vi.stubEnv('VITE_FEATURE_LOREBOOK_RESOURCES_ENABLED', 'true')
+        setTestFeatureFlags({ lorebooks: true }); setTestFeatureFlags({ lorebookResources: true })
         initial = book()
         mocks.create.mockResolvedValue(book('book-1'))
         mocks.update.mockImplementation(async (_id: string, payload: Record<string, unknown>) => ({ ...book('book-1'), ...payload, id: 'book-1' }))
@@ -175,7 +176,7 @@ describe('LorebookStudio source save and explicit extraction', () => {
 describe('LorebookStudio in an archived workspace', () => {
     beforeEach(() => {
         vi.clearAllMocks(); localStorage.clear(); authSession.authenticate('alice', 'token')
-        vi.stubEnv('VITE_FEATURE_LOREBOOKS_ENABLED', 'true'); vi.stubEnv('VITE_FEATURE_LOREBOOK_RESOURCES_ENABLED', 'true')
+        setTestFeatureFlags({ lorebooks: true }); setTestFeatureFlags({ lorebookResources: true })
         mocks.update.mockResolvedValue(book('book-1'))
         // The selected workspace is active; the book's own workspace is archived.
         workspace = createWorkspaceTestState({

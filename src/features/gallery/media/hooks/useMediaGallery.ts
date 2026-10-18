@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * useMediaGallery — server-driven state for the media gallery: a merge over two
  * independently paginated sources (images + theme songs), with media-type /
@@ -120,6 +121,7 @@ async function fetchWorkspaceMediaPage(
 }
 
 export function useMediaGallery(pageSize = MEDIA_PAGE_SIZE, options: MediaGalleryOptions = {}): MediaGallery {
+    const featureFlagGeneration = useFeatureFlags().generation
     const enabled = options.enabled ?? true
     const { api, selectedWorkspaceId, workspaceEpoch, capture, isCurrent } = useWorkspace()
     const [items, setItems] = useState<MediaGalleryItem[]>([])
@@ -177,7 +179,7 @@ export function useMediaGallery(pageSize = MEDIA_PAGE_SIZE, options: MediaGaller
             src.offset = res.next_offset ?? src.offset
             src.done = res.next_offset == null
         },
-        [pageSize],
+        [pageSize, featureFlagGeneration],
     )
 
     const fetchThemesPage = useCallback(
@@ -195,7 +197,7 @@ export function useMediaGallery(pageSize = MEDIA_PAGE_SIZE, options: MediaGaller
             src.offset = res.next_offset ?? src.offset
             src.done = res.next_offset == null
         },
-        [pageSize],
+        [pageSize, featureFlagGeneration],
     )
 
     /**
@@ -310,7 +312,7 @@ export function useMediaGallery(pageSize = MEDIA_PAGE_SIZE, options: MediaGaller
         setFilters((prev) =>
             prev.cardType === cardType && !prev.card ? prev : { ...prev, cardType, card: undefined },
         )
-    }, [])
+    }, [featureFlagGeneration])
 
     const setCard = useCallback((card: CardRef | undefined) => {
         if (card && !isContentTypeFeatureEnabled(card.type)) return
@@ -319,7 +321,7 @@ export function useMediaGallery(pageSize = MEDIA_PAGE_SIZE, options: MediaGaller
             // Clearing the card keeps the type scope; picking one narrows to its type.
             return { ...prev, card, cardType: card ? card.type : prev.cardType }
         })
-    }, [])
+    }, [featureFlagGeneration])
 
     const clearFilters = useCallback(() => {
         setFilters((prev) =>

@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * Session caches behind the hover cards, so nothing loads before a hover and
  * nothing loads twice.
@@ -109,6 +110,7 @@ function loadHoverMedia(resolved: string): Promise<string> {
 
 /** A card portrait: loads (once per session) only when a hover card renders it. */
 export function useHoverMedia(url: string | null | undefined): { src: string | null; loading: boolean } {
+    useFeatureFlags()
     const resolved = resolveMediaUrl(url) ?? null
     const immediate = peekHoverMedia(url)
     const [loaded, setLoaded] = useState<{ url: string | null; src: string | null; failed: boolean }>({ url: null, src: null, failed: false })

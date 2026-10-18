@@ -6,7 +6,8 @@ import { PERFORMANCE_CAPABILITIES, PRONUNCIATION_FIXTURE } from '../performanceF
 import { VoicePerformancePanel } from './VoicePerformancePanel'
 
 const api = vi.hoisted(() => ({ getVoicePerformanceCapabilities: vi.fn(), listPronunciationDictionaries: vi.fn(), savePronunciationDictionary: vi.fn(), archivePronunciationDictionary: vi.fn() }))
-const preview = vi.hoisted(() => ({ run: vi.fn(), reset: vi.fn(), previewsLeft: 10, nextCostsCredit: false, loading: false, limitReached: false, problem: null, clip: null }))
+const preview = vi.hoisted(() => ({ run: vi.fn(), reset: vi.fn(), previewsLeft: 10, nextCostsCredit: false, loading: false, limitReached: false, problem: null, clip: null,
+    credit: { open: false, guard: vi.fn(), confirm: vi.fn(), cancel: vi.fn() } }))
 vi.mock('@/infrastructure/api', () => ({ apiService: api }))
 vi.mock('../useRecipePreview', () => ({ useRecipePreview: () => preview, previewProblemMessage: () => null }))
 

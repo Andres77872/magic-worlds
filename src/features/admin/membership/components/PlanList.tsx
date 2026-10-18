@@ -11,19 +11,21 @@ import { useTranslation } from 'react-i18next'
 import { ChevronDown, Layers, Loader2, Lock, Pencil, Plus, Users } from 'lucide-react'
 import { useLanguage } from '@/app/hooks'
 import type { MembershipPlan } from '@/shared'
+import type { FeatureFlagDefinition } from '@/shared/featureFlagRuntime'
 import { Badge, Button, Card, Icon, IconTile, cx } from '@/ui/primitives'
 import { EmptyState } from '@/ui/components/common/EmptyState'
 import { formatNumber, isProfilePriced, operationName, orderedLimitEntries, planBadgeTone } from './membershipFormat'
 
 interface PlanListProps {
     plans: MembershipPlan[]
+    flags?: FeatureFlagDefinition[]
     loading: boolean
     onCreate: () => void
     onEdit: (plan: MembershipPlan) => void
     onViewMembers: (plan: MembershipPlan) => void
 }
 
-export function PlanList({ plans, loading, onCreate, onEdit, onViewMembers }: PlanListProps) {
+export function PlanList({ plans, flags, loading, onCreate, onEdit, onViewMembers }: PlanListProps) {
     const { t } = useTranslation()
 
     if (plans.length === 0) {
@@ -39,7 +41,7 @@ export function PlanList({ plans, loading, onCreate, onEdit, onViewMembers }: Pl
     return (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,270px),1fr))] gap-4">
             {plans.map((plan) => (
-                <PlanCard key={plan.plan_code} plan={plan} onEdit={onEdit} onViewMembers={onViewMembers} />
+                <PlanCard key={plan.plan_code} plan={plan} flags={flags} onEdit={onEdit} onViewMembers={onViewMembers} />
             ))}
             <button
                 type="button"
@@ -55,10 +57,12 @@ export function PlanList({ plans, loading, onCreate, onEdit, onViewMembers }: Pl
 
 function PlanCard({
     plan,
+    flags,
     onEdit,
     onViewMembers,
 }: {
     plan: MembershipPlan
+    flags?: FeatureFlagDefinition[]
     onEdit: (plan: MembershipPlan) => void
     onViewMembers: (plan: MembershipPlan) => void
 }) {
@@ -79,7 +83,7 @@ function PlanCard({
                         </span>
                     )}
                     <div className="min-w-0">
-                        <h3 className="truncate font-display text-h3 font-semibold text-parchment-50">{plan.display_name}</h3>
+                        <h3 className="font-display text-h3 font-semibold text-parchment-50">{plan.display_name}</h3>
                         <p className="font-mono text-[11px] text-parchment-500">
                             {t('admin.membership.plans.codeLabel')} {plan.plan_code}
                         </p>
@@ -112,6 +116,21 @@ function PlanCard({
                     {t('admin.membership.plans.members', { count: plan.member_count })}
                 </span>
             </div>
+
+            {flags && flags.length > 0 && <details className="group border-t border-line-faint">
+                <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-2 font-ui text-label text-parchment-200 [&::-webkit-details-marker]:hidden">
+                    {t('admin.membership.plans.featuresSummary', { count: flags.filter(flag => plan.feature_flags?.[flag.key] === true).length, total: flags.length })}
+                    <Icon icon={ChevronDown} size={14} className="shrink-0 transition-transform group-open:rotate-180" />
+                </summary>
+                <ul className="flex flex-col gap-2 py-2">
+                    {flags.map(flag => <li key={flag.key} className="flex items-center justify-between gap-3 font-ui text-caption text-parchment-200">
+                        <span>{t(`featureFlags.labels.${flag.key}`, { defaultValue: flag.key })}</span>
+                        <Badge tone={plan.feature_flags?.[flag.key] === true ? 'live' : 'neutral'}>
+                            {t(plan.feature_flags?.[flag.key] === true ? 'admin.membership.plans.featureOn' : 'admin.membership.plans.featureOff')}
+                        </Badge>
+                    </li>)}
+                </ul>
+            </details>}
 
             <details className="group border-t border-line-faint">
                 <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-2 font-ui text-label text-parchment-200 [&::-webkit-details-marker]:hidden">

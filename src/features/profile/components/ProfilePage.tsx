@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * Profile route container. Wires the `/user/me` data hook and auth, and renders
  * the appropriate shell (loading / error / signed-out) around {@link ProfileView}.
@@ -10,7 +11,6 @@ import { useAuth, useData, useNavigation } from '@/app/hooks'
 import { Button, Callout, Icon } from '@/ui/primitives'
 import { EmptyState } from '@/ui/components/common/EmptyState'
 import { LoadingSpinner } from '@/ui/components/LoadingSpinner'
-import { isBillingFeatureEnabled } from '@/shared/billingFeatureFlag'
 import { isCommunityCardsFeatureEnabled } from '@/shared/featureFlags'
 import { useBillingCatalog } from '@/features/billing/hooks/useBillingCatalog'
 import { useUserProfile } from '../hooks/useUserProfile'
@@ -42,6 +42,7 @@ function tabFromHash(hash: string): ProfileTab | null {
 }
 
 export function ProfilePage() {
+    useFeatureFlags()
     const { t } = useTranslation()
     const { isAuthenticated, logout, openLoginModal, updateUser } = useAuth()
     const { clearAllData } = useData()
@@ -77,7 +78,7 @@ export function ProfilePage() {
     // upgrade and any purchased credits land, then re-fetch /user/me. Runs once,
     // best-effort (a transient reconcile failure shouldn't block the profile).
     useEffect(() => {
-        if (!isBillingFeatureEnabled() || !isAuthenticated || billingReconciledRef.current) return
+        if (!isAuthenticated || billingReconciledRef.current) return
         if (billingIntent === 'success' || billingIntent === 'portal') {
             billingReconciledRef.current = true
             void apiService.reconcileBilling().catch(() => {}).finally(() => refresh())
@@ -88,6 +89,11 @@ export function ProfilePage() {
     // then re-fetch /user/me so the hero reflects server truth.
     const handleDisplayNameUpdated = (displayName: string | null) => {
         updateUser({ display_name: displayName })
+        refresh()
+    }
+
+    const handleAvatarVariantUpdated = (updatedProfile: { avatar_url?: string | null }) => {
+        updateUser({ avatar_url: updatedProfile.avatar_url ?? null })
         refresh()
     }
 
@@ -159,6 +165,7 @@ export function ProfilePage() {
             onLogout={logout}
             onDeleteAllData={handleDeleteAllData}
             onDisplayNameUpdated={handleDisplayNameUpdated}
+            onAvatarVariantUpdated={handleAvatarVariantUpdated}
             onRedeemed={refresh}
             autoClaimEmailCreditGrants={autoClaimEmailCreditGrants}
             billingEnabled={billingEnabled}

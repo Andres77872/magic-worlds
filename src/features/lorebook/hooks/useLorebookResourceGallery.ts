@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { i18n } from '@/app/i18n'
 import { useWorkspace } from '@/app/hooks/useWorkspace'
@@ -37,6 +38,7 @@ function appendDeduped(prev: LorebookResource[], page: LorebookResource[]): Lore
  * paging, refetches from offset 0, and ignores late pages of the previous scope.
  */
 export function useLorebookResourceGallery(pageSize = PAGE_SIZE, options: LorebookResourceGalleryOptions = {}) {
+    useFeatureFlags()
     const enabled = (options.enabled ?? true) && isLorebookResourcesFeatureEnabled()
     const { workspaceEpoch, capture, isCurrent } = useWorkspace()
     const api = useScopedApi(options.workspaceId)

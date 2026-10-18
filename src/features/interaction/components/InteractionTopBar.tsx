@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 import { isVoicesFeatureEnabled } from '@/shared/featureFlags'
 import { useTranslation } from 'react-i18next'
 import { Menu, ScrollText } from 'lucide-react'
@@ -38,6 +39,7 @@ export function InteractionTopBar({
     rightOpen = false,
     dockAt = 'lg',
 }: InteractionTopBarProps) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const header = (
         <header className={cx('sticky top-0 z-10 flex h-12 shrink-0 items-center gap-2 border-b border-parchment-50/[.08] bg-ink-900/80 px-2 backdrop-blur-md', dockAt === 'xl' ? 'xl:hidden' : 'lg:hidden')}>

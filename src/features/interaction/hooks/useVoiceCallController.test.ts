@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { VoicePlaybackBuffer, VoicePlaybackState } from '../audio/voicePlaybackBuffer'
@@ -266,6 +269,28 @@ describe('useVoiceCallController', () => {
         expect(mocks.apiService.endVoiceCall).toHaveBeenCalledWith(7, { voiceSessionId: 'voice-1', reason: 'user' }, { keepalive: true })
         expect(result.current.state).toBe('ended')
         expect(result.current.endReason).toBe('user')
+    })
+
+    it('sends the voice picked for this call on voice_start, and no voice without a pick', async () => {
+        const voice = {
+            schema_version: 2 as const,
+            provider: 'elevenlabs' as const,
+            voice_key: 'vk_call_pick',
+            voice_name: 'Rowan',
+            settings: { stability: 0.5, similarity_boost: 0.75, style: 0, use_speaker_boost: true, speed: 1 },
+            emotion: null,
+            language_code: null,
+            preset_id: null,
+            preset_name: null,
+        }
+        const picked = renderController({ callVoice: voice })
+        await act(async () => { await picked.result.current.startCall() })
+        expect(mocks.socketApi!.start).toHaveBeenLastCalledWith(expect.objectContaining({ type: 'voice_start', voice }))
+        picked.unmount()
+
+        const plain = renderController()
+        await act(async () => { await plain.result.current.startCall() })
+        expect(vi.mocked(mocks.socketApi!.start).mock.lastCall?.[0]).not.toHaveProperty('voice')
     })
 
     it('caps VAD segments below the server limit (default until the server advertises one)', async () => {
@@ -890,6 +915,30 @@ describe('useVoiceCallController', () => {
             expect(result.current.assistantText).toBe('Héllo 👋')
             act(() => mocks.socketHandlers?.onCancelled?.({ type: 'voice_cancelled', voice_session_id: 'voice-1', turn_id: 'turn-1', reason: 'barge_in', truncated: true, kept_chars: 5 }))
             expect(result.current.assistantText).toBe('Héllo')
+        })
+
+        it('keeps a running transcript of the call: user lines, streamed replies and interruptions', async () => {
+            withPlayedMs(0)
+            const { result } = await renderElCall()
+            act(() => mocks.socketHandlers?.onTranscriptFinal?.({ type: 'transcript_final', voice_session_id: 'voice-1', seq: 1, turn_id: 'turn-1', text: 'Who are you?' }))
+            act(() => mocks.socketHandlers?.onTurnStart?.(turnStart()))
+            act(() => mocks.socketHandlers?.onAssistantDelta?.({ type: 'voice_assistant_delta', voice_session_id: 'voice-1', turn_id: 'turn-1', content: 'A keeper of maps.' }))
+            act(() => mocks.socketHandlers?.onTurnEnd?.({ type: 'voice_turn_end', voice_session_id: 'voice-1', turn_id: 'turn-1', status: 'completed', partial: false, duration_ms: 900 }))
+            act(() => mocks.socketHandlers?.onTranscriptFinal?.({ type: 'transcript_final', voice_session_id: 'voice-1', seq: 2, turn_id: 'turn-2', text: 'Show me' }))
+            act(() => mocks.socketHandlers?.onTurnStart?.(turnStart('turn-2')))
+            act(() => mocks.socketHandlers?.onAssistantDelta?.({ type: 'voice_assistant_delta', voice_session_id: 'voice-1', turn_id: 'turn-2', content: 'Here, the northern road.' }))
+            act(() => { result.current.bargeIn() })
+            act(() => mocks.socketHandlers?.onCancelled?.({ type: 'voice_cancelled', voice_session_id: 'voice-1', turn_id: 'turn-2', reason: 'barge_in', truncated: true, kept_chars: 4 }))
+            expect(result.current.transcriptLines.map(({ role, text, interrupted, streaming }) => ({ role, text, interrupted, streaming }))).toEqual([
+                { role: 'user', text: 'Who are you?', interrupted: false, streaming: false },
+                { role: 'assistant', text: 'A keeper of maps.', interrupted: false, streaming: false },
+                { role: 'user', text: 'Show me', interrupted: false, streaming: false },
+                { role: 'assistant', text: 'Here', interrupted: true, streaming: false },
+            ])
+            // A new call on the same screen starts a fresh transcript.
+            await act(async () => { await result.current.endCall() })
+            await act(async () => { await result.current.startCall() })
+            expect(result.current.transcriptLines).toEqual([])
         })
 
         it('keeps the captions when the turn end is not truncated', async () => {

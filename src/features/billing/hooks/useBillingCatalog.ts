@@ -10,7 +10,7 @@
  * BFF answers `GET /billing/plans` with 503, which takes the failure path, so
  * `enabled` stays `false` and `error` carries the server message.
  *
- * The frontend env kill-switch ({@link isBillingFeatureEnabled}) gates this
+ * Server catalog availability controls purchases through this
  * entirely: when off (the default) the hook short-circuits to `enabled: false`
  * without fetching the catalog, so no purchase UI is offered and no network call
  * fires. When on, the server still has the final say: only a catalog it returns
@@ -22,7 +22,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '@/app/hooks'
 import { apiService } from '@/infrastructure/api'
-import { isBillingFeatureEnabled } from '@/shared/billingFeatureFlag'
 import type { BillingPlanCatalogResponse } from '@/shared/types/billing.types'
 
 interface UseBillingCatalogResult {
@@ -55,7 +54,7 @@ export function useBillingCatalog(): UseBillingCatalogResult {
     useEffect(() => {
         // Billing disabled at the frontend, or signed-out users who can't
         // purchase — treat as not-enabled without a fetch.
-        if (!isBillingFeatureEnabled() || !isAuthenticated) {
+        if (!isAuthenticated) {
             setCatalog(null)
             setError(null)
             setLoading(false)

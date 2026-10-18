@@ -1,3 +1,4 @@
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import type { ReactNode } from 'react'
 import { renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -27,7 +28,7 @@ const wrapper = ({ children }: { children: ReactNode }) => <WorkspaceTestProvide
 
 describe('useProfileSharedCards', () => {
     beforeEach(() => {
-        vi.stubEnv('VITE_FEATURE_COMMUNITY_CARDS_ENABLED', 'true')
+        setTestFeatureFlags({ communityCards: true })
         api.listMyPublicCards.mockResolvedValue({ items: [card('pub-1')] })
         api.listMyShareLinks.mockResolvedValue({ items: [card('link-1')] })
     })

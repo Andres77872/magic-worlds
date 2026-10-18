@@ -1,3 +1,4 @@
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactElement, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
@@ -120,8 +121,8 @@ const MOON_BOOK: Lorebook = {
 describe('SessionLorebookPanel', () => {
     beforeEach(() => {
         vi.clearAllMocks()
-        vi.stubEnv('VITE_FEATURE_LOREBOOKS_ENABLED', 'true')
-        vi.stubEnv('VITE_FEATURE_LOREBOOK_RESOURCES_ENABLED', 'true')
+        setTestFeatureFlags({ lorebooks: true })
+        setTestFeatureFlags({ lorebookResources: true })
         lorebooks = [GLASS_BOOK, MOON_BOOK]
         vi.mocked(apiService.listLorebookAttachments).mockResolvedValue([
             { id: 'att-1', lorebookId: 'lb-1', targetKind: 'character_chat', targetId: '9', mode: 'linked' },

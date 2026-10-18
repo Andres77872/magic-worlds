@@ -1,3 +1,4 @@
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -760,7 +761,7 @@ describe('CharacterCreator voice (D38, D32)', () => {
 
     beforeEach(() => {
         vi.clearAllMocks()
-        vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'true')
+        setTestFeatureFlags({ voices: true })
         mocks.isAuthenticated = true
         mocks.editingCharacter = null
         mocks.cardEdit = null
@@ -888,7 +889,7 @@ describe('CharacterCreator effective voice (R1-FE-03, R1-FE-01)', () => {
 
     beforeEach(() => {
         vi.clearAllMocks()
-        vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'true')
+        setTestFeatureFlags({ voices: true })
         mocks.isAuthenticated = true
         mocks.editingCharacter = null
         mocks.cardEdit = null
@@ -1120,7 +1121,7 @@ describe('CharacterCreator voice save refusals (I-36)', () => {
 
     beforeEach(() => {
         vi.clearAllMocks()
-        vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'true')
+        setTestFeatureFlags({ voices: true })
         mocks.isAuthenticated = true
         mocks.cardEdit = null
         mocks.listAssistantConversations.mockResolvedValue({ conversations: [] })

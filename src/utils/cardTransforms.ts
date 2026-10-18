@@ -49,6 +49,10 @@ interface RawCardRow {
     original_creator?: CardActor
     latest_version_id?: string | null
     latest_version_number?: number
+    source_card_id?: string
+    source_card_version_id?: string | null
+    source_card_version_number?: number
+    newer_version_available?: boolean
     has_draft?: boolean
     draft_updated_at?: string | null
     persona?: Character
@@ -113,6 +117,10 @@ export function transformCharacters(raw: unknown): Character[] {
         original_creator: char.original_creator,
         latest_version_id: char.latest_version_id,
         latest_version_number: char.latest_version_number,
+        ...(char.source_card_id !== undefined ? { source_card_id: char.source_card_id } : {}),
+        ...(char.source_card_version_id !== undefined ? { source_card_version_id: char.source_card_version_id } : {}),
+        ...(char.source_card_version_number !== undefined ? { source_card_version_number: char.source_card_version_number } : {}),
+        ...(char.newer_version_available !== undefined ? { newer_version_available: char.newer_version_available } : {}),
         has_draft: char.has_draft,
         draft_updated_at: char.draft_updated_at,
         ...organizationOf(char),

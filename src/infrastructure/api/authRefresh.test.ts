@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
 import { waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, apiService } from './index'
@@ -35,7 +38,7 @@ describe('auth refresh recovery API wrapper', () => {
         vi.useRealTimers()
         vi.clearAllMocks()
         localStorage.clear()
-        localStorage.setItem('magic_worlds:token', 'old-token')
+        authSession.authenticate('u1', 'old-token'); grantFixtureFeatures(true)
         localStorage.setItem('magic_worlds:user', JSON.stringify({ username: 'old-user' }))
         vi.stubGlobal('fetch', fetchMock)
         vi.spyOn(console, 'error').mockImplementation(() => undefined)
@@ -261,6 +264,7 @@ describe('auth refresh recovery API wrapper', () => {
             resolveMutation = resolve
         })
         authSession.authenticate('account-a', 'old-token')
+        authSession.authenticate('account-a', localStorage.getItem('magic_worlds:token') || 'account-a-token'); grantFixtureFeatures(true)
         localStorage.setItem('magic_worlds:user', JSON.stringify({ user_hash: 'account-a', username: 'a' }))
         fetchMock.mockReturnValueOnce(pendingMutation)
 
@@ -288,6 +292,7 @@ describe('auth refresh recovery API wrapper', () => {
         const refreshed = vi.fn()
         window.addEventListener('auth:refreshed', refreshed)
         authSession.authenticate('account-a', 'old-token')
+        authSession.authenticate('account-a', localStorage.getItem('magic_worlds:token') || 'account-a-token'); grantFixtureFeatures(true)
         localStorage.setItem('magic_worlds:user', JSON.stringify({ user_hash: 'account-a', username: 'a' }))
         const timeline: string[] = []
         fetchMock.mockImplementation((url: string) => {

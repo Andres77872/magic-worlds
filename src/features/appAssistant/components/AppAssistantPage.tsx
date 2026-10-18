@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * AppAssistantPage — the `#/assistant` route ("Assistant" in the sidebar, next
  * to Explore and Community). Wires the knowledge sources, the conversation hook,
@@ -19,7 +20,7 @@ import { useAuth, useData, useFloatingWindows, useLanguage, useNavigation } from
 import { useWorkspace } from '@/app/hooks/useWorkspace'
 import { useWorkspaceReadOnly } from '@/shared/hooks/useWorkspaceReadOnly'
 import type { PageType } from '@/shared'
-import { isContentTypeFeatureEnabled } from '@/shared/featureFlags'
+import { isContentTypeFeatureEnabled,isNovelsFeatureEnabled } from '@/shared/featureFlags'
 import type { AssistantConversation } from '@/shared/types/assistant.types'
 import { buildCardEditHash, buildLinkedEditorHash, pageHash } from '@/features/gallery/galleryLinks'
 import { useOriginNavigation } from '@/features/workspaces/originNavigation'
@@ -53,6 +54,7 @@ function conversationHash(id: number | null): string {
 }
 
 export function AppAssistantPage() {
+    const featureFlagGeneration = useFeatureFlags().generation
     const { t } = useTranslation()
     const { isAuthenticated, openLoginModal } = useAuth()
     const {
@@ -130,7 +132,7 @@ export function AppAssistantPage() {
         const current = focusRefs.find((entry) => focusMatchKey(entry) === key)
         if (current) removeFocus(current)
         else if (focusRefs.length < FOCUS_LIMIT) setFocus([...focusRefs, ref])
-    }, [focusRefs, setFocus, removeFocus])
+    }, [focusRefs, setFocus, removeFocus, featureFlagGeneration])
     const focusTokens = useCallback((ref: HoverCardRef) => estimateFocusTokens(library, ref, t), [library, t])
     // A record previews over the thread: a card in its preview modal, and a
     // lorebook (which has none) in its preview window.
@@ -141,7 +143,7 @@ export function AppAssistantPage() {
         const lorebook = lorebooks.find((book) => book.id === ref.id)
         if (lorebook) openWindow(lorebookWindow(lorebook))
         else setLinkNotice(t('appAssistant.notices.linkMissing'))
-    }, [cardPreview, lorebooks, openWindow, t])
+    }, [cardPreview, lorebooks, openWindow, t, featureFlagGeneration])
 
     // Every other working link opens in a new tab (`AssistantReplyLink`), so
     // only record links and links to nowhere reach the page.
@@ -162,6 +164,17 @@ export function AppAssistantPage() {
         const missing = () => setLinkNotice(t('appAssistant.handoff.missing'))
         const tag = assistantTag(conversation)
         if (tag === 'app') return
+        if (tag === 'novel') {
+            if (!isNovelsFeatureEnabled() || !targetId) return missing()
+            const hash=withAssistantConversation(buildLinkedEditorHash('story',targetId),id)
+            const origin=conversation.organization?.workspace_id
+            if (origin && origin!==selectedWorkspaceId) {
+                void navigateToOrigin({workspaceId:origin,page:'story',hash}).then(outcome=>{
+                    if(outcome==='unavailable')setLinkNotice(t('workspaceActivity.assistant.unavailable'))
+                })
+            } else setPage('story',{hash})
+            return
+        }
         if (!isContentTypeFeatureEnabled(tag)) return
         const origin = conversation.organization?.workspace_id ?? null
         if (origin && origin !== selectedWorkspaceId) {
@@ -211,7 +224,7 @@ export function AppAssistantPage() {
         setPage(tag, { hash: withAssistantConversation(route, id) })
     }, [t, lorebooks, templateAdventures, characters, worlds, items, setPage, editLorebook, setEditingLorebook,
         editTemplate, setEditingTemplate, editCharacter, setEditingCharacter, editWorld, setEditingWorld, editItem, setEditingItem,
-        selectedWorkspaceId, navigateToOrigin])
+        selectedWorkspaceId, navigateToOrigin, featureFlagGeneration])
 
     // The picker resolves the `app_assistant` profile, which only exists on servers that
     // offer the assistant: wait for the history to confirm it instead of showing an error.

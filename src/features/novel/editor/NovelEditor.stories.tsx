@@ -1,3 +1,4 @@
+import { storyTrace } from '@/test/fixtures/story'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { FloatingWindowsProvider } from '@/app/providers/FloatingWindowsProvider'
 import { NovelEditor } from './NovelEditor'
@@ -9,7 +10,7 @@ const meta = {
   parameters: { layout: 'padded', docs: { description: { component: 'The Story Studio manuscript uses arcane accents for AI suggestions. This delayed fixture previews text outside the document, then enters Accept/Reject review.' } } },
   decorators: [(Story) => <FloatingWindowsProvider><div className="h-screen max-w-4xl"><Story /></div></FloatingWindowsProvider>],
   args: {
-    initialBody: 'The gate held.', codexEntries: [], onBodyChange: () => {},
+    initialBody: 'The gate held.', codexEntries: [], onDocumentChange: () => {},
     onRequestSaveFlush: async () => true, onAcceptGeneration: async () => {}, onDiscardGeneration: async () => {}, onCritiqueResult: () => {},
     onGenerate: async (request, options) => {
       const chunks = ['Beyond the gate, ', 'the ink still whispered ', 'to those who listened.']
@@ -22,7 +23,7 @@ const meta = {
       for (const delta of chunks) { await wait(); options?.onEvent?.({ type: 'delta', delta, request_id: 'story-fixture' }) }
       options?.onEvent?.({ type: 'progress', stage: 'saving', request_id: 'story-fixture' })
       await wait()
-      return { id: 'fixture-generation', storyId: 'fixture-story', inputRange: null, contextTrace: { cards: [], loreEntries: [], chapters: [], totalEstimatedTokens: 0 }, chapterId: 'fixture-chapter', command: request.command, status: 'candidate', output: chunks.join(''), createdAt: new Date().toISOString(), promptSummary: 'Continue at the gate.' }
+      return { id: 'fixture-generation', storyId: 'fixture-story', inputRange: null, contextTrace: storyTrace(), sceneId:'fixture-scene',baseRevision:1, chapterId: 'fixture-chapter', command: request.command, status: 'candidate', output: chunks.join(''), createdAt: new Date().toISOString(), promptSummary: 'Continue at the gate.' }
     },
   },
 } satisfies Meta<typeof NovelEditor>

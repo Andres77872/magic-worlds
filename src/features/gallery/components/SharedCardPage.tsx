@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Import, Link2, Loader2, Sparkles } from 'lucide-react'
@@ -23,6 +24,7 @@ function playlistCardType(type: GalleryType) {
 
 
 export function SharedCardPage() {
+    useFeatureFlags()
     const { t } = useTranslation()
     const { setPage } = useNavigation()
     const [retryCount, setRetryCount] = useState(0)

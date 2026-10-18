@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 import { isOperationFeatureEnabled, isLlmFeatureEnabled } from '@/shared/featureFlags'
 import { useTranslation } from 'react-i18next'
 import { Activity } from 'lucide-react'
@@ -11,6 +12,7 @@ export function LlmCapacityUsageView({ usage, loading = false, error = '' }: {
     loading?: boolean
     error?: string
 }) {
+    useFeatureFlags()
     const { t, i18n } = useTranslation()
     const format = new Intl.NumberFormat(i18n.resolvedLanguage)
     return <Card className="flex flex-col gap-3 p-4">

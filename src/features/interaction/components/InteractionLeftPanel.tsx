@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 import { useContext, useId, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ArrowLeft, AudioLines, Check, Globe, Info, Pencil, Plus, UserCircle, Users, Volume2, X } from 'lucide-react'
@@ -72,6 +73,7 @@ export function InteractionLeftPanel({
     onNarratorPickerOpenChange,
     language,
 }: InteractionLeftPanelProps) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const { characters: libraryCharacters, worlds: libraryWorlds } = useData()
     const { openWindow } = useFloatingWindows()
@@ -242,6 +244,7 @@ export function InteractionLeftPanel({
 }
 
 function AddButton({ label, onClick }: { label: string; onClick: () => void }) {
+    useFeatureFlags()
     return (
         <IconButton label={label} size="sm" onClick={onClick}>
             <Plus size={16} strokeWidth={1.75} />
@@ -280,6 +283,7 @@ function NarrationSection({
     pickerOpen?: boolean
     onPickerOpenChange?: (open: boolean) => void
 }) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const [uncontrolledPickerOpen, setUncontrolledPickerOpen] = useState(false)
     const pickerOpen = controlledPickerOpen ?? uncontrolledPickerOpen
@@ -357,6 +361,7 @@ function CardList({
     /** Cast lists only: members whose voice differs from their card get a cast menu (D36). */
     castVoice?: CastVoiceRefresh
 }) {
+    useFeatureFlags()
     // 05 §9.3: leaving cast voices are dated from one catalog read ("Leaving on {date}"),
     // made only for ElevenLabs projections badged `leaving`.
     const signedIn = useSignedIn()
@@ -382,6 +387,7 @@ function CardList({
 
 /** Voice reads (catalog dates) run for a signed-in caller only; never outside the auth provider. */
 function useSignedIn(): boolean {
+    useFeatureFlags()
     return Boolean(useContext(AuthContext)?.isAuthenticated)
 }
 
@@ -391,6 +397,7 @@ function castLeavingKey({ card, ref }: SnapshotCardEntry): string | null {
 }
 
 function CompactCard({ entry, onPreview, castVoice, leavingDate = null }: { entry: SnapshotCardEntry; onPreview: (entry: SnapshotCardEntry) => void; castVoice?: CastVoiceRefresh; leavingDate?: string | null }) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const { card, ref } = entry
     const isWorld = ref.kind === 'world'
@@ -442,6 +449,7 @@ function CompactCard({ entry, onPreview, castVoice, leavingDate = null }: { entr
 }
 
 function EmptyState({ children }: { children: ReactNode }) {
+    useFeatureFlags()
     return (
         <p className="py-1 text-label text-parchment-300">{children}</p>
     )
@@ -458,6 +466,7 @@ function ScenarioSection({
     editable: boolean
     onSave: (text: string) => Promise<void>
 }) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const [editing, setEditing] = useState(false)
     const [draft, setDraft] = useState(scenario)

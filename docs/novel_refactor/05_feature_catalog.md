@@ -15,20 +15,20 @@ Market and research sources are in [13](13_sources_and_open_decisions.md), imple
 | ID | Capability and expected outcome | Baseline | Phase |
 |---|---|---|---|
 | N01 | Create blank novel and start typing without mandatory planning | Present | D1 |
-| N02 | Create from selected cards, setting, or approved adventure material with provenance | Partial | D2 |
-| N03 | Edit title, synopsis, genre, language, audience, description, cover, and default POV/tense | Partial | D2 |
-| N04 | Duplicate/fork a novel into an independent draft with remapped references | Gap | D2 |
+| N02 | Create from selected cards, setting, or approved adventure material with provenance | Present locally: reviewed card batches and exact approved reference passages, source-version guards, frozen creation provenance and retained rejected drafts; broader acceptance remains | D2 |
+| N03 | Edit title, synopsis, genre, language, audience, description, cover, and default POV/tense | Present locally: recoverable bounded metadata, owned cover selection/upload, default POV inheritance, frozen references and reviewed restore/copy; broader acceptance remains | D2 |
+| N04 | Duplicate/fork a novel into an independent draft with remapped references | Present locally: reviewed options, remapped identities, frozen provenance and request recovery; release gates open | D2 |
 | N05 | Named draft/edition branches and comparisons | Gap | D4 |
-| N06 | Archive and restore a novel independently from workspace lifecycle | Gap | D2 |
-| N07 | Recoverable novel trash and explicit permanent erase | Gap | D1–D2 |
-| N08 | Search/filter/sort by title, content, status, metadata, and recent activity | Partial | D2 |
-| N09 | Lightweight gallery summaries and cached aggregate statistics | Partial | D2 |
-| N10 | Resume last scene, position, and panel state | Partial | D2 |
-| N11 | Writing templates with editable structure and style defaults | Gap | D2 |
-| N12 | Whole-novel goal, deadline and progress dashboard | Partial | D5 |
+| N06 | Archive and restore a novel independently from workspace lifecycle | Present locally: root lifecycle and workspace isolation; release/author gates remain | D2 |
+| N07 | Recoverable novel trash and explicit permanent erase | Present locally: retained Trash, reviewed one-novel erase, minimal replay barrier and receipt-first recovery; broader retention/device/author gates remain | D1–D2 |
+| N08 | Search/filter/sort by title, content, status, metadata, and recent activity | Present locally: explicit title/manuscript/metadata scopes, workflow and literal metadata/tag filters, inclusive UTC activity dates, saved-size filters and stable sorting; broader acceptance remains | D2 |
+| N09 | Lightweight gallery summaries and cached aggregate statistics | Present locally: revision-bound saved scene/root caches, separate active/archive/Trash totals, explicit unavailable counts, inclusive size filters and word sorting; broader measured limits and acceptance remain | D2 |
+| N10 | Resume last scene, position, and panel state | Present locally: scoped writing unit/cursor/panels plus direct reader scene/paragraph resume, bounded device records, page-hide flush, document-bound positions and storage-failure guidance; full device/author/release acceptance remains | D2 |
+| N11 | Writing templates with editable structure and style defaults | Present locally: editable starter/custom outlines, independent goals and writing defaults, fresh identities and atomic creation/recovery; broader acceptance remains | D2 |
+| N12 | Whole-novel goal, deadline and progress dashboard | Present locally: novel word goal, deadline and daily target in the novel details; *Writing progress* shows saved words toward the goal, days left and the words a day needed, verified live | D5 |
 | N13 | Author-owned series membership, versioned series canon, and novel overrides | Gap | D6 |
-| N14 | Export/import complete project backup, including history/notes options | Gap | D5 |
-| N15 | Novel-specific style guide and preferred examples | Gap | D3 |
+| N14 | Export/import complete project backup, including history/notes options | Present locally — *Back up novel…* makes a `.mwnovel` package (whole novel, optional notes, planning and scene history) and *Restore a backup* checks it and creates a new novel; checked live with and without history, including notes, planning items and current summaries ([14](14_status_and_roadmap.md#d5-slice-12--project-packages-n14-x08-2026-10-18)) | D5 |
+| N15 | Novel-specific style guide and preferred examples | Present locally: the free-text style guide plus a style sheet in the novel details (conventions by kind, up to five preferred examples), read by the assistant and inline writing and verified live [14](14_status_and_roadmap.md#d3d5-slice--style-sheet-and-character-voices-n15-k08-rest-of-x07-2026-10-17) | D3 |
 | N16 | Workspace-scoped permissions, origin retention, and archived behavior | Present | D1 |
 
 ## Parts, chapters, scenes, and planning
@@ -36,25 +36,25 @@ Market and research sources are in [13](13_sources_and_open_decisions.md), imple
 | ID | Capability and expected outcome | Baseline | Phase |
 |---|---|---|---|
 | S01 | Select/add/rename chapters with visible save results | Partial | D1–D2 |
-| S02 | Optional parts/acts and independently identified scenes | Gap | D2 |
-| S03 | Insert before/after the selected unit | Gap | D2 |
-| S04 | Reorder/move with drag, menu, and keyboard alternatives | Gap | D2 |
-| S05 | Duplicate scene/chapter with explicit copy options | Gap | D2 |
-| S06 | Split scene at cursor and chapter at scene boundary | Gap | D2 |
-| S07 | Merge scenes/chapters with exact-text preview and recovery | Gap | D2 |
-| S08 | Archive/trash/restore structure units without deleting source cards | Partial | D1–D2 |
-| S09 | Metadata: POV, setting, cast, narrative time, tags, status | Partial | D2 |
-| S10 | Scene synopsis, planned beats, written summary and separate notes | Partial | D2–D3 |
-| S11 | Derived numbering, inheritance, and export/AI inclusion flags | Gap | D2 |
-| S12 | Outline view with summaries, goals, status and cast | Gap | D2 |
-| S13 | Board view over the same scene model | Gap | D4 |
-| S14 | Timeline with story time distinct from reading order | Gap | D4 |
-| S15 | Plot-thread/character matrix and appearance navigation | Gap | D4 |
-| S16 | Scene/chapter/whole-manuscript reading and selected-unit editing | Partial | D2–D4 |
-| S17 | Whole-manuscript search, scoped replacement preview, filters and bookmarks | Partial | D2–D4 |
-| S18 | Outline import/generation produces reviewable structure operations | Gap | D3 |
+| S02 | Optional parts/acts and independently identified scenes | Present locally: independent scene identities/checkpoints and part/chapter hierarchy; broader gates remain | D2 |
+| S03 | Insert before/after the selected unit | Present locally: reviewed before/after creation for parts/chapters/scenes with stable anchor IDs, guarded placement and exact request recovery; broader gates remain | D2 |
+| S04 | Reorder/move with drag, menu, and keyboard alternatives | Partial: scene/chapter drag and drawer movement/keyboard controls; full position/author acceptance remains | D2 |
+| S05 | Duplicate scene/chapter with explicit copy options | Partial: reviewed metadata notes, personal comments, local Codex/lifecycle choices, source guards, new identities/provenance and recovery implemented locally; broader acceptance remains | D2 |
+| S06 | Split scene at cursor and chapter at scene boundary | Partial: atomic splits, server-owned comment point lineage, crossing-passage orphan handling and guarded reversal locally verified; remaining nested/context/author gates open | D2 |
+| S07 | Merge scenes/chapters with exact-text preview and recovery | Partial: atomic merges move comments to retained prose, preserve later note edits through reviewed undo and keep recoverable source units; broader acceptance remains | D2 |
+| S08 | Archive/trash/restore structure units without deleting source cards | Partial: recoverable lifecycle and reviewed active restore destination, including source Codex/anchor preservation; broader acceptance remains | D1–D2 |
+| S09 | Metadata: POV, setting, cast, narrative time, tags, status | Implemented locally: POV/setting/cast/narrative-time/tags/status and plot-thread labels; broader author/device acceptance remains | D2 |
+| S10 | Scene synopsis, planned beats, written summary and separate notes | Manual fields implemented locally; assisted planning remains D3 | D2–D3 |
+| S11 | Derived numbering, inheritance, and export/AI inclusion flags | Present locally: derived active reading-order numbers, visible inheritance/overrides and inclusion flags; titles/IDs stay unchanged; broader gates remain | D2 |
+| S12 | Outline view with summaries, goals, status and cast | Present locally: compact/detailed hierarchy with independent goals, status, scoped POV/location/cast and distinct planned/revision-labelled written summaries; above 200 scenes only the open chapter lists its scenes, with show/hide per chapter (see [large-manuscript performance](14_status_and_roadmap.md#d2-slice--large-manuscript-performance-2026-10-18)); broader gates remain | D2 |
+| S13 | Board view over the same scene model | Present locally: board by part/chapter over the saved outline with status, story time, words, POV, synopsis and open-task counts; above 200 scenes it opens on the current chapter, with show/hide per chapter; author/release acceptance remains | D4 |
+| S14 | Timeline with story time distinct from reading order | Present locally: optional scene story-time order, flashback flags and unknown-time list; author/release acceptance remains | D4 |
+| S15 | Plot-thread/character matrix and appearance navigation | Present locally: character/plot-thread × scene matrix with scene and passage navigation; acceptance remains | D4 |
+| S16 | Scene/chapter/whole-manuscript reading and selected-unit editing | Present locally: saved scene/part/chapter/novel reading, direct scene seeking, bounded bidirectional windows, device paragraph resume and guarded scene opening; opening, typing and scene switching were measured and fixed on a 1,500-scene novel in the development build (see [large-manuscript performance](14_status_and_roadmap.md#d2-slice--large-manuscript-performance-2026-10-18)); production-build, low-end-device and author acceptance remain | D2–D4 |
+| S17 | Whole-manuscript search, scoped replacement preview, filters and bookmarks | Present locally: saved search/filter/navigation, reviewed atomic literal replacements with recovery/undo-redo, and writer/reader point/passage bookmarks with exact navigation, independent copy choices and frozen review; broader acceptance remains | D2–D4 |
+| S18 | Outline import/generation produces reviewable structure operations | Present locally: *Import outline* reads pasted or file Markdown/plain text into parts, chapters, scenes and planned beats without saving; the author picks chapters and a destination, and `add_outline` adds them as one undoable organization change. Assistant chapter plans open in the same dialog (*Add to outline…*). Importing as a new novel and matching existing chapters remain | D3 |
 | S19 | Scene/chapter word goals and status transitions | Partial | D2 |
-| S20 | Reversible bulk structure actions with conflict checks | Gap | D4 |
+| S20 | Reversible bulk structure actions with conflict checks | Present locally: reviewed bulk status, move, archive and Trash for selected scenes as one revision-checked write, undone in one step | D4 |
 
 ## Core text editing
 
@@ -63,21 +63,21 @@ Market and research sources are in [13](13_sources_and_open_decisions.md), imple
 | E01 | Fast caret, selection, paragraph, line-break, cut/copy/paste behavior | Present | D1 |
 | E02 | Predictable undo/redo for manual edits, AI commits, and replacement | Partial | D1 |
 | E03 | Bold, italic, strike, headings, lists, quotes, scene breaks | Present | D1 |
-| E04 | Links and safe pasted references without silent URL loss | Gap | D1–D2 |
+| E04 | Links and safe pasted references without silent URL loss | Present locally: guarded link create/edit/remove/inspect, explicit opening/copying, supported destination/title retention and unsupported paste destinations retained as text; broader paste/author acceptance remains | D1–D2 |
 | E05 | Formatting clear/reset and accessible active-state toolbar | Partial | D1 |
 | E06 | Plain-text paste and validated rich paste/import | Partial | D1–D5 |
 | E07 | Find next/previous, case options, replacement and atomic replace-all | Partial | D1 |
 | E08 | Unicode-safe offsets, searching, segmentation and selection | Partial | D1 |
 | E09 | Configurable browser spelling plus reviewed grammar/style assistance | Unverified/Gap | D1–D3 |
-| E10 | Smart typography that respects language and author preference | Partial | D2 |
-| E11 | Reading presets for font, size, spacing, width and contrast | Partial | D2 |
+| E10 | Smart typography that respects language and author preference | Partial: scoped literal/curly/angle quote, punctuation and symbol choices affect new typing only; recognized English/Spanish manuscript styles and explicit overrides implemented; broader locale/author acceptance remains | D2 |
+| E11 | Reading presets for font, size, spacing, width and contrast | Present locally: scoped device preferences, preset/custom/reset controls, theme tokens and storage-failure guidance; editor/selection/undo preserved; full device/font/author acceptance remains | D2 |
 | E12 | Focus and typewriter modes without disruptive forced scrolling | Present | D1 |
 | E13 | Persistent word/character/read-time counts based on prose | Partial | D1–D5 |
-| E14 | Stable references/mentions with disambiguation and keyboard opening | Partial | D1–D2 |
+| E14 | Stable references/mentions with disambiguation and keyboard opening | Present locally: Alt+Enter/shared inspector, source/version/alias choices, exact stored pins and guarded context actions; broader author/device acceptance remains | D1–D2 |
 | E15 | Footnotes/endnotes, images/captions, tables for applicable manuscripts | Gap | D5 |
 | E16 | Section/page-break intent separated from live pagination | Partial | D5 |
-| E17 | Paragraph/block movement with preserved anchors and identity | Gap | D2 |
-| E18 | Highlighting, bookmarks, inline notes, and invisible-character option | Gap | D4–D5 |
+| E17 | Paragraph/block movement with preserved anchors and identity | Present locally: reviewed sibling destinations, keyboard/click movement, nested items, stable IDs/selection/undo and note mapping; full author/device/large-project acceptance remains | D2 |
+| E18 | Highlighting, bookmarks, inline notes, and invisible-character option | Present locally: personal notes/bookmarks, fixed-theme text highlighting and a scoped view-only invisible-character option; broader import/export, author/device/IME and assistive-technology acceptance remains | D2–D5 |
 | E19 | IME, dictation input, RTL/bidirectional and language-aware editing | Unverified | D1–D5 |
 | E20 | Optional source view with synchronized revision and conversion report | Gap | D5 |
 
@@ -85,20 +85,20 @@ Market and research sources are in [13](13_sources_and_open_decisions.md), imple
 
 | ID | Capability and expected outcome | Baseline | Phase |
 |---|---|---|---|
-| R01 | Ordered autosave with truthful local/server acknowledgement | Partial | D1 |
-| R02 | Durable local draft and interrupted-session recovery | Gap | D1 |
-| R03 | Multi-tab conflict detection and recovery comparison | Gap | D1 |
-| R04 | Automatic checkpoints and named manuscript snapshots | Gap | D1–D2 |
-| R05 | Browse, compare, copy from, and restore earlier revisions | Gap | D2 |
+| R01 | Ordered autosave with truthful local/server acknowledgement | Present locally: ordered CAS/receipts, separate device/server status, browser-offline pause and checked reconnect; broader acceptance remains | D1 |
+| R02 | Durable local draft and interrupted-session recovery | Present locally: independent live-writer journals, exact original request recovery, strict unsupported-request manual copy and retained alternatives; broader retention/device/author gates remain | D1 |
+| R03 | Multi-tab conflict detection and recovery comparison | Present locally: revision conflict detection, device/account comparison and reviewed canonical-block merge; journals isolate reopened and concurrent writers; broader acceptance remains | D1 |
+| R04 | Automatic checkpoints and named manuscript snapshots | Partial: scene checkpoints, organization before/after records and named whole-manuscript capture/read/compare/reviewed restore implemented locally; complete acceptance/retention/performance gates remain open | D1–D2 |
+| R05 | Browse, compare, copy from, and restore earlier revisions | Partial: filtered small scene pages, verified checkpoint/excerpt copy, reviewed hash-bound restore and durable receipt-first recovery; organization undo/redo and manuscript restore implemented locally. Retention/annotation/author/performance acceptance remains open | D2 |
 | R06 | Original/proposed diff for every AI replacement | Partial | D1–D3 |
 | R07 | Accept/reject selected changes, whole request, and reviewed batches | Partial | D3 |
-| R08 | Personal and AI review notes with revision-bound anchors, resolve/reopen and orphan handling | Gap | D4 |
-| R10 | Revision tasks/issues linked to passages and their resolutions | Gap | D4 |
-| R11 | Alternative takes and cut-text stash remain searchable/reusable | Partial | D3–D4 |
+| R08 | Personal and AI review notes with revision-bound anchors, resolve/reopen and orphan handling | Partial: personal notes, exact anchors, orphan/reattach review, copy, resolve/reopen/Trash and durable device/request recovery implemented locally; frozen personal-note snapshot reads are implemented; AI review and broader acceptance remain | D4 |
+| R10 | Revision tasks/issues linked to passages and their resolutions | Present locally: passage-linked tasks with resolution notes, filters, go-to-passage and board counts; comment threads and acceptance remain | D4 |
+| R11 | Alternative takes and cut-text stash remain searchable/reusable | Present locally: save-before-cut stash, saved takes, search, insert at cursor and copy; acceptance remains | D3–D4 |
 | R12 | Durable AI/manual provenance with accepted revision lineage | Partial | D3 |
-| R13 | Offline editing of cached documents with a visible pending-sync state | Gap | D1–D5 |
-| R14 | Restore/undo changesets without overwriting later unrelated edits | Gap | D3–D4 |
-| R15 | Reconcile the author's offline edits against newer server revisions with a reviewed merge or retained copy | Gap | D1–D5 |
+| R13 | Offline editing of cached documents with a visible pending-sync state | Partial: open-scene editing, checked reconnect, persistent scoped confirmed copies/device entry and deliberate draft resume after app reload implemented locally; exact-source review choices also survive reload and reopen independently of the read cache; opt-in production app copies also support cold offline loading with verified public assets and waiting updates; monotonic workspace/root/unit observations also restrict open device writers across tabs and reloads without replacing prose; known erasure stays terminal; wider browser/retention/author acceptance remains | D1–D5 |
+| R14 | Restore/undo changesets without overwriting later unrelated edits | Present locally: organization changes (including bulk scene actions and multi-step outline changesets with scene splits and merges) undo in one step and keep later unrelated edits; the latest assistant suggestion of 2–12 scenes is accepted together as one manuscript changeset whose one Undo restores each scene that still holds the accepted text and keeps (and names) a scene written since (checked live 2026-10-18, D4 slice 16); acceptance remains | D3–D4 |
+| R15 | Reconcile the author's offline edits against newer server revisions with a reviewed merge or retained copy | Present locally: owned head/workspace checks, exact uncertain replay, reviewed rich-block/title/order choices, current-revision CAS, separate retained device copies and durable exact-source review choices; saved snapshot recovery cannot apply account writing, and later known workspace/root/unit lifecycle and terminal erasure restrictions block new choices without replacing the compared source; full offline/device/author acceptance remains | D1–D5 |
 
 ## AI drafting and editing
 
@@ -109,26 +109,26 @@ Market and research sources are in [13](13_sources_and_open_decisions.md), imple
 | A03 | Expand/condense passage with visible length target | Present | D3 |
 | A04 | Describe sensory detail from selected context | Present | D3 |
 | A05 | Draft a beat/scene from plan and authorized story state | Partial | D3 |
-| A06 | Bridge two passages while respecting both boundaries | Gap | D3 |
-| A07 | Dialogue assistance using speaker voice and current knowledge | Gap | D3 |
-| A08 | POV, tense, narrative distance and voice transformation with diff | Gap | D3 |
-| A09 | Grammar, clarity, repetition, rhythm and word-choice suggestions | Gap | D3 |
+| A06 | Bridge two passages while respecting both boundaries | Present locally: *Bridge passages* action (Suggest) replaces a captured selection with prose leading from the text before it into the text after it, or appends a transition into the next source scene; without a selection the author must include the next scene (author analysis); live turn and acceptance remain | D3 |
+| A07 | Dialogue assistance using speaker voice and current knowledge | Present locally: *Dialogue* action (Suggest) for a named speaker, using their card and only what they know by the anchor scene; voice sheets (K08) now reach it through the packet's style part; a live *Dialogue* turn remains | D3 |
+| A08 | POV, tense, narrative distance and voice transformation with diff | Partial: *Point of view or tense* action (Suggest) rewrites the target in first/second/third person and past/present tense as a reviewed proposal with the existing diff; verified live (first person, present tense); narrative distance and voice remain | D3 |
+| A09 | Grammar, clarity, repetition, rhythm and word-choice suggestions | Present locally: *Line edit* action (Suggest) with any of grammar, clarity, repetition, rhythm and word choice returns the passage improved only in those aspects, with the main changes listed; a live turn remains | D3 |
 | A10 | Translation/localization with preserved references and reviewed prose | Gap | D5 |
 | A11 | Multiple takes with comparison, stash, and explicit insertion | Partial | D3 |
-| A12 | Premise, conflict, stakes, names, and what-if brainstorming | Gap | D3 |
-| A13 | Outline, synopsis, beats and chapter-planning assistance | Gap | D3 |
-| A14 | Scene/chapter/book summaries tied to source revision | Gap | D3 |
-| A15 | Developmental critique: pacing, causality, scene purpose and exposition | Partial | D4 |
-| A16 | Continuity checks with cited evidence and uncertainty | Gap | D4 |
-| A17 | Propose and review cross-scene edits or structural changes | Gap | D4 |
-| A18 | Extract proposed character/world/canon facts without silent promotion | Gap | D3–D4 |
-| A19 | Custom prompt presets with validated inputs and versioned profile selection | Partial | D3 |
-| A20 | Explicit context preview, token/output limits and request provenance | Partial | D1–D3 |
+| A12 | Premise, conflict, stakes, names, and what-if brainstorming | Present locally: *Brainstorm* action (Ask) returns 5–10 distinct options for premise, conflict, stakes, names or what if, each grounded in the sources and marked as invented; a live turn remains | D3 |
+| A13 | Outline, synopsis, beats and chapter-planning assistance | Present locally: *Outline or synopsis* action (Ask) returns a synopsis, beats or chapter plan in reading order, citing established events and marking proposed material; a chapter plan can be added to the outline through S18 (*Add to outline…*); scene-level changes from a plan remain A17 | D3 |
+| A14 | Scene/chapter/book summaries tied to source revision | Present locally: the *Summary* action reads scenes whole and returns scene, chapter and book summaries, each tied to the scene revisions it read (a chapter's or the book's basis); each can be saved after review and shows when its scenes changed since the reply; hand-written chapter and book summaries are tied to today's basis; verified live [14](14_status_and_roadmap.md#d3-slice--chapter-and-book-summaries-tied-to-their-scenes-revisions-rest-of-k09a14-2026-10-18) | D3 |
+| A15 | Developmental critique: pacing, causality, scene purpose and exposition | Present locally: on request the assistant returns cited developmental notes (pacing, causality, purpose, exposition, character, dialogue, clarity), each with 1–3 revision options and no score; the author sends them to Tasks as critique tasks; acceptance remains | D4 |
+| A16 | Continuity checks with cited evidence and uncertainty | Present locally: on request the assistant checks prose against prose and approved facts, returns cited issues with certainty and contradicted facts, and the author sends them to Tasks; acceptance remains | D4 |
+| A17 | Propose and review cross-scene edits or structural changes | Partial: cross-scene prose edits run as plan steps (reviewed one-scene suggestions); scene move/split/merge, chapter split/merge/move/new-chapter and new-part proposals are reviewed and applied one at a time, or every ready one together as one changeset, with one undo, keeping the reading order; checked live with real assistant replies (new chapter, chapter split, two new parts applied together and one by one, and undone; D4 slices 15 and 17); acceptance remains | D4 |
+| A18 | Extract proposed character/world/canon facts without silent promotion | Partial: novel facts extracted with passage evidence and staged as proposed planning facts for author approval; approved facts can be applied to the novel's own Codex entries after review and staged in the library card's draft or written to the library lorebook entry it copies (K12) | D3–D4 |
+| A19 | Custom prompt presets with validated inputs and versioned profile selection | Present locally: the author's own presets per account (instruction with `{{key}}` text or choice inputs, intent and optional action, optional scope, boundary and model-profile defaults), versioned on every save with Trash; a turn sent from a preset freezes that version and its values in the reviewed prompt and the reply record, and a changed or trashed preset is refused at preparation; the profile's published revision is recorded per reply rather than pinned in the preset; verified live with a real model [14](14_status_and_roadmap.md#d3-slice--the-authors-own-prompt-presets-a19-2026-10-18) | D3 |
+| A20 | Explicit context preview, token/output limits and request provenance | Partial: inline trace plus locally implemented saved-source assistant inspector, exact messages/citations, pinned conflicts, conservative input estimate and reserved output; published-profile execution and conversation/application lineage remain D3 | D1–D3 |
 | A21 | Stop, recover/retry same request, resume jobs, and avoid duplicate charging | Partial | D1–D3 |
-| A22 | Story-aware chat with citations, selection handoff and conversation history | Gap | D3 |
-| A23 | Ask / suggest edits modes; authorized application through one commit flow | Gap | D3 |
-| A24 | Bounded multi-step plans with progress and per-scene change review | Gap | D4 |
-| A25 | Assistant personalization distinct from manuscript style | Gap | D3 |
+| A22 | Story-aware chat with citations, selection handoff and conversation history | Present locally: bound novel conversations with saved-source packets, passage and pin citations, selection scope from the editor and eligible history; verified live 2026-10-17; author acceptance remains | D3 |
+| A23 | Ask / suggest edits modes; authorized application through one commit flow | Present locally: Ask answers never carry a proposal; Suggest proposals go through review → accept → undo on the saved base revision; verified live 2026-10-17; author acceptance remains | D3 |
+| A24 | Bounded multi-step plans with progress and per-scene change review | Present locally: plans of ≤ 8 one-scene steps on writable packet scenes; *Draft this step* hands each to the composer for prompt review, Send and suggestion review; progress lives in plan tasks; background execution across steps remains | D4 |
+| A25 | Assistant personalization distinct from manuscript style | Present locally: a per-account *Reply style* (length, format, tone, reply language, short note) saved with a row version, sent as the packet's `preferences` part and never as a style rule or story fact, verified live with a real model [14](14_status_and_roadmap.md#d3-slice--assistant-reply-preferences-a25-2026-10-17) | D3 |
 | A26 | Blurb, synopsis, title and editorial handoff assistance | Gap | D5 |
 | A27 | Optional completion suggestions with explicit request/enablement | Gap | D5 |
 | A28 | Approved external research with source provenance and scope controls | Gap | D4–D5 |
@@ -140,17 +140,17 @@ Market and research sources are in [13](13_sources_and_open_decisions.md), imple
 | K01 | Story-local snapshots of characters, worlds, items and lore | Present | D1 |
 | K02 | Stable labels/aliases and duplicate-name disambiguation | Partial | D1–D2 |
 | K03 | Per-scene/story context scope, enable/exclude and priority | Partial | D2–D3 |
-| K04 | Evidence-linked fact extraction and explicit approve-to-canon | Gap | D3 |
-| K05 | Scene/time-scoped progressions and character knowledge | Gap | D4 |
-| K06 | Relationship/possession/location state across events | Gap | D4 |
-| K07 | Whole-novel appearance lists, matrix, and navigation to passages | Partial | D4 |
-| K08 | Style/voice sheets and character dialogue traits | Gap | D3 |
-| K09 | Summaries and retrieval indexes with dependency invalidation | Gap | D3 |
+| K04 | Evidence-linked fact extraction and explicit approve-to-canon | Present locally: assistant-extracted facts cite one saved passage with a verbatim excerpt and arrive as proposed facts the author approves or rejects (A18); approved facts can be applied to Codex entries and staged in library card drafts (K12) | D3 |
+| K05 | Scene/time-scoped progressions and character knowledge | Partial: scene-ranged knowledge/state facts with as-of-scene view; card-linked subjects remain | D4 |
+| K06 | Relationship/possession/location state across events | Partial: scene-ranged relationship/possession/location facts with as-of-scene view; card-linked subjects remain | D4 |
+| K07 | Whole-novel appearance lists, matrix, and navigation to passages | Present locally: character/thread matrix plus manuscript appearance search with passage navigation; acceptance remains | D4 |
+| K08 | Style/voice sheets and character dialogue traits | Present locally: a voice per Codex character (dialogue traits and up to three sample lines) in the style sheet; the assistant gets the voices of the characters among its sources and inline writing those of the scene [14](14_status_and_roadmap.md#d3d5-slice--style-sheet-and-character-voices-n15-k08-rest-of-x07-2026-10-17) | D3 |
+| K09 | Summaries and retrieval indexes with dependency invalidation | Present locally: reviewed scene, chapter and book summaries saved with the scene revisions they cover, sent as context for unread scenes and chapters only while those revisions are current (a chapter summary replaces its scenes' summaries), stale ones left out with a reason; source scenes are ranked by an evaluated BM25 policy (`lexical-bm25-v1`: accent and case folding, paired Han/kana/Hangul, rarity from the request's candidates only; answer ranked first 13/14 against 5/14 before) whose stored index is a cache valid only at each scene's current revision, content hash and policy, with stale scenes scored from their current prose and re-indexed after the preview; a Summaries planning view lists every summary's state across the novel, *Still accurate* re-ties an unchanged summary after the author confirms, and a refresh primes one reviewed Summary request over up to 20 chosen scenes whose reply can be saved in one step; part summaries stand in for their chapters and scenes, and a book of more than 20 scenes is summarized from one read scene plus the current part, chapter and scene summaries that cover the rest, saved only when every scene is covered [14](14_status_and_roadmap.md#d3-slice--saved-scene-summaries-as-revision-bound-memory-k09-rest-of-a14-2026-10-17), [14](14_status_and_roadmap.md#d3-slice--chapter-and-book-summaries-tied-to-their-scenes-revisions-rest-of-k09a14-2026-10-18), [14](14_status_and_roadmap.md#d3-slice--summary-status-across-the-novel-and-one-step-refresh-rest-of-k09-2026-10-18), [14](14_status_and_roadmap.md#d3-slice--part-summaries-and-a-book-summary-built-from-summaries-rest-of-k09-2026-10-18), [14](14_status_and_roadmap.md#d3-slice--an-evaluated-stored-retrieval-index-rest-of-k09-2026-10-18) | D3 |
 | K10 | Context inspection with inclusion, exclusion, token and revision evidence | Partial | D1–D3 |
-| K11 | Import/link library updates through an impact review | Partial | D4 |
-| K12 | Approved story discoveries staged back to cards/lorebooks | Gap | D4 |
+| K11 | Import/link library updates through an impact review | Present locally (checked live 2026-10-18): a Codex copy whose library card has a newer saved version, or whose lorebook entry or adventure template changed since the details it pinned, shows a notice; a field-by-field review compares the novel's copy, the copied library version or pinned details and the current ones, says who changed each detail and where the entry applies, lists approved facts applied to the entry that the library's description would leave out, and takes only the chosen details in one Codex write refused if the library moved on | D4 |
+| K12 | Approved story discoveries staged back to cards/lorebooks | Partial: an approved fact is applied to an explicitly chosen novel Codex entry after a field-level review (passage and revision, description before/after, editable), checked against the reviewed Codex revision, with entry and resulting revision recorded on the fact; a fact in an entry copied from a character/world/item card can then be staged in that library card's private draft after a before/after review, refused if the draft or card changed since the review, never publishing; a fact in an entry copied from a library lorebook entry can be written into that entry after a review that says it changes the library at once, refused if the entry was saved since the review (checked live 2026-10-18); other fields and new cards or entries as destinations remain | D4 |
 | K13 | Canon inheritance across the author's own series with selected versions and local overrides | Gap | D6 |
-| K14 | Conflict resolution between prose, plan, canon and external research | Gap | D4 |
+| K14 | Conflict resolution between prose, plan, canon and external research | Partial: contradiction flags between approved facts and assistant prose↔fact checks resolved as tasks; canon/research conflicts remain | D4 |
 
 ## UI, productivity, and accessibility
 
@@ -162,8 +162,8 @@ Market and research sources are in [13](13_sources_and_open_decisions.md), imple
 | U04 | Responsive layout with accessible drawers and visible prose | Partial | D1–D3 |
 | U05 | Full keyboard operation, focus return, labels and announcements | Partial | D1 |
 | U06 | Contrast, zoom/reflow, touch, reduced-motion and screen-reader validation | Partial | D1 |
-| U07 | Novel/scene/session goals, optional streaks and deadline tracking | Partial | D5 |
-| U08 | Lightweight writing-session statistics and task list | Gap | D5 |
+| U07 | Novel/scene/session goals, optional streaks and deadline tracking | Present locally: novel, part, chapter and scene word goals, a daily target, deadline pace and an optional per-device streak of days with words added | D5 |
+| U08 | Lightweight writing-session statistics and task list | Present locally: a writing log of saved scene edits (15-minute UTC buckets, typing and accepted AI apart) read as local days, with today, the last 14 days and a 30-day total; the task list is *Tasks & stash* (R10) | D5 |
 | U09 | Optional read-aloud proofreading using existing voice/media infrastructure | Gap | D5 |
 | U10 | Optional speech-to-text entry without auto-accepting AI proposals | Gap | D5 |
 | U11 | Onboarding examples and discoverable empty states with immediate writing | Partial | D2 |
@@ -174,20 +174,22 @@ Market and research sources are in [13](13_sources_and_open_decisions.md), imple
 
 | ID | Capability and expected outcome | Baseline | Phase |
 |---|---|---|---|
-| X01 | Plain-text/Markdown import with structure and conversion preview | Gap | D5 |
-| X02 | DOCX import with support/loss report and safe parsing | Gap | D5 |
-| X03 | Whole manuscript DOCX/plain-text/Markdown export | Gap | D5 |
-| X04 | EPUB export with navigation, language and semantic validation | Gap | D5 |
-| X05 | Print/PDF compilation with separately chosen page/layout rules | Gap | D5 |
-| X06 | Front/back matter, TOC, glossary and section inclusion | Gap | D5 |
-| X07 | Export personal review notes, reviewed AI change annotations, and style sheet as explicit file options | Gap | D5 |
-| X08 | Versioned project package with media/reference manifest | Gap | D5 |
+| X01 | Plain-text/Markdown import with structure and conversion preview | Present locally: new novel from a reviewed preview (title, parts, chapters, scenes, losses; chapter level and scene-break choices); original file kept; files without headings take chapters from standalone chapter lines; front and back matter keeps its export role ([14](14_status_and_roadmap.md#d5-slice-5--manuscript-import-x01-x02-2026-10-17), [14](14_status_and_roadmap.md#d5-slice-10--epub-opendocument-and-rtf-import-rest-of-x01x02-2026-10-18), [14](14_status_and_roadmap.md#d5-slice-11--front-and-back-matter-roles-on-import-rest-of-x01x02x06-2026-10-18)) | D5 |
+| X02 | DOCX import with support/loss report and safe parsing | Present locally: Word, EPUB (2/3, divided by its contents when it has no headings), OpenDocument text and RTF with styles, numbering, links, quotes and title/language; losses counted; DTD, encrypted/DRM, legacy and oversized files refused; front/back-matter roles from EPUB semantics, matter styles and usual titles ([14](14_status_and_roadmap.md#d5-slice-5--manuscript-import-x01-x02-2026-10-17), [14](14_status_and_roadmap.md#d5-slice-10--epub-opendocument-and-rtf-import-rest-of-x01x02-2026-10-18), [14](14_status_and_roadmap.md#d5-slice-11--front-and-back-matter-roles-on-import-rest-of-x01x02x06-2026-10-18)) | D5 |
+| X03 | Whole manuscript DOCX/plain-text/Markdown export | Present locally: Word, Markdown and plain text from saved scenes at one reviewed source version, in reading order, with a summary of included and left-out scenes and format notes; Word has real list numbering and hyperlinks and schema-ordered properties; verified live (Word opened in LibreOffice); acceptance in Microsoft Word and by authors remains | D5 |
+| X04 | EPUB export with navigation, language and semantic validation | Present locally: EPUB 3 from the same reviewed export (stable identifier, language, modified time, nav contents with parts and chapters, landmarks, one XHTML file per chapter, real lists and links); verified live (strict XML parse and browser render); formal EPUBCheck validation and reader acceptance remain | D5 |
+| X05 | Print/PDF compilation with separately chosen page/layout rules | Present locally: PDF from the same reviewed export, with its own page size, margins, typeface, size, spacing, page numbers and justification; tagged, with nested bookmarks, a linked contents page and reproducible bytes checked against the summary; verified live ([14](14_status_and_roadmap.md#d5-slice-8--pdf-export-with-chosen-page-rules-x05-2026-10-17)); acceptance in print and in screen readers remains | D5 |
+| X06 | Front/back matter, TOC, glossary and section inclusion | Present locally: title page, part/chapter/scene title choices, archived inclusion, per-unit *Include in export*, the EPUB navigation, an optional linked contents page in Word (TOC field) and EPUB, front/back matter from a chapter's *Export section* (11 roles, placed and marked in every format; Word role heading styles and Markdown section comments let an import restore them), and a glossary from chosen Codex entries (first paragraph of each description; EPUB `dl epub:type="glossary"`), all verified live | D5 |
+| X07 | Export personal review notes, reviewed AI change annotations, and style sheet as explicit file options | Present locally: *Review notes* (open, optionally resolved; quoted passages in reading order) and *AI changes* (each accepted proposal with command, request, word counts and accepted text) as explicit export files in every format, verified live ([14](14_status_and_roadmap.md#d5-slice-9--review-notes-and-ai-changes-as-export-files-most-of-x07-2026-10-17)); *Style sheet* (settings, style guide, conventions by kind, examples, character voices) in every format, verified live [14](14_status_and_roadmap.md#d3d5-slice--style-sheet-and-character-voices-n15-k08-rest-of-x07-2026-10-17) | D5 |
+| X08 | Versioned project package with media/reference manifest | Present locally — format version 1, a manifest with every member's size and SHA-256, the Codex cards and images the novel refers to (images referred to, not embedded) and the counts; deterministic bytes ([14](14_status_and_roadmap.md#d5-slice-12--project-packages-n14-x08-2026-10-18)) | D5 |
 | X09 | Cover/illustration generation or selection through existing media jobs | Gap | D5 |
-| X10 | Export logs, progress, retry, owned downloads and content-hash verification | Gap | D5 |
+| X10 | Export logs, progress, retry, owned downloads and content-hash verification | Built (2026-10-18): owned authenticated download refused at a changed source version and accepted only when size and SHA-256 match the summary; export jobs build the reviewed file in the background with stages, a timed log, cancel, retry at the same source version, the newest 5 files kept, and a download accepted only when it matches the job's size and SHA-256 (live since 06:42). Not yet in the shared *Tasks* drawer | D5 |
 | X12 | Optional publication handoff; explicit destination and publish action | Gap | D6 |
 
 ## Completeness rules
 
 Each row must eventually have an owner, an acceptance scenario, and a deliberate implementation or product decision. Dependencies can change phase placement. Coverage must never be inferred from a toolbar label, backend DTO field, generic app capability, or an AI model's theoretical ability.
+
+Database/code cleanup belongs in each replacement slice and does not remove catalog rows. [15](15_database_migration_and_legacy_cleanup.md#feature-preservation-and-replacement-proof) keeps the author jobs while M1–M3 and CL-01–CL-10 track scoped schema changes and cleanup in [14](14_status_and_roadmap.md#migration-and-cleanup-tracking). Preserve recovered non-novel content and current novels; the earlier disposable-data reset policy is superseded. Obsolete compatibility code can be removed independently of retained content. Planned capabilities stay gaps until implemented.
 
 The catalog is broad enough to define a full authoring product. Domain variants such as screenplay conversion or academic citations can be optional extensions; they should not displace novel workflows. Story-specific constraints, author voice, accessible ordinary editing, and recoverable work are mandatory across the complete target.

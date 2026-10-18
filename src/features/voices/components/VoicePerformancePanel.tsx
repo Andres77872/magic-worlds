@@ -5,13 +5,14 @@ import type { VoicePerformance, UtterancePerformance, VoicePerformanceCapabiliti
 import { Badge, Button, Field, Select, Textarea } from '@/ui/primitives'
 import { performanceSelection, selectedWords } from '../performanceSelection'
 import { useRecipePreview } from '../useRecipePreview'
-import { usePreviewCreditConfirm } from '../usePreviewCreditConfirm'
 import { PreviewAllowanceHint, PreviewProblemNotice } from './PreviewAllowanceHint'
 import { PreviewCreditDialog } from './PreviewCreditDialog'
 import { RecipePreviewPlayer } from './RecipePreviewPlayer'
 import { PronunciationEditor } from './PronunciationEditor'
 
 interface Props {
+    modelId?: import('@/shared').FishSpeechModel
+    scopedDelivery?: boolean
     voiceKey: string
     language: string
     emotion: VoiceEmotion | null
@@ -20,7 +21,7 @@ interface Props {
     userHash?: string | null
 }
 
-export function VoicePerformancePanel({ voiceKey, language, emotion, value, onChange, userHash }: Props) {
+export function VoicePerformancePanel({ voiceKey, language, emotion, value, onChange, userHash, modelId = 'drama-3', scopedDelivery = modelId === 'drama-3' }: Props) {
     const { t } = useTranslation()
     const key = (name: string) => t(`voices.performance.${name}`)
     const [capabilities, setCapabilities] = useState<VoicePerformanceCapabilities | null>(null)
@@ -32,8 +33,8 @@ export function VoicePerformancePanel({ voiceKey, language, emotion, value, onCh
     const [selection, setSelection] = useState<{ start: number; end: number } | null>(null)
     const [selectionError, setSelectionError] = useState(false)
     const available = capabilities?.available === true && capabilities.languages.includes(language)
-    const preview = useRecipePreview({ enabled: available })
-    const credit = usePreviewCreditConfirm(userHash)
+    const preview = useRecipePreview({ enabled: available, userHash })
+    const credit = preview.credit
     useEffect(() => {
         let live = true
         // Older deployments and test fixtures can omit this explicit extension.
@@ -55,8 +56,8 @@ export function VoicePerformancePanel({ voiceKey, language, emotion, value, onCh
     const run = (directed: boolean) => {
         const performance: UtterancePerformance = { version: 1, offset_unit: 'unicode_code_points', dictionary_refs: [], spans: [], events: [],
             ...(directed ? { ...value, spans, events } : {}) }
-        credit.guard(preview.nextCostsCredit, () => void preview.run({ provider: 'fish_audio', voiceKey, settings: null,
-            emotion: directed ? emotion : null, textId: 'narration', language, tier: 'standard', authoredText: text, performance }))
+        void preview.run({ provider: 'fish_audio', modelId, voiceKey, settings: null,
+            emotion: directed ? emotion : null, textId: 'narration', language, tier: 'standard', authoredText: text, performance })
     }
     if (!available) return value ? <p className="text-caption text-fg-muted">{key('unavailable')}</p> : null
     return <details className="rounded-lg border border-line-faint p-4">
@@ -66,12 +67,12 @@ export function VoicePerformancePanel({ voiceKey, language, emotion, value, onCh
             <PronunciationEditor key={language} language={language as 'en' | 'es'} phonemes={capabilities.phoneme_languages.includes(language)} value={value?.dictionary_refs ?? []} onChange={dictionary_refs => { change({ dictionary_refs }); preview.reset() }} />
             <Field label={key('text')} helper={key('textHint')}><Textarea lang={language} rows={4} value={text} onSelect={event => setSelection(performanceSelection(text, event.currentTarget.selectionStart, event.currentTarget.selectionEnd))} onChange={event => { setText(event.target.value); setSpans([]); setEvents([]); setSelection(null); preview.reset() }} /></Field>
             <p className="text-caption text-fg-muted">{Array.from(text).length} / {capabilities.max_text_chars}</p>
-            <div className="grid gap-3 sm:grid-cols-2">
+            {scopedDelivery && <div className="grid gap-3 sm:grid-cols-2">
                 <Field label={key('delivery')}><Select value={delivery} options={capabilities.deliveries.map(value => ({ value, label: key(`deliveries.${value}`) }))} onChange={value => setDelivery(value as VoiceDelivery)} /></Field>
                 <Button variant="secondary" size="sm" disabled={spans.length >= 16} onClick={addDelivery}>{key('addDelivery')}</Button>
                 <Field label={key('reaction')}><Select value={reaction} options={capabilities.events.map(value => ({ value, label: key(`events.${value}`) }))} onChange={value => setReaction(value as VoiceReaction)} /></Field>
                 <Button variant="secondary" size="sm" disabled={events.length >= 12} onClick={addEvent}>{key('addEvent')}</Button>
-            </div>
+            </div>}
             {selectionError && <p role="alert" className="text-caption text-blood-300">{key('selectionError')}</p>}
             <ul className="flex flex-col gap-2" aria-label={key('compare')}>
                 {spans.map((span, index) => <li key={`s${index}`} className="flex flex-wrap items-center gap-2"><Badge tone="neutral">{key(`deliveries.${span.delivery}`)} · {selectedWords(text, span.start, span.end)}</Badge><Button size="sm" variant="ghost" aria-label={t('voices.performance.remove', { label: key(`deliveries.${span.delivery}`) })} onClick={() => { setSpans(current => current.filter((_, i) => i !== index)); preview.reset() }}>×</Button></li>)}
@@ -79,7 +80,7 @@ export function VoicePerformancePanel({ voiceKey, language, emotion, value, onCh
             </ul>
             <p className="text-caption text-fg-muted">{key('localOnly')}</p>
             <p className="text-caption text-fg-muted">{key('cost')}</p>
-            <div className="flex flex-wrap gap-2">{[false, true].map(directed => <Button key={String(directed)} variant="secondary" size="sm" disabled={preview.loading || preview.limitReached || !text.trim() || Array.from(text).length > capabilities.max_text_chars} onClick={() => run(directed)}>{key(directed ? 'directed' : 'neutral')}</Button>)}</div>
+            <div className="flex flex-wrap gap-2">{[false, true].map(directed => <Button key={String(directed)} variant="secondary" size="sm" disabled={preview.loading || !text.trim() || Array.from(text).length > capabilities.max_text_chars} onClick={() => run(directed)}>{key(directed ? 'directed' : 'neutral')}{preview.nextCostsCredit ? ` · ${t('voices.preview.costsCredit')}` : ''}</Button>)}</div>
             <PreviewAllowanceHint previewsLeft={preview.previewsLeft} loading={preview.loading} />
             <PreviewProblemNotice problem={preview.problem} membershipInNewTab />
             {preview.clip && <RecipePreviewPlayer src={preview.clip.src} volume={preview.clip.volume} title={key('compare')} transcript={preview.clip.text ?? text} lang={language} />}

@@ -1,3 +1,7 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
@@ -83,13 +87,21 @@ describe('CodexCardPickerDrawer', () => {
         vi.unstubAllEnvs()
     })
 
-    it('browses cards without collection UI or requests when workspaces and adventures are off', async () => {
-        vi.stubEnv('VITE_FEATURE_WORKSPACES_ENABLED', 'false')
-        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'false')
+    it('shows the saved library head and unpublished changes for a new selection', async () => {
+        const response = page([{ id: 'c1', name: 'Lyra' }], 1)
+        Object.assign(response.items[0].card, { latest_version_id: 'v5', latest_version_number: 5, has_draft: true })
+        listLibraryCards.mockResolvedValue(response)
+        render(picker())
+        const option = await screen.findByRole('button', { name: /Lyra.*Latest saved version v5.*Unpublished changes/ })
+        expect(option).toBeEnabled()
+    })
+
+    it('keeps global collections available while adventure cards are off', async () => {
+
+        setTestFeatureFlags({ adventures: false })
         render(picker({ workspaceId: undefined }))
         expect(await screen.findByText('Lyra')).toBeInTheDocument()
-        expect(listCollections).not.toHaveBeenCalled()
-        expect(screen.queryByText('Act one')).not.toBeInTheDocument()
+        expect(listCollections).toHaveBeenCalled()
         expect(screen.queryByRole('button', { name: 'Adventures' })).not.toBeInTheDocument()
         fireEvent.click(screen.getByText('Lyra'))
         expect(screen.getByTestId('codex-add-cards-submit')).toBeEnabled()
@@ -122,6 +134,14 @@ describe('CodexCardPickerDrawer', () => {
             { kind: 'character', cardId: 'c1' },
             { kind: 'character', cardId: 'c3' },
         ]))
+    })
+
+    it('includes display labels only when its caller opts in',async()=>{
+        const onAdd=vi.fn(async()=>{})
+        render(picker({onAdd,includeSelectionLabels:true}))
+        fireEvent.click(await screen.findByText('Mira'))
+        fireEvent.click(screen.getByTestId('codex-add-cards-submit'))
+        await waitFor(()=>expect(onAdd).toHaveBeenCalledWith([{kind:'character',cardId:'c2'}],{'character:c2':'Mira'}))
     })
 
     it('filters by a collection of that workspace and restarts at offset 0', async () => {

@@ -4,7 +4,7 @@
 
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Phone, ScrollText } from 'lucide-react'
+import { MessageSquareText, Phone, ScrollText } from 'lucide-react'
 import type { CallSummary, Character } from '@/shared'
 import { Avatar, Button, Icon } from '@/ui/primitives'
 import { callDisplay, callMetaLine, formatCallTime } from '../callTransforms'
@@ -14,9 +14,10 @@ interface CallHistoryRowProps {
     characters: Character[]
     onView: () => void
     onCallAgain?: () => void
+    onOpenChat?: () => void
 }
 
-export function CallHistoryRow({ call, characters, onView, onCallAgain }: CallHistoryRowProps) {
+export function CallHistoryRow({ call, characters, onView, onCallAgain, onOpenChat }: CallHistoryRowProps) {
     const { t } = useTranslation()
     const display = useMemo(() => callDisplay(call, characters, t), [call, characters, t])
     const meta = callMetaLine(call, t)
@@ -33,6 +34,11 @@ export function CallHistoryRow({ call, characters, onView, onCallAgain }: CallHi
                 <p className="truncate text-caption text-parchment-400">{[when, meta].filter(Boolean).join(' · ')}</p>
             </div>
             <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto sm:shrink-0">
+                {onOpenChat && (
+                    <Button variant="ghost" size="sm" iconLeft={<Icon icon={MessageSquareText} size={15} />} onClick={onOpenChat}>
+                        {t('call.history.openChat')}
+                    </Button>
+                )}
                 {onCallAgain && (
                     <Button variant="ghost" size="sm" iconLeft={<Icon icon={Phone} size={15} />} onClick={onCallAgain}>
                         {t('call.history.callAgain')}
@@ -45,3 +51,4 @@ export function CallHistoryRow({ call, characters, onView, onCallAgain }: CallHi
         </div>
     )
 }
+

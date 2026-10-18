@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle, CheckCircle2 } from 'lucide-react'
@@ -31,6 +32,7 @@ function isViewingLegalPage() {
 }
 
 export function AppWarningModal() {
+    useFeatureFlags()
     const { t, i18n } = useTranslation()
     const [isOpen, setIsOpen] = useState(() => !hasAcceptedAppWarning() && !isViewingLegalPage())
     const voicesEnabled = isVoicesFeatureEnabled()

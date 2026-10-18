@@ -1,0 +1,18 @@
+export const novelSearch={
+    en:{title:'Search manuscript',help:'Search saved scene text, including visible Codex mention labels. Drafts, notes and AI proposals are excluded. Spaces and punctuation are literal. Archived sections are optional; Trash is excluded.',
+        query:'Text to find',scope:'Search scope',whole:'Whole manuscript',part:'Part: {{title}}',chapter:'Chapter: {{title}}',status:'Effective writing status',anyStatus:'Any status',
+        case:'Match case',archives:'Include archived sections',run:'Search saved text',working:'Searching…',invalid:'Use 1–255 characters (up to 1,024 UTF-8 bytes).',
+        counts:'{{count}} results loaded · {{scenes}} matching scenes of {{searched}} searched',empty:'No saved text matches these filters.',results:'Manuscript search results',
+        open:'Open saved passage',more:'Load more results',reader:'Read only',edited:'Filters changed. Run the search again to update results.',
+        changed:'The saved manuscript changed. Run the search again before opening a result.',failed:'The search could not finish. Try again.',
+        blocked:'Resolve the current draft, recovery or AI review before opening this saved passage.',opened:'Saved passage opened and highlighted. The cursor is collapsed; your next edit will not replace the match.',
+    },
+    es:{title:'Buscar en el manuscrito',help:'Busca en el texto guardado de las escenas, incluidas las etiquetas visibles de menciones del Códice. Se excluyen borradores, notas y propuestas de IA. Los espacios y signos se buscan literalmente. Puedes incluir secciones archivadas; se excluye la papelera.',
+        query:'Texto que buscar',scope:'Ámbito de búsqueda',whole:'Todo el manuscrito',part:'Parte: {{title}}',chapter:'Capítulo: {{title}}',status:'Estado de escritura efectivo',anyStatus:'Cualquier estado',
+        case:'Distinguir mayúsculas',archives:'Incluir secciones archivadas',run:'Buscar texto guardado',working:'Buscando…',invalid:'Usa de 1 a 255 caracteres (hasta 1,024 bytes UTF-8).',
+        counts:'{{count}} resultados cargados · {{scenes}} escenas con coincidencias de {{searched}} buscadas',empty:'Ningún texto guardado coincide con estos filtros.',results:'Resultados del manuscrito',
+        open:'Abrir pasaje guardado',more:'Cargar más resultados',reader:'Solo lectura',edited:'Los filtros cambiaron. Ejecuta la búsqueda otra vez para actualizar los resultados.',
+        changed:'El manuscrito guardado cambió. Vuelve a buscar antes de abrir un resultado.',failed:'No se pudo completar la búsqueda. Inténtalo de nuevo.',
+        blocked:'Resuelve el borrador, la recuperación o la revisión de IA antes de abrir este pasaje guardado.',opened:'Pasaje guardado abierto y resaltado. El cursor está contraído; la próxima edición no reemplazará la coincidencia.',
+    },
+}

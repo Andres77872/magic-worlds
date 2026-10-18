@@ -1,3 +1,7 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import type { ReactElement, ReactNode } from 'react'
 import { render as baseRender, screen, type RenderOptions } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -126,7 +130,7 @@ describe('CharacterChat voice mode wiring', () => {
 
     it('renders the immersive CallScreen (not the text engine) when voice mode and the flag are both on', () => {
         activeCharacterChatMode = 'voice'
-        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
+        setTestFeatureFlags({ calls: true })
 
         render(<CharacterChat />)
 
@@ -135,9 +139,29 @@ describe('CharacterChat voice mode wiring', () => {
         expect(screen.queryByTestId('center-kind')).not.toBeInTheDocument()
     })
 
+    it('opens a group chat as text even in voice mode (calls are 1:1)', () => {
+        activeCharacterChat = {
+            ...CHAT,
+            id: '12',
+            kind: 'character_group',
+            character: undefined,
+            characters: [
+                { id: 'c1', name: 'Lyra', race: 'Elf', role: 'character', stats: {} },
+                { id: 'c2', name: 'Dorn', race: 'Dwarf', role: 'character', stats: {} },
+            ],
+        }
+        activeCharacterChatMode = 'voice'
+        setTestFeatureFlags({ calls: true })
+
+        render(<CharacterChat />)
+
+        expect(screen.queryByTestId('call-screen')).not.toBeInTheDocument()
+        expect(screen.getByTestId('center-kind')).toHaveTextContent('character')
+    })
+
     it('falls back to the text engine when a stale voice launch intent survives with the flag off', () => {
         activeCharacterChatMode = 'voice'
-        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'false')
+        setTestFeatureFlags({ calls: false })
 
         render(<CharacterChat />)
 
@@ -156,7 +180,7 @@ describe('CharacterChat voice mode wiring', () => {
         expect(screen.getByTestId('center-workspace')).toHaveTextContent(OTHER_WORKSPACE_ID)
 
         activeCharacterChatMode = 'voice'
-        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
+        setTestFeatureFlags({ calls: true })
         render(<CharacterChat />)
         expect(screen.getByTestId('call-workspace')).toHaveTextContent(OTHER_WORKSPACE_ID)
     })

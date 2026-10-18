@@ -18,6 +18,7 @@ import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { Eye, History, ImagePlus, ImageUp, Music2, Sparkles, Trash2, Zap } from 'lucide-react'
 import type { CardMediaTargetType, CardPortraitRequest, ThemeSongJobPublic, ThemeSongModelAlias } from '@/shared'
+import { IMAGE_UPLOAD_TYPES,IMAGE_UPLOAD_MAX_BYTES } from '@/shared/imageAssets'
 import { useBackgroundTasks } from '@/app/hooks'
 import { resolveMediaUrl, type ImageJobPublicResponse } from '@/infrastructure/api'
 import { useScopedApi } from '@/shared/hooks/useScopedApi'
@@ -35,8 +36,8 @@ import { ReadOnlyFieldset } from './ReadOnlyFieldset'
 
 type AttributeGroups = CardPortraitRequest['category']
 
-const ACCEPTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
-const MAX_UPLOAD_BYTES = 15 * 1024 * 1024
+const ACCEPTED_IMAGE_TYPES = IMAGE_UPLOAD_TYPES
+const MAX_UPLOAD_BYTES = IMAGE_UPLOAD_MAX_BYTES
 
 /**
  * Hover/focus overlay of image actions for a portrait thumbnail: view full-size,

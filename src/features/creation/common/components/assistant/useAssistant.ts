@@ -20,11 +20,13 @@ import { makeRequestId } from '@/utils/uuid'
 import type {
     AssistantChatMessage,
     AssistantConversation,
+    AssistantConversationCreate,
     AssistantConversationScope,
     AssistantKind,
     AssistantTargetOf,
     AssistantTurnRequest,
 } from '@/shared/types/assistant.types'
+import type { LlmRequest } from '@/shared/types/llm.types'
 import type { OrganizationWarning } from '@/shared/types/workspace.types'
 import { attachAppliedChanges, parseAppliedActions, type AppliedChangeSummary } from './appliedActions'
 import {
@@ -71,6 +73,8 @@ export interface UseAssistantOptions<K extends AssistantKind, T extends Assistan
     onAuthRequired: () => void
     /** The conversation to open first: a page's deep link, or a panel handed off from the assistant page (opens the panel). */
     initialConversationId?: number | null
+    /** A draft-owning surface restores its selected conversation explicitly. */
+    resumeNewest?: boolean
     /** Reports the active conversation, e.g. so a page can mirror it into the URL. */
     onActiveConversationChange?: (id: number | null) => void
     timeoutMs?: number
@@ -95,13 +99,17 @@ export interface UseAssistantResult<T> {
     pendingTarget: T | null
     applyPendingTarget: () => void
     dismissPendingTarget: () => void
-    send: (text: string) => Promise<void>
+    send: (text: string, options?: { llm?: LlmRequest; requestId?: string }) => Promise<void>
+    /** Allocate a named conversation before inspecting a profile/history-bound prompt. */
+    prepareConversation: (title: string, requestId: string) => Promise<AssistantConversation | null>
+    /** A durable owner may restore an interrupted request without inventing another execution. */
+    resumeRetainedTurn: (request: { conversationId: number; requestId: string; body: AssistantTurnRequest; llm: LlmRequest }) => Promise<void>
     stop: () => void
     retry: () => void
     newConversation: () => void
     selectConversation: (id: number) => Promise<void>
     deleteConversation: (id: number) => Promise<void>
-    reloadConversation: (options?: { applyTarget?: boolean }) => Promise<boolean>
+    reloadConversation: (options?: { applyTarget?: boolean; currentHead?: boolean }) => Promise<boolean>
     clearNotice: () => void
 }
 
@@ -152,6 +160,7 @@ function isAssistantDisabled(error: unknown): boolean {
 
 /** The saved target a response carries; turns of the app kind have none. */
 function targetOf(value: object): unknown {
+    if ('conversation' in value && value.conversation && typeof value.conversation==='object' && 'kind' in value.conversation && value.conversation.kind==='novel') return null
     return 'target' in value ? value.target : null
 }
 
@@ -183,6 +192,7 @@ export function useAssistant<K extends AssistantKind, T extends AssistantTargetO
     isAuthenticated,
     onAuthRequired,
     initialConversationId = null,
+    resumeNewest = true,
     onActiveConversationChange,
     timeoutMs = DEFAULT_TIMEOUT_MS,
     workspaceId: requestedWorkspaceId,
@@ -332,7 +342,7 @@ export function useAssistant<K extends AssistantKind, T extends AssistantTargetO
                 setConversations(withActive(loaded, activeConversationRef.current))
                 const requested = initialIdRef.current
                 initialIdRef.current = null
-                const id = requested ?? (lifecycle === 'panel' ? conversationKey(loaded[0]) : null)
+                const id = requested ?? (lifecycle === 'panel' && resumeNewest ? conversationKey(loaded[0]) : null)
                 if (!id || userIsChatting()) return
                 const listedKind = loaded.find((item) => conversationKey(item) === id)?.kind ?? kind
                 const detail = await client.getAssistantConversation(listedKind, id, { timeoutMs: META_TIMEOUT_MS })
@@ -352,7 +362,7 @@ export function useAssistant<K extends AssistantKind, T extends AssistantTargetO
         return () => {
             cancelled = true
         }
-    }, [active, isAuthenticated, workspaceId, loadAttempt, listScope, kind, lifecycle, setActiveConversation, reportError])
+    }, [active, isAuthenticated, workspaceId, loadAttempt, listScope, kind, lifecycle, resumeNewest, setActiveConversation, reportError])
 
     // When the bound target changes, refresh the list for the new scope but keep
     // the conversation the reader is in. A different target supersedes a turn
@@ -389,8 +399,10 @@ export function useAssistant<K extends AssistantKind, T extends AssistantTargetO
         streamControllerRef.current = null
     }, [])
 
-    const createConversation = useCallback(async (client: ApiService, scope: AssistantConversationScope<K>, title: string, signal: AbortSignal): Promise<AssistantConversation> => {
-        const response = await client.createAssistantConversation<K>({ ...scope, title }, { timeoutMs: META_TIMEOUT_MS, signal })
+    const createConversation = useCallback(async (client: ApiService, scope: AssistantConversationScope<K>, title: string, signal: AbortSignal, creationRequestId?: string): Promise<AssistantConversation> => {
+        if (scope.kind === 'novel' && !creationRequestId) throw new Error('A retained request identity is required before preparing a novel conversation.')
+        const body = { ...scope, title, ...(scope.kind === 'novel' ? { creation_request_id: creationRequestId } : {}) } as AssistantConversationCreate<K>
+        const response = await client.createAssistantConversation<K>(body, { timeoutMs: META_TIMEOUT_MS, signal })
         // Does NOT touch `messages`: send() may already hold an optimistic user
         // message that must survive the lazy creation.
         signal.throwIfAborted()
@@ -399,17 +411,43 @@ export function useAssistant<K extends AssistantKind, T extends AssistantTargetO
         return response.conversation
     }, [setActiveConversation, upsertConversation])
 
-    const reloadConversation = useCallback(async (options: { applyTarget?: boolean } = {}): Promise<boolean> => {
+    const prepareConversation = useCallback(async (title: string, requestId: string): Promise<AssistantConversation | null> => {
+        if (!isAuthenticated) { onAuthRequired(); return null }
+        const workspace = workspaceRef.current
+        if (!workspace || unavailable || streamControllerRef.current) return null
+        const scope = adapter.scope(bindingRef.current)
+        const controller = new AbortController()
+        // Use the same ownership/abort barrier as a send, without dispatching a turn.
+        const owner = makeRequestId('mw-assistant-prepare')
+        activeRequestRef.current = owner
+        streamControllerRef.current = controller
+        setStatus('switching')
+        setNotice(null)
+        try {
+            return await createConversation(workspaceClient(workspace), scope, title, controller.signal, requestId)
+        } catch (error) {
+            if (activeRequestRef.current === owner && workspaceRef.current === workspace && !controller.signal.aborted) reportError(error)
+            return null
+        } finally {
+            if (activeRequestRef.current === owner) {
+                activeRequestRef.current = null
+                streamControllerRef.current = null
+                setStatus('idle')
+            }
+        }
+    }, [adapter, createConversation, isAuthenticated, onAuthRequired, reportError, unavailable])
+
+    const reloadConversation = useCallback(async (options: { applyTarget?: boolean; currentHead?: boolean } = {}): Promise<boolean> => {
         const current = activeConversationRef.current
         const id = conversationKey(current)
         const workspace = workspaceRef.current
         if (!current || !id || !workspace) return false
-        const sent = lastRequestIdRef.current
+        const sent = options.currentHead ? null : lastRequestIdRef.current
         const requestId = sent?.requestId ?? null
         const owner = activeRequestRef.current
         try {
             // A reconcile reads the request back exactly as it was sent.
-            const detail = sent
+            let detail = sent
                 ? await workspaceClient(workspace, sent.collections).getAssistantTurn(current.kind, id, sent.requestId, { timeoutMs: META_TIMEOUT_MS })
                 : await workspaceClient(workspace).getAssistantConversation(current.kind, id, { timeoutMs: META_TIMEOUT_MS })
             if (owner !== activeRequestRef.current || id !== conversationKey(activeConversationRef.current)
@@ -422,6 +460,12 @@ export function useAssistant<K extends AssistantKind, T extends AssistantTargetO
             if (requestId && !recovered) {
                 console.warn('text_stream_recovery_failed', { requestId, surface: `${current.kind}_assistant` })
                 return false
+            }
+            if (current.kind === 'novel' && (detail.conversation.conversation_version ?? 0) < (activeConversationRef.current?.conversation_version ?? 0)) {
+                // A terminal snapshot is historical. Never replace a known newer
+                // conversation/head with that request's older frozen history.
+                detail = await workspaceClient(workspace).getAssistantConversation(current.kind, id, { timeoutMs: META_TIMEOUT_MS })
+                if (owner !== activeRequestRef.current || id !== conversationKey(activeConversationRef.current) || workspaceRef.current !== workspace) return false
             }
             setActiveConversation(detail.conversation)
             upsertConversation(detail.conversation)
@@ -446,7 +490,7 @@ export function useAssistant<K extends AssistantKind, T extends AssistantTargetO
         }
     }, [kind, setActiveConversation, upsertConversation, reportError])
 
-    const send = useCallback(async (rawText: string) => {
+    const send = useCallback(async (rawText: string, options: { llm?: LlmRequest; requestId?: string } = {}) => {
         const retrying = retryingRef.current
         retryingRef.current = false
         if (!isAuthenticated) {
@@ -466,7 +510,7 @@ export function useAssistant<K extends AssistantKind, T extends AssistantTargetO
         const optimisticId = nextLocalId()
         const placeholderId = nextLocalId()
         // A linked retry re-asks the question the server kept, without a second bubble.
-        setMessages((prev) => retryIntent?.llm ? prev : [
+        setMessages((prev) => retryIntent?.llm?.retry_of_execution_id ? prev : [
             ...prev,
             {
                 message_id: optimisticId,
@@ -482,9 +526,9 @@ export function useAssistant<K extends AssistantKind, T extends AssistantTargetO
         let receivedError = false
         let receivedText = false
         let userAcknowledged = false
-        const retained = retryIntent && !retryIntent.llm ? retryIntent.requestId : null
+        const retained = retryIntent && !retryIntent.llm?.retry_of_execution_id ? retryIntent.requestId : null
         retryRequestRef.current = null
-        const requestId = retained ?? makeRequestId(`mw-${kind}-assistant`)
+        const requestId = retained ?? options.requestId ?? makeRequestId(`mw-${kind}-assistant`)
         // Built once the conversation is resolved, then frozen so a retry asks with the same body.
         let turnBody: AssistantTurnRequest<K> | undefined = retryIntent?.body ? structuredClone(retryIntent.body) : undefined
         // Initial collections ride only on the unbound card turn that creates the first
@@ -492,8 +536,9 @@ export function useAssistant<K extends AssistantKind, T extends AssistantTargetO
         let collections: readonly string[] = retryIntent?.body ? retryIntent.collections ?? [] : []
         const sent: SentTurn = { requestId, collections }
         const keepForRetry = (llm?: ApiError['llmRetry']) => {
+            const frozenLlm = llm ?? retryIntent?.llm ?? options.llm
             retryRequestRef.current = {
-                text, requestId, ...(turnBody ? { body: structuredClone(turnBody) } : {}), ...(llm ? { llm } : {}),
+                text, requestId, ...(turnBody ? { body: structuredClone(turnBody) } : {}), ...(frozenLlm ? { llm: structuredClone(frozenLlm) } : {}),
                 ...(collections.length ? { collections } : {}),
             }
         }
@@ -545,7 +590,7 @@ export function useAssistant<K extends AssistantKind, T extends AssistantTargetO
                     if (conversationTargetId(detail.conversation) !== boundId || !detail.target_cas) {
                         throw new Error('Missing assistant target snapshot')
                     }
-                    bound = { target: detail.target, cas: detail.target_cas }
+                    bound = { target: detail.target, cas: detail.target_cas, conversation: detail.conversation }
                 }
                 turnBody = adapter.turnBody(bindingRef.current, text, bound)
                 if (kind === 'card' && !boundId) collections = [...initialCollectionsRef.current]
@@ -620,7 +665,7 @@ export function useAssistant<K extends AssistantKind, T extends AssistantTargetO
                         })
                     }
                 },
-                { requestId, timeoutMs, signal: controller.signal, ...(retryIntent?.llm ? { llm: retryIntent.llm } : {}) },
+                { requestId, timeoutMs, signal: controller.signal, ...(retryIntent?.llm || options.llm ? { llm: retryIntent?.llm ?? options.llm } : {}) },
             )
             // A stream that resolves after an abort still ends the turn as aborted.
             controller.signal.throwIfAborted()
@@ -710,6 +755,16 @@ export function useAssistant<K extends AssistantKind, T extends AssistantTargetO
         abortReasonRef.current = 'stopped'
         streamControllerRef.current.abort(new DOMException('Stopped by user', 'AbortError'))
     }, [])
+
+    const resumeRetainedTurn = useCallback(async (request: { conversationId: number; requestId: string; body: AssistantTurnRequest; llm: LlmRequest }) => {
+        const current = activeConversationRef.current
+        if (streamControllerRef.current || current?.kind !== kind || conversationKey(current) !== request.conversationId || request.body.kind !== kind) return
+        retryRequestRef.current = { text: request.body.message, requestId: request.requestId,
+            body: structuredClone(request.body) as AssistantTurnRequest<K>, llm: structuredClone(request.llm) }
+        lastSentRef.current = request.body.message
+        retryingRef.current = true
+        await send(request.body.message)
+    }, [kind, send])
 
     const retry = useCallback(() => {
         const text = lastSentRef.current
@@ -841,6 +896,8 @@ export function useAssistant<K extends AssistantKind, T extends AssistantTargetO
         applyPendingTarget,
         dismissPendingTarget,
         send,
+        prepareConversation,
+        resumeRetainedTurn,
         stop,
         retry,
         newConversation,

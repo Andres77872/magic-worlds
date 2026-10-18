@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -17,6 +20,7 @@ import {
 } from '../fixtures'
 import { clearPreferredLanguageCache } from '../hooks/usePreferredLanguage'
 import { resetPreviewCreditConfirmation } from '../usePreviewCreditConfirm'
+import { paidPreviewResponse } from '@/test-utils/previewBilling'
 import { clearPreviewTextsCache } from '../usePreviewTexts'
 import { NavigationContext } from '@/app/providers/NavigationProvider'
 import type { ComponentProps } from 'react'
@@ -347,7 +351,7 @@ describe('VoiceStudioV2 (R1-FE-02)', () => {
 
         it('shows previews, narration characters and call minutes left today from the usage DTO', async () => {
             api.getUserProfile.mockResolvedValue({ membership: { plan_code: 'pro', previews_left: 12, limits: { voice_preview: { daily_limit: 20 } }, ...usage } })
-            api.previewVoice.mockResolvedValue({ cache_key: 'k', previews_left: 11, free_previews_left: 0, tier_used: 'expressive', source: 'render' })
+            api.previewVoice.mockImplementation(paidPreviewResponse({ cache_key: 'k', previews_left: 11, free_previews_left: 0, tier_used: 'expressive', source: 'render' }, 12))
             render(<VoiceStudioPage />)
             const strip = await screen.findByRole('list', { name: 'Voice allowance today' })
             await waitFor(() => expect(strip).toHaveTextContent('Previews left today: 12'))
@@ -358,9 +362,9 @@ describe('VoiceStudioV2 (R1-FE-02)', () => {
             // A paid card preview: "1 credit", one confirmation, then the strip follows the answer.
             fireEvent.click(await within(cardOf('Harbour master')).findByRole('button', { name: HARBOUR_PAID }))
             const dialog = await screen.findByRole('dialog', { name: 'Preview with credits?' })
-            expect(api.previewVoice).not.toHaveBeenCalled()
+            expect(api.previewVoice.mock.calls.map(([body]) => body.max_credit_cost)).toEqual([0])
             fireEvent.click(within(dialog).getByRole('button', { name: 'Continue' }))
-            await waitFor(() => expect(api.previewVoice).toHaveBeenCalledTimes(1))
+            await waitFor(() => expect(api.previewVoice).toHaveBeenCalledTimes(2))
             await waitFor(() => expect(strip).toHaveTextContent('Previews left today: 11'))
             // An untuned global preset plays the free catalog sample: no credit label.
             expect(within(cardOf('Fireside narrator')).getByRole('button', { name: FIRESIDE_PREVIEW })).toBeEnabled()
@@ -368,6 +372,7 @@ describe('VoiceStudioV2 (R1-FE-02)', () => {
 
         it('an untuned card whose voice has no sample renders: "1 credit" and the confirmation (AC-P5)', async () => {
             api.getUserProfile.mockResolvedValue({ membership: { plan_code: 'pro', previews_left: 12, limits: { voice_preview: { daily_limit: 20 } } } })
+            api.previewVoice.mockImplementation(paidPreviewResponse({ cache_key: 'k', previews_left: 11 }, 12))
             // The BFF sends `sample_url: null` for a language without a sample, so it renders (metered).
             const silentMaren = { ...CATALOG_MAREN_HOUSE, languages: CATALOG_MAREN_HOUSE.languages.map((entry) => ({ ...entry, sample_url: null as unknown as string })) }
             api.getVoiceCatalogByKeys.mockResolvedValue([CATALOG_ELDRIN, silentMaren, CATALOG_SELA_LEAVING])
@@ -378,19 +383,20 @@ describe('VoiceStudioV2 (R1-FE-02)', () => {
             expect(button).toHaveTextContent(/^Preview · 1 credit$/)
             fireEvent.click(button)
             const dialog = await screen.findByRole('dialog', { name: 'Preview with credits?' })
-            expect(api.previewVoice).not.toHaveBeenCalled()
+            expect(api.previewVoice.mock.calls.map(([body]) => body.max_credit_cost)).toEqual([0])
             fireEvent.click(within(dialog).getByRole('button', { name: 'Continue' }))
-            await waitFor(() => expect(api.previewVoice).toHaveBeenCalledTimes(1))
+            await waitFor(() => expect(api.previewVoice).toHaveBeenCalledTimes(2))
             expect(api.previewVoice.mock.calls[0][0]).toMatchObject({ voice_key: VOICE_KEY_MAREN, settings: null, emotion: null })
         })
 
         it('asks again when another account signs in to the same tab', async () => {
             api.getUserProfile.mockResolvedValue({ membership: { plan_code: 'pro', previews_left: 12, limits: { voice_preview: { daily_limit: 20 } } } })
+            api.previewVoice.mockImplementation(paidPreviewResponse({ cache_key: 'k', previews_left: 11 }, 12))
             const { unmount } = render(<VoiceStudioPage />)
             await screen.findByText('Harbour master')
             fireEvent.click(await within(cardOf('Harbour master')).findByRole('button', { name: HARBOUR_PAID }))
             fireEvent.click(within(await screen.findByRole('dialog', { name: 'Preview with credits?' })).getByRole('button', { name: 'Continue' }))
-            await waitFor(() => expect(api.previewVoice).toHaveBeenCalledTimes(1))
+            await waitFor(() => expect(api.previewVoice).toHaveBeenCalledTimes(2))
             unmount()
 
             // User A signs out and user B signs in, without a page reload.
@@ -399,7 +405,7 @@ describe('VoiceStudioV2 (R1-FE-02)', () => {
             await screen.findByText('Harbour master')
             fireEvent.click(await within(cardOf('Harbour master')).findByRole('button', { name: HARBOUR_PAID }))
             expect(await screen.findByRole('dialog', { name: 'Preview with credits?' })).toBeInTheDocument()
-            expect(api.previewVoice).toHaveBeenCalledTimes(1)
+            expect(api.previewVoice).toHaveBeenCalledTimes(3)
         })
 
         it('hides the strip when the server reports no usage', async () => {
@@ -409,11 +415,11 @@ describe('VoiceStudioV2 (R1-FE-02)', () => {
             expect(within(cardOf('Harbour master')).getByRole('button', { name: HARBOUR_PREVIEW })).toBeInTheDocument()
         })
 
-        it('disables card previews at the hard limit', async () => {
+        it('keeps card cache probes available at the hard limit', async () => {
             api.getUserProfile.mockResolvedValue({ membership: { plan_code: 'pro', previews_left: 0, limits: { voice_preview: { daily_limit: 20 } } } })
             render(<VoiceStudioPage />)
             await screen.findByText('Harbour master')
-            await waitFor(() => expect(within(cardOf('Harbour master')).getByRole('button', { name: HARBOUR_PREVIEW })).toBeDisabled())
+            await waitFor(() => expect(within(cardOf('Harbour master')).getByRole('button', { name: HARBOUR_PREVIEW })).toBeEnabled())
             expect(screen.getByText('Daily preview limit reached. Previews reset tomorrow.')).toBeInTheDocument()
         })
 

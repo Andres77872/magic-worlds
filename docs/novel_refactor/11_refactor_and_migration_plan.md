@@ -1,34 +1,46 @@
 # Refactor, migration, and delivery plan
 
-**Documentation review:** 2026-10-14. **Status:** WIP D1; planned D2–D6 — dependency sequence with unaccepted gates, rather than completion evidence. Overall novel availability is **WIP**, disabled in the example configuration and enabled in the reviewed local override. See [actual status and roadmap](14_status_and_roadmap.md) for evidence, rollout gates, and TBDs.
+**Delivery review:** 2026-10-16. **Status:** D1 reliability implemented locally; D2 integration WIP; D3 saved-source preparation WIP; D4–D6 planned. Author, device, accessibility and release gates remain open. Overall novel availability is **WIP**, disabled in the example configuration and enabled in the reviewed local override. See [actual status and roadmap](14_status_and_roadmap.md) for evidence, rollout gates, and TBDs.
 
 **UI/UX delivery update:** 2026-10-15. The [prototype findings and UX-01–UX-12 work items](06_ui_ux_and_accessibility.md#prototype-findings-and-prioritized-uiux-work) extend each phase below. The standalone HTML is a design reference; this update authorizes no integration or release and completes no product gate.
 
-This is a proposed implementation sequence. The current chapter editor is implemented behind a flag; **D1 is WIP with existing code and open reliability work**, while **D2–D6 are planned expansion**. No phase is marked shipped. The full product target is [05](05_feature_catalog.md); phases are dependency order rather than promised dates. Current status, dependencies, accountable areas, missing evidence, and TBD decisions are tracked in [14](14_status_and_roadmap.md).
+**Database preservation correction:** 2026-10-16. Preserve recovered non-novel content and current novels. [15](15_database_migration_and_legacy_cleanup.md) requires scoped changes with a verified backup; whole-database resets are disabled. The earlier production backfill/compatibility rollout remains superseded. Keep the 136-capability target and normal product integrity.
+
+This implementation sequence retains the complete target. The current Studio uses canonical scene documents behind a flag; **D1 reliability is implemented locally**, **D2 integration remains WIP**, **D3 source preparation is WIP**, and **D4–D6 remain planned**. No phase is marked shipped. The full product target is [05](05_feature_catalog.md); phases are dependency order rather than promised dates. Current status, dependencies, accountable areas, missing evidence, and TBD decisions are tracked in [14](14_status_and_roadmap.md).
 
 Collaboration is out of scope for every phase. The plan covers one author with AI, including safe operation across that author's own tabs/devices and cached offline drafts.
+
+**Reuse review, 2026-10-16:** apply the [source-backed reuse and overlap decisions](07_target_architecture.md#reuse-and-overlap-decisions) in each slice. Extend existing gallery/Codex, assistant, LLM execution, tasks, media and workspace boundaries. Target entity names do not imply replacement infrastructure. The main-assistant improvement plan shares foundations but does not own manuscript writes; D1/D2 do not depend on its expanded controller.
 
 ## D1: reliable editor and persistence
 
 Deliver NE-001 through NE-007, NE-009/NE-010 fidelity protection, local draft recovery, truthful save/acceptance states, and the accessibility basics. Add chapter/document revision checks, serialized save queues and durable checkpoints. Provide a basic manuscript checkpoint/restore contract before enlarging AI scope.
 
-Keep existing source-card snapshots, profile admission/reconciliation, navigation guards, archived behavior, and workspace-origin protection. Correct the current editor rather than replacing the entire feature to fix isolated defects.
+Retain source-card snapshot behavior, profile admission/reconciliation, navigation guards, archived behavior and workspace-origin protection. Preserve existing content and identities during scoped schema changes. Correct the current editor rather than replacing the entire feature to fix isolated defects.
+
+Implement revision-aware saves/checkpoints/receipts and replace timestamp-based refetch merging as well as the save hook. The current D1 guarantees apply to the D2 canonical scene contract. Preserve author content, history and recoverable drafts; use newly allocated, retained synthetic databases for persistence tests. CL-02/03/04/07 begin here; create the current local draft format directly.
 
 Gate: controlled stale-save ordering, accepted replacement undo/redo, failed accept flush, repeated/Unicode selections, outage/reload recovery and workspace switching all pass. Read-only and auth-expiry behavior remain correct.
 
 ## D2: document model and novel organization
 
-Introduce schema-versioned scene documents, structure revisions, metadata inheritance, optional parts, independent scenes, and stable references. Migrate each legacy chapter into one preserved scene. Add insert/move/duplicate/split/merge/archive/trash/restore, outline view, position restoration, and manuscript revision UI.
+Introduce schema-versioned scene documents, structure revisions, metadata inheritance, optional parts, independent scenes and stable references. Extend the installed schema through scoped upgrades; seed synthetic chapters/scenes only in newly allocated isolated databases. Add insert/move/duplicate/split/merge/archive/trash/restore, outline view, position restoration and manuscript revision UI.
 
-Preserve chapter IDs and compatibility aliases for existing history and links. Assign new IDs only to newly introduced entities. Do not infer scene splits automatically. Add actual UI for currently latent POV/location/status fields.
+Use stable IDs for new product data during moves/restores, and new IDs for copies. Preserve existing project IDs, links and history. No bridge to the discarded pre-refactor document format is required. Add actual UI for currently latent POV/location/status fields. Any author import/split is reviewed and preserves its source; a schema upgrade does not authorize prose conversion.
 
-Gate: exact-content migration and rollback fixtures, safe reorder/split/merge with links/annotations, restorable trash, and old-client write protection pass. Structured/raw source conversion reports are available.
+Follow [15](15_database_migration_and_legacy_cleanup.md): update schema/code together through scoped changes, preserve existing rows, and run the short smoke flow. Implement chapter defaults/ref inheritance and goals correctly. Replace application hard-delete-as-trash with lifecycle operations and remove old writers/callers in the same slice. CL-01/03/05/06/07/08/09 do not wait for a production observation window.
+
+Gate: verify the installed target schema read-only, then exercise seeded save/reopen and the changed structure operation in a newly allocated isolated test database. Add focused product regressions for reorder/split/merge/trash when implementing those behaviors. No legacy data-conversion or rollback corpus is required.
 
 ## D3: grounded writing assistant
 
-Add a novel assistant kind, published-profile feature/role support, reusable conversation shell, explicit scope, context compiler, evidence-linked retrieval and changesets. Move inline commands into the same proposal/review/commit pipeline. Support single-scene drafting/editing, planning assistance, custom presets, summaries, and proposed canon extraction.
+The [saved-source preparation boundary](21_assistant_context_boundary.md) is implemented locally. The complete conversation/profile/proposal/application contract below remains required; a provider-free context preview does not complete D3.
 
-Use request IDs and retained result recovery; every accepted proposal binds target revisions. Keep Ask useful without direct edits. Exact prompts and authorized context manifests become durable, credential-free provenance.
+Extend unified assistant kinds/storage, published-profile feature/role support and shared conversation/message/composer hooks for the novel inspector. Add explicit scope, context compiler, evidence-linked retrieval and changesets. Move inline commands into the same proposal/review/commit pipeline. Support single-scene drafting/editing, planning assistance, custom presets, summaries, and proposed canon extraction. Coordinate common tool/effect contracts with the adjacent assistant plan; novel proposal and commit policy remains here.
+
+Reuse existing request IDs, admission and retained result recovery; every accepted proposal binds target revisions. Keep Ask useful without direct edits. Exact instructions already exist inside the frozen execution payload. Add an allowlisted history/API projection and source-revision/application lineage, rather than another raw-prompt store.
+
+Update assistant enums, novel binding, message/result checks, profile feature seeds and changeset storage in the current schema/code. An enum addition cannot satisfy the current one-tool/applied-action constraints. Create sample conversations/generations only in newly allocated isolated databases; preserve current project conversations and generations. No adapter to the discarded pre-refactor format is required. CL-02/04/06/08/09 replace divergent pipelines and status-only acceptance. A new manuscript application retry must not create another paid model execution.
 
 Gate: source/target correctness, token allocation, missing/changed targets, partial acceptance dependency rules, transport recovery, idempotent commit and profile/account/workspace isolation pass. Author evaluation shows useful edits without accidental acceptance.
 
@@ -40,7 +52,7 @@ Gate: temporal knowledge and future-revelation fixtures, stale-summary recovery,
 
 ## D5: portability, production, and productivity
 
-Deliver validated Markdown/plain-text/DOCX import, full manuscript exports, project packages, front/back matter, EPUB/PDF compilation, goals/statistics, optional read-aloud/dictation, and owned media integration. Use existing media/background-job lifecycles instead of coupling novel writing to a new provider.
+Deliver validated Markdown/plain-text/DOCX import, full manuscript exports, project packages, front/back matter, EPUB/PDF compilation, goals/statistics, optional read-aloud/dictation, and owned media integration. Keep existing server-persisted chapter goals. Extend shared task operation/target/result contracts and result navigation for novel jobs, and reuse media providers/owned assets. Existing card PNG export and resource PDF ingestion do not implement manuscript compilation; durable multi-step novel jobs need explicit checkpoints.
 
 Gate: support/loss matrix, round-trip corpus, deterministic revision manifests, export cancellation/retry, accessible output, and large-project performance pass. Publishing is a separate explicit handoff, never an implicit export side effect.
 
@@ -79,39 +91,44 @@ The HTML's fixed breakpoints, raw controls, demo-specific localStorage, date-bas
 | `src/shared/types/llm.types.ts` | Deliberate feature/role additions, retaining transient credentials |
 | `src/infrastructure/api/` | Strict endpoints/contracts, revision/error/reconciliation handling |
 | `src/app/providers/DataProvider.tsx` and router | Smaller novel summaries, scoped document state, stable resume routes and navigation guards |
-| Shared assistant components/hooks | Reuse shell, conversations, streaming/reconciliation; adapt mutation semantics deliberately |
+| Shared assistant components/hooks | Reuse conversations/messages/composer and streaming/reconciliation; adapt the floating shell layout and mutation semantics for the inspector |
+| Shared Codex/gallery and novel utility wrapper | Keep existing picker/gallery composition; re-export duplicated `lorebookEntrySnapshot`/`clonedEntryIds`, retaining novel trigger fallback |
+| Shared tasks DTOs/provider, task result navigation and BFF tasks | Extend operation/target/result shapes, SQL constraints and novel result links; add novel manifests/checkpoints without another task provider |
 | UI primitives, theme and i18n | Reuse components; register any tokens; English/Spanish coverage and accessible states |
 | BFF `src/models/story.py`, `src/routes/stories.py` | Versioned contracts, structure/document/revision operations and context preview |
 | BFF `src/services/story_generation.py`, `story_execution.py` | One context bundle, cursor/selection contract, retained execution provenance |
 | BFF `src/services/assistants/{core,registry,execution}.py` and `src/models/assistant.py` | Novel handler/kind, authorized tools, proposals and changeset target vectors |
 | BFF `src/services/llm_profile_{resolution,execution}.py` and catalog/models | Explicit novel-assistant/helper contracts; no hidden model or credential fallback |
-| BFF database models/migrations | Additive document/revision/structure storage and transactional application |
+| BFF database models/schema | Target document/revision/structure storage, scoped schema changes and transactional application |
+| BFF `src/database/mysql/{db.sql,bootstrap.py}` and schema tooling | Current target schema, marker/seeds and reviewed scoped upgrades with a verified backup; preserve unrelated rows |
+| BFF content wipe, workspace origin, jobs and owned artifacts | New data participates in ownership, archive/trash/erase, wipe and artifact cleanup; schema installation preserves existing content |
+| Browser storage and `useWordGoal` | Clear known obsolete project keys, remove legacy migration code, and install the current scoped format; keep unrelated browser data untouched |
 | Server-owned graph inventory | Separate task roles/contracts; keep runtime/model selection in published profiles |
 
 Do not enlarge the existing database-model monolith unnecessarily. Extract a story-domain persistence module behind a compatibility facade when introducing the new contracts, with transaction tests protecting behavior. Avoid moving unrelated voice/workspace code as a prerequisite.
 
-## Compatibility migration
+## Development database migration
 
-1. **Inventory and backup:** enumerate legacy content, versions, card refs, history, active executions and deployed client versions. Test restoring representative backups. No real migration was run during this research.
-2. **Additive schema:** add revision/structured-document/scene/structure tables or columns without dropping raw bodies. Define supported schema/protocol capability responses.
-3. **Protocol hardening:** new clients send expected revisions. Once a document requires versioned writes, old unguarded writes are rejected with an upgrade/read-only recovery path rather than silently overwriting content.
-4. **Shadow conversion:** produce structured candidates and conversion reports without changing canonical content. Preserve links, annotations, whitespace, mention IDs and unsupported source material.
-5. **Per-document cutover:** migrate with expected source hash/revision; compare again under the transaction lock. If edited during conversion, retry or report conflict. Record migration lineage and idempotent progress.
-6. **Dual read, single authority:** legacy documents remain Markdown-authoritative until cutover; migrated documents are structured-authoritative. Any compatibility Markdown is derived and never a second independent writer.
-7. **Client rollout:** advertise supported document schemas. A client that cannot preserve a document opens it read-only with upgrade/export guidance. Gate new scene/assistant operations until required protocol support exists.
-8. **Preserve history:** retained generations keep their original chapter, selection and context semantics; bridge them to the initial scene without pretending old offsets describe a later revision.
-9. **Observe and expand:** compare migration fidelity, conflict rates, local recovery and request latency before broadening cohorts.
+The user required recovery of non-novel content after the earlier full resets. Preserve that recovered content and current novels. Use the [scope and operating sequence in 15](15_database_migration_and_legacy_cleanup.md#migration-gates-and-operating-sequence):
 
-Conversion must be resumable and idempotent. Maintain exact raw source for legacy recovery. A revision or schema flag alone is not a verified migration.
+1. **M1 — implement the current schema and code:** update `db.sql`, marker/seeds/bootstrap, BFF services/contracts and frontend callers. Use the current D1/D2 target model, preserve installed content/history, and avoid obsolete format adapters. Remove obsolete body writers and acceptance paths.
+2. **M2 — apply scoped schema changes:** verify a private backup and rehearse changes in an isolated copy. Apply only the reviewed schema/seed changes needed for the slice, preserve existing rows, and verify the current schema. Whole-database resets are disabled. Stop matching workers only when the actual change requires it; do not touch sibling services.
+3. **M3 — smoke and clean up:** perform the three lean DEV checks in [12](12_validation_and_acceptance.md#database-migration-and-cleanup-acceptance), close the applicable CL removal items and record the result.
 
-## Rollback and stop conditions
+No shadow conversion, old-client read compatibility, migration journal, raw legacy archive, multi-version rollout or observation window is required. A verified backup and preservation of non-novel rows are required. Known obsolete novel browser fixtures may be handled separately from current recovery journals; unrelated browser data remains untouched.
 
-Stop rollout on any lost body, incorrect target application, cross-scope data exposure, unguarded old-client write, unexplained acceptance/billing duplication, or unrecoverable draft. Restore a compatible frontend/backend pair and disable new writes while retaining read/export/recovery when necessary.
+## Legacy retirement across delivery phases
 
-Do not roll back by converting rich documents to lossy Markdown and discarding the structured source. Keep additive storage and new revisions; use the supported compatibility reader/editor. If post-cutover edits cannot be represented by the old client, that client must remain read-only.
+Cleanup belongs in the replacement slice. The [CL-01–CL-10 inventory](15_database_migration_and_legacy_cleanup.md#database-code-and-feature-cleanup-register) names obsolete database columns, API writers, frontend save/AI paths, editor serializers, Codex assumptions, browser keys and dead exports/fixtures. Delete replaced adapters and rollout-only tests when they have no current purpose; do not keep compatibility code solely for the discarded pre-refactor format.
 
-Rehearse reconnect and stale-write recovery for the author's own offline clients under the versioned document protocol. Retention and license choices remain implementation decisions; no collaborative provider, CRDT migration, or shared editing rollout is part of this plan.
+Keep the 136 target capabilities, workspace rules, ordinary writing and seven inline commands through their current implementations. Runtime revisions, undo, trash and AI replay remain product features for new data. Test the behavior changed by each slice; use current schema startup, preservation checks and a short isolated-fixture smoke flow for schema changes. D4–D6 remain feature work, not migration prerequisites.
+
+## Development recovery and scope
+
+If schema installation or startup fails, repair the scoped change using the verified backup and isolated rehearsal. Do not rebuild the project database or discard existing rows and histories. Returning to an earlier commit does not authorize a reset; preserve the installed data independently of code checkout changes.
+
+The earlier reset approval is not ongoing authorization. Preserve the project database, current novels, recovered non-novel content and recovery journals. Records without files are valid. Use only reviewed scoped upgrades when required; do not infer permission to reset or clean records from development status. Ordinary application writes retain ownership, revisions and explicit AI acceptance. Unrelated databases, sibling-service storage and browser data remain outside this work.
 
 ## Delivery tracking
 
-Use [14 — Actual status and roadmap](14_status_and_roadmap.md) as the current delivery register. Turn catalog rows and UX-01–UX-12 into work items with owner, source finding, acceptance scenario, dependencies, migration impact, current status and evidence link. Named owners and target dates are TBD, not implied by a proposed phase. Use separate states for researched, designed, implemented, validated and shipped. The dossier's existence does not mark any application feature implemented.
+Use [14 — Actual status and roadmap](14_status_and_roadmap.md) as the current delivery register. Track catalog rows, UX-01–UX-12, the three M1–M3 development steps and applicable CL-01–CL-10 items with owner, source finding, acceptance scenario, dependencies, migration impact, current status and evidence link. Named owners and target dates are TBD, not implied by a proposed phase. Use separate states for researched, designed, implemented, validated and shipped. The dossier's existence does not mark any application feature implemented.

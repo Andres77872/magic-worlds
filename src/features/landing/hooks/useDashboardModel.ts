@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * useDashboardModel — the returning dashboard's derived view-model. One place
  * for every memoized, capped selector the landing sections read, so LandingPage
@@ -55,10 +56,11 @@ export interface DashboardModel {
 }
 
 export function useDashboardModel(): DashboardModel {
+    const featureFlagGeneration = useFeatureFlags().generation
     const { characters, worlds, items, inProgressAdventures, characterChats, stories, lorebooks } = useData()
     const visibleChats = useMemo(
         () => isGroupChatsFeatureEnabled() ? characterChats : characterChats.filter((chat) => chat.kind !== 'character_group'),
-        [characterChats],
+        [characterChats, featureFlagGeneration],
     )
     const visibleStories = isNovelsFeatureEnabled() ? stories : EMPTY_STORIES
     const visibleLorebooks = isLorebooksFeatureEnabled() ? lorebooks : EMPTY_LOREBOOKS

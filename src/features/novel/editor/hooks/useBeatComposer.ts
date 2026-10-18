@@ -13,7 +13,7 @@ import { useCallback, useState, type RefObject } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Editor } from '@tiptap/core'
 import type { StoryGenerationCommand } from '@/shared'
-import { editorSelection, type MarkdownSelection } from '../markdownSelection'
+import { editorSelection, type DocumentSelection } from '../documentSelection'
 import { popoverAnchor } from './useSuggestionMenu'
 import type { BeatLength } from '../types'
 import type { InlineAISubmitOptions } from './useInlineAI'
@@ -36,7 +36,7 @@ const COMPOSER_WIDTH = 420
 
 export interface BeatTarget {
     /** Markdown offsets for the backend prompt, when a passage is selected. */
-    selection?: MarkdownSelection
+    selection?: DocumentSelection
     /** Document range the generation replaces. */
     replaceRange?: { from: number; to: number }
     /** Where the row and the generation are anchored. */

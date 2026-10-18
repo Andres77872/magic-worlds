@@ -1,8 +1,9 @@
+import { novel, storyChapter } from '@/test/fixtures/story'
 import { describe, expect, it } from 'vitest'
 import type { TFunction } from 'i18next'
 
 import type { Story, StoryChapter } from '@/shared'
-import { chaptersFor, formatSaveState, wordCount } from './novelUtils'
+import { chaptersFor, formatSaveState, wordCount,plainTextWordCount } from './novelUtils'
 
 // Stub t that maps the keys these helpers use back to their English copy, so
 // the pure formatting/labeling contract stays asserted without i18n wiring.
@@ -15,40 +16,8 @@ const COPY: Record<string, string> = {
 const t = ((key: string, options?: { time?: string }) =>
     key === 'novelEditor.save.savedAt' ? `Saved ${options?.time ?? ''}` : (COPY[key] ?? key)) as unknown as TFunction
 
-function chapter(id: string, order: number): StoryChapter {
-    return {
-        id,
-        storyId: 'story-1',
-        title: id,
-        body: '',
-        order,
-        status: 'draft',
-        povCardId: null,
-        locationCardId: null,
-        activeCardRefs: [],
-        generationHistory: [],
-    }
-}
-
-function story(overrides: Partial<Story> = {}): Story {
-    return {
-        id: 'story-1',
-        title: 'Glass War',
-        description: null,
-        source: { kind: 'blank', id: null, title: null },
-        chapters: [],
-        activeCardRefs: [],
-        activeContext: {
-            includeSelectedCards: true,
-            includeLorebooks: true,
-            includeRecentChapters: 2,
-            tokenBudget: 6000,
-            styleSource: 'current_chapter',
-            customStyleInstruction: null,
-        },
-        ...overrides,
-    }
-}
+function chapter(id: string, order: number): StoryChapter { return storyChapter({id,order}) }
+function story(overrides: Partial<Story> = {}): Story { return novel({chapters:[],...overrides}) }
 
 describe('chaptersFor', () => {
     it('returns stored chapters sorted by order', () => {
@@ -63,6 +32,19 @@ describe('chaptersFor', () => {
 })
 
 describe('wordCount', () => {
+    it('counts canonical literal links/comments without treating author text as Markdown',()=>{
+        expect(plainTextWordCount('🙂 Café [door](route) <!-- note -->')).toBe(4)
+        expect(plainTextWordCount("Don't stop. L’été arrive. 1,234.50")).toBe(5)
+        expect(plainTextWordCount('猫在花园里睡觉。')).toBe(5)
+    })
+    it('excludes beat instructions and link destinations from manuscript goals', () => {
+        expect(wordCount('The gate.\n\n<!-- ai-beat: Write the next long dramatic scene -->\n\n[A door](https://example.com/very/long/path).')).toBe(4)
+    })
+
+    it('segments words in prose without spaces', () => {
+        expect(wordCount('猫在花园里睡觉。')).toBeGreaterThan(1)
+        expect(wordCount('🙂 — ***')).toBe(0)
+    })
     it('counts words across whitespace', () => {
         expect(wordCount('  the moon\ncracks  over the wall ')).toBe(6)
         expect(wordCount('')).toBe(0)

@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * Import card from the Library New menu: paste a shared card link, open its
  * preview (the existing preview-before-import modal takes over from there).
@@ -33,6 +34,7 @@ interface ImportCardDialogProps {
 }
 
 export function ImportCardDialog({ open, destination, onClose, onResolved }: ImportCardDialogProps) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const [link, setLink] = useState('')
     const [loading, setLoading] = useState(false)

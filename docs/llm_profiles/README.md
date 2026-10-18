@@ -33,7 +33,7 @@ Writers de media/callbot no ofrecen selección personal donde el registro la des
 
 Esta revisión inspeccionó fuentes de frontend/BFF y los checkouts de ejecutor/runtime, incluidos rendering BYOK, snapshot, templates y cliente. Las revisiones de referencia y los límites están en 16. No se ejecutaron proveedores, consultas de base, migraciones, configuración, despliegues ni suites de aplicación.
 
-El copy actual de las pantallas Modelos/BYOK ([`llmProfiles.ts`](../../src/app/i18n/locales/llmProfiles.ts), `key.explanation` y `byok.body`, EN/ES) ya afirma que la clave no se guarda en nuestros servidores. Eso contradice F04 abierto; su corrección se registra como F11 en [seguridad](../security/README.md) y en LLM-R3 del [ledger 16](16_current_status_and_roadmap.md).
+El 2026-10-17 se corrigió el copy de Modelos/BYOK ([`llmProfiles.ts`](../../src/app/i18n/locales/llmProfiles.ts), `key.explanation` y `byok.body`, EN/ES): describe memoria de pestaña, envío HTTPS, almacenamiento del navegador y recarga, sin prometer ausencia de persistencia en servidores. Una regresión protege este límite. F04 y la integración de custodia de LLM-R3 siguen abiertos; ver F11 en [seguridad](../security/README.md) y el [ledger 16](16_current_status_and_roadmap.md).
 
 El contenido del usuario puede conservarse intencionalmente en prompts/payloads congelados para replay, incluido el digest del app assistant. Esa política de privacidad/retención es independiente del requisito de excluir claves; [seguridad](../security/README.md#content-retention-is-a-separate-contract) mantiene el límite. El operador puede observar una clave durante ejecución; cumplir no persistencia tampoco equivale a impedir acceso al proceso.
 

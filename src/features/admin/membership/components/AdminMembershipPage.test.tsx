@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AdminMembershipPage } from './AdminMembershipPage'
 import { MEMBERSHIP_OPERATIONS, freePlan, members, overview, plans, plusPlan, proPlan, providerUsage, sponsorPlan, uniformLimits } from '../membership.fixtures'
+import { ACTIVE_FEATURE_FLAGS, ACTIVE_FEATURE_KEYS } from '@/shared/featureFlagCatalog'
 
 const mockUseAuth = vi.fn()
 const getMembershipOverview = vi.fn()
@@ -98,6 +99,23 @@ describe('AdminMembershipPage', () => {
         })
     })
 
+    it('shows every stored Free permission in the root editor from the server catalog', async () => {
+        listMembershipPlans.mockResolvedValue({
+            items: [{ ...freePlan, version: '2', feature_revision: '2',
+                feature_flags: Object.fromEntries(ACTIVE_FEATURE_KEYS.map(key => [key, true])) }],
+            operations: [...MEMBERSHIP_OPERATIONS], catalog_revision: '1',
+            flags: ACTIVE_FEATURE_KEYS.map(key => ({ key, requires: [...ACTIVE_FEATURE_FLAGS[key].requires] })),
+        })
+        render(<AdminMembershipPage />)
+        const card = await screen.findByTestId('plan-card-free')
+        expect(within(card).getByText('Feature permissions · 9/9 enabled')).toBeInTheDocument()
+        fireEvent.click(within(card).getByRole('button', { name: 'Edit' }))
+        const dialog = await screen.findByRole('dialog', { name: 'Edit plan' })
+        expect(within(dialog).getByRole('switch', { name: 'Story Studio' })).toBeChecked()
+        expect(within(dialog).getAllByRole('switch').filter(input => input.getAttribute('aria-checked') === 'true')).toHaveLength(10)
+        expect(within(dialog).queryByRole('switch', { name: /Workspaces/i })).toBeNull()
+    })
+
     it('asks signed-out users to log in', () => {
         const openLoginModal = vi.fn()
         mockUseAuth.mockReturnValue({ isAuthenticated: false, user: null, openLoginModal })
@@ -151,17 +169,20 @@ describe('AdminMembershipPage', () => {
         const dailyInputs = within(dialog).getAllByRole('spinbutton', { name: /Daily limit$/ })
         expect(dailyInputs).toHaveLength(MEMBERSHIP_OPERATIONS.length)
         for (const input of dailyInputs) fireEvent.change(input, { target: { value: '300' } })
+        fireEvent.change(within(dialog).getByRole('spinbutton', { name: 'TTS · Daily quantity (chars)' }), { target: { value: '2500' } })
+        fireEvent.change(within(dialog).getByRole('spinbutton', { name: 'Call mode · Daily quantity (sec)' }), { target: { value: '180' } })
 
         fireEvent.click(within(dialog).getByRole('button', { name: 'Create plan' }))
 
         await waitFor(() => expect(createMembershipPlan).toHaveBeenCalledTimes(1))
-        expect(createMembershipPlan).toHaveBeenCalledWith({
+        expect(createMembershipPlan).toHaveBeenCalledWith(expect.objectContaining({
             plan_code: 'patron',
             display_name: 'Patron',
             daily_credit_limit: 750,
             is_active: true,
             limits: uniformLimits(300, 1, 1),
-        })
+            mutation_id: expect.any(String),
+        }))
         expect(await screen.findByText('Plan created')).toBeInTheDocument()
         expect(listMembershipPlans).toHaveBeenCalledTimes(2)
     })
@@ -181,7 +202,7 @@ describe('AdminMembershipPage', () => {
         await waitFor(() => expect(updateMembershipPlan).toHaveBeenCalledTimes(1))
         const [code, body] = updateMembershipPlan.mock.calls[0] as [string, { limits: Record<string, { daily_request_limit: number }> }]
         expect(code).toBe('pro')
-        expect(Object.keys(body)).toEqual(['limits'])
+        expect(Object.keys(body).sort()).toEqual(['limits', 'mutation_id'])
         expect(body.limits.chat_interaction.daily_request_limit).toBe(900)
         expect(body.limits.tts_generation.daily_request_limit).toBe(500)
         expect(await screen.findByText('Plan updated')).toBeInTheDocument()

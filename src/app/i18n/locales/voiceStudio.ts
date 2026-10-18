@@ -6,6 +6,8 @@
  * LOC review. Also the Studio usage strip (`voices.usage.*`, 05 §9.3, AC-S3).
  */
 export const voiceRecipeV2En = {
+    model: 'Speech model',
+    elevenModel: 'v4 for previews and narration · v4 Turbo for calls',
     stability: 'Stability',
     /** 05 §5.1 / §9.3: the slider end labels. */
     stabilityLow: 'More expressive',
@@ -19,8 +21,8 @@ export const voiceRecipeV2En = {
     outOfRange: '{{label}} was saved as {{stored}}, outside the supported range, so it shows as {{adjusted}}. Saving this preset stores {{adjusted}}.',
     /** AC-E2: the same for a value with no slider here (speed on Expressive) or a read-only recipe. */
     outOfRangeHidden: '{{label}} was saved as {{stored}}, outside the supported range. Saving this preset stores {{adjusted}}.',
-    speedExpressiveNote: 'Speed applies to Standard narration and calls.',
-    emotionStandardHint: 'Subtle on Standard voices',
+    speedExpressiveNote: 'These speech models use stability and similarity controls.',
+    emotionStandardHint: 'Adds an emotional delivery cue',
     emotionNone: 'None',
     languageNote: 'Your story’s language is used when it’s known.',
     /** AC-E4, 05 §5.1 / §9.3: the read-only language line once a voice is picked. */
@@ -66,6 +68,8 @@ export const voiceRecipeV2En = {
 }
 
 export const voiceRecipeV2Es = {
+    model: 'Modelo de voz',
+    elevenModel: 'v4 para muestras y narración · v4 Turbo para llamadas',
     stability: 'Estabilidad',
     stabilityLow: 'Más expresiva',
     stabilityHigh: 'Más constante',
@@ -75,7 +79,7 @@ export const voiceRecipeV2Es = {
     speedValueText: '{{label}} {{value}} veces',
     outOfRange: '{{label}}: se guardó como {{stored}}, fuera del rango admitido, así que se muestra como {{adjusted}}. Al guardar este preset quedará en {{adjusted}}.',
     outOfRangeHidden: '{{label}}: se guardó como {{stored}}, fuera del rango admitido. Al guardar este preset quedará en {{adjusted}}.',
-    speedExpressiveNote: 'La velocidad se aplica a la narración estándar y a las llamadas.',
+    speedExpressiveNote: 'Estos modelos usan controles de estabilidad y similitud.',
     emotionStandardHint: 'Sutil en las voces estándar',
     emotionNone: 'Ninguna',
     languageNote: 'Se usa el idioma de tu historia cuando se conoce.',

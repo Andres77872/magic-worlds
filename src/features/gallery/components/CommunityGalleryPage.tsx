@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Gem, Globe, Import, Loader2, RefreshCw, Swords, UserCircle, Users } from 'lucide-react'
@@ -30,6 +31,7 @@ function playlistCardType(type: GalleryType) {
 }
 
 export function CommunityGalleryPage() {
+    useFeatureFlags()
     const { t } = useTranslation()
     const importHook = useCardImport()
     const preview = useGalleryCardPreview()
@@ -84,6 +86,7 @@ function CommunityGallerySection({
     onImport: (item: GalleryItem) => void
     onPreview: (item: GalleryItem) => void
 }) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const { setPage } = useNavigation()
     const config = useMemo(() => publicConfigFor(section.type), [section.type])

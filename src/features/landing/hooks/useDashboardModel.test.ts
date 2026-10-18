@@ -1,3 +1,4 @@
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderHook } from '@testing-library/react'
 import type { Adventure, Character, CharacterChatSession, Item, Lorebook, Story, World } from '@/shared'
@@ -46,10 +47,10 @@ vi.mock('@/app/hooks', () => ({ useData: () => mockData }))
 
 describe('useDashboardModel', () => {
     beforeEach(() => {
-        vi.stubEnv('VITE_FEATURE_LOREBOOKS_ENABLED', 'true')
-        vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'true')
-        vi.stubEnv('VITE_FEATURE_GROUP_CHATS_ENABLED', 'true')
-        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'true')
+        setTestFeatureFlags({ lorebooks: true })
+        setTestFeatureFlags({ novels: true })
+        setTestFeatureFlags({ groupChats: true })
+        setTestFeatureFlags({ adventures: true })
     })
 
     afterEach(() => {
@@ -77,7 +78,7 @@ describe('useDashboardModel', () => {
     })
 
     it('empties adventure sessions and counts when the adventures feature is off', () => {
-        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'false')
+        setTestFeatureFlags({ adventures: false })
         const { result } = renderHook(() => useDashboardModel())
         expect(result.current.activeAdventureSessions).toHaveLength(0)
         expect(result.current.counts.adventures).toBe(0)

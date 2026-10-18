@@ -212,6 +212,7 @@ export const adminVoicesEn = {
     },
     models: {
         'drama-3': 'Fish Audio · Drama 3',
+        's2.1-pro': 'Fish Audio · S2.1 Pro',
         eleven_flash_v2_5: 'Flash v2.5 (legacy)',
         eleven_v4: 'v4',
         eleven_v4_turbo: 'v4 Turbo',
@@ -680,6 +681,7 @@ export const adminVoicesEn = {
         modelUnavailable: 'This model is not available on the account.',
         models: {
         'drama-3': 'Fish Audio · Drama 3',
+        's2.1-pro': 'Fish Audio · S2.1 Pro',
             el_flash_v2_5: 'Flash v2.5',
             el_v4: 'v4',
             el_multilingual_v2: 'Multilingual v2 (lab only)',
@@ -1362,6 +1364,7 @@ export const adminVoicesEs: typeof adminVoicesEn = {
     },
     models: {
         'drama-3': 'Fish Audio · Drama 3',
+        's2.1-pro': 'Fish Audio · S2.1 Pro',
         eleven_flash_v2_5: 'Flash v2.5 (legado)',
         eleven_v4: 'v4',
         eleven_v4_turbo: 'v4 Turbo',
@@ -1830,6 +1833,7 @@ export const adminVoicesEs: typeof adminVoicesEn = {
         modelUnavailable: 'Este modelo no está disponible en la cuenta.',
         models: {
         'drama-3': 'Fish Audio · Drama 3',
+        's2.1-pro': 'Fish Audio · S2.1 Pro',
             el_flash_v2_5: 'Flash v2.5',
             el_v4: 'v4',
             el_multilingual_v2: 'Multilingual v2 (solo laboratorio)',

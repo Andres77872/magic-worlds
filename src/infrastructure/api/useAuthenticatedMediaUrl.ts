@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { apiService } from './index'
 import { isProtectedMediaUrl, resolveMediaUrl } from './mediaUrl'
 
@@ -6,16 +6,22 @@ interface AuthenticatedMediaUrlState {
     src?: string
     loading: boolean
     error: Error | null
+    retry: () => void
 }
 
 export function useAuthenticatedMediaUrl(url?: string | null, accept: string = '*/*'): AuthenticatedMediaUrlState {
     const resolved = resolveMediaUrl(url)
     const protectedMedia = isProtectedMediaUrl(resolved)
-    const [state, setState] = useState<AuthenticatedMediaUrlState>({
+    const [attempt, setAttempt] = useState(0)
+    const [state, setState] = useState<Omit<AuthenticatedMediaUrlState, 'retry'>>({
         src: protectedMedia ? undefined : resolved,
         loading: Boolean(resolved && protectedMedia),
         error: null,
     })
+
+    const retry = useCallback(() => {
+        setAttempt((current) => current + 1)
+    }, [])
 
     useEffect(() => {
         if (!resolved || !protectedMedia) {
@@ -52,7 +58,8 @@ export function useAuthenticatedMediaUrl(url?: string | null, accept: string = '
             canceled = true
             if (objectUrl) URL.revokeObjectURL(objectUrl)
         }
-    }, [accept, protectedMedia, resolved])
+    }, [accept, attempt, protectedMedia, resolved])
 
-    return state
+    return { ...state, retry }
 }
+

@@ -101,9 +101,11 @@ Source paths and observed results are recorded in [01](01_current_state_and_evid
 - [Workspace R1](../workspace_r1/README.md): ownership, account/workspace switch and archive contracts.
 - [LLM profiles](../llm_profiles/README.md): published-profile resolution, role caps, credentials, payer and frozen execution.
 - [App assistant research](../app_assistant/README.md): unified conversations and app-guide boundary.
+- [Main-assistant improvement](../assistant_improvement/README.md#scope-and-authority): proposed shared document-tool/effect contracts and run/action foundations. The main assistant owns general discovery/card/lorebook editing; this dossier owns manuscript writes and multi-document changesets. The [2026-10-16 reuse review](07_target_architecture.md#reuse-and-overlap-decisions) separates current infrastructure from that proposed extraction; cross-links do not create duplicate delivery registers.
 - Frontend [story DTOs](../../src/shared/types/story.types.ts), [assistant DTOs](../../src/shared/types/assistant.types.ts), and [LLM DTOs](../../src/shared/types/llm.types.ts).
 - Availability: [featureFlags](../../src/shared/featureFlags.ts), [example environment](../../.env.example), [AppRouter](../../src/app/router/AppRouter.tsx), [Sidebar](../../src/ui/components/Sidebar.tsx), and `apiService.assertNovelsEnabled()`. The reviewed local `.env` enables novels; production availability remains unverified.
 - BFF `src/models/{story,assistant,llm_profiles}.py`, `src/routes/{stories,assistant}.py`, `src/services/{story_generation,story_execution,llm_profile_resolution,llm_profile_execution}.py`, assistant registry/core, and StoryModel persistence.
+- Deep migration/cleanup evidence, 2026-10-15: BFF `src/database/mysql/{db.sql,bootstrap.py,fish_calls_migration.py,workspace_models.py,models.py}`, `scripts/migrations/20261015_fish_calls.py`, `src/services/llm_features.py`; frontend `DataProvider.mergeFreshChapters`, `useWordGoal`, `codexMention`, and existing story/assistant feature contracts. [15](15_database_migration_and_legacy_cleanup.md#revalidated-implementation-constraints) records the source-to-requirement mapping; fresh focused test commands/results and the nested-checkout discovery limitation are in [01](01_current_state_and_evidence.md#deep-migration-and-cleanup-revalidation--2026-10-15). No live database or new external/vendor evidence was collected.
 
 ## Recommendation ledger
 
@@ -114,6 +116,7 @@ Source paths and observed results are recorded in [01](01_current_state_and_evid
 | Independent metadata/structure/document revisions | Recommended | Measured transaction needs justify a different revision vector |
 | One proposal/review/commit flow | Recommended | No identified reason to maintain divergent inline/chat mutation semantics |
 | Novel-bound assistant using unified infrastructure | Recommended | Adapter/target-vector spike exposes a fundamental contract mismatch |
+| Extend shared Codex/gallery, assistant/execution and task infrastructure | Source-backed reuse decision, 2026-10-16 | A concrete domain contract cannot fit a shared extension; keep new manuscript revisions/changesets separate from card-only history/receipts |
 | Scoped retrieval plus verified memory | Recommended | Evaluation shows another context strategy is more reliable for a task |
 | Single-author document authority with revision-checked save/recovery | Recommended | Fixture-backed evidence supports a different personal persistence contract |
 | Quiet Write/Plan/Review views and one shared contextual inspector | Recommended; demonstrated in a standalone prototype | Author studies, real app-shell layout, keyboard/mobile input, and measured reading behavior |
@@ -123,21 +126,24 @@ Source paths and observed results are recorded in [01](01_current_state_and_evid
 
 ## Open decisions
 
-All numbered decisions below remain **TBD**, with decision areas and prerequisites in [14](14_status_and_roadmap.md). A named owner, deadline, selected schema, or licensed add-on must not be inferred from this proposal.
+Remaining implementation/product choices are **TBD** unless marked resolved below, with areas and prerequisites in [14](14_status_and_roadmap.md). The current data-preservation rule and lean validation policy are resolved by the user. Whole-database resets are disabled. A named owner, deadline, future schema extension or licensed add-on must not be inferred from this proposal.
 
-1. Exact canonical schema and Markdown compatibility bridge.
-2. Revision-bound range representation and UTF-16/Unicode wire conversion.
-3. Rich-text semantic operation implementation in the Python BFF versus approved final-document snapshots.
+1. **Resolved for D2:** canonical version-1 scene JSON with stable block/reference IDs, implemented in [ADR 16](16_document_and_structure_decision.md). The full Markdown/import/export loss contract remains D5; no discarded pre-refactor format bridge is required.
+2. **Resolved for current scene writes:** revision-bound canonical plain-text UTF-16 offsets and Unicode boundary checks. Broader imported-format acceptance remains open.
+3. D2 now uses validated canonical scene JSON/checkpoint restores and server-side structure transforms. D3 still needs the precise semantic-operation versus approved final-document boundary for conversational changesets.
 4. Required DOCX/Markdown import feature set, unsupported-node handling, and fidelity policy.
-5. Retention and storage limits for revisions, trash, local drafts and full context snapshots.
+5. **Root Trash/erase resolved in [ADR 19](19_novel_erasure_and_retention.md):** retain until an explicit, reviewed one-novel erase; content-free replay barrier and terminal prompt redaction. Broader retention/storage limits for non-erased revisions, unit Trash, local drafts, backups/provider copies and context snapshots remain open.
 6. Shared-device/logout local checkpoint policy and optional local encryption requirements.
-7. Supported offline operations and conflict-recovery UX across the author's own tabs/devices.
+7. **Offline writer/review layers implemented locally in [ADR 20](20_offline_and_reconciliation.md):** open-scene pause, checked reconnect, exact replay, reviewed merges, persistent device entry, durable exact-source review choices, opt-in verified cold app loading and monotonic retained workspace/root/unit lifecycle and terminal erasure observations. Broader lifecycle edge acceptance, retention/storage/shared-device policy and full author/browser/device acceptance remain open; no full offline guarantee is claimed.
 8. Inheritance across the author's own series/workspaces and update-review behavior.
 9. Budget/latency envelope for plans, critique, memory recomputation and external research.
 10. Supported narrative-time/POV knowledge rules, including unreliable narrators and alternate branches.
 11. Which reading presets, publication formats and optional media features ship in each phase.
 12. License/hosting constraints for editor add-ons and conversion tools.
 13. Initial quality thresholds and author-study recruitment, including English/Spanish and assistive-technology users.
+14. Exact phase storage types/constraints, schema marker/seeds and scoped upgrade/fixture commands. The [15 storage blueprint](15_database_migration_and_legacy_cleanup.md#required-storage-changes-by-phase) defines target responsibilities; update code through reviewed scoped changes that retain existing data. Whole-database resets are disabled.
+15. **Current user directive, 2026-10-16:** preserve recovered non-novel content and current novels. Earlier project-reset approval is superseded and is not ongoing authorization. Non-novel recovery is verified; future schema extensions use reviewed scoped changes and a verified private backup. Tests use freshly allocated synthetic databases. See [15](15_database_migration_and_legacy_cleanup.md#development-data-policy).
+16. **Resolved by user, 2026-10-16:** use three lean DEV checks and relevant existing product checks. Production support/observation windows, preserved-data rollback/backup rehearsals and a dedicated migration suite are not required. CL-01 through CL-10 remain a code-removal inventory.
 
 The UI/UX update makes the following implementation decisions explicit without selecting them prematurely: final container-width transitions and reading presets; the long-review action region and narrow comparison presentation; modal versus docked inspector behavior and focus recovery on resize; persistence of unsent composer drafts; the complete command/shortcut registry; and task-study thresholds after the pilot. Resolve these within UX-01–UX-12, not by copying the prototype's numeric cutoffs or simplified state handling.
 

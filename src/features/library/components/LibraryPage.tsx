@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * LibraryPage — the Workspace R1 unified card browser (document 08 "Selected
  * library browsing contract"): `#/library?workspace=<uuid>[&collection=…][&q=…]
@@ -96,6 +97,7 @@ function playlistCardType(item: GalleryItem) {
 type CollectionForm = { mode: 'create'; thenAddTo?: GalleryItem[] } | { mode: 'edit'; collection: Collection }
 
 export function LibraryPage() {
+    const featureFlagGeneration = useFeatureFlags().generation
     const { t } = useTranslation()
     const { api, selectedWorkspaceId, selectedWorkspace, activeWorkspaces, capture, isCurrent, workspaceEpoch } = useWorkspace()
     const readOnly = Boolean(selectedWorkspace?.archived_at)
@@ -271,14 +273,14 @@ export function LibraryPage() {
         }
         // `route.reveal` is fully described by `revealKey`.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [api, capture, isCurrent, revealKey, setHighlightedId, setNotice, t])
+    }, [api, capture, isCurrent, revealKey, setHighlightedId, setNotice, t, featureFlagGeneration])
 
     const revealedItem = revealed && revealed.key === revealKey ? revealed.item : null
     const displayItems = useMemo(() => {
         const visible = cards.items.filter((item) => isContentTypeFeatureEnabled(item.galleryType))
         if (!revealedItem || !isContentTypeFeatureEnabled(revealedItem.galleryType)) return visible
         return [revealedItem, ...visible.filter((item) => libraryItemKey(item) !== libraryItemKey(revealedItem))]
-    }, [cards.items, revealedItem])
+    }, [cards.items, revealedItem, featureFlagGeneration])
 
     const [pendingReturn, setPendingReturn] = useState<ReturnType<typeof takeLibraryReturn>>(null)
     useEffect(() => {

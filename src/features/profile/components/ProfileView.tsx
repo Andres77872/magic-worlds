@@ -42,6 +42,8 @@ interface ProfileViewProps {
     onDeleteAllData: () => Promise<void>
     /** Called with the saved display name (null when cleared) after a successful edit. */
     onDisplayNameUpdated?: (displayName: string | null) => void
+    /** Called with the refreshed profile after switching the active avatar variant. */
+    onAvatarVariantUpdated?: (updatedProfile: UserProfile) => void
     /** Re-fetch /user/me after a credit code is redeemed so the wallet balance updates. */
     onRedeemed?: () => void
     /** Claim pending email credit grants once after a notification email opens Profile. */
@@ -65,6 +67,7 @@ export function ProfileView({
     onLogout,
     onDeleteAllData,
     onDisplayNameUpdated,
+    onAvatarVariantUpdated,
     onRedeemed,
     autoClaimEmailCreditGrants,
     billingEnabled,
@@ -102,6 +105,7 @@ export function ProfileView({
             <ProfileIdentityCard
                 profile={profile}
                 onDisplayNameUpdated={onDisplayNameUpdated}
+                onAvatarVariantUpdated={onAvatarVariantUpdated}
                 onRequestLogout={() => setConfirmLogoutOpen(true)}
             />
 

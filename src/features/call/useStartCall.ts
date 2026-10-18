@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * useStartCall — the single shared entry point for launching a character VOICE call.
  *
@@ -48,6 +49,7 @@ export interface UseStartCall {
 
 
 export function useStartCall(): UseStartCall {
+    useFeatureFlags()
     const { t } = useTranslation()
     const { isAuthenticated, openLoginModal } = useAuth()
     const { characters, startCharacterChat, resumeCharacterChat } = useData()
@@ -55,14 +57,9 @@ export function useStartCall(): UseStartCall {
     // The shared 60 s capabilities read; only while calls can start at all.
     const availability = useVoiceAvailability(apiService, isAuthenticated && isCallsFeatureEnabled())
     const callsUnavailable = !availability.calls_available
-    // Fish calls need their own advertised, healthy call surface (fail closed). Per-voice
-    // call approval stays server-side: CallScreen shows that refusal.
-    const fishAvailability = useVoiceAvailability(apiService, isAuthenticated && isCallsFeatureEnabled(), 0, 'fish_audio')
-    const refuseFish = (voice: Character['voice'] | null | undefined): boolean => {
-        if (voice?.provider !== 'fish_audio' || fishAvailability.calls_available) return false
-        setError(t('voices.providers.callsUnavailable'))
-        return true
-    }
+    // A voice that cannot take calls right now (a Fish voice while Fish calls are off, a
+    // voice the server refuses) is not a dead end here: the call screen's setup offers
+    // another voice for the call.
     // Workspace R1: a launch captures its workspace before any async work; a call
     // whose chat finished creating after a switch never opens in the new workspace.
     // The context is optional: call buttons also render in isolated surfaces
@@ -125,7 +122,6 @@ export function useStartCall(): UseStartCall {
             openLoginModal()
             return
         }
-        if (refuseFish(character.voice)) return
         void beginCall(character)
     }
 
@@ -135,7 +131,6 @@ export function useStartCall(): UseStartCall {
             openLoginModal()
             return
         }
-        if (refuseFish(chat.character?.voice)) return
         launchVoice(chat)
     }
 

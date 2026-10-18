@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 import { isLlmFeatureEnabled } from '@/shared/featureFlags'
 import { useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -23,14 +24,28 @@ const INCOMPATIBLE = new Set(['PROFILE_UNAVAILABLE', 'PROFILE_CREDENTIAL_MODE_IN
 // Nothing (or only a default that cannot serve this feature) is assigned: offer an assignment in place.
 const UNASSIGNED = new Set(['SYSTEM_PROFILE_NOT_CONFIGURED', 'PROFILE_INCOMPATIBLE'])
 
-/** The preview is read-only. Dispatch resolves again and validates the resulting revision. */
-export function LlmFeatureControl({ feature, disabled = false }: { feature: LlmFeature; disabled?: boolean }) {
+/**
+ * The preview is read-only. Dispatch resolves again and validates the resulting revision.
+ * `onUnassignedChange` reports whether nothing can serve the feature yet (a host such as
+ * the call setup holds its start until it is assigned).
+ */
+export function LlmFeatureControl({ feature, disabled = false, onUnassignedChange, selection: controlledSelection, onSelectionChange, onEffectiveChange }: {
+    feature: LlmFeature
+    disabled?: boolean
+    onUnassignedChange?: (unassigned: boolean) => void
+    /** A retained draft can own public intent while using the same resolver and chooser. */
+    selection?: LlmSelection
+    onSelectionChange?: (selection: LlmSelection) => void
+    /** The previewed resolution (null while loading, failed or unassigned), e.g. to fit a host's budget. */
+    onEffectiveChange?: (effective: EffectiveLlmProfile | null) => void
+}) {
+    const featureFlagGeneration = useFeatureFlags().generation
     const { t } = useTranslation()
     const context = useLlmFeatureSelections()
     // Optional: embedded generators also render outside the app shell (tests, stories).
     const isRoot = useContext(AuthContext)?.user?.user_type === 'root'
     const accountKey = context?.accountKey ?? ''
-    const selection = context?.selections[feature] ?? INHERIT
+    const selection = controlledSelection ?? context?.selections[feature] ?? INHERIT
     const selectionKey = JSON.stringify(selection)
     const [state, setState] = useState<ControlState | null>(null)
     const generation = useRef(0)
@@ -68,7 +83,7 @@ export function LlmFeatureControl({ feature, disabled = false }: { feature: LlmF
             credentialSession.select(feature, effective)
             setState(before => before && ({ ...before, contract, effective, loading: false }))
         } catch { if (current(ticket)) setState(before => before && ({ ...before, loading: false, error: message })) }
-    }, [accountKey, feature, selectionKey, current, message])
+    }, [accountKey, feature, selectionKey, current, message, featureFlagGeneration])
     useEffect(() => { void load(); return () => { generation.current++; operation.current = false } }, [load])
 
     // Only root assigns: the pick becomes the app-wide default, so users never have to choose.
@@ -117,6 +132,7 @@ export function LlmFeatureControl({ feature, disabled = false }: { feature: LlmF
             const effective = await apiService.resolveLlmProfile(feature, intent)
             if (!current(ticket)) return
             context.select(feature, intent, effective)
+            onSelectionChange?.({ ...intent })
             setState(before => before && ({ ...before, effective, loading: false }))
         } catch { if (current(ticket)) setState(before => before && ({ ...before, loading: false, error: message })) }
         finally { if (current(ticket)) operation.current = false }
@@ -148,6 +164,10 @@ export function LlmFeatureControl({ feature, disabled = false }: { feature: LlmF
     // Show assignable profiles right away instead of an error when nothing is assigned yet.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => { if (autoChoices) void loadChoices() }, [autoChoices])
+    const unassigned = !!visible?.unassigned
+    useEffect(() => { onUnassignedChange?.(unassigned) }, [unassigned, onUnassignedChange])
+    const effective = visible?.effective ?? null
+    useEffect(() => { onEffectiveChange?.(effective) }, [effective, onEffectiveChange])
 
     if (!context || authSession.getSnapshot().sessionPhase !== 'authenticated') return null
     if (!isLlmFeatureEnabled(feature)) return null

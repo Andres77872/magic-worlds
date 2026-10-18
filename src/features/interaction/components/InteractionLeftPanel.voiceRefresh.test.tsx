@@ -1,3 +1,7 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 /**
  * R1-FE-04 (D36, 05 §7.8, 09 §4.4): the adventure cast menu and the
  * multi-select "Use the cards' current voices" in the left panel.
@@ -107,7 +111,7 @@ afterEach(() => vi.unstubAllEnvs())
 
 describe('InteractionLeftPanel cast voice refresh (R1-FE-04)', () => {
     it('hides every cast voice action with voices disabled', () => {
-        vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'false')
+        setTestFeatureFlags({ voices: false })
         renderPanel(adventureWith(AFFECTED_CAST))
         expect(screen.queryByTestId('cast-voice-refresh')).not.toBeInTheDocument()
         expect(screen.queryByRole('button', { name: /voice options/i })).not.toBeInTheDocument()

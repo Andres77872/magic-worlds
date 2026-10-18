@@ -33,6 +33,8 @@ vi.mock('../hooks/useAdventureChatSocket', () => ({
 vi.mock('@/app/hooks/usePageFocus', () => ({
     usePageFocus: () => true,
     isPageFocused: () => true,
+    usePageVisible: () => true,
+    isPageVisible: () => true,
 }))
 
 const SEGMENTED_SPOKEN = 'Hold on. <#0.4#> (sighs) The door is open.'

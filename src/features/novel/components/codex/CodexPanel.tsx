@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * CodexPanel — the novel's isolated reference shelf. Cloned snapshots are
  * grouped by kind with enable toggles; entries are added from the card browser
@@ -22,12 +23,15 @@ import type { StoryCardKind, StoryContextTrace } from '@/shared'
 import { EmptyState } from '@/ui/components/common/EmptyState'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
 import { ReferenceGroup } from '@/ui/components'
-import { Badge, Button, Eyebrow, Icon, controlBaseClass, cx } from '@/ui/primitives'
+import { Badge, Callout, Button, Eyebrow, Icon, controlBaseClass, cx } from '@/ui/primitives'
 import type { CodexApi, CodexEntry } from '../../hooks/useCodex'
 import { CodexContextMeter } from './CodexContextMeter'
 import { CodexEntryDrawer } from './CodexEntryDrawer'
 import { CodexEntryRow } from './CodexEntryRow'
 import { CodexLorebookPickerDrawer } from './CodexLorebookPickerDrawer'
+import { CodexLibraryReview } from './CodexLibraryReview'
+import { useCodexLibraryVersions } from '../../hooks/useCodexLibraryVersions'
+import { newerLibraryVersion } from '../../utils/codexLibrary'
 
 export interface CodexPanelProps {
     codex: CodexApi
@@ -42,16 +46,24 @@ export interface CodexPanelProps {
 }
 
 export function CodexPanel({ codex, workspaceId, requireAuth, onOpenCardPicker, contextTrace }: CodexPanelProps) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const [lorebookPickerOpen, setLorebookPickerOpen] = useState(false)
     const [editingEntry, setEditingEntry] = useState<CodexEntry | null>(null)
     const [pendingRemove, setPendingRemove] = useState<CodexEntry | null>(null)
+    const [operationFailed,setOperationFailed]=useState(false)
     const [filter, setFilter] = useState('')
+    const [reviewing, setReviewing] = useState<string | null>(null)
+    const libraryVersions = useCodexLibraryVersions(codex.storyId, codex.contextRevision, workspaceId)
+    const libraryVersion = (entry: CodexEntry) => libraryVersions.changed.has(entry.id) ? 'changed' as const : newerLibraryVersion(entry.ref.snapshot, libraryVersions.versions.get(entry.id))
+    const reviewed = reviewing ? codex.resolveEntry(reviewing) ?? null : null
+    const reviewedScope = codex.referenceEntries.find((row) => row.id === reviewing)
 
     const readOnly = codex.readOnly
+    const blocked=readOnly||Boolean(codex.pending)
     // A remove confirmation left open when the shelf turns read-only goes with it.
     if (readOnly && pendingRemove) setPendingRemove(null)
-    const openLorebookPicker = () => isLorebooksFeatureEnabled() && !readOnly && requireAuth() && setLorebookPickerOpen(true)
+    const openLorebookPicker = () => isLorebooksFeatureEnabled() && !blocked && requireAuth() && setLorebookPickerOpen(true)
 
     const query = filter.trim().toLowerCase()
     const groups = query
@@ -61,7 +73,7 @@ export function CodexPanel({ codex, workspaceId, requireAuth, onOpenCardPicker, 
         : codex.groups
     const noMatches = query.length > 0 && groups.length === 0
 
-    const addMenu = <AddMenu disabled={readOnly} onAddCards={onOpenCardPicker} onAddLorebook={openLorebookPicker} />
+    const addMenu = <AddMenu disabled={blocked||codex.busy} onAddCards={onOpenCardPicker} onAddLorebook={openLorebookPicker} />
 
     return (
         <aside
@@ -80,7 +92,7 @@ export function CodexPanel({ codex, workspaceId, requireAuth, onOpenCardPicker, 
                     enabledCount={codex.entries.filter((entry) => entry.enabled).length}
                     totalCount={codex.entries.length}
                     estimatedTokens={contextTrace ? contextTrace.totalEstimatedTokens : null}
-                    chapterCount={contextTrace ? contextTrace.chapters.length : null}
+                    sceneCount={contextTrace ? contextTrace.scenes.length : null}
                 />
             </div>
 
@@ -99,7 +111,7 @@ export function CodexPanel({ codex, workspaceId, requireAuth, onOpenCardPicker, 
             )}
 
             <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 pb-3">
-                {codex.entries.length === 0 ? (
+                {groups.length === 0&&!query ? (
                     <EmptyState
                         icon={<Icon icon={BookOpenText} size={32} />}
                         message={t('novelEditor.codex.emptyTitle')}
@@ -125,12 +137,14 @@ export function CodexPanel({ codex, workspaceId, requireAuth, onOpenCardPicker, 
                                     <CodexEntryRow
                                         key={entry.id}
                                         entry={entry}
-                                        disabled={codex.busy || readOnly}
+                                        disabled={codex.busy || blocked}
                                         onToggle={(target) => {
-                                            if (!readOnly && requireAuth()) void codex.toggleEntry(target)
+                                            if (!readOnly && requireAuth()) void codex.toggleEntry(target).catch(()=>setOperationFailed(true))
                                         }}
                                         onEdit={setEditingEntry}
                                         onRemove={setPendingRemove}
+                                        libraryVersion={libraryVersion(entry)}
+                                        onReviewLibrary={(target) => setReviewing(target.id)}
                                     />
                                 ))}
                             </div>
@@ -139,23 +153,50 @@ export function CodexPanel({ codex, workspaceId, requireAuth, onOpenCardPicker, 
                 )}
             </div>
 
+            {codex.pending&&<Callout tone="warning" role="status" className="m-3">
+                <p>{t('novelEditor.structure.codexPending')}</p>
+                <Button variant="secondary" size="sm" disabled={codex.busy||!codex.canRetry} onClick={()=>void codex.retry().catch(()=>setOperationFailed(true))}>{t('novelEditor.save.retry')}</Button>
+                {codex.storageFailed&&<p>{t('novelEditor.recovery.storageFailed')}</p>}
+            </Callout>}
+            {(operationFailed||codex.error)&&<Callout tone="warning" role="alert" className="m-3">{t('novelEditor.structure.'+(codex.error??'failed'))}</Callout>}
+            {codex.removedEntries.length>0&&<section className="space-y-2 border-t border-line p-3">
+                <h3 className="font-ui text-label text-parchment-300">{t('novelEditor.structure.removed')}</h3>
+                <p className="text-caption text-parchment-400">{t('novelEditor.structure.removedHelp')}</p>
+                {codex.removedEntries.map((entry)=><div key={entry.id} className="flex flex-wrap items-center gap-2">
+                    <Button variant="ghost" size="sm" onClick={()=>setEditingEntry(entry)}>{entry.label}</Button>
+                    <Button variant="secondary" size="sm" disabled={blocked||codex.busy} onClick={()=>{if(requireAuth())void codex.restoreEntry(entry).catch(()=>setOperationFailed(true))}}>{t('novelEditor.structure.restoreEntry',{title:entry.label})}</Button>
+                </div>)}
+            </section>}
             {isLorebooksFeatureEnabled() && <CodexLorebookPickerDrawer
                 open={lorebookPickerOpen}
                 workspaceId={workspaceId}
                 busy={codex.busy}
-                readOnly={readOnly}
+                readOnly={blocked}
                 existingEntryIds={codex.existingEntryIds}
                 onClose={() => setLorebookPickerOpen(false)}
                 onClone={codex.cloneLorebookEntries}
             />}
             <CodexEntryDrawer
-                entry={editingEntry}
-                busy={codex.busy}
-                readOnly={readOnly}
+                workspaceId={workspaceId}
+                entry={editingEntry?(codex.resolveEntry(editingEntry.id)??editingEntry):null}
+                busy={codex.busy||Boolean(codex.pending)}
+                readOnly={readOnly||Boolean(editingEntry?.ref.removedAt)}
                 onClose={() => setEditingEntry(null)}
                 onSave={async (entry, patch) => {
                     if (readOnly || !requireAuth()) return
                     await codex.saveSnapshot(entry, patch)
+                }}
+            />
+            <CodexLibraryReview
+                entry={reviewed && !reviewed.ref.removedAt ? reviewed : null}
+                scope={{ scope: reviewedScope?.scope ?? 'novel', title: reviewedScope?.scopeLabel }}
+                workspaceId={workspaceId}
+                busy={codex.busy || Boolean(codex.pending)}
+                readOnly={readOnly}
+                onClose={() => setReviewing(null)}
+                onApply={async (entry, sourceVersionId, take) => {
+                    if (readOnly || !requireAuth()) return
+                    await codex.refreshEntry(entry, sourceVersionId, take)
                 }}
             />
             <ConfirmDialog
@@ -169,8 +210,7 @@ export function CodexPanel({ codex, workspaceId, requireAuth, onOpenCardPicker, 
                 confirmLabel={t('novelEditor.codex.remove')}
                 variant="danger"
                 onConfirm={() => {
-                    if (pendingRemove && !readOnly && requireAuth()) void codex.removeEntry(pendingRemove)
-                    setPendingRemove(null)
+                    if(pendingRemove&&!readOnly&&requireAuth())void codex.removeEntry(pendingRemove).then(()=>setPendingRemove(null)).catch(()=>setOperationFailed(true))
                 }}
                 onCancel={() => setPendingRemove(null)}
             />
@@ -186,6 +226,7 @@ export function CodexPanel({ codex, workspaceId, requireAuth, onOpenCardPicker, 
  * refocused through the menu root rather than a ref on the component.
  */
 function AddMenu({ disabled, onAddCards, onAddLorebook }: { disabled: boolean; onAddCards: () => void; onAddLorebook: () => void }) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const [open, setOpen] = useState(false)
     const rootRef = useRef<HTMLDivElement>(null)

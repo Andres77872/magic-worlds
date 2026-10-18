@@ -1,3 +1,4 @@
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -168,7 +169,7 @@ function lastQuery() {
 
 describe('LibraryPage (Workspace R1)', () => {
     it('hides adventure cards from mixed Library results while workspaces stay enabled', async () => {
-        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'false')
+        setTestFeatureFlags({ adventures: false })
         api.listLibraryCards.mockResolvedValue(page([...CARDS, { card_type: 'adventure_template',
             card: { id: 'a1', name: 'Hidden adventure', scenario: 'Hidden adventure', triggers: [], category: [] } }]))
         renderLibrary()
@@ -178,10 +179,10 @@ describe('LibraryPage (Workspace R1)', () => {
     })
 
     beforeEach(() => {
-        vi.stubEnv('VITE_FEATURE_WORKSPACES_ENABLED', 'true')
-        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'true')
-        vi.stubEnv('VITE_FEATURE_GROUP_CHATS_ENABLED', 'false')
-        vi.stubEnv('VITE_FEATURE_COMMUNITY_CARDS_ENABLED', 'true')
+
+        setTestFeatureFlags({ adventures: true })
+        setTestFeatureFlags({ groupChats: false })
+        setTestFeatureFlags({ communityCards: true })
         vi.clearAllMocks()
         api.withWorkspace.mockImplementation(() => apiService)
         forgetLibraryCards(TEST_WORKSPACE_ID)

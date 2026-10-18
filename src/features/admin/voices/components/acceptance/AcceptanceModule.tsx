@@ -86,7 +86,7 @@ export function AcceptanceModule({ initialVoiceKey = null }: { initialVoiceKey?:
         for (const voiceKey of queue) {
             try {
                 const response = await apiService.renderAcceptance(
-                    { voice_key: voiceKey, model_ids: catalog.byKey.get(voiceKey)?.provider === 'fish_audio' ? ['drama-3'] : models, languages, script_version: SCRIPT_VERSION },
+                    { voice_key: voiceKey, model_ids: catalog.byKey.get(voiceKey)?.provider === 'fish_audio' ? ['drama-3', 's2.1-pro'] : models, languages, script_version: SCRIPT_VERSION },
                     controller.signal,
                 )
                 if (controller.signal.aborted) return
@@ -346,7 +346,7 @@ export function AcceptanceModule({ initialVoiceKey = null }: { initialVoiceKey?:
                             </div>
 
                             <div className="grid gap-4 2xl:grid-cols-2">
-                                {(reviewVoice.provider === 'fish_audio' ? ['drama-3'] : ACCEPTANCE_MODELS).map((modelId) => {
+                                {(reviewVoice.provider === 'fish_audio' ? ['drama-3', 's2.1-pro'] : ACCEPTANCE_MODELS).map((modelId) => {
                                     const stored =
                                         reviewVoice.acceptance.find((row) => row.model_id === modelId && row.language === reviewLanguage) ?? null
                                     const measured = measuredLufs(modelId)

@@ -1,3 +1,5 @@
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
+import { novel } from '@/test/fixtures/story'
 /**
  * Auth-transition behavior: a session expiry followed by an in-place re-login
  * must never unmount the current page (silent reload) nor destroy the open
@@ -57,6 +59,7 @@ import { apiService } from '@/infrastructure'
 import { DataContext, DataProvider } from './DataProvider'
 
 const STORY = {
+    ...novel({chapters:[]}),
     id: 's1',
     title: 'The Hollow Crown',
     description: null,
@@ -68,7 +71,7 @@ const STORY = {
         includeLorebooks: true,
         includeRecentChapters: 1,
         tokenBudget: 1000,
-        styleSource: 'current_chapter' as const,
+        styleSource: 'current_scene' as const,
         customStyleInstruction: null,
     },
 }
@@ -114,7 +117,7 @@ function EntryOnMountProbe() {
 describe('DataProvider auth transitions', () => {
     beforeEach(() => {
         vi.clearAllMocks()
-        vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'true')
+        setTestFeatureFlags({ novels: true })
         authenticated = true
         authEpoch = undefined
         pageFocused = true
@@ -322,7 +325,7 @@ describe('DataProvider workspace gating (Workspace R1)', () => {
 
     beforeEach(() => {
         vi.clearAllMocks()
-        vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'true')
+        setTestFeatureFlags({ novels: true })
         authenticated = true
         authEpoch = undefined
         pageFocused = true

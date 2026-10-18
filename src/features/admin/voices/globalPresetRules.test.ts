@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
 import { describe, expect, it } from 'vitest'
 import type { VoicePresetV2 } from '@/shared'
 import { draftVoice, makeCatalogVoice, readyVoice } from './fixtures'

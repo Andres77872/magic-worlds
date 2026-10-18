@@ -1,9 +1,14 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
 import { afterEach, expect, it, vi } from 'vitest'
 
 afterEach(() => { vi.unstubAllEnvs(); vi.resetModules() })
 async function preparation(base: string) {
     vi.stubEnv('VITE_API_BASE_URL', base)
     vi.resetModules()
+    const { setAllTestFeatureFlags } = await import('@/shared/hooks/testing/featureFlagTestUtils')
+    setAllTestFeatureFlags(true)
     return import('./llmPreparation')
 }
 it('rejects a transient key over HTTP even when the caller supplies a revision', async () => {

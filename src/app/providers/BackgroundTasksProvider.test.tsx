@@ -1,3 +1,7 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { useContext } from 'react'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -302,8 +306,8 @@ describe('BackgroundTasksProvider', () => {
     })
 
     it('loads and clears visible completed tasks after a page of hidden voice jobs', async () => {
-        vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'false')
-        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
+        setTestFeatureFlags({ voices: false })
+        setTestFeatureFlags({ calls: true })
         vi.mocked(apiService.listTasks).mockImplementation(async (opts) => {
             const offset = opts?.offset ?? 0
             if (!opts?.statuses?.includes('completed')) return { items: [], limit: 20, offset, next_offset: null }

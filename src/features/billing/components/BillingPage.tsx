@@ -14,7 +14,6 @@ import { ArrowLeft, Check, Coins, Crown, Loader2, Rocket, Settings, Sparkles } f
 import type { LucideIcon } from 'lucide-react'
 import { apiService } from '@/infrastructure/api'
 import { useAuth, useNavigation } from '@/app/hooks'
-import { isBillingFeatureEnabled } from '@/shared/billingFeatureFlag'
 import type { UserProfile } from '@/shared'
 import type { BillingPlanCatalogResponse } from '@/shared/types/billing.types'
 import { Badge, Button, Callout, Card, Eyebrow, Icon, IconTile, PageHeader, Toast } from '@/ui/primitives'
@@ -39,18 +38,11 @@ export function BillingPage() {
     const { t } = useTranslation()
     const { isAuthenticated, openLoginModal } = useAuth()
     const { setPage } = useNavigation()
-    // Frontend kill-switch: when off (the default) we never fetch the catalog and
-    // the page degrades to the "not available" callout, so a direct #/billing
-    // visit can't reach any purchase action.
-    const featureEnabled = isBillingFeatureEnabled()
-
     const [catalog, setCatalog] = useState<BillingPlanCatalogResponse | null>(null)
     const [profile, setProfile] = useState<UserProfile | null>(null)
     // Start in the loading state so the first fetch shows a spinner without
     // calling setState synchronously inside the effect (mirrors useUserProfile).
-    // When billing is off there is nothing to fetch, so start resolved and let
-    // the render fall straight through to the "not available" callout.
-    const [loading, setLoading] = useState(featureEnabled)
+    const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [pending, setPending] = useState<string | null>(null)
     const [toast, setToast] = useState<{ tone: 'error'; title: string } | null>(null)
@@ -66,7 +58,7 @@ export function BillingPage() {
     useEffect(() => {
         // Nothing to fetch when signed out or billing is off; `loading` already
         // starts resolved in those cases (no setState-in-effect needed).
-        if (!isAuthenticated || !featureEnabled) return
+        if (!isAuthenticated) return
         let cancelled = false
         Promise.all([apiService.getBillingPlans(), apiService.getUserProfile()])
             .then(([plans, me]) => {
@@ -87,7 +79,7 @@ export function BillingPage() {
         }
         // `t` is a dependency so the fallback copy follows a language switch; the
         // catalog fetch is idempotent, so the extra call on that rare event is fine.
-    }, [isAuthenticated, featureEnabled, reloadKey, t])
+    }, [isAuthenticated, reloadKey, t])
 
     const redirectTo = (url: string) => {
         // Leaving the SPA for Stripe's hosted page; the browser returns to
@@ -141,7 +133,7 @@ export function BillingPage() {
     }
 
     const currentPlan = profile?.membership?.plan_code ?? 'free'
-    const billingEnabled = featureEnabled && (catalog?.enabled ?? false)
+    const billingEnabled = (catalog?.enabled ?? false)
     const isPaid = currentPlan === 'plus' || currentPlan === 'pro'
 
     return (

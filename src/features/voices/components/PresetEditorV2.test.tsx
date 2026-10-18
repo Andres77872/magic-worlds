@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
 import { useState } from 'react'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -25,6 +28,7 @@ import { clearPreferredLanguageCache } from '../hooks/usePreferredLanguage'
 import type { PresetEditorV2Mode } from '../presetRowsV2'
 import { BUILT_IN_PREVIEW_TEXTS } from '../previewTexts'
 import { resetPreviewCreditConfirmation } from '../usePreviewCreditConfirm'
+import { paidPreviewResponse } from '@/test-utils/previewBilling'
 import { clearPreviewTextsCache } from '../usePreviewTexts'
 import { PresetEditorV2 } from './PresetEditorV2'
 
@@ -482,7 +486,7 @@ describe('PresetEditorV2 (R1-FE-02, EP-3)', () => {
 
         it('past the free renders the button says "1 credit" and the first paid render asks once', async () => {
             api.getUserProfile.mockResolvedValue(plusWith(6))
-            api.previewVoice.mockResolvedValue({ cache_key: 'k', previews_left: 5, free_previews_left: 0, tier_used: 'standard', source: 'render' })
+            api.previewVoice.mockImplementation(paidPreviewResponse({ cache_key: 'k', previews_left: 5, free_previews_left: 0, tier_used: 'standard', source: 'render' }, 6))
             renderEditor({ mode: 'edit', source: PRESET_V2_USER })
             const button = await screen.findByRole('button', { name: 'Preview voice · 1 credit' })
             expect(screen.getByText('6 previews left today')).toBeInTheDocument()
@@ -491,17 +495,17 @@ describe('PresetEditorV2 (R1-FE-02, EP-3)', () => {
             let dialog = await screen.findByRole('dialog', { name: 'Preview with credits?' })
             expect(dialog).toHaveTextContent('Previews now cost 1 credit each. Continue?')
             fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
-            expect(api.previewVoice).not.toHaveBeenCalled()
+            expect(api.previewVoice.mock.calls.map(([body]) => body.max_credit_cost)).toEqual([0])
 
             fireEvent.click(screen.getByRole('button', { name: 'Preview voice · 1 credit' }))
             dialog = await screen.findByRole('dialog', { name: 'Preview with credits?' })
             fireEvent.click(within(dialog).getByRole('button', { name: 'Continue' }))
-            await waitFor(() => expect(api.previewVoice).toHaveBeenCalledTimes(1))
+            await waitFor(() => expect(api.previewVoice).toHaveBeenCalledTimes(3))
             expect(await screen.findByText('5 previews left today')).toBeInTheDocument()
 
             // Confirmed once for the session: the next paid render goes straight through.
             fireEvent.click(screen.getByRole('button', { name: 'Preview voice · 1 credit' }))
-            await waitFor(() => expect(api.previewVoice).toHaveBeenCalledTimes(2))
+            await waitFor(() => expect(api.previewVoice).toHaveBeenCalledTimes(4))
             expect(screen.queryByRole('dialog', { name: 'Preview with credits?' })).not.toBeInTheDocument()
         })
 
@@ -535,36 +539,37 @@ describe('PresetEditorV2 (R1-FE-02, EP-3)', () => {
 
         it('an untuned voice without a sample renders: "1 credit" and the confirmation', async () => {
             api.getUserProfile.mockResolvedValue(plusWith(6))
+            api.previewVoice.mockImplementation(paidPreviewResponse({ cache_key: 'k', previews_left: 5 }, 6))
             // The BFF sends `sample_url: null` for a language without a sample (CatalogLanguage, `str | None`).
             const silent = catalogVoice({ voice_key: VOICE_KEY_MAREN, display_name: 'Maren', languages: [{ language: 'en', native: true, accent: null, accepted_models: ['standard'], sample_url: null as unknown as string }] })
             lookupAnswers(silent)
             renderEditor({ mode: 'duplicate', source: PRESET_V2_GLOBAL })
             fireEvent.click(await screen.findByRole('button', { name: 'Preview voice · 1 credit' }))
             expect(await screen.findByRole('dialog', { name: 'Preview with credits?' })).toBeInTheDocument()
-            expect(api.previewVoice).not.toHaveBeenCalled()
+            expect(api.previewVoice.mock.calls.map(([body]) => body.max_credit_cost)).toEqual([0])
             expect(screen.queryByText('Free: voice sample')).not.toBeInTheDocument()
         })
 
         it('remembers the confirmation per account: another user is asked again', async () => {
             api.getUserProfile.mockResolvedValue(plusWith(6))
-            api.previewVoice.mockResolvedValue({ cache_key: 'k', previews_left: 5, free_previews_left: 0, tier_used: 'standard', source: 'render' })
+            api.previewVoice.mockImplementation(paidPreviewResponse({ cache_key: 'k', previews_left: 5, free_previews_left: 0, tier_used: 'standard', source: 'render' }, 6))
             const props = { open: true, mode: 'edit' as const, source: PRESET_V2_USER, capabilities: CAPABILITIES_EL_PLUS, onSaved: vi.fn(), onClose: vi.fn(), notify: vi.fn() }
             const { rerender } = render(<PresetEditorV2 {...props} userHash="user-a" />)
             fireEvent.click(await screen.findByRole('button', { name: 'Preview voice · 1 credit' }))
             fireEvent.click(within(await screen.findByRole('dialog', { name: 'Preview with credits?' })).getByRole('button', { name: 'Continue' }))
-            await waitFor(() => expect(api.previewVoice).toHaveBeenCalledTimes(1))
+            await waitFor(() => expect(api.previewVoice).toHaveBeenCalledTimes(2))
 
             rerender(<PresetEditorV2 {...props} userHash="user-b" />)
             fireEvent.click(await screen.findByRole('button', { name: 'Preview voice · 1 credit' }))
             expect(await screen.findByRole('dialog', { name: 'Preview with credits?' })).toBeInTheDocument()
-            expect(api.previewVoice).toHaveBeenCalledTimes(1)
+            expect(api.previewVoice).toHaveBeenCalledTimes(3)
         })
 
-        it('at the hard limit the button is disabled with the limit copy', async () => {
+        it('at the hard limit the button can still probe for a free cached render', async () => {
             api.getUserProfile.mockResolvedValue(plusWith(0))
             renderEditor({ mode: 'edit', source: PRESET_V2_USER })
             expect(await screen.findByText('Daily preview limit reached. Previews reset tomorrow.')).toBeInTheDocument()
-            expect(screen.getByRole('button', { name: 'Preview voice' })).toBeDisabled()
+            expect(screen.getByRole('button', { name: 'Preview voice' })).toBeEnabled()
         })
     })
 

@@ -1,45 +1,35 @@
-/**
- * NovelStudioHeader — one 48px row of chrome, and nothing more. The old
- * masthead carried two always-live inputs and eight peer controls in a wrapping
- * flex row, so at 1280px the Save button dropped to a second line and nothing
- * in the cluster read as more important than anything else.
- *
- * Here the left is identity (novel · chapter) and the right is the two panel
- * toggles; everything rarer than that lives behind More. The novel description
- * left the header entirely — a logline is not something a writer needs in view
- * every minute.
- *
- * The counters and the save state are NOT here. They live on the status strip
- * under the manuscript, in the writer's line of sight, and printing them in
- * both places was the same number twice. There is no Save button either: the
- * chapter autosaves 1.2s after the last keystroke, retries failures and flushes
- * on unmount, so an explicit Save is a no-op in every state except `error` —
- * where the strip grows a Retry.
- *
- * The title edits in place but is not a permanently-live input: a live input in
- * the chrome invites accidental edits every time the pointer lands on it. While
- * the story's workspace is archived (`readOnly`) it does not edit at all; the
- * view toggles, Find and History keep working.
- */
+/** The writing-room header opens the shared, recoverable novel details form. */
 
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
     AlignVerticalSpaceAround,
     ArrowLeft,
+    ArrowUpDown,
     History,
     Maximize2,
     Minimize2,
     MoreHorizontal,
+    Camera,
+    Archive,
+    Download,
+    TrendingUp,
+    BookOpen,
+    Bookmark,
+    Keyboard,
+    LayoutGrid,
+    ListChecks,
+    Link,
     PanelRight,
     Search,
+    StickyNote,
     type LucideIcon,
 } from 'lucide-react'
-import type { Story } from '@/shared'
+import type { StoryOutline } from '@/shared'
 import { Icon, IconButton } from '@/ui/primitives'
 
 export interface NovelStudioHeaderProps {
-    story: Story
+    story: StoryOutline
     chapterTitle: string
     focusMode: boolean
     codexOpen: boolean
@@ -48,9 +38,26 @@ export interface NovelStudioHeaderProps {
     onToggleCodex: () => void
     onToggleTypewriter: () => void
     onOpenHistory: () => void
+    onOpenSnapshots?:()=>void
+    onOpenExport?:()=>void
+    onOpenPackage?:()=>void
+    onOpenProgress?:()=>void
+    onOpenAnnotations?:()=>void
+    onOpenBookmarks?:()=>void
+    onOpenAssistantContext?:()=>void
+    onOpenManuscript?:()=>void
+    onOpenReading?:()=>void
+    onOpenTyping?:()=>void
+    onOpenLink?:()=>void
+    onOpenReferences?:()=>void
+    onOpenBlockMove?:()=>void
+    onOpenPlanning?:()=>void
+    onOpenReview?:()=>void
+    linkReadOnly?:boolean
+    onOpenSearch?:()=>void
     onOpenFind: () => void
     onBack: () => void
-    onSaveMeta: (patch: { title?: string; description?: string }) => void
+    onEditDetails: () => void
     /** The story's workspace is archived: the title is not editable. */
     readOnly?: boolean
 }
@@ -70,23 +77,32 @@ export function NovelStudioHeader({
     onToggleCodex,
     onToggleTypewriter,
     onOpenHistory,
+    onOpenSnapshots,
+    onOpenExport,
+    onOpenPackage,
+    onOpenProgress,
+    onOpenAnnotations,
+    onOpenBookmarks,
+    onOpenAssistantContext,
+    onOpenManuscript,
+    onOpenReading,
+    onOpenTyping,
+    onOpenLink,
+    onOpenReferences,
+    onOpenBlockMove,
+    onOpenPlanning,
+    onOpenReview,
+    linkReadOnly,
+    onOpenSearch,
     onOpenFind,
     onBack,
-    onSaveMeta,
+    onEditDetails,
     readOnly = false,
 }: NovelStudioHeaderProps) {
     const { t } = useTranslation()
-    const [editing, setEditing] = useState(false)
-    const [draft, setDraft] = useState(story.title)
     const [menuOpen, setMenuOpen] = useState(false)
     const menuRef = useRef<HTMLDivElement | null>(null)
     const menuTriggerRef = useRef<HTMLButtonElement | null>(null)
-    // Escape reverts by blurring, so the blur handler must know not to commit.
-    const revertRef = useRef(false)
-    // An edit in progress when the story turns read-only is dropped, not saved
-    // (commitTitle refuses while read-only).
-    if (readOnly && editing) setEditing(false)
-
     useEffect(() => {
         if (!menuOpen) return
         const handlePointer = (event: MouseEvent) => {
@@ -106,34 +122,6 @@ export function NovelStudioHeader({
         }
     }, [menuOpen])
 
-    const startEditing = () => {
-        if (readOnly) return
-        setDraft(story.title)
-        revertRef.current = false
-        setEditing(true)
-    }
-
-    const commitTitle = () => {
-        setEditing(false)
-        if (revertRef.current || readOnly) {
-            revertRef.current = false
-            return
-        }
-        const next = draft.trim() || t('novelEditor.header.untitled')
-        if (next !== story.title) onSaveMeta({ title: next })
-    }
-
-    const onTitleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-        if (event.key === 'Enter') {
-            event.preventDefault()
-            event.currentTarget.blur()
-        } else if (event.key === 'Escape') {
-            event.preventDefault()
-            revertRef.current = true
-            event.currentTarget.blur()
-        }
-    }
-
     const runMenuItem = (action: () => void) => {
         setMenuOpen(false)
         // The clicked row unmounts with the menu, so focus would land on <body>.
@@ -150,30 +138,17 @@ export function NovelStudioHeader({
             </IconButton>
 
             <div className="flex min-w-0 flex-1 items-baseline gap-2">
-                {editing ? (
-                    <input
-                        value={draft}
-                        autoFocus
-                        onChange={(event) => setDraft(event.target.value)}
-                        onBlur={commitTitle}
-                        onKeyDown={onTitleKeyDown}
-                        aria-label={t('novelEditor.header.titleLabel')}
-                        placeholder={t('novelEditor.header.untitled')}
-                        className="min-w-0 max-w-[38ch] flex-1 rounded-xs border border-ember-500/50 bg-ink-800 px-1.5 py-0.5 font-display text-xl font-semibold text-parchment-50 placeholder:text-parchment-500"
-                        data-testid="novel-title-input"
-                    />
-                ) : (
-                    <button
-                        type="button"
-                        onClick={startEditing}
-                        disabled={readOnly}
-                        aria-label={t('novelEditor.header.titleLabel')}
-                        className="min-w-0 max-w-[38ch] cursor-pointer truncate rounded-xs px-1.5 py-0.5 text-left font-display text-xl font-semibold text-parchment-50 transition-colors hover:bg-parchment-50/[.06] disabled:cursor-default disabled:hover:bg-transparent"
-                        data-testid="novel-title"
-                    >
-                        {story.title || t('novelEditor.header.untitled')}
-                    </button>
-                )}
+                <button
+                    type="button"
+                    onClick={onEditDetails}
+                    aria-label={t('novelEditor.header.titleLabel')}
+                    aria-haspopup="dialog"
+                    aria-description={readOnly?t('novelEditor.structure.readOnly'):undefined}
+                    className="min-w-0 max-w-[38ch] cursor-pointer truncate rounded-xs px-1.5 py-0.5 text-left font-display text-xl font-semibold text-parchment-50 transition-colors hover:bg-parchment-50/[.06]"
+                    data-testid="novel-title"
+                >
+                    {story.title || t('novelEditor.header.untitled')}
+                </button>
                 <span className="shrink-0 text-label text-parchment-500" aria-hidden="true">
                     /
                 </span>
@@ -226,6 +201,18 @@ export function NovelStudioHeader({
                             className="absolute right-0 top-[calc(100%+6px)] z-40 w-[252px] rounded-md border border-parchment-50/10 bg-ink-700 p-1 shadow-lg"
                             data-testid="novel-header-menu"
                         >
+                            {onOpenAssistantContext&&<MenuItem icon={BookOpen} label={t('novelEditor.assistant.title')} onSelect={()=>runMenuItem(onOpenAssistantContext)}/>}
+                            {onOpenPlanning&&<MenuItem icon={LayoutGrid} label={t('novelEditor.planningViews.open')} onSelect={()=>runMenuItem(onOpenPlanning)}/>}
+                            {onOpenReview&&<MenuItem icon={ListChecks} label={t('novelEditor.review.open')} onSelect={()=>runMenuItem(onOpenReview)}/>}
+                            {onOpenAnnotations&&<MenuItem icon={StickyNote} label={t('novelEditor.annotations.title')} onSelect={()=>runMenuItem(onOpenAnnotations)}/>}
+                            {onOpenBookmarks&&<MenuItem icon={Bookmark} label={t('novelEditor.bookmarks.title')} onSelect={()=>runMenuItem(onOpenBookmarks)}/>}
+                            {onOpenManuscript&&<MenuItem icon={BookOpen} label={t('novelEditor.reader.title')} onSelect={()=>runMenuItem(onOpenManuscript)}/>}
+                            {onOpenReading&&<MenuItem icon={BookOpen} label={t('novelEditor.reading.title')} onSelect={()=>runMenuItem(onOpenReading)}/>}
+                            {onOpenTyping&&<MenuItem icon={Keyboard} label={t('novelEditor.typing.title')} onSelect={()=>runMenuItem(onOpenTyping)}/>}
+                            {onOpenLink&&<MenuItem icon={Link} label={t((linkReadOnly??readOnly)?'novelEditor.links.inspect':'novelEditor.links.edit')} hint={IS_APPLE?'⌘K':'Ctrl+K'} onSelect={()=>runMenuItem(onOpenLink)}/>}
+                            {onOpenReferences&&<MenuItem icon={BookOpen} label={t('novelEditor.references.inspect')} hint={t('novelEditor.references.shortcut')} onSelect={()=>runMenuItem(onOpenReferences)}/>}
+                            {onOpenBlockMove&&<MenuItem icon={ArrowUpDown} label={t('novelEditor.blocks.open')} hint={t('novelEditor.blocks.shortcut')} onSelect={()=>runMenuItem(onOpenBlockMove)}/>}
+                            {onOpenSearch&&<MenuItem icon={Search} label={t('novelEditor.search.title')} onSelect={()=>runMenuItem(onOpenSearch)}/>}
                             <MenuItem
                                 icon={AlignVerticalSpaceAround}
                                 label={t('novelEditor.header.typewriter')}
@@ -244,6 +231,10 @@ export function NovelStudioHeader({
                                 label={t('novelEditor.header.history')}
                                 onSelect={() => runMenuItem(onOpenHistory)}
                             />
+                            {onOpenSnapshots&&<MenuItem icon={Camera} label={t('novelEditor.snapshots.title')} onSelect={()=>runMenuItem(onOpenSnapshots)}/>}
+                            {onOpenExport&&<MenuItem icon={Download} label={t('novelEditor.export.menu')} onSelect={()=>runMenuItem(onOpenExport)}/>}
+                            {onOpenPackage&&<MenuItem icon={Archive} label={t('novelEditor.package.menu')} onSelect={()=>runMenuItem(onOpenPackage)}/>}
+                            {onOpenProgress&&<MenuItem icon={TrendingUp} label={t('novelEditor.writingProgress.menu')} onSelect={()=>runMenuItem(onOpenProgress)}/>}
                         </div>
                     )}
                 </div>

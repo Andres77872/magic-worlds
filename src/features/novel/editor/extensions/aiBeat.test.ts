@@ -54,7 +54,7 @@ describe('AiBeat in the manuscript', () => {
         const editor = createEditor('The gate held.')
         editor.commands.aiStartPending(editor.state.doc.content.size - 1)
         insert(editor, 'Then it broke.', 'make the gate fail')
-        expect(editor.getMarkdown()).toContain('<!-- beat:')
+        expect(editor.getMarkdown()).not.toContain('<!-- beat:')
 
         editor.commands.aiReject()
 

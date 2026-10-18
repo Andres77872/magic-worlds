@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * Workspace R1 guarded origin navigation (document 08, "Workspace-switch state
  * machine" and "Lifecycle and origin interactions").
@@ -40,6 +41,7 @@ interface OriginNavigationContextValue {
 const OriginNavigationContext = createContext<OriginNavigationContextValue | null>(null)
 
 export function OriginNavigationProvider({ children }: { children: ReactNode }) {
+    useFeatureFlags()
     const [entry, setEntry] = useState<{ current: OriginNavigator } | null>(null)
     const registerOriginNavigator = useCallback((next: OriginNavigator) => {
         const registered = { current: next }
@@ -55,6 +57,7 @@ export function useOriginNavigation(): {
     navigateToOrigin: OriginNavigator
     registerOriginNavigator: (navigator: OriginNavigator) => () => void
 } {
+    const featureFlagGeneration = useFeatureFlags().generation
     const context = useContext(OriginNavigationContext)
     const { setPage } = useNavigation()
     const { selectedWorkspaceId } = useWorkspace()
@@ -65,7 +68,7 @@ export function useOriginNavigation(): {
         if (!target.workspaceId || target.workspaceId !== selectedWorkspaceId) return 'unavailable'
         setPage(target.page, target.hash ? { hash: target.hash } : undefined)
         return 'navigated'
-    }, [registered, selectedWorkspaceId, setPage])
+    }, [registered, selectedWorkspaceId, setPage, featureFlagGeneration])
     return {
         navigateToOrigin,
         registerOriginNavigator: context?.registerOriginNavigator ?? (() => () => {}),

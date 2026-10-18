@@ -1,40 +1,12 @@
 import type { BackgroundTaskPublic, LlmFeature, PageType } from './types'
 
-export type FrontendFeatureFlag =
-    | 'communityCards'
-    | 'lorebooks'
-    | 'lorebookResources'
-    | 'voices'
-    | 'calls'
-    | 'novels'
-    | 'groupChats'
-    | 'adventures'
-    | 'appAssistant'
-    | 'workspaces'
+import { isActiveFeatureEnabled } from './featureFlagRuntime'
+import type { ActiveFeatureFlag } from './featureFlagCatalog'
 
-/** Frontend product availability. Transport (including workspace scoping) stays independent. */
-export const FRONTEND_FEATURE_ENV = {
-    communityCards: 'VITE_FEATURE_COMMUNITY_CARDS_ENABLED',
-    lorebooks: 'VITE_FEATURE_LOREBOOKS_ENABLED',
-    lorebookResources: 'VITE_FEATURE_LOREBOOK_RESOURCES_ENABLED',
-    voices: 'VITE_FEATURE_VOICES_ENABLED',
-    calls: 'VITE_FEATURE_CALLS_ENABLED',
-    novels: 'VITE_FEATURE_NOVELS_ENABLED',
-    groupChats: 'VITE_FEATURE_GROUP_CHATS_ENABLED',
-    adventures: 'VITE_FEATURE_ADVENTURES_ENABLED',
-    appAssistant: 'VITE_FEATURE_APP_ASSISTANT_ENABLED',
-    workspaces: 'VITE_FEATURE_WORKSPACES_ENABLED',
-} as const satisfies Record<FrontendFeatureFlag, string>
+export type FrontendFeatureFlag = ActiveFeatureFlag
 
-const FEATURE_DEPENDENCIES: Partial<Record<FrontendFeatureFlag, FrontendFeatureFlag>> = {
-    calls: 'voices',
-    lorebookResources: 'lorebooks',
-}
-
-export function isFeatureEnabled(feature: FrontendFeatureFlag): boolean {
-    const parent = FEATURE_DEPENDENCIES[feature]
-    return import.meta.env[FRONTEND_FEATURE_ENV[feature]] === 'true' && (!parent || isFeatureEnabled(parent))
-}
+/** Active rollout permission. Missing/null grants are off; root bypasses. */
+export const isFeatureEnabled = isActiveFeatureEnabled
 
 export function isCommunityCardsFeatureEnabled(): boolean {
     return isFeatureEnabled('communityCards')
@@ -73,17 +45,6 @@ export function isAppAssistantFeatureEnabled(): boolean {
     return isFeatureEnabled('appAssistant')
 }
 
-/**
- * Workspace R1 product surfaces (Library, switcher, collections, create/archive
- * workspace). The workspace transport itself is always on: with this flag off
- * every private request still carries the protected default workspace, the
- * startup handshake still runs, and a user who already has other workspaces
- * sees a notice that their content is safe.
- */
-export function isWorkspacesFeatureEnabled(): boolean {
-    return isFeatureEnabled('workspaces')
-}
-
 const CONTENT_FEATURES: Record<string, FrontendFeatureFlag> = {
     adventure: 'adventures', adventure_template: 'adventures', adventure_session: 'adventures',
     lorebook: 'lorebooks', lorebook_entry: 'lorebooks',
@@ -113,7 +74,7 @@ export function isSessionUsageCountAvailable(): boolean {
 const LLM_FEATURES: Partial<Record<LlmFeature, FrontendFeatureFlag>> = {
     novel: 'novels', chat_adventure: 'adventures', chat_group: 'groupChats',
     lorebook_assistant: 'lorebooks', lorebook_extraction: 'lorebookResources',
-    app_assistant: 'appAssistant', callbot: 'calls', moderation: 'voices',
+    novel_assistant:'novels', app_assistant: 'appAssistant', callbot: 'calls',
 }
 
 export function isLlmFeatureEnabled(feature: LlmFeature): boolean {
@@ -146,7 +107,6 @@ const FEATURE_DISABLED_MESSAGES: Record<FrontendFeatureFlag, string> = {
     lorebookResources: 'Lorebook resources are disabled.', voices: 'Voices are disabled.',
     calls: 'Calls are disabled.', novels: 'Novels are disabled.', groupChats: 'Group chats are disabled.',
     adventures: 'Adventures are disabled.', appAssistant: 'The app assistant is disabled.',
-    workspaces: 'Workspaces are disabled.',
 }
 
 export function assertContentTypeFeatureEnabled(type: string): void {
@@ -170,7 +130,6 @@ export function isPageFeatureEnabled(page: PageType): boolean {
         case 'gallery-resources':
             return isLorebookResourcesFeatureEnabled()
         case 'voice-studio':
-        case 'admin-voices':
             return isVoicesFeatureEnabled()
         case 'calls':
             return isCallsFeatureEnabled()
@@ -184,15 +143,7 @@ export function isPageFeatureEnabled(page: PageType): boolean {
             return isAdventuresFeatureEnabled()
         case 'assistant':
             return isAppAssistantFeatureEnabled()
-        case 'library':
-            return isWorkspacesFeatureEnabled()
         default:
             return true
     }
-}
-
-
-/** Disable during rollout until the BFF streaming routes are deployed. Chosen before POST. */
-export function isTextStreamingFeatureEnabled(): boolean {
-    return import.meta.env.VITE_FEATURE_TEXT_STREAMING_ENABLED !== 'false'
 }

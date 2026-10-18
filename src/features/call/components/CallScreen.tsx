@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * CallScreen — the immersive, hands-free voice-call surface.
  *
@@ -11,14 +12,15 @@
  *     length, connection) and offers to call again. It takes plain props, so stories +
  *     unit tests drive it directly without a socket. Turn-taking is automatic (VAD) — there is no push-to-talk.
  */
-import { useState, type ReactNode } from 'react'
+import { useEffect, useId, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AlertTriangle, Bot, Headphones, Loader2, MessageSquareText, Mic, MicOff, Phone, PhoneOff, Volume2, Waves, X } from 'lucide-react'
+import { AlertTriangle, Bot, Headphones, Loader2, MessageSquareText, Mic, MicOff, Phone, PhoneOff, ScrollText, Settings2, Volume2, Waves, X } from 'lucide-react'
 import { useAuth, useData } from '@/app/hooks'
 import { apiService } from '@/infrastructure/api'
-import type { Character } from '@/shared'
+import type { Character, StoredCharacterVoice } from '@/shared'
+import { parseStoredVoice } from '@/shared/voice'
 import type { VoiceCallState, VoiceEndReason } from '@/shared/types/voice.types'
-import { isFrontendVoiceModeEnabled } from '@/shared/voiceFeatureFlag'
+import { isCallsFeatureEnabled } from '@/shared/featureFlags'
 import { useWorkspaceReadOnly } from '@/shared/hooks/useWorkspaceReadOnly'
 import { Avatar, Badge, Button, GlowBackdrop, Icon, IconButton, cx } from '@/ui/primitives'
 import { useVoiceCallController, type VoiceCallControllerError } from '@/features/interaction/hooks/useVoiceCallController'
@@ -39,11 +41,16 @@ import {
     callErrorCopy,
     endReasonCopy,
     formatElapsed,
+    isSetupCallError,
     isTerminalVoiceCallError,
     isWorkspaceCallError,
 } from '@/features/interaction/voiceCallLabels'
 import { CallWaveform } from './CallWaveform'
+import { CallLiveTranscript } from './CallLiveTranscript'
+import { lineDisplayText, type LiveTranscriptLine } from '../liveTranscript'
 import { LlmFeatureControl } from '@/features/llmProfiles/LlmFeatureControl'
+import { readCallVoicePick, saveCallVoicePick } from '../callVoicePick'
+import { CallSetup } from './CallSetup'
 import type { ConsentVersion } from '@/features/legal/documents'
 
 interface CallScreenProps {
@@ -57,12 +64,38 @@ interface CallScreenProps {
 }
 
 export function CallScreen({ character, sessionId, workspaceId, ensureSession, onSwitchToText }: CallScreenProps) {
+    useFeatureFlags()
     const { t } = useTranslation()
-    const { isAuthenticated, token } = useAuth()
-    const voiceEnabled = isFrontendVoiceModeEnabled()
+    const { isAuthenticated, token, userHash } = useAuth()
+    const voiceEnabled = isCallsFeatureEnabled()
     const [consentOpen, setConsentOpen] = useState(true)
     const [isAccepting, setIsAccepting] = useState(false)
-    const availability = useVoiceAvailability(apiService, voiceEnabled && isAuthenticated, 0, character?.voice?.provider ?? 'elevenlabs')
+
+    // Call setup: the voice picked for calls with this character (remembered per character),
+    // else the chat's own voice. Re-read when the character or the account changes.
+    const characterId = character?.id ?? null
+    const characterVoice = parseStoredVoice(character?.voice)
+    const pickKey = `${userHash ?? ''}|${characterId ?? ''}`
+    const [pickState, setPickState] = useState(() => ({ key: pickKey, voice: readCallVoicePick(userHash, characterId) }))
+    if (pickState.key !== pickKey) setPickState({ key: pickKey, voice: readCallVoicePick(userHash, characterId) })
+    const callVoice = pickState.key === pickKey ? pickState.voice : null
+    const pickCallVoice = (voice: StoredCharacterVoice | null) => {
+        setPickState({ key: pickKey, voice })
+        saveCallVoicePick(userHash, characterId, voice)
+    }
+    const [modelUnassigned, setModelUnassigned] = useState(false)
+    // The start dialog reopened from the end panel ("Call settings"): "Not now" closes it
+    // and stays on the call screen instead of leaving for the text chat.
+    const [setupReopened, setSetupReopened] = useState(false)
+
+    // Calls at all (the account's switches), and the chosen voice's provider: a Fish voice
+    // needs Fish's own healthy call surface (fail closed).
+    const voiceActive = voiceEnabled && isAuthenticated
+    const generalAvailability = useVoiceAvailability(apiService, voiceActive)
+    const fishAvailability = useVoiceAvailability(apiService, voiceActive, 0, 'fish_audio')
+    const fishCall = (callVoice ?? characterVoice)?.provider === 'fish_audio'
+    const availability = fishCall ? fishAvailability : generalAvailability
+    const voiceUnavailable = fishCall && generalAvailability.calls_available && !fishAvailability.calls_available
 
     const controller = useVoiceCallController({
         sessionId: voiceEnabled && isAuthenticated && token && !Number.isNaN(sessionId) ? sessionId : null,
@@ -72,6 +105,7 @@ export function CallScreen({ character, sessionId, workspaceId, ensureSession, o
         consentGranted: true,
         consentVersion: availability.consentVersion,
         enabled: voiceEnabled,
+        callVoice,
         // VAD turn-taking tuning. Add `speechThreshold` here (0..1 RMS) to override the
         // worklet default if mics under-/over-trigger; lower = more sensitive.
         // 550 ms of silence ends a turn (fixed-silence voice agents use 400-550 ms). A pause
@@ -107,8 +141,8 @@ export function CallScreen({ character, sessionId, workspaceId, ensureSession, o
     const readOnly = useWorkspaceReadOnly(workspaceId)
     const idle = !ACTIVE_CALL_STATES.has(controller.state) && controller.state !== 'ending'
     // 09 §7: calls switched off for this account. Say so before the socket opens; a call
-    // already running continues.
-    const callsAvailable = availability.calls_available
+    // already running continues. A voice that cannot call is the setup's to fix, not a block.
+    const callsAvailable = generalAvailability.calls_available
     // Companion safeguards (EP-11): every capabilities read carries them; all off on a failed read.
     const voiceCapabilities = useVoiceCapabilitiesSnapshot(apiService, voiceEnabled && isAuthenticated)
     const startBlocked: VoiceCallControllerError | null = readOnly && idle
@@ -126,25 +160,76 @@ export function CallScreen({ character, sessionId, workspaceId, ensureSession, o
     // Runs from the click itself: startCall unlocks audio playback synchronously
     // before its first await (iOS only allows that inside a user gesture).
     const acceptConsent = async () => {
-        if (isAccepting || startBlocked) return
+        if (isAccepting || startBlocked || voiceUnavailable || modelUnassigned) return
         setIsAccepting(true)
         try {
             const started = await controller.startCall()
-            if (started) setConsentOpen(false)
+            if (started) {
+                setConsentOpen(false)
+                setSetupReopened(false)
+            }
         } finally {
             setIsAccepting(false)
         }
     }
 
-    const leave = () => {
-        void controller.endCall()
+    const [lastVoiceSessionId, setLastVoiceSessionId] = useState<string | null>(null)
+    if (controller.voiceSessionId && controller.voiceSessionId !== lastVoiceSessionId) {
+        setLastVoiceSessionId(controller.voiceSessionId)
+    }
+
+    const [savedSegments, setSavedSegments] = useState<readonly import('@/shared').CallTranscriptSegment[] | undefined>(undefined)
+    const callOver = !consentOpen && (controller.state === 'ended' || controller.state === 'error')
+    useEffect(() => {
+        if (!callOver || !lastVoiceSessionId || !sessionApi) return
+        let cancelled = false
+        sessionApi
+            .getVoiceCallTranscript(lastVoiceSessionId)
+            .then((res) => {
+                if (!cancelled && res.segments) setSavedSegments(res.segments)
+            })
+            .catch(() => {
+                // Non-critical: live transcript text remains visible even if audio links cannot be hydrated.
+            })
+        return () => {
+            cancelled = true
+        }
+    }, [callOver, lastVoiceSessionId, sessionApi])
+
+    const leave = async () => {
+        try {
+            await Promise.race([
+                controller.endCall(),
+                new Promise<void>((resolve) => setTimeout(resolve, 400)),
+            ])
+        } catch {
+            // Always navigate back to text even if endCall rejects.
+        }
         onSwitchToText()
     }
+
+    const setup = (
+        <CallSetup
+            name={name}
+            characterVoice={characterVoice}
+            pick={callVoice}
+            onPick={pickCallVoice}
+            voiceUnavailable={voiceUnavailable}
+            recommendedFor={characterId && character?.role !== 'persona' ? { cardId: characterId, workspaceId: workspaceId ?? null } : null}
+            disabled={isAccepting}
+            model={<LlmFeatureControl feature="callbot" onUnassignedChange={setModelUnassigned} />}
+        />
+    )
 
     return (
         <CallScreenView
             consentVersion={availability.consentVersion}
-            profileControl={<LlmFeatureControl feature="callbot" />}
+            setup={setup}
+            setupBlocked={voiceUnavailable || modelUnassigned}
+            onOpenSetup={() => {
+                setSetupReopened(true)
+                setConsentOpen(true)
+            }}
             name={name}
             imageUrl={character?.image_url ?? null}
             state={startBlocked ? 'error' : controller.state}
@@ -154,6 +239,8 @@ export function CallScreen({ character, sessionId, workspaceId, ensureSession, o
             inputLevel={controller.inputLevel}
             transcript={controller.transcript}
             assistantText={controller.assistantText}
+            transcriptLines={controller.transcriptLines}
+            savedSegments={savedSegments}
             error={startBlocked ?? controller.error}
             endReason={controller.endReason}
             autoplayBlocked={controller.autoplayBlocked}
@@ -166,13 +253,14 @@ export function CallScreen({ character, sessionId, workspaceId, ensureSession, o
             onDismissError={controller.dismissError}
             onDeclineConsent={() => {
                 setConsentOpen(false)
-                onSwitchToText()
+                if (setupReopened) setSetupReopened(false)
+                else onSwitchToText()
             }}
             onMute={controller.mute}
             onUnmute={controller.unmute}
             onBargeIn={() => controller.bargeIn()}
-            onEnd={leave}
-            onSwitchToText={leave}
+            onEnd={() => void leave()}
+            onSwitchToText={() => void leave()}
             breakNudgeMinutes={readSafeguards(voiceCapabilities).break_nudge_minutes}
             voiceNote={voiceNote}
             onRefreshVoice={refreshVoice}
@@ -183,7 +271,12 @@ export function CallScreen({ character, sessionId, workspaceId, ensureSession, o
 
 export interface CallScreenViewProps {
     consentVersion?: ConsentVersion
-    profileControl?: ReactNode
+    /** Call setup (voice and conversation model), shown in the start dialog. */
+    setup?: ReactNode
+    /** The setup is not ready (no usable voice or conversation model): the start waits. */
+    setupBlocked?: boolean
+    /** Reopen the start dialog with the setup (end panel "Call settings"). */
+    onOpenSetup?: () => void
     name: string
     imageUrl?: string | null
     state: VoiceCallState
@@ -195,6 +288,12 @@ export interface CallScreenViewProps {
     inputLevel: number
     transcript?: string | null
     assistantText?: string
+    /** The running transcript of this call; captions show its last exchange, the panel shows it all. */
+    transcriptLines?: readonly LiveTranscriptLine[]
+    /** Saved transcript segments hydrated when the call ends, enabling audio replay in the transcript panel. */
+    savedSegments?: readonly import('@/shared').CallTranscriptSegment[]
+    /** Open the transcript panel on mount (stories and visual review). */
+    defaultTranscriptOpen?: boolean
     error?: VoiceCallControllerError | null
     /** Why the call ended, shown on the end panel. */
     endReason?: VoiceEndReason | null
@@ -226,7 +325,9 @@ export interface CallScreenViewProps {
 
 export function CallScreenView({
     consentVersion = 'voice-v2',
-    profileControl,
+    setup,
+    setupBlocked = false,
+    onOpenSetup,
     name,
     imageUrl,
     state,
@@ -236,6 +337,9 @@ export function CallScreenView({
     inputLevel,
     transcript,
     assistantText,
+    transcriptLines,
+    savedSegments,
+    defaultTranscriptOpen = false,
     error,
     endReason = null,
     autoplayBlocked = false,
@@ -257,6 +361,7 @@ export function CallScreenView({
     onRefreshVoice,
     audioUnsupported = false,
 }: CallScreenViewProps) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const isActive = ACTIVE_CALL_STATES.has(state)
     const isAssistant = state === 'assistant_speaking' || state === 'assistant_thinking'
@@ -273,7 +378,15 @@ export function CallScreenView({
     const canRedial = !(state === 'error' && (isWorkspaceCallError(error?.code) || error?.code === CALLS_UNAVAILABLE_CODE))
         && !isTerminalVoiceCallError(error?.code)
         && endReason !== 'voice_restricted'
+    // A refusal the call setup can fix (the voice, the conversation model): the settings lead, not a redial.
+    const setupError = state === 'error' && isSetupCallError(error?.code)
     const showTimeLeft = isActive && remainingSeconds !== null && remainingSeconds <= 60
+
+    const lines = transcriptLines ?? []
+    const [transcriptOpen, setTranscriptOpen] = useState(defaultTranscriptOpen)
+    const transcriptId = useId()
+    const hasTranscript = lines.length > 0
+    const showTranscript = transcriptOpen && (isActive || hasTranscript)
 
     const avatarRing = isAssistant ? 'arcane' : 'ember'
     const avatarStatus = state === 'assistant_thinking' ? 'think' : isUserTurn ? 'live' : 'none'
@@ -287,8 +400,32 @@ export function CallScreenView({
 
     const waveTone = isAssistant ? 'arcane' : isUserTurn ? 'ember' : 'idle'
     const statusLabel = consentOpen && !isActive ? t('call.screen.calling', { name }) : callStateLabel(t, state)
-    // R1-FE-05: captions never show speech markup (`<#0.5#>`, `(laughs)`); they may end mid-token while the reply streams.
-    const captionText = assistantText ? stripSpeechMarkupV1(assistantText, { partial: true }) : assistantText
+    // Captions follow the conversation in order: the last user line, then the reply to it.
+    // Without a running transcript (stories, older callers) they fall back to the two caption props.
+    const captionLines: { key: string; role: 'user' | 'assistant'; text: string; interrupted?: boolean }[] = transcriptLines
+        ? lines.slice(-2).map((line) => ({ key: line.id, role: line.role, text: lineDisplayText(line), interrupted: line.interrupted })).filter((line) => line.text)
+        : [
+            // R1-FE-05: captions never show speech markup (`<#0.5#>`, `(laughs)`); they may end mid-token while the reply streams.
+            ...(assistantText ? [{ key: 'assistant', role: 'assistant' as const, text: stripSpeechMarkupV1(assistantText, { partial: true }) }] : []),
+            ...(transcript ? [{ key: 'user', role: 'user' as const, text: transcript }] : []),
+        ]
+    // Nothing said yet on a live call: tell the user the character is waiting for them.
+    const showFirstTurnHint = state === 'listening' && captionLines.length === 0 && !hasTranscript
+
+    // "M" toggles the microphone during a call (never while typing in a field).
+    useEffect(() => {
+        if (!isActive) return
+        const onKey = (event: KeyboardEvent) => {
+            if (event.key.toLowerCase() !== 'm' || event.repeat || event.metaKey || event.ctrlKey || event.altKey) return
+            const target = event.target as HTMLElement | null
+            if (target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return
+            event.preventDefault()
+            if (isMuted) onUnmute()
+            else onMute()
+        }
+        document.addEventListener('keydown', onKey)
+        return () => document.removeEventListener('keydown', onKey)
+    }, [isActive, isMuted, onMute, onUnmute])
 
     return (
         <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-ink-900 text-parchment-50" data-testid="call-screen">
@@ -296,74 +433,117 @@ export function CallScreenView({
                 <GlowBackdrop variant="center" />
             </div>
 
-            {/* Top: leave / switch to text */}
-            <div className="relative z-10 flex shrink-0 items-center justify-between px-4 py-3">
+            {/* Top: leave / switch to text, timer, transcript toggle */}
+            <div className="relative z-10 flex shrink-0 items-center justify-between gap-2 px-4 py-3">
                 <Button variant="ghost" size="sm" iconLeft={<Icon icon={MessageSquareText} size={15} />} onClick={onSwitchToText}>
                     {t('call.screen.switchToText')}
                 </Button>
-                {isActive && (
-                    <span className="flex items-center gap-2 font-mono text-sm text-parchment-300">
-                        {showTimeLeft && (
-                            <span className="text-amber-500" role="status">
-                                {t('call.screen.timeLeft', { time: formatElapsed(remainingSeconds ?? 0) })}
-                            </span>
-                        )}
-                        {formatElapsed(elapsedSeconds)}
-                    </span>
-                )}
+                <div className="flex items-center gap-2">
+                    {isActive && (
+                        <span className="flex items-center gap-2 font-mono text-sm text-parchment-300">
+                            {showTimeLeft && (
+                                <span className="text-amber-500" role="status">
+                                    {t('call.screen.timeLeft', { time: formatElapsed(remainingSeconds ?? 0) })}
+                                </span>
+                            )}
+                            {formatElapsed(elapsedSeconds)}
+                        </span>
+                    )}
+                    {transcriptLines && (isActive || hasTranscript) && (
+                        <IconButton
+                            label={transcriptOpen ? t('call.live.hide') : t('call.live.show')}
+                            size="sm"
+                            tone={transcriptOpen ? 'active' : 'default'}
+                            aria-pressed={transcriptOpen}
+                            aria-controls={transcriptOpen ? transcriptId : undefined}
+                            onClick={() => setTranscriptOpen((open) => !open)}
+                        >
+                            <Icon icon={ScrollText} size={16} />
+                        </IconButton>
+                    )}
+                </div>
             </div>
 
-            {profileControl && <div className="relative z-10 px-4 pb-3">{profileControl}</div>}
-            {/* Center: identity + status + waveform + captions */}
-            <div className="relative z-10 min-h-0 flex-1 overflow-y-auto px-6 text-center">
-                <div className="flex min-h-full flex-col items-center justify-center gap-5 py-5">
-                <div className={cx('rounded-full transition-all duration-300 ease-out', glowClass)}>
-                    <Avatar name={name} src={imageUrl ?? null} size={188} ring={avatarRing} status={avatarStatus} />
+            <div className="relative z-10 flex min-h-0 flex-1 flex-col lg:flex-row">
+                {/* Stage: identity + status + waveform + captions. Compact while the transcript is open on small screens. */}
+                <div className={cx('min-h-0 overflow-y-auto px-6 text-center', showTranscript ? 'shrink-0 lg:flex-1' : 'flex-1')}>
+                    <div className={cx('flex min-h-full flex-col items-center justify-center', showTranscript ? 'gap-2 py-2 lg:gap-5 lg:py-5' : 'gap-5 py-5')}>
+                        <div className={cx('rounded-full transition-all duration-300 ease-out', glowClass)}>
+                            <span className={cx(showTranscript ? 'hidden lg:inline' : 'inline')}>
+                                <Avatar name={name} src={imageUrl ?? null} size={188} ring={avatarRing} status={avatarStatus} />
+                            </span>
+                            {showTranscript && (
+                                <span className="inline lg:hidden">
+                                    <Avatar name={name} src={imageUrl ?? null} size={72} ring={avatarRing} status={avatarStatus} />
+                                </span>
+                            )}
+                        </div>
+
+                        <div className="flex flex-col items-center gap-1">
+                            <h1 className={cx('font-display font-semibold leading-tight text-parchment-50', showTranscript ? 'text-h3 lg:text-h2' : 'text-h2')}>{name}</h1>
+                            {/* D26 item 7: the call header always says the voice is AI-generated. */}
+                            <Badge tone="arcane" icon={<Icon icon={Bot} size={12} />} data-testid="call-ai-voice">
+                                {t('call.screen.aiVoice')}
+                            </Badge>
+                            {voiceNote && <CallVoiceNote note={voiceNote} />}
+                            <p className={cx('font-ui text-sm font-semibold tracking-wide', isAssistant ? 'text-arcane-300' : isUserTurn ? 'text-ember-300' : 'text-parchment-300')}>
+                                {isConnecting && <Icon icon={Loader2} size={13} className="mr-1 inline animate-spin" />}
+                                {isSpeaking && <Icon icon={Volume2} size={13} className="mr-1 inline" />}
+                                {statusLabel}
+                            </p>
+                        </div>
+
+                        <CallWaveform level={inputLevel} tone={waveTone} animated={isSpeaking} className={cx('w-full max-w-[320px]', showTranscript && 'hidden lg:flex')} />
+
+                        {/* Live captions: the current exchange. The transcript panel carries the rest. */}
+                        {!showTranscript && (
+                            <div className="flex min-h-[3.5rem] w-full max-w-[560px] flex-col gap-2 text-[15px] leading-relaxed" data-testid="call-captions">
+                                {captionLines.map((line, index) => (
+                                    <p
+                                        key={line.key}
+                                        className={cx(
+                                            'border-l-2 py-2 pl-4 text-left text-parchment-100 transition-opacity',
+                                            line.role === 'assistant' ? 'border-arcane-500/40' : 'border-ember-500/40',
+                                            captionLines.length > 1 && index === 0 && 'opacity-70',
+                                        )}
+                                    >
+                                        <span className={cx('font-semibold', line.role === 'assistant' ? 'text-arcane-300' : 'text-ember-300')}>
+                                            {line.role === 'assistant' ? `${name}:` : t('call.screen.youLabel')}
+                                        </span>{' '}
+                                        {line.text}
+                                        {line.interrupted && <span className="ml-1.5 text-caption italic text-parchment-400">{t('call.live.interrupted')}</span>}
+                                    </p>
+                                ))}
+                                {showFirstTurnHint && (
+                                    <p className="text-sm text-parchment-300" data-testid="call-first-turn-hint">{t('call.screen.firstTurnHint', { name })}</p>
+                                )}
+                            </div>
+                        )}
+
+                        {audioUnsupported && isActive && (
+                            <p role="status" className="max-w-[560px] text-caption text-parchment-300" data-testid="call-audio-unsupported">
+                                {t('voices.call.audioUnsupported')}
+                            </p>
+                        )}
+
+                        {echoCancellationOff && isActive && (
+                            <p className="flex max-w-[560px] items-start gap-2 rounded-lg border border-ember-500/30 bg-ember-500/10 px-3 py-1.5 text-left text-caption text-ember-200">
+                                <Icon icon={Headphones} size={14} className="mt-0.5 shrink-0" />
+                                <span>{t('call.screen.headphonesHint')}</span>
+                            </p>
+                        )}
+                    </div>
                 </div>
 
-                <div className="flex flex-col items-center gap-1">
-                    <h1 className="font-display text-h2 font-semibold leading-tight text-parchment-50">{name}</h1>
-                    {/* D26 item 7: the call header always says the voice is AI-generated. */}
-                    <Badge tone="arcane" icon={<Icon icon={Bot} size={12} />} data-testid="call-ai-voice">
-                        {t('call.screen.aiVoice')}
-                    </Badge>
-                    {voiceNote && <CallVoiceNote note={voiceNote} />}
-                    <p className={cx('font-ui text-sm font-semibold tracking-wide', isAssistant ? 'text-arcane-300' : isUserTurn ? 'text-ember-300' : 'text-parchment-300')}>
-                        {isConnecting && <Icon icon={Loader2} size={13} className="mr-1 inline animate-spin" />}
-                        {isSpeaking && <Icon icon={Volume2} size={13} className="mr-1 inline" />}
-                        {statusLabel}
-                    </p>
-                </div>
-
-                <CallWaveform level={inputLevel} tone={waveTone} animated={isSpeaking} className="w-full max-w-[320px]" />
-
-                {/* Live captions */}
-                <div className="flex min-h-[3.5rem] w-full max-w-[560px] flex-col gap-2 text-[15px] leading-relaxed">
-                    {captionText && (
-                        <p className="border-l-2 border-arcane-500/40 py-2 pl-4 text-left text-parchment-100">
-                            <span className="font-semibold text-arcane-300">{name}:</span> {captionText}
-                        </p>
-                    )}
-                    {transcript && (
-                        <p className="border-l-2 border-ember-500/40 py-2 pl-4 text-left text-parchment-100">
-                            <span className="font-semibold text-ember-300">{t('call.screen.youLabel')}</span> {transcript}
-                        </p>
-                    )}
-                </div>
-
-                {audioUnsupported && isActive && (
-                    <p role="status" className="max-w-[560px] text-caption text-parchment-300" data-testid="call-audio-unsupported">
-                        {t('voices.call.audioUnsupported')}
-                    </p>
+                {showTranscript && (
+                    <CallLiveTranscript
+                        id={transcriptId}
+                        lines={lines}
+                        name={name}
+                        savedSegments={savedSegments}
+                        className="mx-4 mb-2 flex-1 rounded-xl border border-parchment-50/10 bg-ink-800/70 lg:mx-0 lg:mb-0 lg:w-[380px] lg:flex-none lg:rounded-none lg:border-y-0 lg:border-r-0"
+                    />
                 )}
-
-                {echoCancellationOff && isActive && (
-                    <p className="flex max-w-[560px] items-start gap-2 rounded-lg border border-ember-500/30 bg-ember-500/10 px-3 py-1.5 text-left text-caption text-ember-200">
-                        <Icon icon={Headphones} size={14} className="mt-0.5 shrink-0" />
-                        <span>{t('call.screen.headphonesHint')}</span>
-                    </p>
-                )}
-                </div>
             </div>
 
             {/* Prompts and notices sit above the controls so they never scroll out of view */}
@@ -414,9 +594,19 @@ export function CallScreenView({
                             <p className="text-sm text-parchment-300" data-testid="call-pick-call-ready">{t('voices.call.pickCallReady')}</p>
                         )}
                         <div className="flex flex-wrap items-center justify-center gap-2">
-                            {onCallAgain && canRedial && (
+                            {onCallAgain && canRedial && !setupError && (
                                 <Button variant="primary" size="sm" iconLeft={<Icon icon={Phone} size={15} />} onClick={onCallAgain} disabled={isAccepting}>
                                     {t('call.screen.callAgain')}
+                                </Button>
+                            )}
+                            {onOpenSetup && setup && canRedial && (
+                                <Button variant={setupError ? 'primary' : 'secondary'} size="sm" iconLeft={<Icon icon={Settings2} size={15} />} onClick={onOpenSetup} disabled={isAccepting}>
+                                    {t('call.setup.open')}
+                                </Button>
+                            )}
+                            {hasTranscript && !transcriptOpen && (
+                                <Button variant="secondary" size="sm" iconLeft={<Icon icon={ScrollText} size={15} />} onClick={() => setTranscriptOpen(true)}>
+                                    {t('call.live.show')}
                                 </Button>
                             )}
                             <Button variant="ghost" size="sm" iconLeft={<Icon icon={MessageSquareText} size={15} />} onClick={onSwitchToText}>
@@ -429,6 +619,8 @@ export function CallScreenView({
                 <div className="relative z-10 flex shrink-0 items-center justify-center gap-4 px-6 pb-5 pt-3">
                     <CallControlButton
                         label={isMuted ? t('call.screen.unmute') : t('call.screen.mute')}
+                        hint={t('call.screen.muteShortcut')}
+                        keyShortcuts="M"
                         tone={isMuted ? 'danger' : 'neutral'}
                         onClick={() => (isMuted ? onUnmute() : onMute())}
                         disabled={!isActive}
@@ -450,6 +642,8 @@ export function CallScreenView({
                 open={consentOpen}
                 staleConsent={error?.category === 'consent_stale'}
                 isAccepting={isAccepting}
+                setup={setup}
+                startDisabled={setupBlocked}
                 onAccept={onAcceptConsent}
                 onDecline={onDeclineConsent}
             />
@@ -459,6 +653,7 @@ export function CallScreenView({
 
 /** End-panel "Use the card’s current voice": the new voice applies from the next call. */
 function CallVoiceRefresh({ onRefresh }: { onRefresh: () => Promise<unknown> }) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const refresh = useVoiceRefresh()
     const message = refresh.status === 'done' ? t('voices.refresh.appliesNextCall') : refresh.message
@@ -481,6 +676,9 @@ function CallVoiceRefresh({ onRefresh }: { onRefresh: () => Promise<unknown> }) 
 
 function CallControlButton({
     label,
+    hint,
+    keyShortcuts,
+    pressed,
     icon,
     tone,
     prominent = false,
@@ -488,12 +686,18 @@ function CallControlButton({
     onClick,
 }: {
     label: string
+    /** Extra tooltip text (e.g. the keyboard shortcut). */
+    hint?: string
+    keyShortcuts?: string
+    /** Toggle buttons (mute) expose their state. */
+    pressed?: boolean
     icon: typeof Mic
     tone: 'neutral' | 'danger' | 'arcane'
     prominent?: boolean
     disabled?: boolean
     onClick: () => void
 }) {
+    useFeatureFlags()
     const size = prominent ? 'h-16 w-16' : 'h-14 w-14'
     const toneClass =
         tone === 'danger'
@@ -505,7 +709,9 @@ function CallControlButton({
         <button
             type="button"
             aria-label={label}
-            title={label}
+            aria-pressed={pressed}
+            aria-keyshortcuts={keyShortcuts}
+            title={hint ? `${label} (${hint})` : label}
             onClick={onClick}
             disabled={disabled}
             className={cx(

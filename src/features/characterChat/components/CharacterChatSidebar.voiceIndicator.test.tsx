@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
 /**
  * R1-FE-04 wiring (D36, AC-C6): the chat sidebar mounts `ChatVoiceIndicator`
  * for its own chat and workspace. The indicator's rules are covered by

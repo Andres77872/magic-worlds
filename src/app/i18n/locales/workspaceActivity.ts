@@ -23,6 +23,7 @@ export const workspaceActivityEn = {
     },
     tasks: {
         openCard: 'Open card',
+        openChat: 'Open chat',
         unavailable: 'This card’s workspace is unavailable.',
         targetUnavailable: 'This task’s workspace is unavailable.',
     },
@@ -57,6 +58,7 @@ export const workspaceActivityEs: typeof workspaceActivityEn = {
     },
     tasks: {
         openCard: 'Abrir tarjeta',
+        openChat: 'Abrir chat',
         unavailable: 'El espacio de trabajo de esta tarjeta no está disponible.',
         targetUnavailable: 'El espacio de trabajo de esta tarea no está disponible.',
     },

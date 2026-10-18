@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * useSessionLorebookEntries — resolves the lorebook entries that are "in play" for a
  * chat/adventure session and compiles a trigger matcher from them, so the composer and
@@ -38,6 +39,7 @@ export function useSessionLorebookEntries(
     targetId: string,
     workspaceId?: string | null,
 ): UseSessionLorebookEntriesResult {
+    useFeatureFlags()
     const data = useData()
     const api = useScopedApi(workspaceId)
     const { selectedWorkspaceId } = useWorkspace()

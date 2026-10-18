@@ -24,6 +24,9 @@ const DOT: Record<NovelSaveState, string> = {
     dirty: 'bg-ember-500',
     saving: 'bg-ember-500',
     error: 'bg-blood-500',
+    conflict: 'bg-blood-500',
+    offline: 'bg-amber-500',
+    checking: 'bg-ember-500',
 }
 
 // The beat binding is Mod-Enter (the editor's shell handler accepts ctrlKey or
@@ -64,7 +67,7 @@ export function StudioStatusStrip({
                     is how a goal gets set. */}
                 <WordGoalControl words={words} goal={goal} onSetGoal={onSetGoal} readOnly={readOnly} />
                 <Divider />
-                <span className="flex min-w-0 items-center gap-1.5" data-testid="novel-save-state">
+                <span className="flex min-w-0 items-center gap-1.5" data-testid="novel-save-state" role="status" aria-live="polite">
                     <span className={cx('h-[5px] w-[5px] shrink-0 rounded-full', DOT[saveState])} aria-hidden="true" />
                     <span className="truncate font-ui text-[11px] text-parchment-400">
                         {formatSaveState(saveState, lastSavedAt, t)}

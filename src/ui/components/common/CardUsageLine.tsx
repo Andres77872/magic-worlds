@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * CardUsageLine — one muted line summarizing how much a card is used:
  * "Used in 5 sessions · 2 stories". Shared by the gallery card, card preview,
@@ -19,6 +20,7 @@ export interface CardUsageLineProps {
 }
 
 export function CardUsageLine({ usage, showNone = false, className }: CardUsageLineProps) {
+    useFeatureFlags()
     const { t } = useTranslation()
     if (!usage) return null
 

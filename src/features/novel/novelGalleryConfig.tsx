@@ -4,10 +4,13 @@
  * can stay a structural twin of GalleryPage.
  */
 
-import type { Story } from '@/shared'
+import type { Story,StoryLibraryFilters } from '@/shared'
 import type { ApiService } from '@/infrastructure/api'
 import type { TFunction } from 'i18next'
-import { chaptersFor, wordCount } from './utils/novelUtils'
+import { chaptersFor } from './utils/novelUtils'
+import { novelOutline,sumSceneWords } from './utils/novelOutline'
+import { storyCoverUrl } from '@/shared/storyNovelDetails'
+import { savedStoryStatistics } from '@/shared/storyStatistics'
 
 export interface NovelGalleryItem {
     id: string
@@ -31,20 +34,22 @@ function sourceLabelFor(story: Story, t: TFunction): string {
     return t('novelGallery.source.blank')
 }
 
-export function novelItems(raw: unknown, t: TFunction): NovelGalleryItem[] {
+export function novelItems(raw: unknown, t: TFunction,includeArchived=false): NovelGalleryItem[] {
     const stories = Array.isArray(raw) ? (raw as Story[]) : []
     return stories.map((story) => {
         const chapters = chaptersFor(story)
-        const words = chapters.reduce((sum, chapter) => sum + wordCount(chapter.body ?? ''), 0)
+        const saved=savedStoryStatistics(story,includeArchived)
+        const outline=!saved&&!story.summary?novelOutline(story.chapters,story.parts):null
+        const words=outline?(includeArchived?sumSceneWords(outline.chapters.flatMap((chapter)=>chapter.scenes).map((scene)=>scene.unit)):outline.words):0
         return {
             id: story.id,
             title: story.title,
             badge: sourceLabelFor(story, t),
-            tags: [
-                t('novelGallery.tags.chapter', { count: chapters.length }),
-                t('novelGallery.tags.words', { count: words.toLocaleString() }),
+            tags: story.summary&&story.chapterCount===null?[t('novelEditor.library.totalsUnavailable')]:[
+                t('novelGallery.tags.chapter', { count: saved?.chapters??story.chapterCount??chapters.length }),
+                ...(saved?[t('novelEditor.codex.context.scenes',{count:saved.scenes}),saved.wordCount===null?t('novelEditor.library.wordsUnavailable'):t('novelGallery.tags.words',{count:saved.wordCount.toLocaleString()})]:story.summary?[t('novelEditor.codex.context.scenes',{count:story.sceneCount??0}),t('novelEditor.library.wordsUnavailable')]:[words===null?t('novelEditor.library.wordsUnavailable'):t('novelGallery.tags.words', { count: words.toLocaleString() })]),
             ],
-            imageUrl: undefined,
+            imageUrl: storyCoverUrl(story.details.coverAssetId),
             source: story,
         }
     })
@@ -55,7 +60,7 @@ export function novelItems(raw: unknown, t: TFunction): NovelGalleryItem[] {
  * private content, and a new client identity on every workspace commit makes
  * the gallery restart from offset 0.
  */
-export function getNovelGalleryConfig(t: TFunction, api: ApiService | null) {
+export function getNovelGalleryConfig(t: TFunction, api: ApiService | null,trashed=false,filters:StoryLibraryFilters={}) {
     return {
         eyebrow: t('novelGallery.header.eyebrow'),
         title: t('novelGallery.header.title'),
@@ -66,7 +71,7 @@ export function getNovelGalleryConfig(t: TFunction, api: ApiService | null) {
         noMatchDescription: t('novelGallery.empty.noMatchDescription'),
         createLabel: t('novelGallery.actions.new'),
         fetchPage: (skip: number, limit: number, q?: string): Promise<Story[]> =>
-            api ? api.getStories(skip, limit, q) : Promise.resolve([]),
-        toItems: (raw: unknown) => novelItems(raw, t),
+            api ? (Object.keys(filters).length?api.getStories(skip,limit,q,trashed,filters):trashed?api.getStories(skip,limit,q,true):api.getStories(skip, limit, q)) : Promise.resolve([]),
+        toItems: (raw: unknown) => novelItems(raw, t,filters.includeArchivedSections),
     }
 }

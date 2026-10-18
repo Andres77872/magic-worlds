@@ -75,7 +75,7 @@ async function openManage() {
 
 describe('WorkspaceSwitcher and workspace management', () => {
     beforeEach(() => {
-        vi.stubEnv('VITE_FEATURE_WORKSPACES_ENABLED', 'true')
+
         vi.clearAllMocks()
         window.history.replaceState(null, '', `#/library?workspace=${TEST_WORKSPACE_ID}`)
         mocks.listLibraryCards.mockResolvedValue({ items: [], total: 12, limit: 1, offset: 0 })
@@ -103,10 +103,10 @@ describe('WorkspaceSwitcher and workspace management', () => {
         })
     })
 
-    it('renders nothing while the R1 UI is off', () => {
-        state = createWorkspaceTestState({ workspaces: [main, novel], featureEnabled: false })
+    it('renders the workspace switcher without any temporary workspace permission', () => {
+        state = createWorkspaceTestState({ workspaces: [main, novel] })
         renderSwitcher()
-        expect(screen.queryByRole('button', { name: /Switch workspace/ })).not.toBeInTheDocument()
+        expect(screen.getByRole('button', { name: /Switch workspace/ })).toBeInTheDocument()
     })
 
     it('explains why the default workspace cannot be archived', async () => {

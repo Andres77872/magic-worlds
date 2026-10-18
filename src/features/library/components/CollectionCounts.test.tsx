@@ -1,3 +1,4 @@
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Collection } from '@/shared/types'
@@ -12,7 +13,7 @@ afterEach(() => vi.unstubAllEnvs())
 
 describe('collection aggregate counts', () => {
     it('keeps a collection usable without exposing a raw count of hidden card kinds', async () => {
-        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'false')
+        setTestFeatureFlags({ adventures: false })
         const onOpen = vi.fn()
         const original = structuredClone(collection)
         const folder = render(<CollectionFolder collection={collection} onOpen={onOpen} />)
@@ -30,7 +31,7 @@ describe('collection aggregate counts', () => {
     })
 
     it('shows the raw aggregate when every card kind is available', () => {
-        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'true')
+        setTestFeatureFlags({ adventures: true })
         render(<CollectionFolder collection={collection} onOpen={vi.fn()} />)
         expect(screen.getByText(/9 cards/)).toBeInTheDocument()
     })

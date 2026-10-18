@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 import { isVoicesFeatureEnabled } from '@/shared/featureFlags'
 import { useEffect, useMemo, useState } from 'react'
 import type { ApiService } from '@/infrastructure/api'
@@ -38,6 +39,7 @@ export function useNarrationAllowance(
     turns: readonly TurnEntry[],
     requestedActive: boolean,
 ): NarrationAllowance {
+    useFeatureFlags()
     const active = requestedActive && isVoicesFeatureEnabled()
     const [meter, setMeter] = useState<VoiceUsageMeter | null>(null)
     const settled = settledNarrations(turns)

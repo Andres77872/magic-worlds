@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 import { useState } from 'react'
 import { BookOpen, Library, Pencil, Plus, Search, Trash2, X, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -23,6 +24,7 @@ function upsertLorebook(list: Lorebook[], next: Lorebook): Lorebook[] {
 }
 
 export function LorebookGalleryPage() {
+    useFeatureFlags()
     const { t } = useTranslation()
     const { setPage } = useNavigation()
     const { isAuthenticated, openLoginModal } = useAuth()

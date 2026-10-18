@@ -27,6 +27,7 @@ export function snapshotToCardPreview(snapshot: Snapshot, kind: CardPreviewTarge
         themeSongUrl: typeof snapshot?.theme_song_url === 'string' ? snapshot.theme_song_url : undefined,
         triggers: stringArray(snapshot?.triggers),
         categories: (snapshot?.category as CardPreview['categories']) ?? undefined,
+        ...(typeof snapshot?.source_card_version_number === 'number' ? { versionNumber: snapshot.source_card_version_number } : {}),
     }
 }
 

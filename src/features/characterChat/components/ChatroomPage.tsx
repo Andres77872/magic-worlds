@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * Chatroom — start a conversation or return to a saved character chat.
  */
@@ -16,7 +17,7 @@ import { toResumeSessions, type ResumeSession } from '@/features/landing/compone
 import { buildGalleryModeHash } from '@/features/gallery/galleryLinks'
 import { useVoiceAvailability } from '@/features/interaction/hooks/useVoiceAvailability'
 import { apiService } from '@/infrastructure/api'
-import { isFrontendVoiceModeEnabled } from '@/shared/voiceFeatureFlag'
+import { isCallsFeatureEnabled } from '@/shared/featureFlags'
 import { isGroupChatsFeatureEnabled } from '@/shared/featureFlags'
 import { useWorkspaceReadOnly } from '@/shared/hooks/useWorkspaceReadOnly'
 import { chatDisplayTitle } from '@/utils/chatTitle'
@@ -34,6 +35,7 @@ function chatTitle(chat: CharacterChatSession | null, t: TFunction): string {
 }
 
 export function ChatroomPage() {
+    useFeatureFlags()
     const { t } = useTranslation()
     const { setPage } = useNavigation()
     const { isAuthenticated, openLoginModal } = useAuth()
@@ -55,7 +57,7 @@ export function ChatroomPage() {
     const [deletingId, setDeletingId] = useState<string | null>(null)
     const [actionNotice, setActionNotice] = useState<ActionNotice | null>(null)
     const mountedRef = useRef(false)
-    const voiceModeEnabled = isFrontendVoiceModeEnabled()
+    const voiceModeEnabled = isCallsFeatureEnabled()
     const groupChatsEnabled = isGroupChatsFeatureEnabled()
     // Workspace R1: an archived workspace's chats stay readable; starting, calling and deleting are new work.
     const readOnly = useWorkspaceReadOnly()

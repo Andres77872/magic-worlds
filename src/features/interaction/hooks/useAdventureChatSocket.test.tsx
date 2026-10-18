@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useAdventureChatSocket } from './useAdventureChatSocket'
@@ -19,6 +22,13 @@ const socketInstances: Array<{
 }> = []
 
 const workspaceState = vi.hoisted(() => ({ selectedWorkspaceId: '0f1e2d3c-4b5a-4978-8a6b-5c4d3e2f1a0b' as string | null }))
+// Keys held for this tab; the hook reads them only as a frame leaves.
+const heldImageKeys = vi.hoisted(() => new Map<string, string>())
+vi.mock('@/features/imageProfiles/imageCredentialSession', () => ({
+  imageCredentialSession: {
+    credentials: (provider: string) => (heldImageKeys.has(provider) ? { api_key: heldImageKeys.get(provider)! } : undefined),
+  },
+}))
 vi.mock('@/app/hooks/useWorkspace', () => ({ useWorkspace: () => workspaceState }))
 
 const scopedApi = vi.hoisted(() => {
@@ -547,6 +557,7 @@ describe('retained chat attempts', () => {
 
   it('discards a late status response after account ownership changes', async () => {
     authSession.authenticate('alice-fixture', 'FAKE_TOKEN')
+    grantFixtureFeatures(true)
     release = configureLlmPreparation(async () => () => target)
     let finish!: (value: typeof retained) => void
     vi.mocked(apiService.reconcileChatTurn).mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
@@ -577,5 +588,76 @@ describe('retained chat attempts', () => {
     expect(onTurnStarted).not.toHaveBeenCalled(); expect(onDelta).not.toHaveBeenCalled()
     expect(onError).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ code: 'CHAT_EXECUTION_RECORD_INVALID' }))
     expect(JSON.stringify(onError.mock.calls)).not.toContain('FAKE_PRIVATE_KEY')
+  })
+})
+
+describe('useAdventureChatSocket image choice', () => {
+  const PROFILE = '11111111-1111-4111-8111-111111111111'
+  const flush = () => act(async () => { for (let i = 0; i < 10; i++) await Promise.resolve() })
+  type Materialize = () => unknown
+  const imageOf = (call: number) => (socketInstances[0].sendChat.mock.calls[call][4] as Materialize | undefined)?.()
+  const ready = (capabilities: unknown) => act(() => socketHandlers?.onMessage({ type: 'ready', capabilities }))
+
+  afterEach(() => {
+    heldImageKeys.clear()
+    llmIntents.clear()
+    socketHandlers = null
+    socketInstances.length = 0
+    vi.clearAllMocks()
+  })
+
+  it('exposes the ready capabilities and sends image only once the server accepts it', async () => {
+    const { result } = renderHook(() => useAdventureChatSocket(7, {}))
+    expect(result.current.capabilities).toBeNull()
+    result.current.sendChat('Look around', 'req-1', undefined, undefined, false, { generate: false })
+    await flush()
+    // An older server (no capabilities yet) never sees the field.
+    expect(imageOf(0)).toBeUndefined()
+
+    ready({ chat_image_request: true, chat_images: true })
+    expect(result.current.capabilities).toEqual({ chat_image_request: true, chat_images: true })
+    expect(imageOf(0)).toEqual({ generate: false })
+
+    ready({ chat_image_request: 'yes' })
+    expect(result.current.capabilities).toEqual({ chat_image_request: false, chat_images: false })
+    expect(imageOf(0)).toBeUndefined()
+  })
+
+  it('keeps the choice for resends and attaches the key only as each frame leaves', async () => {
+    const { result } = renderHook(() => useAdventureChatSocket(7, {}))
+    ready({ chat_image_request: true, chat_images: true })
+    heldImageKeys.set('fal', 'FAKE_IMAGE_KEY')
+    const choice = { generate: true, image_profile_id: PROFILE, byok_provider: 'fal' as const, credentials: { api_key: 'FAKE_LEAKED_KEY' } }
+    result.current.sendChat('Look around', 'req-2', undefined, undefined, false, choice as never)
+    await flush()
+    expect(imageOf(0)).toEqual({ generate: true, image_profile_id: PROFILE, credentials: { api_key: 'FAKE_IMAGE_KEY' } })
+
+    // A resend of the same request without a choice keeps the first one.
+    result.current.sendChat('Look around', 'req-2')
+    await flush()
+    expect(imageOf(1)).toEqual({ generate: true, image_profile_id: PROFILE, credentials: { api_key: 'FAKE_IMAGE_KEY' } })
+
+    // Nothing kept the key: once the tab forgets it, no frame carries one.
+    heldImageKeys.clear()
+    expect(imageOf(0)).toEqual({ generate: true, image_profile_id: PROFILE })
+    expect(imageOf(1)).toEqual({ generate: true, image_profile_id: PROFILE })
+    expect(JSON.stringify(socketInstances[0].sendChat.mock.calls.map((call) => (call[4] as Materialize)()))).not.toContain('FAKE_LEAKED_KEY')
+  })
+
+  it('starts a new request without the previous request choice', async () => {
+    const { result } = renderHook(() => useAdventureChatSocket(7, {}))
+    ready({ chat_image_request: true, chat_images: true })
+    result.current.sendChat('Look around', 'req-3', undefined, undefined, false, { generate: false })
+    await flush()
+    result.current.sendChat('Walk on', 'req-4')
+    await flush()
+    expect(socketInstances[0].sendChat.mock.calls[1]).toHaveLength(4)
+  })
+
+  it('reports done.image_scheduled to onDone', () => {
+    const onDone = vi.fn()
+    renderHook(() => useAdventureChatSocket(7, { onDone }))
+    socketHandlers?.onMessage({ type: 'done', assistant_message_id: 101, turn_id: 'turn-1', image_scheduled: true })
+    expect(onDone).toHaveBeenCalledWith({ interrupted: false, userMessageId: undefined, assistantMessageId: 101, turnId: 'turn-1', imageScheduled: true })
   })
 })

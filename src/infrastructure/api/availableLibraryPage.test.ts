@@ -1,3 +1,4 @@
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { LibraryItem, LibraryQuery } from '@/shared/types/workspace.types'
 import { availableLibraryPage, AvailableLibraryPages } from './availableLibraryPage'
@@ -6,7 +7,7 @@ afterEach(() => vi.unstubAllEnvs())
 
 describe('available Library pagination', () => {
     it('preserves mixed server order with accurate visible totals and offsets', async () => {
-        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'false')
+        setTestFeatureFlags({ adventures: false })
         const item = (id: string, card_type: LibraryItem['card_type']): LibraryItem => ({
             card_type, card: { id, organization: { workspace_id: 'workspace', collection_ids: [] } },
         })
@@ -28,7 +29,7 @@ describe('available Library pagination', () => {
     })
 
     it('continues through full pages containing only disabled adventures', async () => {
-        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'false')
+        setTestFeatureFlags({ adventures: false })
         const rows: LibraryItem[] = Array.from({ length: 205 }, (_, index) => ({
             card_type: 'adventure_template', card: { id: `hidden-${index}`, organization: { workspace_id: 'workspace', collection_ids: [] } },
         }))
@@ -46,14 +47,14 @@ describe('available Library pagination', () => {
     })
 
     it('does not request a disabled type from a legacy URL', async () => {
-        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'false')
+        setTestFeatureFlags({ adventures: false })
         const read = vi.fn()
         expect(await availableLibraryPage(read, { card_type: 'adventure_template', limit: 24 })).toEqual({ items: [], total: 0, limit: 24, offset: 0 })
         expect(read).not.toHaveBeenCalled()
     })
 
     it('retains visible paging progress and isolates owner, workspace and query', async () => {
-        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'false')
+        setTestFeatureFlags({ adventures: false })
         const item = (id: string, card_type: LibraryItem['card_type']): LibraryItem => ({
             card_type, card: { id, organization: { workspace_id: 'workspace', collection_ids: [] } },
         })
@@ -86,7 +87,7 @@ describe('available Library pagination', () => {
     })
 
     it('does not commit an aborted read, and revalidates an offset-zero refresh', async () => {
-        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'false')
+        setTestFeatureFlags({ adventures: false })
         const row: LibraryItem = { card_type: 'character', card: { id: 'fresh', organization: { workspace_id: 'workspace', collection_ids: [] } } }
         const controller = new AbortController()
         const pager = new AvailableLibraryPages()

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { HiddenWorkspacesNotice, WorkspaceStaleDialog, WorkspaceStaleNotice, WorkspaceUnavailableGate } from './WorkspaceGate'
+import { WorkspaceStaleDialog, WorkspaceStaleNotice, WorkspaceUnavailableGate } from './WorkspaceGate'
 
 const meta = {
     title: 'Components/WorkspaceGate',
@@ -45,9 +45,4 @@ export const StaleDialog: Story = {
             <WorkspaceStaleDialog open onReload={() => {}} onDismiss={() => {}} />
         </div>
     ),
-}
-
-/** Flag off while the account has more than one active workspace. */
-export const HiddenWorkspaces: Story = {
-    render: () => <HiddenWorkspacesNotice />,
 }

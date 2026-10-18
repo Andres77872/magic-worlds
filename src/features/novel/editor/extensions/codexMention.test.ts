@@ -77,3 +77,12 @@ describe('createCodexMention markdown round-trip', () => {
         editor.destroy()
     })
 })
+
+it('leaves equal-label Markdown references unresolved instead of choosing a snapshot',()=>{
+    const editor=new Editor({element:document.createElement('div'),extensions:[StarterKit,Markdown,createCodexMention(()=>[
+        {id:'one',label:'Mira',kind:'character',enabled:true},{id:'two',label:'Mira',kind:'character',enabled:true},
+    ])],content:'Hello @Mira.',contentType:'markdown'})
+    expect(findMentions(editor.getJSON())).toEqual([])
+    expect(editor.getMarkdown()).toContain('@Mira')
+    editor.destroy()
+})

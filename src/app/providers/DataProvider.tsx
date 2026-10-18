@@ -1,10 +1,25 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
+import { initialStudioScene } from '@/shared/storyStudioSelection'
+import { readStudioSelection } from '@/features/novel/hooks/useStudioView'
+import { matchesStorySearchResult } from '@/shared/storySearchCache'
+import type { StoryOutline,StoryStudioIndex,StoryStudioScene,StorySceneDocument } from '@/shared/types/storyStudio.types'
+import { isStudioSource,mergeStudioIndex,applyStudioSceneAcknowledgement,applyStudioCodexAcknowledgement,applyStudioGroupAcknowledgement,storyOutlineSummary,mergeStorySummary } from '@/shared/storyStudioState'
+import { apiStorageOrigin,workspaceStorageKey } from '@/shared/workspaceStorage'
+import { writeNovelMutation,retireNovelMutation } from '@/shared/novelMutationJournal'
+import { lifecycleJournalKey,listLifecycleJournals,readLifecycleJournal,type PendingStoryLifecycle,type StoryLifecycleRecord } from '@/shared/storyLifecycleJournal'
+import { useNovelLifecycleRetention } from '@/features/novel/hooks/useNovelLifecycleRetention'
+import { API_BASE_URL } from '@/infrastructure/api/baseUrl'
+import { useNovelCreations,type NovelCreations,type NovelCreationOptions } from '@/features/novel/hooks/useNovelCreations'
+import type { StorySearchResolve,StorySearchResult } from '@/shared/types/storySearch.types'
+import type { StoryCodexWrite, StoryCodexAcknowledgement, StoryScene, StorySceneWrite, StoryUnitMetadata, StoryStructureWrite, StoryStructureAcknowledgement } from '@/shared/types/story.types'
+import type { StorySceneRestoreWrite,StorySceneRestoreAcknowledgement } from '@/shared/types/story.types'
 import type { TextGenerationOptions } from '@/shared/types/textGeneration.types'
 /**
  * Data management provider for all application entities
  * Uses API for data persistence instead of localStorage
  */
 
-import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, useCallback, type ReactNode } from 'react'
 import type {
     Character,
     World,
@@ -17,8 +32,8 @@ import type {
     LoadingState,
     Lorebook,
     Story,
-    StoryCardRef,
-    StoryChapter,
+    StoryChapterWrite,
+    StoryGenerationCommit,
     StoryContextTrace,
     StoryCreateRequest,
     StoryGenerateRequest,
@@ -48,6 +63,8 @@ import { useWorkspace } from '../hooks/useWorkspace'
 import { isPageFocused, usePageFocus } from '../hooks/usePageFocus'
 import { NavigationContext } from './NavigationProvider'
 import { pageFromHash } from '../../features/gallery/galleryLinks'
+import { characterChatParticipantIds } from '@/features/characterChat/codexParticipants'
+import { i18n } from '@/app/i18n'
 
 export type CharacterChatMode = 'text' | 'voice'
 
@@ -129,23 +146,34 @@ interface DataContextValue {
     // Story Studio
     stories: Story[]
     setStories: (stories: Story[]) => void
-    activeStory: Story | null
-    setActiveStory: (story: Story | null) => void
-    createStory: (story: StoryCreateRequest) => Promise<Story>
-    openStory: (story: Story) => Promise<void>
-    updateStory: (storyId: string, patch: Partial<Story> | Record<string, unknown>) => Promise<Story>
+    activeStory: StoryOutline | null
+    consumeSceneConfirmation:(sequence:number)=>void
+    sceneConfirmation:{scene:StorySceneDocument;generationId?:string;sequence:number;read?:StoryStudioScene;select?:boolean}|null
+    setActiveStory: (story: StoryOutline | null) => void
+    createStory: (story: StoryCreateRequest,options?:NovelCreationOptions) => Promise<StoryStudioIndex>
+    novelCreations: NovelCreations
+    openStory: (story: Pick<StoryOutline,'id'>, sceneId?: string) => Promise<void>
+    updateStory: (storyId: string, patch: Partial<Story> | Record<string, unknown>) => Promise<StoryOutline>
     deleteStory: (id: string) => Promise<void>
-    createStoryChapter: (storyId: string, chapter: Partial<StoryChapter>) => Promise<StoryChapter>
-    updateStoryChapter: (storyId: string, chapterId: string, patch: Partial<StoryChapter>) => Promise<StoryChapter>
-    deleteStoryChapter: (storyId: string, chapterId: string) => Promise<void>
-    addStoryCardRef: (storyId: string, ref: Partial<StoryCardRef> | Record<string, unknown>) => Promise<StoryCardRef>
-    addStoryCardRefs: (storyId: string, refs: Array<Partial<StoryCardRef> | Record<string, unknown>>) => Promise<void>
-    refreshStory: (storyId: string) => Promise<Story>
-    updateStoryCardRef: (storyId: string, refId: string, ref: Partial<StoryCardRef> | Record<string, unknown>) => Promise<StoryCardRef>
-    deleteStoryCardRef: (storyId: string, refId: string) => Promise<void>
-    previewStoryContext: (storyId: string, request: StoryGenerateRequest) => Promise<StoryContextTrace>
+    forgetErasedStory:(storyId:string)=>void
+    novelLifecycleStorageFailed?:boolean
+    updateStoryChapter: (storyId: string, chapterId: string, patch: StoryChapterWrite) => Promise<StoryUnitMetadata>
+    restoreStoryRevision: (storyId: string, sceneId: string, revision: number, write: StorySceneRestoreWrite) => Promise<StorySceneRestoreAcknowledgement>
+    recoverStoryRevision:(storyId:string,sceneId:string,revision:number,write:StorySceneRestoreWrite)=>Promise<StorySceneRestoreAcknowledgement|null>
+    refreshStoryScene:(storyId:string,sceneId:string)=>Promise<StorySceneDocument>
+    resolveStorySearchResult:(storyId:string,query:StorySearchResolve)=>Promise<StorySearchResult>
+    updateStoryScene: (storyId:string,sceneId:string,write:StorySceneWrite) => Promise<StoryScene>
+    updateStoryPart: (storyId:string,partId:string,write:StoryChapterWrite) => Promise<StoryUnitMetadata>
+    changeStoryStructure: (storyId:string,write:StoryStructureWrite) => Promise<StoryStructureAcknowledgement & {story:StoryOutline}>
+    recoverStoryStructure: (storyId:string,write:StoryStructureWrite) => Promise<(StoryStructureAcknowledgement & {story:StoryOutline})|null>
+    storyLifecycle: (storyId:string,action:'archive'|'trash'|'restore') => Promise<void>
+    pendingStoryLifecycle: PendingStoryLifecycle[]
+    retryStoryLifecycle: (storyId:string,requestId:string) => Promise<void>
+    changeStoryCodex:(storyId:string,write:StoryCodexWrite)=>Promise<StoryCodexAcknowledgement>
+    refreshStory:(storyId:string)=>Promise<StoryOutline>
+    previewStoryContext:(storyId:string,request:StoryGenerateRequest)=>Promise<StoryContextTrace>
     generateStoryCandidate: (storyId: string, request: StoryGenerateRequest, options?: TextGenerationOptions) => Promise<StoryGeneration>
-    acceptStoryGeneration: (storyId: string, generationId: string) => Promise<Story>
+    acceptStoryGeneration: (storyId: string, generationId: string, commit: StoryGenerationCommit) => Promise<StoryScene>
     stashStoryGeneration: (storyId: string, generationId: string) => Promise<void>
     discardStoryGeneration: (storyId: string, generationId: string) => Promise<void>
 
@@ -163,6 +191,8 @@ interface DataContextValue {
     characterChats: CharacterChatSession[]
     /** Reopen an existing chat from the list; caller navigates to 'character-chat'. */
     resumeCharacterChat: (chat: CharacterChatSession, options?: { mode?: CharacterChatMode }) => void
+    /** Open an existing character chat by id (resolving from the loaded list or fetching via API). */
+    openCharacterChatById: (chatId: string, options?: { mode?: CharacterChatMode }) => Promise<boolean>
     addCharacterChatCodexCards: (chatId: string, cards: Array<{ kind: CharacterChatCodexCardKind; cardId: string }>) => Promise<CharacterChatSession>
     toggleCharacterChatCodexCard: (chatId: string, codexCardId: string, enabled: boolean) => Promise<CharacterChatSession>
     removeCharacterChatCodexCard: (chatId: string, codexCardId: string) => Promise<CharacterChatSession>
@@ -315,17 +345,16 @@ function normalizeCharacterChat(
     const singleCharacterId = String(chat.character_id ?? chat.character_card_id ?? '')
     const characterIds = rawCharacterIds.length > 0 ? rawCharacterIds : singleCharacterId ? [singleCharacterId] : []
     const sessionCharacters = (characterIds.length > 0 ? characterIds : snapshotCharacters.map((character) => character.id))
-        .map((id: string, index: number) =>
-            libraryCharacters.find((character) => character.id === id)
+        .map((id: string) =>
+            snapshotCharacters.find((character) => character.id === id)
             ?? fallbackCharacters.find((character) => character.id === id)
-            ?? snapshotCharacters.find((character) => character.id === id)
-            ?? snapshotCharacters[index],
+            ?? libraryCharacters.find((character) => character.id === id),
         )
         .filter((character: Character | undefined): character is Character => Boolean(character))
     const snapshotPersona = chat.persona ? transformCharacters([chat.persona])[0] : undefined
     const personaId = String(chat.persona_id ?? '')
     const livePersona = personaId ? libraryCharacters.find((character) => character.id === personaId) : undefined
-    const persona = livePersona ?? fallbackPersona ?? snapshotPersona
+    const persona = snapshotPersona ?? fallbackPersona ?? livePersona
 
     return {
         id: String(chat.chat_id ?? chat.id),
@@ -350,6 +379,7 @@ interface DataProviderProps {
 }
 
 export function DataProvider({ children }: DataProviderProps) {
+    useFeatureFlags()
     // Characters state
     const [characters, setCharacters] = useState<Character[]>([])
     const [editingCharacter, setEditingCharacter] = useState<Character | null>(null)
@@ -374,7 +404,15 @@ export function DataProvider({ children }: DataProviderProps) {
 
     // Story Studio state
     const [stories, setStories] = useState<Story[]>([])
-    const [activeStory, setActiveStory] = useState<Story | null>(null)
+    const [activeStory, setActiveStory] = useState<StoryOutline | null>(null)
+    const sceneConfirmationSequence=useRef(0)
+    const [sceneConfirmation,setSceneConfirmation]=useState<{scene:StorySceneDocument;generationId?:string;sequence:number;read?:StoryStudioScene;select?:boolean}|null>(null)
+    const consumeSceneConfirmation=useCallback((sequence:number)=>setSceneConfirmation((current)=>current?.sequence===sequence?null:current),[])
+    const searchCacheRef=useRef({stories,activeStory})
+    useLayoutEffect(()=>{searchCacheRef.current={stories,activeStory}},[stories, activeStory])
+    const novelLifecycleAttempts=useRef(new Map<string,{key:string|null;record:StoryLifecycleRecord;stored:boolean}>())
+    const novelLifecycleFlights=useRef(new Map<string,Promise<void>>())
+    const [lifecycleRecovery,setLifecycleRecovery]=useState<{scope:string|null;items:PendingStoryLifecycle[]}>({scope:null,items:[]})
 
     // 1:1 character chat state
     const [activeCharacterChat, setActiveCharacterChat] = useState<CharacterChatSession | null>(null)
@@ -423,6 +461,10 @@ export function DataProvider({ children }: DataProviderProps) {
         return api
     }
     const activeStoryOwnerRef = useRef<string | null>(null)
+    const erasedStoryKeys=useRef(new Set<string>())
+    const erasedKey=(id:string,owner=authOwnerRef.current)=>JSON.stringify([owner.accountKey,owner.workspaceId,id])
+    const isErasedStory=(id:string)=>erasedStoryKeys.current.has(erasedKey(id))
+    const publishSceneConfirmation=(value:typeof sceneConfirmation)=>{if(!value||!isErasedStory(value.scene.storyId))setSceneConfirmation(value)}
     const authExpiredEventRef = useRef(false)
     const expiredAccountKeyRef = useRef<string | null>(null)
     const signedOutHandledRef = useRef(false)
@@ -445,6 +487,7 @@ export function DataProvider({ children }: DataProviderProps) {
     const setOwnedActiveStory: typeof setActiveStory = (next) => {
         setActiveStory((current) => {
             const resolved = typeof next === 'function' ? next(current) : next
+            if(resolved&&isErasedStory(resolved.id))return current
             activeStoryOwnerRef.current = resolved && isAuthenticated ? accountKey : null
             return resolved
         })
@@ -721,232 +764,259 @@ export function DataProvider({ children }: DataProviderProps) {
         }
     }
 
-    // A story refetch that was issued before a chapter save completed returns a
-    // pre-save body; applying it verbatim would roll the chapter back and a
-    // later chapter switch would re-seed the editor from stale text. Chapter
-    // updatedAt is server-stamped on every save, so keep whichever copy is
-    // fresher (ref lists and generation history always come from the refetch).
-    const mergeFreshChapters = (incoming: Story, current: Story | null | undefined): Story => {
-        if (!current || current.id !== incoming.id || !current.chapters?.length) return incoming
-        const localById = new Map(current.chapters.map((chapter) => [chapter.id, chapter]))
-        const chapters = (incoming.chapters ?? []).map((chapter) => {
-            const local = localById.get(chapter.id)
-            if (!local?.updatedAt || !chapter.updatedAt || local.updatedAt <= chapter.updatedAt) return chapter
-            return { ...local, activeCardRefs: chapter.activeCardRefs, generationHistory: chapter.generationHistory }
+    const lifecycleScope=auth.userHash&&workspaceId?workspaceStorageKey('novel-lifecycle-index',{apiOrigin:apiStorageOrigin(API_BASE_URL),userHash:auth.userHash,workspaceId}):null
+    const pendingStoryLifecycle=lifecycleRecovery.scope===lifecycleScope?lifecycleRecovery.items:[]
+    const readLifecycleRecovery=(scope:{userHash:string|null|undefined;workspaceId:string|null})=>{
+        const records=listLifecycleJournals(scope).map((record)=>({...record.write,storageFailed:false}))
+        for(const item of novelLifecycleAttempts.current.values()){
+            const expected=lifecycleJournalKey({...scope,storyId:item.record.write.storyId})
+            if(expected!==item.key)continue
+            const index=records.findIndex((candidate)=>candidate.storyId===item.record.write.storyId&&candidate.write.requestId===item.record.write.write.requestId)
+            const candidate={...item.record.write,storageFailed:!item.stored}
+            if(index<0)records.push(candidate);else records[index]=candidate
+        }
+        return records
+    }
+    useEffect(()=>{
+        const scope={userHash:auth.userHash,workspaceId}
+        const refresh=()=>setLifecycleRecovery({scope:lifecycleScope,items:readLifecycleRecovery(scope)})
+        refresh()
+        const onStorage=(event:StorageEvent)=>{if(event.key===null||event.key.startsWith('magic-worlds:novel-lifecycle:'))refresh()}
+        window.addEventListener('storage',onStorage)
+        return()=>window.removeEventListener('storage',onStorage)
+    },[auth.userHash, workspaceId, lifecycleScope])
+    const novelOwnerCurrent = (owner:typeof authOwnerRef.current) => {
+        const current=authOwnerRef.current
+        return current.authEpoch===owner.authEpoch && current.accountKey===owner.accountKey && current.workspaceEpoch===owner.workspaceEpoch && current.workspaceId===owner.workspaceId
+    }
+    const novelAccess = () => {
+        if (!isNovelsFeatureEnabled()) throw disabledFeatureError('Novels')
+        if (!isAuthenticated) {openLoginModal();throw new Error('Login required to write novels')}
+        return {owner:{...authOwnerRef.current,userHash:auth.userHash},api:requireApi()}
+    }
+    const eraseCaller={authEpoch,accountKey,sessionPhase,workspaceId,workspaceEpoch,api:workspaceApi}
+    const lifecycleRetention=useNovelLifecycleRetention({
+        key:JSON.stringify([accountKey,authEpoch,workspaceId,workspaceEpoch]),
+        scope:isNovelsFeatureEnabled()&&isAuthenticated&&auth.userHash&&workspaceId?{apiOrigin:apiStorageOrigin(API_BASE_URL),userHash:auth.userHash,workspaceId}:null,
+        current:()=>novelOwnerCurrent(eraseCaller)&&authOwnerRef.current.sessionPhase==='authenticated',
+        observationsCurrent:()=>dataOwnerRef.current?.accountKey===accountKey&&dataOwnerRef.current?.workspaceId===workspaceId,
+    },stories,activeStory)
+    const forgetErasedStory=(storyId:string)=>{
+        if(!novelOwnerCurrent(eraseCaller))return
+        void lifecycleRetention.erased(storyId)
+        erasedStoryKeys.current.add(erasedKey(storyId,eraseCaller))
+        setStories((previous)=>previous.filter((item)=>item.id!==storyId))
+        setActiveStory((previous)=>previous?.id===storyId?null:previous)
+        setSceneConfirmation((previous)=>previous?.scene.storyId===storyId?null:previous)
+        searchCacheRef.current={stories:searchCacheRef.current.stories.filter((item)=>item.id!==storyId),activeStory:searchCacheRef.current.activeStory?.id===storyId?null:searchCacheRef.current.activeStory}
+    }
+    const upsertStory = (story:StoryOutline) => {
+        if(isErasedStory(story.id))return
+        if (story.organization?.workspace_id && story.organization.workspace_id!==authOwnerRef.current.workspaceId) return
+        const summary=storyOutlineSummary(story)
+        setStories((previous)=>[mergeStorySummary(summary,previous.find((item)=>item.id===story.id)),...previous.filter((item)=>item.id!==story.id)])
+        setActiveStory((previous)=>{
+            if(previous?.id!==story.id)return previous
+            if(isStudioSource(story))return story.projection==='studio_index'?mergeStudioIndex(story,isStudioSource(previous)?previous:null):story
+            return story
         })
-        return { ...incoming, chapters }
     }
-
-    const upsertStory = (story: Story) => {
-        setStories((prev) => {
-            const merged = mergeFreshChapters(story, prev.find((item) => item.id === story.id))
-            return [merged, ...prev.filter((item) => item.id !== story.id)]
-        })
-        setActiveStory((prev) => (prev && prev.id === story.id ? mergeFreshChapters(story, prev) : prev))
+    const openStudioIndex=async(index:StoryStudioIndex,sceneId?:string)=>{
+        if(isErasedStory(index.id))throw new ApiError(410,'This novel was permanently erased.',{code:'STORY_ERASED'})
+        const {api,owner}=novelAccess()
+        const viewKey=owner.userHash&&owner.workspaceId?workspaceStorageKey(`magic-worlds:novel-view:v1:${index.id}`,{apiOrigin:apiStorageOrigin(API_BASE_URL),userHash:owner.userHash,workspaceId:owner.workspaceId}):null
+        const head=initialStudioScene(index,sceneId??readStudioSelection(viewKey))
+        if(sceneId&&head?.id!==sceneId)throw new ApiError(404,'This scene is no longer available in the account. The device copy is retained.',{code:'STORY_SCENE_UNAVAILABLE'})
+        const read=head?await api.getStoryStudioScene(index,head as import('@/shared/types/storyStudio.types').StorySceneHeader):null
+        if(!novelOwnerCurrent(owner))throw new ApiError(409,'The novel workspace changed.',{code:'STORY_SCOPE_CHANGED'})
+        if(isErasedStory(index.id))throw new ApiError(410,'This novel was permanently erased.',{code:'STORY_ERASED'})
+        if(sceneId&&viewKey){try{localStorage.setItem(viewKey,JSON.stringify({sceneId}))}catch{/* Optional view hint; the confirmed opening read is still available. */}}
+        publishSceneConfirmation(read?{scene:read.scene,read,sequence:++sceneConfirmationSequence.current,...(sceneId?{select:true}:{})}:null)
+        setOwnedActiveStory(index);upsertStory(index)
     }
-
-    const createStory = async (story: StoryCreateRequest): Promise<Story> => {
-        if (!isNovelsFeatureEnabled()) throw disabledFeatureError('Novels')
-        if (!isAuthenticated) {
-            openLoginModal()
-            throw new Error('Login required to create stories')
-        }
-        const created = await requireApi().createStory(story)
-        setStories((prev) => [created, ...prev.filter((item) => item.id !== created.id)])
-        setActiveStory(created)
-        return created
+    const novelCreations=useNovelCreations(async(created)=>{await openStudioIndex(created)})
+    const createStory=novelCreations.start
+    const openStory = async (story:Pick<StoryOutline,'id'>,sceneId?:string) => {
+        const {api,owner}=novelAccess()
+        const loaded=await api.getStoryStudioIndex(story.id)
+        if(!novelOwnerCurrent(owner))throw new ApiError(409,'The novel workspace changed.',{code:'STORY_SCOPE_CHANGED'})
+        await openStudioIndex(loaded,sceneId)
     }
-
-    const openStory = async (story: Story) => {
-        if (!isNovelsFeatureEnabled()) throw disabledFeatureError('Novels')
-        if (!isAuthenticated) {
-            openLoginModal()
-            throw new Error('Login required to open stories')
-        }
-        const loaded = await requireApi().getStory(story.id)
-        setActiveStory(loaded)
-        setStories((prev) => prev.map((item) => (item.id === loaded.id ? loaded : item)))
-    }
-
-    const updateStory = async (storyId: string, patch: Partial<Story> | Record<string, unknown>): Promise<Story> => {
-        if (!isNovelsFeatureEnabled()) throw disabledFeatureError('Novels')
-        if (!isAuthenticated) {
-            openLoginModal()
-            throw new Error('Login required to update stories')
-        }
-        const updated = await requireApi().updateStory(storyId, patch)
-        upsertStory(updated)
+    const updateStory = async (storyId:string,patch:Partial<Story>|Record<string,unknown>):Promise<StoryOutline> => {
+        const {api,owner}=novelAccess()
+        const current=activeStory?.id===storyId ? activeStory : stories.find((story)=>story.id===storyId)??await api.getStoryStudioIndex(storyId)
+        const fields=patch as Record<string,unknown>
+        const updated=await api.updateStoryStudio(storyId,{...patch,requestId:fields.requestId??generateUUID(),expectedMetadataRevision:fields.expectedMetadataRevision??current.metadataRevision})
+        if (novelOwnerCurrent(owner)) upsertStory(updated)
         return updated
     }
-
-    const deleteStory = async (id: string) => {
-        if (!isNovelsFeatureEnabled()) throw disabledFeatureError('Novels')
-        if (!isAuthenticated) {
-            openLoginModal()
-            throw new Error('Login required to delete stories')
+    const performLifecycle=async(record:StoryLifecycleRecord,key:string|null):Promise<void>=>{
+        const {api,owner}=novelAccess()
+        const {storyId,write}=record.write
+        const expected=lifecycleJournalKey({userHash:owner.userHash,workspaceId:owner.workspaceId,storyId})
+        if(key!==expected)throw new ApiError(409,'The novel request belongs to another session.',{code:'STORY_SCOPE_CHANGED'})
+        const flightKey=JSON.stringify([key,write.requestId])
+        const running=novelLifecycleFlights.current.get(flightKey)
+        if(running)return running
+        const refresh=()=>{
+            if(novelOwnerCurrent(owner))setLifecycleRecovery({scope:lifecycleScope,items:readLifecycleRecovery(owner)})
         }
-        await requireApi().deleteStory(id)
-        setStories((prev) => prev.filter((story) => story.id !== id))
-        setActiveStory((prev) => (prev?.id === id ? null : prev))
+        const operationKey=lifecycleJournalKey({userHash:owner.userHash,workspaceId:owner.workspaceId,storyId},write.requestId)
+        const stored=writeNovelMutation(operationKey,record.write)
+        novelLifecycleAttempts.current.set(flightKey,{key,record,stored})
+        refresh()
+        const attempt=async()=>{
+            let acknowledged=false
+            try{
+                await api.storyLifecycle(storyId,write)
+                acknowledged=true
+                // The checked compact receipt confirms expectedMetadataRevision + 1.
+                // Restore clears archive/Trash in the server's lifecycle operation.
+                void lifecycleRetention.root(storyId,write.expectedMetadataRevision+1,write.action!=='restore')
+                const loaded=write.action==='trash'?null:await api.getStoryStudioIndex(storyId)
+                retireNovelMutation(record,operationKey)
+                novelLifecycleAttempts.current.delete(flightKey)
+                if(!novelOwnerCurrent(owner))return
+                if(write.action==='trash'){
+                    setStories((previous)=>previous.filter((story)=>story.id!==storyId))
+                    setActiveStory((previous)=>previous?.id===storyId?null:previous)
+                }else if(loaded)upsertStory(loaded)
+            }catch(error){
+                if(!acknowledged&&error instanceof ApiError&&error.status>=400&&error.status<500&&![408,429].includes(error.status)){
+                    retireNovelMutation(record,operationKey)
+                    novelLifecycleAttempts.current.delete(flightKey)
+                    if(error.status===409){
+                        try{const latest=await api.getStoryStudioIndex(storyId);if(novelOwnerCurrent(owner))upsertStory(latest)}catch{/* Keep the existing reader until account state can be refreshed. */}
+                    }
+                }
+                throw error
+            }finally{refresh()}
+        }
+        const pending=Promise.resolve().then(attempt)
+        novelLifecycleFlights.current.set(flightKey,pending)
+        try{await pending}finally{novelLifecycleFlights.current.delete(flightKey)}
     }
-
-    const createStoryChapter = async (storyId: string, chapter: Partial<StoryChapter>): Promise<StoryChapter> => {
-        if (!isNovelsFeatureEnabled()) throw disabledFeatureError('Novels')
-        if (!isAuthenticated) {
-            openLoginModal()
-            throw new Error('Login required to create story chapters')
+    const storyLifecycle=async(storyId:string,action:'archive'|'trash'|'restore')=>{
+        const {api,owner}=novelAccess()
+        const key=lifecycleJournalKey({userHash:owner.userHash,workspaceId:owner.workspaceId,storyId})
+        const memory=()=>[...novelLifecycleAttempts.current.values()].find((item)=>item.key===key)?.record
+        let record=memory()??readLifecycleJournal(key)
+        if(record&&record.write.write.action!==action)throw new ApiError(409,'Resolve the pending novel lifecycle change first.',{code:'STORY_PENDING_OPERATION'})
+        if(!record){
+            const current=activeStory?.id===storyId?activeStory:stories.find((story)=>story.id===storyId)??await api.getStoryStudioIndex(storyId)
+            if(!novelOwnerCurrent(owner))throw new ApiError(409,'The novel workspace changed.',{code:'STORY_SCOPE_CHANGED'})
+            record=memory()??readLifecycleJournal(key)??{schema:1,write:{storyId,title:current.title,write:{requestId:generateUUID(),expectedMetadataRevision:current.metadataRevision,action}}}
+            if(record.write.write.action!==action)throw new ApiError(409,'Resolve the pending novel lifecycle change first.',{code:'STORY_PENDING_OPERATION'})
         }
-        const created = await requireApi().createStoryChapter(storyId, chapter)
-        const loaded = await requireApi().getStory(storyId)
-        upsertStory(loaded)
-        return created
+        return performLifecycle(record,key)
     }
-
-    const updateStoryChapter = async (storyId: string, chapterId: string, patch: Partial<StoryChapter>): Promise<StoryChapter> => {
-        if (!isNovelsFeatureEnabled()) throw disabledFeatureError('Novels')
-        if (!isAuthenticated) {
-            openLoginModal()
-            throw new Error('Login required to update story chapters')
+    const retryStoryLifecycle=async(storyId:string,requestId:string)=>{
+        const {owner}=novelAccess()
+        const key=lifecycleJournalKey({userHash:owner.userHash,workspaceId:owner.workspaceId,storyId})
+        const local=[...novelLifecycleAttempts.current.values()].find((item)=>item.key===key&&item.record.write.write.requestId===requestId)?.record
+        const record=local?.write.write.requestId===requestId?local:listLifecycleJournals(owner).find((candidate)=>candidate.write.storyId===storyId&&candidate.write.write.requestId===requestId)
+        if(!record)throw new ApiError(409,'This pending novel change is no longer available.',{code:'STORY_PENDING_OPERATION_MISSING'})
+        return performLifecycle(record,key)
+    }
+    const deleteStory = async (storyId:string) => storyLifecycle(storyId,'trash')
+    const changeStoryStructure = async (storyId:string,write:StoryStructureWrite):Promise<StoryStructureAcknowledgement & {story:StoryOutline}> => {
+        const {api,owner}=novelAccess()
+        const ack=await api.changeStoryStructure(storyId,write)
+        const loaded=await api.getStoryStudioIndex(storyId)
+        if(loaded.structureRevision<ack.structureRevision)throw new ApiError(409,'The organization read has not reached the confirmed revision.',{code:'STORY_STUDIO_SOURCE_CHANGED'})
+        if (novelOwnerCurrent(owner)) upsertStory(loaded)
+        return {...ack,story:loaded}
+    }
+    const recoverStoryStructure=async(storyId:string,write:StoryStructureWrite):Promise<(StoryStructureAcknowledgement & {story:StoryOutline})|null>=>{
+        const {api,owner}=novelAccess()
+        const ack=await api.getStoryStructureResult(storyId,write)
+        if(!ack)return null
+        const loaded=await api.getStoryStudioIndex(storyId)
+        if(loaded.structureRevision<ack.structureRevision)throw new ApiError(409,'The organization read has not reached the confirmed revision.',{code:'STORY_STUDIO_SOURCE_CHANGED'})
+        if(novelOwnerCurrent(owner))upsertStory(loaded)
+        return {...ack,story:loaded}
+    }
+    const updateStoryGroup = async (storyId:string,id:string,kind:'chapter'|'part',write:StoryChapterWrite):Promise<StoryUnitMetadata> => {
+        const {api,owner}=novelAccess()
+        const updated=kind==='chapter' ? await api.updateStoryChapter(storyId,id,write) : await api.updateStoryPart(storyId,id,write)
+        if (novelOwnerCurrent(owner)) {
+            setActiveStory((previous)=>previous?.id===storyId&&isStudioSource(previous)?applyStudioGroupAcknowledgement(previous,updated,kind):previous)
         }
-        const updated = await requireApi().updateStoryChapter(storyId, chapterId, patch)
-        setActiveStory((prev) => {
-            if (!prev || prev.id !== storyId) return prev
-            const chapters = (prev.chapters ?? []).map((chapter) => (chapter.id === chapterId ? { ...chapter, ...updated } : chapter))
-            return { ...prev, chapters }
-        })
-        setStories((prev) =>
-            prev.map((story) => {
-                if (story.id !== storyId) return story
-                const chapters = (story.chapters ?? []).map((chapter) => (chapter.id === chapterId ? { ...chapter, ...updated } : chapter))
-                return { ...story, chapters }
-            }),
-        )
         return updated
     }
-
-    const deleteStoryChapter = async (storyId: string, chapterId: string) => {
-        if (!isNovelsFeatureEnabled()) throw disabledFeatureError('Novels')
-        if (!isAuthenticated) {
-            openLoginModal()
-            throw new Error('Login required to delete story chapters')
-        }
-        await requireApi().deleteStoryChapter(storyId, chapterId)
-        const loaded = await requireApi().getStory(storyId)
-        upsertStory(loaded)
+    const updateStoryChapter = (storyId:string,id:string,write:StoryChapterWrite) => updateStoryGroup(storyId,id,'chapter',write)
+    const updateStoryPart = (storyId:string,id:string,write:StoryChapterWrite) => updateStoryGroup(storyId,id,'part',write)
+    const cacheScene = (storyId:string,updated:StorySceneDocument,generationId?:string) => {
+        publishSceneConfirmation({scene:updated,...(generationId?{generationId}:{}),sequence:++sceneConfirmationSequence.current})
+        setStories((previous)=>previous.map((item)=>item.id===storyId?{...item,statistics:null,updatedAt:updated.updatedAt&&(!item.updatedAt||Date.parse(updated.updatedAt)>Date.parse(item.updatedAt))?updated.updatedAt:item.updatedAt}:item))
+        setActiveStory((previous)=>{
+            if(previous?.id!==storyId)return previous
+            if(isStudioSource(previous))return applyStudioSceneAcknowledgement(previous,updated)
+            return previous
+        })
     }
-
-    const addStoryCardRef = async (storyId: string, ref: Partial<StoryCardRef> | Record<string, unknown>): Promise<StoryCardRef> => {
-        if (!isNovelsFeatureEnabled()) throw disabledFeatureError('Novels')
-        if (!isAuthenticated) {
-            openLoginModal()
-            throw new Error('Login required to add story cards')
-        }
-        const created = await requireApi().addStoryCardRef(storyId, ref)
-        const loaded = await requireApi().getStory(storyId)
-        upsertStory(loaded)
-        return created
+    const updateStoryScene = async (storyId:string,sceneId:string,write:StorySceneWrite):Promise<StoryScene> => {
+        const {api,owner}=novelAccess()
+        const updated=await api.updateStoryScene(storyId,sceneId,write)
+        if (novelOwnerCurrent(owner)) cacheScene(storyId,updated)
+        return updated
     }
-
-    // Batch variant for the codex: sequential POSTs keep precedence ordering
-    // deterministic, and the story is refetched once at the end.
-    const addStoryCardRefs = async (storyId: string, refs: Array<Partial<StoryCardRef> | Record<string, unknown>>): Promise<void> => {
-        if (!isNovelsFeatureEnabled()) throw disabledFeatureError('Novels')
-        if (!isAuthenticated) {
-            openLoginModal()
-            throw new Error('Login required to add story cards')
-        }
-        if (refs.length === 0) return
-        // One client for the whole batch: a switch mid-loop must not send the rest elsewhere.
-        const api = requireApi()
-        try {
-            for (const ref of refs) {
-                await api.addStoryCardRef(storyId, ref)
-            }
-        } finally {
-            // Refresh even on partial failure so the UI reflects what landed.
-            const loaded = await requireApi().getStory(storyId)
-            upsertStory(loaded)
-        }
+    const refreshStoryScene = async (storyId:string,sceneId:string):Promise<StorySceneDocument> => {
+        const {api,owner}=novelAccess()
+        const updated=await api.getStorySceneDocument(storyId,sceneId)
+        if (novelOwnerCurrent(owner)) cacheScene(storyId,updated)
+        return updated
     }
-
-    const refreshStory = async (storyId: string): Promise<Story> => {
-        if (!isNovelsFeatureEnabled()) throw disabledFeatureError('Novels')
-        const loaded = await requireApi().getStory(storyId)
-        upsertStory(loaded)
+    const resolveStorySearchResult=async(storyId:string,query:StorySearchResolve):Promise<StorySearchResult>=>{
+        const {api,owner}=novelAccess()
+        const current=()=>{if(!novelOwnerCurrent(owner))throw new ApiError(409,'The novel workspace changed.',{code:'STORY_SCOPE_CHANGED'})}
+        let result=await api.resolveStoryManuscriptSearch(storyId,query);current()
+        const cache=searchCacheRef.current
+        const known=cache.activeStory?.id===storyId?cache.activeStory:null
+        if(!known||!matchesStorySearchResult(known,result)){
+            const latest=await api.getStoryStudioIndex(storyId);current()
+            result=await api.resolveStoryManuscriptSearch(storyId,query);current()
+            if(!matchesStorySearchResult(latest,result))throw new ApiError(409,'The saved manuscript changed. Search again.',{code:'STORY_SEARCH_SOURCE_CHANGED'})
+            upsertStory(latest)
+        }
+        return result
+    }
+    const restoreStoryRevision = async (storyId:string,sceneId:string,revision:number,write:StorySceneRestoreWrite):Promise<StorySceneRestoreAcknowledgement> => {
+        const {api}=novelAccess()
+        return api.restoreStoryRevision(storyId,sceneId,revision,write)
+    }
+    const recoverStoryRevision = async(storyId:string,sceneId:string,revision:number,write:StorySceneRestoreWrite):Promise<StorySceneRestoreAcknowledgement|null>=>{
+        const {api}=novelAccess()
+        return api.getStoryRevisionRestoreResult(storyId,sceneId,revision,write)
+    }
+    const refreshStory = async (storyId:string):Promise<StoryOutline> => {
+        const {api,owner}=novelAccess()
+        const loaded=await api.getStoryStudioIndex(storyId)
+        if (novelOwnerCurrent(owner)) upsertStory(loaded)
         return loaded
     }
-
-    const updateStoryCardRef = async (storyId: string, refId: string, ref: Partial<StoryCardRef> | Record<string, unknown>): Promise<StoryCardRef> => {
-        if (!isNovelsFeatureEnabled()) throw disabledFeatureError('Novels')
-        if (!isAuthenticated) {
-            openLoginModal()
-            throw new Error('Login required to update story cards')
+    const changeStoryCodex=async(storyId:string,write:StoryCodexWrite):Promise<StoryCodexAcknowledgement>=>{
+        const {api,owner}=novelAccess()
+        const ack=await api.changeStoryCodex(storyId,write)
+        if(novelOwnerCurrent(owner)){
+            setActiveStory((current)=>current?.id===storyId&&isStudioSource(current)?applyStudioCodexAcknowledgement(current,ack):current)
         }
-        const updated = await requireApi().updateStoryCardRef(storyId, refId, ref)
-        const loaded = await requireApi().getStory(storyId)
-        upsertStory(loaded)
+        return ack
+    }
+    const generateStoryCandidate = async (storyId:string,request:StoryGenerateRequest,options?:TextGenerationOptions):Promise<StoryGeneration> => {
+        const {api}=novelAccess()
+        return (await api.generateStory(storyId,request,options)).generation
+    }
+    const previewStoryContext = (storyId:string,request:StoryGenerateRequest):Promise<StoryContextTrace> => novelAccess().api.previewStoryContext(storyId,request)
+    const acceptStoryGeneration = async (storyId:string,generationId:string,commit:StoryGenerationCommit):Promise<StoryScene> => {
+        const {api,owner}=novelAccess()
+        const updated=await api.acceptStoryGeneration(storyId,generationId,commit)
+        if (novelOwnerCurrent(owner)) cacheScene(storyId,updated,generationId)
         return updated
     }
+    const stashStoryGeneration = async (storyId:string,generationId:string) => {await novelAccess().api.stashStoryGeneration(storyId,generationId)}
+    const discardStoryGeneration = async (storyId:string,generationId:string) => {await novelAccess().api.discardStoryGeneration(storyId,generationId)}
 
-    const deleteStoryCardRef = async (storyId: string, refId: string) => {
-        if (!isNovelsFeatureEnabled()) throw disabledFeatureError('Novels')
-        if (!isAuthenticated) {
-            openLoginModal()
-            throw new Error('Login required to remove story cards')
-        }
-        await requireApi().deleteStoryCardRef(storyId, refId)
-        const loaded = await requireApi().getStory(storyId)
-        upsertStory(loaded)
-    }
-
-    const generateStoryCandidate = async (storyId: string, request: StoryGenerateRequest, options?: TextGenerationOptions): Promise<StoryGeneration> => {
-        if (!isNovelsFeatureEnabled()) throw disabledFeatureError('Novels')
-        if (!isAuthenticated) {
-            openLoginModal()
-            throw new Error('Login required to generate story text')
-        }
-        const response = await requireApi().generateStory(storyId, request, options)
-        return response.generation
-    }
-
-    const previewStoryContext = async (storyId: string, request: StoryGenerateRequest): Promise<StoryContextTrace> => {
-        if (!isNovelsFeatureEnabled()) throw disabledFeatureError('Novels')
-        if (!isAuthenticated) {
-            openLoginModal()
-            throw new Error('Login required to preview story context')
-        }
-        return requireApi().previewStoryContext(storyId, request)
-    }
-
-    const acceptStoryGeneration = async (storyId: string, generationId: string): Promise<Story> => {
-        if (!isNovelsFeatureEnabled()) throw disabledFeatureError('Novels')
-        if (!isAuthenticated) {
-            openLoginModal()
-            throw new Error('Login required to accept story generations')
-        }
-        const updated = await requireApi().acceptStoryGeneration(storyId, generationId)
-        upsertStory(updated)
-        return updated
-    }
-
-    const stashStoryGeneration = async (storyId: string, generationId: string) => {
-        if (!isNovelsFeatureEnabled()) throw disabledFeatureError('Novels')
-        if (!isAuthenticated) {
-            openLoginModal()
-            throw new Error('Login required to stash story generations')
-        }
-        await requireApi().stashStoryGeneration(storyId, generationId)
-    }
-
-    const discardStoryGeneration = async (storyId: string, generationId: string) => {
-        if (!isNovelsFeatureEnabled()) throw disabledFeatureError('Novels')
-        if (!isAuthenticated) {
-            openLoginModal()
-            throw new Error('Login required to discard story generations')
-        }
-        await requireApi().discardStoryGeneration(storyId, generationId)
-    }
-    
     // Prepare a local chat. Selecting cards must never create a server session.
     // The caller navigates to the 'character-chat' page.
     const startCharacterChat = async (character: Character, persona: Character): Promise<CharacterChatSession> => {
@@ -999,6 +1069,10 @@ export function DataProvider({ children }: DataProviderProps) {
         if (chat.kind === 'character_group' && !isGroupChatsFeatureEnabled()) throw disabledFeatureError('Group chats')
         if (!chat.isDraft) return Number(chat.id)
         const draft = activeCharacterChat?.id === chat.id ? activeCharacterChat : chat
+        const participantIds = characterChatParticipantIds(draft)
+        if (draft.codexCards?.some((card) => participantIds.has(card.cardId))) {
+            throw new Error(i18n.t('characterChat.codex.participantConflict'))
+        }
         const key = `${accountKey}:${workspaceId ?? 'none'}:chat:${chat.id}`
         const pending = draftRequestsRef.current.get(key)
         if (pending) return pending
@@ -1055,6 +1129,34 @@ export function DataProvider({ children }: DataProviderProps) {
         return chat
     }
 
+    const openCharacterChatById = async (chatId: string, options: { mode?: CharacterChatMode } = {}): Promise<boolean> => {
+        if (!isAuthenticated) {
+            openLoginModal()
+            return false
+        }
+        const normalizedId = String(chatId).trim()
+        if (!normalizedId) return false
+        const existing = (activeCharacterChat && activeCharacterChat.id === normalizedId ? activeCharacterChat : undefined)
+            ?? characterChats.find((chat) => chat.id === normalizedId)
+        if (existing) {
+            resumeCharacterChat(existing, options)
+            navigation?.setPage('character-chat')
+            return true
+        }
+        const numericId = Number(normalizedId)
+        if (!Number.isInteger(numericId) || numericId <= 0) return false
+        try {
+            const loaded = await requireApi().getCharacterChat(numericId)
+            const normalized = upsertCharacterChat(normalizeCharacterChat(loaded, characters))
+            resumeCharacterChat(normalized, options)
+            navigation?.setPage('character-chat')
+            return true
+        } catch (error) {
+            console.warn('[DataProvider] Failed to open character chat by id:', error)
+            return false
+        }
+    }
+
     const addCharacterChatCodexCards = async (
         chatId: string,
         cards: Array<{ kind: CharacterChatCodexCardKind; cardId: string }>,
@@ -1069,6 +1171,12 @@ export function DataProvider({ children }: DataProviderProps) {
                 : characterChats.find((chat) => chat.id === chatId)
             if (!current) throw new Error('Character chat not found')
             return current
+        }
+        const current = activeCharacterChat?.id === chatId
+            ? activeCharacterChat
+            : characterChats.find((chat) => chat.id === chatId)
+        if (current && cards.some((card) => characterChatParticipantIds(current).has(card.cardId))) {
+            throw new Error(i18n.t('characterChat.codex.participantConflict'))
         }
         if (activeCharacterChat?.id === chatId && activeCharacterChat.isDraft) {
             const staged = [...(activeCharacterChat.codexCards ?? [])]
@@ -1096,6 +1204,10 @@ export function DataProvider({ children }: DataProviderProps) {
             throw new Error('Login required to edit chat codex')
         }
         if (activeCharacterChat?.id === chatId && activeCharacterChat.isDraft) {
+            const card = activeCharacterChat.codexCards?.find((entry) => entry.id === codexCardId)
+            if (enabled && card && characterChatParticipantIds(activeCharacterChat).has(card.cardId)) {
+                throw new Error(i18n.t('characterChat.codex.participantConflict'))
+            }
             return upsertCharacterChat({ ...activeCharacterChat,
                 codexCards: activeCharacterChat.codexCards?.map((card) => card.id === codexCardId ? { ...card, enabled } : card) })
         }
@@ -1228,7 +1340,7 @@ export function DataProvider({ children }: DataProviderProps) {
                     && activeStoryOwnerRef.current === (expiredAccountKeyRef.current ?? accountKey)
                     && activeStory !== null
                 if (preserveOwnedStory) {
-                    setStories(activeStory ? [activeStory] : [])
+                    setStories(activeStory&&!isErasedStory(activeStory.id) ? [storyOutlineSummary(activeStory)] : [])
                 } else {
                     setStories([])
                     setActiveStory(null)
@@ -1340,8 +1452,7 @@ export function DataProvider({ children }: DataProviderProps) {
                 return buildInProgressAdventure(session, template, snapshot)
             })
 
-            // Transform character chats. Prefer live library cards; fall back to
-            // frozen snapshots when a source card was deleted.
+            // Existing chats display the frozen context the server actually uses.
             const transformedChats: CharacterChatSession[] = asArray(loadedChats)
                 .map((chat: any) => normalizeCharacterChat(chat, transformedCharacters))
                 .filter((chat) => isGroupChatsFeatureEnabled() || chat.kind !== 'character_group')
@@ -1361,7 +1472,7 @@ export function DataProvider({ children }: DataProviderProps) {
             if (sessionsRes.status === 'fulfilled') setInProgressAdventures(transformedInProgress)
             if (chatsRes.status === 'fulfilled') setCharacterChats(transformedChats)
             if (lorebooksRes.status === 'fulfilled') setLorebooks(transformedLorebooks)
-            if (storiesRes.status === 'fulfilled') setStories(asArray(loadedStories) as Story[])
+            if (storiesRes.status === 'fulfilled') setStories((asArray(loadedStories) as Story[]).filter((item)=>!isErasedStory(item.id)))
 
             if (import.meta.env.DEV) console.log('[DataProvider] State updated successfully')
             // Silent refresh never touches isLoading (would unmount the page), but
@@ -1562,21 +1673,32 @@ export function DataProvider({ children }: DataProviderProps) {
         deleteLorebook,
 
         stories,
-        setStories,
+        setStories:(incoming)=>{if(novelOwnerCurrent(eraseCaller))setStories(incoming.filter((item)=>!isErasedStory(item.id)))},
         activeStory,
+        sceneConfirmation,
+        consumeSceneConfirmation,
         setActiveStory: setOwnedActiveStory,
         createStory,
+        novelCreations,
         openStory,
         updateStory,
         deleteStory,
-        createStoryChapter,
+        forgetErasedStory,
+        novelLifecycleStorageFailed:lifecycleRetention.failed,
         updateStoryChapter,
-        deleteStoryChapter,
-        addStoryCardRef,
-        addStoryCardRefs,
+        updateStoryPart,
+        updateStoryScene,
+        changeStoryStructure,
+        recoverStoryStructure,
+        storyLifecycle,
+        pendingStoryLifecycle,
+        retryStoryLifecycle,
+        restoreStoryRevision,
+        recoverStoryRevision,
+        refreshStoryScene,
+        resolveStorySearchResult,
         refreshStory,
-        updateStoryCardRef,
-        deleteStoryCardRef,
+        changeStoryCodex,
         previewStoryContext,
         generateStoryCandidate,
         acceptStoryGeneration,
@@ -1591,6 +1713,7 @@ export function DataProvider({ children }: DataProviderProps) {
         ensureCharacterChatSession,
         characterChats,
         resumeCharacterChat,
+        openCharacterChatById,
         addCharacterChatCodexCards,
         toggleCharacterChatCodexCard,
         removeCharacterChatCodexCard,

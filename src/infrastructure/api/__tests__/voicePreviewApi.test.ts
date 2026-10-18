@@ -1,5 +1,15 @@
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiService, isProtectedMediaUrl } from '../index'
+
+// These transport tests grant the voice entitlement; permission handshake
+// behavior has its own integration suite.
+vi.mock('@/shared/featureFlags', async importOriginal => {
+    const original = await importOriginal<typeof import('@/shared/featureFlags')>()
+    return { ...original, assertFeatureEnabled: (key: Parameters<typeof original.assertFeatureEnabled>[0]) => {
+        if (key !== 'voices') original.assertFeatureEnabled(key)
+    } }
+})
 
 function jsonResponse(body: unknown, status = 200): Response {
     return {
@@ -24,7 +34,7 @@ const WORKSPACE = '0b6f4c8e-2f1a-4d3b-9c7e-5a1d2e3f4a5b'
 
 describe('recipe preview API (D18)', () => {
     beforeEach(() => {
-        vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'true')
+        setTestFeatureFlags({ voices: true })
         localStorage.clear()
         localStorage.setItem('magic_worlds:token', 'token-1')
         vi.spyOn(console, 'error').mockImplementation(() => undefined)
@@ -36,6 +46,24 @@ describe('recipe preview API (D18)', () => {
         vi.unstubAllEnvs()
         vi.restoreAllMocks()
         localStorage.clear()
+    })
+
+    it.each(['recipe', 'authored'])('carries the %s spending cap and preserves the server confirmation precondition', async kind => {
+        const detail = { code: 'preview_credit_confirmation_required', message: 'Confirm the credit price.',
+            required_credit_cost: 1, previews_left: 7, free_previews_left: 0, retryable: false }
+        const paid = { cache_key: 'paid', previews_left: 6, free_previews_left: 0, charged_credits: 1, cached: false }
+        const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ detail }, 409)).mockResolvedValueOnce(jsonResponse(paid))
+        vi.stubGlobal('fetch', fetchMock)
+        const preview = (cap: 0 | 1) => kind === 'recipe'
+            ? apiService.withWorkspace(WORKSPACE).previewVoice({ voice_key: 'vk_0123456789abcdef0123456789abcdef',
+                settings: null, emotion: null, text_id: 'narration', language: 'en', tier: 'standard', max_credit_cost: cap })
+            : apiService.withWorkspace(WORKSPACE).previewVoicePerformance({ voice_key: 'vk_0123456789abcdef0123456789abcdef',
+                text: 'Stay close.', language: 'en', kind: 'narration', performance: { version: 1, offset_unit: 'unicode_code_points', dictionary_refs: [], spans: [], events: [] }, max_credit_cost: cap })
+        await expect(preview(0)).rejects.toMatchObject({ status: 409, code: detail.code, details: detail })
+        expect(fetchMock).toHaveBeenCalledTimes(1)
+        await expect(preview(1)).resolves.toEqual(paid)
+        expect(fetchMock.mock.calls.map((_, index) => JSON.parse(String(requestOf(fetchMock, index).init.body)).max_credit_cost)).toEqual([0, 1])
+        expect((requestOf(fetchMock).init.headers as Record<string, string>)['X-Workspace-Id']).toBeUndefined()
     })
 
     it('posts a fixed text id, account scoped, with the abort signal', async () => {

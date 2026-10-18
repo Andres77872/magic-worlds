@@ -316,6 +316,9 @@ export interface MembershipPlanLimit {
  * Stripe catalog and therefore cannot be edited locally.
  */
 export interface MembershipPlan {
+    feature_flags?: Record<string, boolean | null> | null
+    version?: string
+    feature_revision?: string
     plan_code: string
     display_name: string
     credit_reset_period: 'daily' | string
@@ -330,12 +333,17 @@ export interface MembershipPlan {
 }
 
 export interface MembershipPlanListResponse {
+    catalog_revision?: string
+    flags?: import('../featureFlagRuntime').FeatureFlagDefinition[]
     items: MembershipPlan[]
     /** Every runtime operation a plan must define a limit for, in display order. */
     operations: string[]
 }
 
 export interface MembershipPlanCreateRequest {
+    feature_flags?: Record<string, boolean | null> | null
+    catalog_revision?: string
+    mutation_id?: string
     plan_code: string
     display_name: string
     daily_credit_limit: number
@@ -344,6 +352,10 @@ export interface MembershipPlanCreateRequest {
 }
 
 export interface MembershipPlanUpdateRequest {
+    feature_flags?: Record<string, boolean | null> | null
+    catalog_revision?: string
+    expected_version?: string
+    mutation_id?: string
     display_name?: string | null
     daily_credit_limit?: number | null
     is_active?: boolean | null

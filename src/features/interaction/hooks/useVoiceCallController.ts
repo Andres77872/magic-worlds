@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
+import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react'
 import { makeRequestId } from '@/utils/uuid'
 import { registerActiveVoiceCall } from '@/features/call/activeVoiceCall'
+import { reduceLiveTranscript, type LiveTranscriptLine } from '@/features/call/liveTranscript'
 import { voiceErrorCode } from '@/infrastructure/api/voiceSocket'
 import type {
     VoiceAudioFormat,
@@ -14,13 +16,14 @@ import type {
     VoiceSocketServerFrame,
 } from '@/shared/types/voice.types'
 import type { EffectiveVoice, VoiceSubstitutionReason } from '@/shared/types/voiceCatalog.types'
+import type { StoredCharacterVoice } from '@/shared/types/voicePreset.types'
 import { isSubstitutionReason, readEffectiveVoice } from '@/shared/voice/effectiveVoice'
 import { VoicePlaybackBuffer, type VoicePlaybackState } from '../audio/voicePlaybackBuffer'
 import { DEFAULT_CALL_AUDIO_FORMAT, isPlayableCallChunk } from '../audio/audioFormat'
 import type { CapturedVoiceSegment } from '../audio/voiceVadWorklet'
 import { segmentUploadVad } from '../audio/speechEndLag'
 import { CallPlaybackTiming } from '../audio/callPlaybackTiming'
-import { isFrontendVoiceModeEnabled } from '@/shared/voiceFeatureFlag'
+import { isCallsFeatureEnabled } from '@/shared/featureFlags'
 import { type MicrophoneCaptureApi, type MicrophoneCaptureStatus, type VoiceVadTuning, useMicrophoneCapture } from './useMicrophoneCapture'
 import { type VoiceCallSocketApi, useVoiceCallSocket } from './useVoiceCallSocket'
 import { useSessionWorkspace } from './useSessionWorkspace'
@@ -68,6 +71,8 @@ export interface UseVoiceCallControllerOptions {
     autoBargeIn?: boolean
     vad?: VoiceVadTuning
     playbackBuffer?: VoicePlaybackBuffer
+    /** The voice picked for this call only (sent on `voice_start`); null/absent: the chat's voice. */
+    callVoice?: StoredCharacterVoice | null
 }
 
 export interface VoiceCallControllerApi {
@@ -79,6 +84,8 @@ export interface VoiceCallControllerApi {
     limits: VoiceCallLimits | null
     transcript: string | null
     assistantText: string
+    /** The running transcript of this call (final user lines + streamed replies), oldest first. */
+    transcriptLines: readonly LiveTranscriptLine[]
     error: VoiceCallControllerError | null
     /** Why the call ended (server `voice_ended.reason`, or `user`), once it has. */
     endReason: VoiceEndReason | null
@@ -230,13 +237,14 @@ export function deriveVoiceCallState(input: DerivedStateInput): VoiceCallState {
 }
 
 export function useVoiceCallController(options: UseVoiceCallControllerOptions): VoiceCallControllerApi {
+    useFeatureFlags()
     const [createdSessionId, setCreatedSessionId] = useState<number | null>(null)
     const sessionId = createdSessionId ?? options.sessionId
     const sessionIdRef = useRef(sessionId)
     useEffect(() => { sessionIdRef.current = sessionId }, [sessionId])
     const optionsRef = useRef(options)
     useEffect(() => { optionsRef.current = options })
-    const featureEnabled = isFrontendVoiceModeEnabled() && (options.enabled ?? true)
+    const featureEnabled = isCallsFeatureEnabled() && (options.enabled ?? true)
     const mountedRef = useRef(true)
     // Workspace R1: every request of this call rides the chat's own workspace.
     const callWorkspace = useSessionWorkspace(options.workspaceId)
@@ -274,6 +282,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
     const [limits, setLimits] = useState<VoiceCallLimits | null>(null)
     const [transcript, setTranscript] = useState<string | null>(null)
     const [assistantText, setAssistantText] = useState('')
+    const [transcriptLines, dispatchTranscript] = useReducer(reduceLiveTranscript, [])
     const [error, setError] = useState<VoiceCallControllerError | null>(null)
     const [endReason, setEndReason] = useState<VoiceEndReason | null>(null)
     const [uploadQueueDepth, setUploadQueueDepth] = useState(0)
@@ -501,6 +510,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         clearReadyTimeout()
         clearBargeIn()
         releaseWakeLock()
+        dispatchTranscript({ type: 'settle' })
         serverTurnActiveRef.current = false
         serverTurnIdRef.current = null
         userSpeakingRef.current = false
@@ -635,7 +645,10 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         // WS-C1: name the interrupted turn and how much of it played, read before the
         // cancel resets the player. With no turn playing the frame is the bare one.
         const interruptedTurnId = activeTurnIdRef.current
-        if (interruptedTurnId) playbackTimingRef.current.cancelled(currentVoiceSessionId, interruptedTurnId)
+        if (interruptedTurnId) {
+            playbackTimingRef.current.cancelled(currentVoiceSessionId, interruptedTurnId)
+            dispatchTranscript({ type: 'assistant_interrupted', turnId: interruptedTurnId })
+        }
         const frame: Extract<VoiceSocketClientFrame, { type: 'voice_barge_in' }> = { type: 'voice_barge_in', reason: 'barge_in' }
         if (interruptedTurnId) {
             frame.turn_id = interruptedTurnId
@@ -763,6 +776,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         serverTurnActiveRef.current = true
         serverTurnIdRef.current = frame.turn_id
         setTranscript(frame.text)
+        dispatchTranscript({ type: 'user_final', turnId: frame.turn_id, text: frame.text })
         setTurnPhase('thinking')
     }, [clearNotice, setTurnPhase])
 
@@ -773,6 +787,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         activeTurnIdRef.current = frame.turn_id
         setActiveTurnId(frame.turn_id)
         setAssistantText('')
+        dispatchTranscript({ type: 'assistant_start', turnId: frame.turn_id })
         captionTurnIdRef.current = frame.turn_id
         if (unsupportedTurnRef.current !== null) {
             unsupportedTurnRef.current = null
@@ -814,8 +829,10 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
 
     /** WS-S3/S4: the server cut the reply where playback stopped; the captions follow (code points, as the BFF counts). */
     const truncateCaption = useCallback((turnId: string | undefined, truncated: boolean | undefined, keptChars: number | undefined) => {
-        if (truncated !== true || !turnId || turnId !== captionTurnIdRef.current) return
+        if (truncated !== true || !turnId) return
         if (typeof keptChars !== 'number' || !Number.isInteger(keptChars) || keptChars < 0) return
+        dispatchTranscript({ type: 'assistant_truncate', turnId, keptChars })
+        if (turnId !== captionTurnIdRef.current) return
         setAssistantText((current) => {
             const points = Array.from(current)
             return points.length > keptChars ? points.slice(0, keptChars).join('') : current
@@ -824,6 +841,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
 
     const handleTurnEnd = useCallback((frame: VoiceTurnEndFrame) => {
         truncateCaption(frame.turn_id, frame.truncated, frame.kept_chars)
+        dispatchTranscript({ type: 'assistant_end', turnId: frame.turn_id, status: frame.status })
         // The end of a turn that was already superseded must not settle the new one.
         if (serverTurnIdRef.current !== null && frame.turn_id !== serverTurnIdRef.current) return
         serverTurnActiveRef.current = false
@@ -838,6 +856,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
     const handleCancelled = useCallback((frame: VoiceCancelledFrame) => {
         if (frame.turn_id) playbackTimingRef.current.cancelled(frame.voice_session_id, frame.turn_id)
         truncateCaption(frame.turn_id, frame.truncated, frame.kept_chars)
+        if (frame.turn_id && (frame.reason === 'barge_in' || frame.truncated === true)) dispatchTranscript({ type: 'assistant_interrupted', turnId: frame.turn_id })
         playbackRef.current?.cancel(frame)
         if (!frame.turn_id || frame.turn_id === activeTurnIdRef.current) {
             activeTurnIdRef.current = null
@@ -921,7 +940,9 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         onTranscriptFinal: handleTranscriptFinal,
         onTurnStart: handleTurnStart,
         onAssistantDelta: (frame) => {
-            if (frame.turn_id === activeTurnIdRef.current) setAssistantText((current) => `${current}${frame.content}`)
+            if (frame.turn_id !== activeTurnIdRef.current) return
+            setAssistantText((current) => `${current}${frame.content}`)
+            dispatchTranscript({ type: 'assistant_delta', turnId: frame.turn_id, content: frame.content })
         },
         onAudioChunk: handleAudioChunk,
         onAudioFinal: handleAudioFinal,
@@ -977,6 +998,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         setEndReason(null)
         setTranscript(null)
         setAssistantText('')
+        dispatchTranscript({ type: 'reset' })
         if (!featureEnabled) {
             setLifecycle('disabled')
             return false
@@ -1047,7 +1069,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         setVoiceSessionId(null)
         console.info('[voice-call][CONNECTING] starting voice call', { sessionId: currentSessionId, clientCallId: clientCallIdRef.current })
         setLifecycle('connecting')
-        socketRef.current?.start(buildVoiceStartFrame({ clientCallId: clientCallIdRef.current }))
+        socketRef.current?.start(buildVoiceStartFrame({ clientCallId: clientCallIdRef.current, voice: optionsRef.current.callVoice ?? null }))
         // If voice_ready never arrives, captured segments queue silently and the call sits
         // on "Connecting" forever — surface an error instead of waiting endlessly.
         clearReadyTimeout()
@@ -1196,6 +1218,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         limits,
         transcript,
         assistantText,
+        transcriptLines,
         error,
         endReason,
         uploadQueueDepth,
@@ -1223,11 +1246,12 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
     }
 }
 
-function buildVoiceStartFrame({ clientCallId }: { clientCallId: string }): VoiceStartFrame {
+function buildVoiceStartFrame({ clientCallId, voice }: { clientCallId: string; voice: StoredCharacterVoice | null }): VoiceStartFrame {
     const audioWorklet = canUseAudioWorklet()
     return {
         type: 'voice_start',
         client_call_id: clientCallId,
+        ...(voice ? { voice } : {}),
         audio: {
             preferred_encoding: 'audio/wav;codec=pcm_s16le',
             sample_rate: 16000,

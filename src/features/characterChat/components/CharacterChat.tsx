@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * 1:1 character chat screen.
  *
@@ -16,7 +17,7 @@ import { characterChatConfig } from '../../interaction/chatSessionConfig'
 import { useSessionWorkspace } from '../../interaction/hooks/useSessionWorkspace'
 import { organizationWorkspaceId } from '@/shared/hooks/useScopedApi'
 import { LoadingSpinner } from '../../../ui/components'
-import { isFrontendVoiceModeEnabled } from '@/shared/voiceFeatureFlag'
+import { isCallsFeatureEnabled } from '@/shared/featureFlags'
 import { InteractionCenterPanel, InteractionTopBar, SidePanelDrawer } from '../../interaction/components'
 import { CallScreen } from '../../call'
 import { chatDisplayTitle } from '@/utils/chatTitle'
@@ -25,6 +26,7 @@ import { SessionSceneNarration } from '@/features/interaction/components/SceneNa
 import { useWorkspaceReadOnly } from '@/shared/hooks/useWorkspaceReadOnly'
 
 export function CharacterChat() {
+    useFeatureFlags()
     const { goBack, setPage } = useNavigation()
     const {
         activeCharacterChat,
@@ -63,8 +65,11 @@ export function CharacterChat() {
         editCharacter(character)
         setPage('character')
     }
-    const voiceEnabled = isFrontendVoiceModeEnabled()
-    const mode = activeCharacterChatMode === 'voice' && voiceEnabled ? 'voice' : 'text'
+    const voiceEnabled = isCallsFeatureEnabled()
+    // Calls are 1:1 (group calls are planned): a group chat always opens as text,
+    // even when a stale voice intent survives.
+    const isGroupChat = activeCharacterChat.kind === 'character_group' || activeCast.length > 1
+    const mode = activeCharacterChatMode === 'voice' && voiceEnabled && !isGroupChat ? 'voice' : 'text'
     // Flip the active chat between text and voice — text renders the chat engine, voice
     // renders the immersive CallScreen (below), each keyed so they mount/unmount cleanly.
     const handleSetMode = (next: 'text' | 'voice') => resumeCharacterChat(activeCharacterChat, { mode: next })
@@ -125,6 +130,7 @@ function CharacterChatView({
     onBack,
     onEditCharacter,
 }: CharacterChatViewProps) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const cast = useMemo(
         () => (chat.characters?.length ? chat.characters : chat.character ? [chat.character] : []),

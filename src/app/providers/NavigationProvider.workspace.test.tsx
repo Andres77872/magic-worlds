@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
 import { useContext, useEffect, useLayoutEffect, useState, type ReactNode } from 'react'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -114,7 +117,7 @@ function deferred<T>() {
 
 describe('NavigationProvider workspace switch coordinator', () => {
     beforeEach(() => {
-        vi.stubEnv('VITE_FEATURE_WORKSPACES_ENABLED', 'true')
+
         window.history.replaceState(null, '', MAIN_LIBRARY)
         mocks.getWorkspace.mockReset()
         mocks.resolveContent.mockReset()
@@ -254,9 +257,9 @@ describe('NavigationProvider workspace switch coordinator', () => {
     })
 })
 
-describe('NavigationProvider with the Workspace R1 UI off', () => {
+describe('NavigationProvider with globally available workspaces', () => {
     beforeEach(() => {
-        vi.stubEnv('VITE_FEATURE_WORKSPACES_ENABLED', 'false')
+
         window.history.replaceState(null, '', '#/gallery/media')
         mocks.getWorkspace.mockReset()
         mocks.commit.mockReset()
@@ -266,24 +269,22 @@ describe('NavigationProvider with the Workspace R1 UI off', () => {
         vi.unstubAllEnvs()
     })
 
-    it('shows a link into a non-default workspace as unavailable instead of switching', async () => {
+    it('opens a non-default workspace without any workspace permission', async () => {
+        mocks.getWorkspace.mockResolvedValue(novel)
         renderCoordinator()
         let outcome: NavigateOutcome | undefined
         await act(async () => {
             outcome = await coordinator!.navigate({ page: 'gallery-media', workspace: novel })
         })
-        expect(outcome).toBe('unavailable')
-
-        act(() => navigation!.setPage('gallery-lorebooks', { hash: `#/gallery/lorebooks?workspace=${OTHER_WORKSPACE_ID}` }))
-        expect(screen.getByTestId('route-status')).toHaveTextContent('unavailable')
-        expect(mocks.commit).not.toHaveBeenCalled()
-        expect(mocks.getWorkspace).not.toHaveBeenCalled()
+        expect(outcome).toBe('navigated')
+        expect(mocks.commit).toHaveBeenCalledWith(OTHER_WORKSPACE_ID)
+        expect(mocks.getWorkspace).toHaveBeenCalled()
     })
 
-    it('keeps legacy gallery hashes and unstamped URLs as they are', () => {
+    it('normalizes a legacy gallery into the global Library', () => {
         renderCoordinator()
         act(() => navigation!.setPage('gallery-worlds'))
-        expect(screen.getByTestId('page')).toHaveTextContent('gallery-worlds')
-        expect(window.location.hash).toBe('#/gallery/worlds')
+        expect(screen.getByTestId('page')).toHaveTextContent('library')
+        expect(window.location.hash).toBe(`#/library?workspace=${TEST_WORKSPACE_ID}&card_type=world`)
     })
 })

@@ -107,7 +107,7 @@ export function matcherIsEmpty(matcher: TriggerMatcher | null | undefined): bool
  * Find every trigger hit in `text`, resolved to a non-overlapping set with
  * longest-match-wins (so "Iron Citadel" beats a nested "Iron"), sorted by start.
  */
-export function scanText(text: string, matcher: TriggerMatcher | null | undefined): TriggerMatch[] {
+export function scanText(text: string, matcher: TriggerMatcher | null | undefined, options?: { includeOverlaps?: boolean }): TriggerMatch[] {
     if (!text || matcherIsEmpty(matcher)) return []
     const raw: TriggerMatch[] = []
     for (const { regex, entry, lorebookName } of matcher!.keys) {
@@ -126,6 +126,9 @@ export function scanText(text: string, matcher: TriggerMatcher | null | undefine
     // Longest first at any given start, then greedily drop anything that overlaps a
     // match we already kept.
     raw.sort((a, b) => a.start - b.start || b.end - a.end)
+    // Manuscript inspection must present every identity for an ambiguous name.
+    // Existing chat decoration/segmentation callers retain greedy resolution.
+    if (options?.includeOverlaps) return raw
     const resolved: TriggerMatch[] = []
     let lastEnd = -1
     for (const match of raw) {

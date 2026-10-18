@@ -3,15 +3,17 @@
  *
  * Replaces the old SSE `POST /chat` reader. One socket per adventure carries the
  * full typed envelope (see `ChatSocketServerMessage`): narrative `delta` frames,
- * a `metadata` frame (forwardOptions + imagePrompt), `done`/`error`, plus
- * reserved `image`/`action` frames for the future. The client sends `chat`,
+ * a `metadata` frame (forwardOptions + imagePrompt), `done`/`error`, the
+ * `image_*` and `tts_*` media frames, plus reserved `image`/`action` frames for
+ * the future. The client sends `chat` (with an optional `image` choice),
  * `cancel`, and `ping` frames. Auth rides the handshake via the
  * `Sec-WebSocket-Protocol` subprotocol since browsers can't set headers on a WS.
  */
 import { isVoicesFeatureEnabled } from '@/shared/featureFlags'
+import { featureFlagRuntime } from '@/shared/featureFlagRuntime'
 
 import type { LlmRequest } from '@/shared/types/llm.types'
-import type { ChatSocketServerMessage } from '../../shared/types/interaction.types'
+import type { ChatImageRequest, ChatSocketServerMessage } from '../../shared/types/interaction.types'
 import { API_BASE_URL } from './baseUrl'
 import { authSession, type AuthSessionSnapshot } from './authSession'
 import { generateUUID } from '@/utils/uuid'
@@ -104,7 +106,10 @@ export class ChatSocket {
     // A chat frame requested before the socket is OPEN; flushed on connect.
     private pendingChat: string | null = null
     private pendingLlm: (() => LlmRequest) | null = null
+    private pendingImage: (() => ChatImageRequest | undefined) | null = null
     private pendingExpiry: ReturnType<typeof setTimeout> | null = null
+    // The current socket's `ready` frame arrived: the server named what the chat frame accepts.
+    private readyReceived = false
     private sentChat = false
     private sentRequestId: string | undefined
 
@@ -133,6 +138,7 @@ export class ChatSocket {
         this.socketOwner = authSession.getSnapshot()
 
         this.setStatus('connecting')
+        this.readyReceived = false
         const url = `${toWsUrl(API_BASE_URL)}/${this.basePath}/${this.sessionId}/ws?workspace_id=${encodeURIComponent(this.workspaceId)}`
         let ws: WebSocket
         try {
@@ -156,21 +162,7 @@ export class ChatSocket {
             this.lastFrameAt = Date.now()
             this.setStatus('open')
             this.startHeartbeat()
-            if (this.pendingChat) {
-                const pendingFrame = this.pendingChat
-                const storedToken = getStoredToken()
-                if (!storedToken) {
-                    this.clearPendingChat()
-                    this.expireAuth()
-                    return
-                }
-                if (shouldRefreshBeforeChat(storedToken)) {
-                    void this.refreshBeforeSendingPendingChat(pendingFrame)
-                    return
-                }
-                this.sendChatFrame(ws, this.pendingChat, this.pendingLlm ?? (() => ({ selection: { mode: 'inherit' } })))
-                this.clearPendingChat()
-            }
+            this.flushPendingChat(ws)
         }
 
         ws.onmessage = (event) => {
@@ -192,9 +184,16 @@ export class ChatSocket {
                     // socket is healthy. A mere TCP/WebSocket open is insufficient.
                     this.authRecoveryAttempted = false
                     this.terminalAuthReported = false
+                    this.readyReceived = true
                 }
                 if ((message.type === 'done' || message.type === 'error') && (!message.request_id || message.request_id === this.sentRequestId)) this.sentChat = false
+                if (message.type === 'error' && typeof message.code === 'string' && message.code.startsWith('FEATURE_FLAG_')) {
+                    featureFlagRuntime.invalidate()
+                    window.dispatchEvent(new Event('feature-flags:invalidate'))
+                }
                 this.handlers.onMessage(message)
+                // A frame with an image choice waited for the capabilities the handler just read.
+                if (message.type === 'ready' && this.ws === ws) this.flushPendingChat(ws)
             }
         }
 
@@ -207,6 +206,13 @@ export class ChatSocket {
             if (event.code === 4401) {
                 if (!this.isSocketOwnerCurrent()) return
                 void this.recoverFromAuthClose()
+                return
+            }
+
+            if (event.code === 4453) {
+                this.clearPendingChat()
+                featureFlagRuntime.invalidate()
+                window.dispatchEvent(new Event('feature-flags:invalidate'))
                 return
             }
 
@@ -247,17 +253,42 @@ export class ChatSocket {
         ws.onerror = () => {}
     }
 
+    /**
+     * Sends the queued chat frame on an open socket. A frame with an image
+     * choice waits for the server's `ready` frame: whether the chat frame may
+     * carry `image` at all is named there (`capabilities.chat_image_request`).
+     */
+    private flushPendingChat(ws: WebSocket): void {
+        if (!this.pendingChat || ws.readyState !== WebSocket.OPEN) return
+        if (this.pendingImage && !this.readyReceived) return
+        const pendingFrame = this.pendingChat
+        const storedToken = getStoredToken()
+        if (!storedToken) {
+            this.clearPendingChat()
+            this.expireAuth()
+            return
+        }
+        if (shouldRefreshBeforeChat(storedToken)) {
+            void this.refreshBeforeSendingPendingChat(pendingFrame)
+            return
+        }
+        this.sendChatFrame(ws, pendingFrame, this.pendingLlm ?? (() => ({ selection: { mode: 'inherit' } })), this.pendingImage ?? undefined)
+        this.clearPendingChat()
+    }
+
     private clearPendingChat(): void {
         this.pendingChat = null
         this.pendingLlm = null
+        this.pendingImage = null
         if (this.pendingExpiry !== null) clearTimeout(this.pendingExpiry)
         this.pendingExpiry = null
     }
 
-    private queueChat(frame: string, materialize: () => LlmRequest): void {
+    private queueChat(frame: string, materialize: () => LlmRequest, materializeImage?: () => ChatImageRequest | undefined): void {
         this.clearPendingChat()
         this.pendingChat = frame
         this.pendingLlm = materialize
+        this.pendingImage = materializeImage ?? null
         this.pendingExpiry = setTimeout(() => {
             if (this.pendingChat !== frame) return
             const requestId = JSON.parse(frame).request_id
@@ -266,24 +297,34 @@ export class ChatSocket {
         }, 30_000)
     }
 
-    private sendChatFrame(ws: WebSocket, frame: string, materialize: () => LlmRequest): void {
+    // Keys (`llm.credentials`, `image.credentials`) are read at this moment, sent once and dropped.
+    private sendChatFrame(ws: WebSocket, frame: string, materialize: () => LlmRequest, materializeImage?: () => ChatImageRequest | undefined): void {
         let llm: LlmRequest | null = null
+        let image: ChatImageRequest | undefined
         const request = JSON.parse(frame)
         try {
             llm = materialize()
             if (llm.credentials && !API_BASE_URL.startsWith('https://')) throw new Error('LLM_CREDENTIAL_HTTPS_REQUIRED')
-            ws.send(JSON.stringify({ ...request, llm }))
+            image = materializeImage?.()
+            if (image?.credentials && !API_BASE_URL.startsWith('https://')) delete image.credentials
+            ws.send(JSON.stringify({ ...request, llm, ...(image ? { image } : {}) }))
             this.sentChat = true
             this.sentRequestId = request.request_id
         } catch {
             this.handlers.onMessage({ type: 'error', category: 'request', message: 'Chat profile or credential is unavailable.', request_id: request.request_id })
         } finally {
             if (llm) delete llm.credentials
+            if (image) delete image.credentials
         }
     }
 
-    /** Request a generation. Queues until the socket is OPEN, (re)connecting if needed. */
-    sendChat(content: string, requestId?: string, existingUserMessageId?: number, materializeLlm: () => LlmRequest = () => ({ selection: { mode: 'inherit' } })): void {
+    /**
+     * Request a generation. Queues until the socket is OPEN, (re)connecting if needed.
+     * `materializeImage` is read when the frame leaves; undefined sends no `image`
+     * field, and the server then follows its default.
+     */
+    sendChat(content: string, requestId?: string, existingUserMessageId?: number, materializeLlm: () => LlmRequest = () => ({ selection: { mode: 'inherit' } }),
+        materializeImage?: () => ChatImageRequest | undefined): void {
         const id = requestId ?? generateUUID()
         const frame = JSON.stringify({
             type: 'chat',
@@ -297,15 +338,20 @@ export class ChatSocket {
             return
         }
         if (shouldRefreshBeforeChat(token)) {
-            this.queueChat(frame, materializeLlm)
+            this.queueChat(frame, materializeLlm, materializeImage)
             void this.refreshBeforeSendingPendingChat(frame)
             return
         }
         if (this.isOpen) {
-            this.sendChatFrame(this.ws!, frame, materializeLlm)
+            if (materializeImage && !this.readyReceived) {
+                // Open but not ready yet: the ready frame flushes it with the server's capabilities.
+                this.queueChat(frame, materializeLlm, materializeImage)
+                return
+            }
+            this.sendChatFrame(this.ws!, frame, materializeLlm, materializeImage)
             return
         }
-        this.queueChat(frame, materializeLlm)
+        this.queueChat(frame, materializeLlm, materializeImage)
         // CONNECTING: the in-flight onopen will flush pendingChat.
         if (this.ws?.readyState === WebSocket.CONNECTING) return
         // null / CLOSING / CLOSED: drop the dead socket and (re)connect so the

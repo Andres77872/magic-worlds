@@ -170,6 +170,18 @@ function providerEntries(raw: unknown): VoiceProviderCapabilities[] {
         if (entry.provider === 'fish_audio' && entry.profile_id !== 'fish_drama_3') return []
         const wire = record(entry.surfaces)
         return [{
+            models: Array.isArray(entry.models) ? entry.models.flatMap((raw) => {
+                const model = record(raw)
+                const allowed = entry.provider === 'fish_audio' ? ['drama-3', 's2.1-pro'] : ['eleven_v4', 'eleven_v4_turbo']
+                if (!model || typeof model.model_id !== 'string' || !allowed.includes(model.model_id)) return []
+                return [{ model_id: model.model_id as 'eleven_v4' | 'eleven_v4_turbo' | 'drama-3' | 's2.1-pro',
+                    label: typeof model.label === 'string' ? model.label : model.model_id,
+                    settings: Array.isArray(model.settings) ? model.settings.filter((v): v is string => typeof v === 'string') : [],
+                    surfaces: Array.isArray(model.surfaces) ? model.surfaces.filter((v): v is string => typeof v === 'string') : [],
+                    supports_emotion: model.supports_emotion === true, supports_direction: model.supports_direction === true,
+                    supports_pronunciation: model.supports_pronunciation === true, supports_scoped_delivery: model.supports_scoped_delivery === true,
+                }]
+            }) : [],
             provider: entry.provider,
             profile_id: entry.profile_id,
             label: typeof entry.label === 'string' ? entry.label : entry.provider,

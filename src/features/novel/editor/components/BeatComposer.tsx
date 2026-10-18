@@ -24,6 +24,7 @@ import { Button, Chip, Icon } from '@/ui/primitives'
 import type { BeatLength } from '../types'
 
 interface BeatComposerProps {
+    submitDisabled?: boolean
     anchor: { left: number; top: number; caretTop: number }
     /** The editor's scrollport — the composer flips above the caret inside it. */
     containerRef: RefObject<HTMLElement | null>
@@ -49,6 +50,7 @@ const LENGTHS: readonly BeatLength[] = ['short', 'medium', 'long']
 const MAX_TEXTAREA_HEIGHT = 176
 
 export function BeatComposer({
+    submitDisabled = false,
     anchor,
     containerRef,
     instruction,
@@ -171,7 +173,7 @@ export function BeatComposer({
         }
         if (event.key === 'Enter' && !event.shiftKey) {
             event.preventDefault()
-            onSubmit()
+            if (!submitDisabled) onSubmit()
         }
     }
 
@@ -261,7 +263,7 @@ export function BeatComposer({
                 <Button variant="ghost" size="sm" onClick={onCancel}>
                     {t('novelEditor.beat.cancel')}
                 </Button>
-                <Button variant="primary" size="sm" onClick={onSubmit} data-testid="beat-write">
+                <Button variant="primary" size="sm" disabled={submitDisabled} onClick={onSubmit} data-testid="beat-write">
                     {t('novelEditor.beat.write')}
                 </Button>
             </div>

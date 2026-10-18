@@ -15,11 +15,13 @@ import type {
 } from './aiCard.types'
 import type { LlmExecutionProvenance, LlmRequest } from './llm.types'
 import type { Lorebook } from './lorebook.types'
+import type { StoryStudioIndex } from './storyStudio.types'
+import type { StoryAssistantContextRequest } from './storyAssistant.types'
 import type { OrganizationWarning, RootOrganization } from './workspace.types'
 
-export type AssistantKind = 'card' | 'lorebook' | 'app'
+export type AssistantKind = 'card' | 'lorebook' | 'app' | 'novel'
 /** Kinds that edit a saved document and answer with a tool message. */
-export type AssistantDocumentKind = Exclude<AssistantKind, 'app'>
+export type AssistantDocumentKind = 'card' | 'lorebook'
 export type AssistantCardType = 'character' | 'world' | 'adventure_template' | 'item'
 export type AssistantLlmFeature = `${AssistantKind}_assistant`
 export type AssistantCardDocument = CharacterCardResponse | WorldCardResponse | AdventureTemplateCardResponse | ItemCardResponse
@@ -28,6 +30,7 @@ interface AssistantTargets {
     card: AssistantCardDocument
     lorebook: Lorebook
     app: never
+    novel: StoryStudioIndex
 }
 
 /** The saved document a conversation of kind K is bound to. */
@@ -41,6 +44,8 @@ export interface AssistantConversation {
     card_id?: string | null
     /** Only set for `lorebook`. */
     lorebook_id?: string | null
+    /** Required only for a novel-bound conversation. */
+    story_id?: string | null
     title?: string | null
     conversation_version?: number
     active_request_id?: string | null
@@ -78,6 +83,7 @@ interface AssistantScopes {
     card: { kind: 'card'; card_type: AssistantCardType; card_id?: string | null }
     lorebook: { kind: 'lorebook'; lorebook_id?: string | null }
     app: { kind: 'app' }
+    novel: { kind: 'novel'; story_id: string }
 }
 
 /** Which conversations a list shows; without a target id it lists the unbound ones. */
@@ -85,7 +91,7 @@ export type AssistantConversationScope<K extends AssistantKind = AssistantKind> 
 
 export type AssistantConversationCreate<K extends AssistantKind = AssistantKind> = AssistantConversationScope<K> & {
     title?: string | null
-}
+} & (K extends 'novel' ? { creation_request_id: string } : { creation_request_id?: never })
 
 export interface AssistantConversationResponse<K extends AssistantKind = AssistantKind> {
     conversation: AssistantConversation
@@ -128,11 +134,21 @@ interface AssistantTurns {
     card: AssistantDocumentTurn<'card'> & { organization_warnings?: OrganizationWarning[] }
     lorebook: AssistantDocumentTurn<'lorebook'>
     app: AssistantTurnCore
+    novel: AssistantTurnCore
 }
 
 export type AssistantTurnResponse<K extends AssistantKind = AssistantKind> = AssistantTurns[K]
 
 interface AssistantTurnBodies {
+    novel: {
+        kind:'novel'
+        refinement?:import('./storyAssistant.types').NovelRefinementReference
+        preset?:import('./storyAssistant.types').NovelPresetReference
+        source:StoryAssistantContextRequest
+        expected_packet_hash:string
+        expected_conversation_version:number
+        expected_prompt_hash:string
+    }
     card: {
         kind: 'card'
         card_type: AssistantCardType

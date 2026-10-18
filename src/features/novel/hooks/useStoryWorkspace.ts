@@ -3,7 +3,7 @@
  * captured once per opened story id: the story's own organization, else the
  * workspace that was committed when it was opened.
  *
- * Story writes go through DataProvider, which targets the committed workspace —
+ * StoryOutline writes go through DataProvider, which targets the committed workspace —
  * correct while `isCurrent()`. Work that outlives a workspace switch (the
  * draft's unmount tail save, a pending retry) uses `detachedApi()` instead, so
  * it still lands in the story's own workspace and never in the new one.
@@ -12,10 +12,12 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useWorkspace, type WorkspaceScopeCapture } from '@/app/hooks/useWorkspace'
 import { apiService, type ApiService } from '@/infrastructure/api'
-import type { Story } from '@/shared'
+import type { StoryOutline } from '@/shared'
 import { organizationWorkspaceId } from '@/shared/hooks/useScopedApi'
 
 export interface StoryWorkspace {
+    /** Explicit device-copy writer: local checkpoints only, never account access. */
+    deviceOnly?: boolean
     /** The open story's workspace; `null` before a story was opened. */
     workspaceId: string | null
     /**
@@ -38,7 +40,7 @@ interface OpenedStory {
     scope: WorkspaceScopeCapture | null
 }
 
-export function useStoryWorkspace(story: Story | null): StoryWorkspace {
+export function useStoryWorkspace(story: StoryOutline | null): StoryWorkspace {
     const { selectedWorkspaceId, capture } = useWorkspace()
     const storyId = story?.id ?? null
     const [opened, setOpened] = useState<OpenedStory | null>(null)

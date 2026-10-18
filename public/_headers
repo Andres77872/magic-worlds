@@ -1,2 +1,4 @@
 /version.json
   Cache-Control: no-store
+/novel-offline-worker.js
+  Cache-Control: no-cache

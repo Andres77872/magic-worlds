@@ -1,4 +1,5 @@
-import { act, renderHook, waitFor } from '@testing-library/react'
+import { storyChapter } from '@/test/fixtures/story'
+import { act, renderHook } from '@testing-library/react'
 import { createElement, type ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { StoryChapter } from '@/shared'
@@ -8,7 +9,7 @@ const openLoginModal = vi.fn()
 let authenticated = true
 
 vi.mock('@/app/hooks', () => ({
-    useAuth: () => ({ isAuthenticated: authenticated, openLoginModal }),
+    useAuth: () => ({ isAuthenticated: authenticated, openLoginModal,userHash:'goal-author' }),
     useData: () => ({ updateStoryChapter }),
 }))
 
@@ -22,23 +23,10 @@ import {
 import { useWordGoal } from './useWordGoal'
 
 let workspaceCurrent = true
-const WORKSPACE = { isCurrent: () => workspaceCurrent }
+const WORKSPACE = { workspaceId:'goal-workspace',isCurrent: () => workspaceCurrent }
 
 function chapter(overrides: Partial<StoryChapter> = {}): StoryChapter {
-    return {
-        id: 'c1',
-        storyId: 's1',
-        title: 'Chapter 1',
-        body: '',
-        order: 0,
-        status: 'draft',
-        wordGoal: null,
-        povCardId: null,
-        locationCardId: null,
-        activeCardRefs: [],
-        generationHistory: [],
-        ...overrides,
-    }
+    return storyChapter({id:'c1',storyId:'s1',...overrides})
 }
 
 describe('useWordGoal', () => {
@@ -53,67 +41,75 @@ describe('useWordGoal', () => {
 
     it('hydrates from the stored chapter without reading a stale browser value', () => {
         window.localStorage.setItem('magic_worlds:novel:wordGoal:s1:c1', '900')
-        const { result } = renderHook(() => useWordGoal('s1', chapter({ wordGoal: 1500 }), WORKSPACE))
+        const { result } = renderHook(() => useWordGoal('s1', chapter({ wordGoal: 1500 }), WORKSPACE, 'chapter'))
 
         expect(result.current.goal).toBe(1500)
         expect(updateStoryChapter).not.toHaveBeenCalled()
     })
 
     it('persists and clears through the stored chapter update', async () => {
-        const { result } = renderHook(() => useWordGoal('s1', chapter(), WORKSPACE))
+        const { result } = renderHook(() => useWordGoal('s1', chapter(), WORKSPACE, 'chapter'))
 
         await act(async () => expect(await result.current.setGoal(2000)).toBe(true))
         expect(result.current.goal).toBe(2000)
-        expect(updateStoryChapter).toHaveBeenLastCalledWith('s1', 'c1', { wordGoal: 2000 })
+        expect(updateStoryChapter).toHaveBeenLastCalledWith('s1', 'c1', { wordGoal: 2000, expectedMetadataRevision: 1, requestId: expect.any(String) })
 
         await act(async () => expect(await result.current.setGoal(null)).toBe(true))
         expect(result.current.goal).toBeNull()
-        expect(updateStoryChapter).toHaveBeenLastCalledWith('s1', 'c1', { wordGoal: null })
+        expect(updateStoryChapter).toHaveBeenLastCalledWith('s1', 'c1', { wordGoal: null, expectedMetadataRevision: 1, requestId: expect.any(String) })
     })
 
-    it('migrates a legacy local goal and deletes the key only after server success', async () => {
-        let release: (value: StoryChapter) => void = () => undefined
-        updateStoryChapter.mockImplementationOnce(() => new Promise<StoryChapter>((resolve) => {
-            release = resolve
-        }))
+    it('discards the obsolete goal key without writing it to current metadata', () => {
         const key = 'magic_worlds:novel:wordGoal:s1:c1'
         window.localStorage.setItem(key, '1750')
-
-        const { result } = renderHook(() => useWordGoal('s1', chapter(), WORKSPACE))
-
-        await waitFor(() => expect(updateStoryChapter).toHaveBeenCalledWith('s1', 'c1', { wordGoal: 1750 }))
-        expect(result.current.goal).toBe(1750)
-        expect(window.localStorage.getItem(key)).toBe('1750')
-
-        await act(async () => release(chapter({ wordGoal: 1750 })))
-        await waitFor(() => expect(window.localStorage.getItem(key)).toBeNull())
-        expect(result.current.goal).toBe(1750)
-    })
-
-    it('retains the legacy key when migration fails', async () => {
-        updateStoryChapter.mockRejectedValueOnce(new Error('offline'))
-        const key = 'magic_worlds:novel:wordGoal:s1:c1'
-        window.localStorage.setItem(key, '1200')
-
-        const { result } = renderHook(() => useWordGoal('s1', chapter(), WORKSPACE))
-
-        await waitFor(() => expect(console.error).toHaveBeenCalled())
-        expect(result.current.goal).toBe(1200)
-        expect(window.localStorage.getItem(key)).toBe('1200')
+        const { result } = renderHook(() => useWordGoal('s1', chapter(), WORKSPACE, 'chapter'))
+        expect(result.current.goal).toBeNull()
+        expect(updateStoryChapter).not.toHaveBeenCalled()
+        expect(window.localStorage.getItem(key)).toBeNull()
     })
 
     it('rolls back an optimistic goal when the server save fails', async () => {
         updateStoryChapter.mockRejectedValueOnce(new Error('offline'))
-        const { result } = renderHook(() => useWordGoal('s1', chapter({ wordGoal: 900 }), WORKSPACE))
+        const { result } = renderHook(() => useWordGoal('s1', chapter({ wordGoal: 900 }), WORKSPACE, 'chapter'))
 
         await act(async () => expect(await result.current.setGoal(1400)).toBe(false))
 
         expect(result.current.goal).toBe(900)
     })
 
+    it('recovers the original request after reload and refuses a different goal until it is acknowledged',async()=>{
+        updateStoryChapter.mockRejectedValueOnce(new Error('Response lost'))
+        const first=renderHook(()=>useWordGoal('s1',chapter({wordGoal:900}),WORKSPACE,'chapter'))
+        await act(async()=>{await first.result.current.setGoal(1400)})
+        const original=updateStoryChapter.mock.calls[0][2]
+        await act(async()=>expect(await first.result.current.setGoal(2000)).toBe(false))
+        expect(updateStoryChapter).toHaveBeenCalledTimes(1)
+        first.unmount()
+        const second=renderHook(()=>useWordGoal('s1',chapter({wordGoal:900}),WORKSPACE,'chapter'))
+        expect(second.result.current.pending).toEqual(original)
+        await act(async()=>expect(await second.result.current.retry()).toBe(true))
+        expect(updateStoryChapter.mock.calls[1][2]).toEqual(original)
+        expect(second.result.current.goal).toBe(1400)
+        expect(second.result.current.pending).toBeNull()
+        expect(Object.keys(localStorage).filter((key)=>key.includes('novel-goal:'))).toEqual([])
+    })
+
+    it('isolates a recovered goal from a newly selected unit and never retries an absent request',async()=>{
+        updateStoryChapter.mockRejectedValueOnce(new Error('Offline'))
+        const view=renderHook(({unit})=>useWordGoal('s1',unit,WORKSPACE,'chapter'),{initialProps:{unit:chapter()}})
+        await act(async()=>{await view.result.current.setGoal(1400)})
+        view.rerender({unit:chapter({id:'second',wordGoal:600})})
+        expect(view.result.current.pending).toBeNull()
+        expect(view.result.current.goal).toBe(600)
+        await act(async()=>expect(await view.result.current.retry()).toBe(false))
+        expect(updateStoryChapter).toHaveBeenCalledTimes(1)
+        view.rerender({unit:chapter()})
+        expect(view.result.current.pending?.wordGoal).toBe(1400)
+    })
+
     it('opens login instead of storing an unauthenticated goal locally', async () => {
         authenticated = false
-        const { result } = renderHook(() => useWordGoal('s1', chapter(), WORKSPACE))
+        const { result } = renderHook(() => useWordGoal('s1', chapter(), WORKSPACE, 'chapter'))
 
         await act(async () => expect(await result.current.setGoal(800)).toBe(false))
 
@@ -123,7 +119,7 @@ describe('useWordGoal', () => {
     })
 
     it('rejects an out-of-range goal without clearing the server value', async () => {
-        const { result } = renderHook(() => useWordGoal('s1', chapter({ wordGoal: 900 }), WORKSPACE))
+        const { result } = renderHook(() => useWordGoal('s1', chapter({ wordGoal: 900 }), WORKSPACE, 'chapter'))
 
         await act(async () => expect(await result.current.setGoal(2_147_483_648)).toBe(false))
 
@@ -132,7 +128,7 @@ describe('useWordGoal', () => {
     })
 
     it('does not start an update or apply a late result once the story workspace is no longer current', async () => {
-        const { result } = renderHook(() => useWordGoal('s1', chapter({ wordGoal: 900 }), WORKSPACE))
+        const { result } = renderHook(() => useWordGoal('s1', chapter({ wordGoal: 900 }), WORKSPACE, 'chapter'))
 
         workspaceCurrent = false
         let saved: boolean | null = null
@@ -159,7 +155,7 @@ describe('useWordGoal', () => {
         })
         // The optimistic value stays; the late server copy is not applied.
         expect(updateStoryChapter).toHaveBeenCalledTimes(1)
-        expect(result.current.goal).toBe(1500)
+        expect(result.current.goal).toBe(900)
     })
 })
 
@@ -182,13 +178,13 @@ describe('useWordGoal in an archived workspace', () => {
     it('shows the goal but neither sets nor migrates it', async () => {
         const key = 'magic_worlds:novel:wordGoal:s1:c1'
         window.localStorage.setItem(key, '1750')
-        const { result } = renderHook(() => useWordGoal('s1', chapter(), ARCHIVED_STORY), { wrapper })
+        const { result } = renderHook(() => useWordGoal('s1', chapter({ wordGoal: 1750 }), ARCHIVED_STORY, 'chapter'), { wrapper })
 
         expect(result.current.goal).toBe(1750)
         await act(async () => expect(await result.current.setGoal(2000)).toBe(false))
 
         expect(result.current.goal).toBe(1750)
         expect(updateStoryChapter).not.toHaveBeenCalled()
-        expect(window.localStorage.getItem(key)).toBe('1750')
+        expect(window.localStorage.getItem(key)).toBeNull()
     })
 })

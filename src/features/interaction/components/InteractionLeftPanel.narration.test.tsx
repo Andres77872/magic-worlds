@@ -1,3 +1,4 @@
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 /**
  * R1-FE-03 / R1-FE-04 in the adventure side panel:
  * - 03 §5.12 / 05 §9.3: a leaving narrator or cast voice reads "Leaving on {date}"
@@ -79,7 +80,7 @@ let readCatalog: ReturnType<typeof vi.spyOn>
 
 beforeEach(async () => {
     mocks.library = []
-    vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'true')
+    setTestFeatureFlags({ voices: true })
     await i18n.changeLanguage('en')
     vi.spyOn(apiService, 'peekVoiceCapabilities').mockReturnValue(null)
     readCapabilities = vi.spyOn(apiService, 'getVoiceCapabilities').mockResolvedValue(caps(BFF_EL_PLUS_BODY))

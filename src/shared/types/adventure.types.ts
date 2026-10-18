@@ -4,7 +4,7 @@
 
 import type { Character } from './character.types'
 import type { CardActor, CardVisibility } from './cardSharing.types'
-import type { ChatImageAsset, ChatImageError, ChatResponseSegment, ChatTtsAsset, ChatTtsError, ChatTtsSegmentClip, ImageLifecycleStatus, TtsLifecycleStatus } from './interaction.types'
+import type { ChatImageGeneration, ChatResponseSegment, ChatTtsAsset, ChatTtsError, ChatTtsSegmentClip, TtsLifecycleStatus } from './interaction.types'
 import type { StoredCharacterVoice } from './voicePreset.types'
 import type { EffectiveVoice } from './voiceCatalog.types'
 import type { World } from './world.types'
@@ -131,14 +131,13 @@ export interface TurnEntry {
     assistantMessageId?: number
     turnId?: string
     imagePrompt?: string
-    imageJobId?: string
-    imageStatus?: ImageLifecycleStatus
-    imageStatusUrl?: string
-    imageResultUrl?: string
-    imageAssets?: ChatImageAsset[]
-    imageUrl?: string
-    imageError?: ChatImageError
-    /** Per-turn TTS narration lifecycle (mirrors the image fields above). */
+    /**
+     * The server's snapshot of this assistant message's image jobs. The chat
+     * keeps the live image state elsewhere (`useChatImages`) and only adopts
+     * these from each server projection.
+     */
+    imageGenerations?: ChatImageGeneration[]
+    /** Per-turn TTS narration lifecycle. */
     ttsJobId?: string
     ttsStatus?: TtsLifecycleStatus
     ttsStatusUrl?: string
@@ -148,6 +147,8 @@ export interface TurnEntry {
     ttsError?: ChatTtsError
     /** Per-segment multi-voice narration clips (RP/group), played in order. */
     ttsSegments?: ChatTtsSegmentClip[]
+    /** Present when this turn was spoken or answered during a voice call. */
+    call?: { voiceSessionId: string }
 }
 
 export interface AdventureFormData {

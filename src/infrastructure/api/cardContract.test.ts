@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { verifyCardGeneration } from './cardContract'
 import { apiService } from './index'
@@ -17,7 +20,7 @@ beforeEach(() => {
     fetchMock.mockReset()
     authSession.authenticate('card-owner', 'FAKE_SESSION')
     vi.stubGlobal('fetch', fetchMock)
-    vi.stubEnv('VITE_FEATURE_TEXT_STREAMING_ENABLED', 'false')
+
 })
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs() })
 

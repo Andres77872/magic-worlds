@@ -20,6 +20,8 @@ interface VoicePickerDialogProps {
     language?: string | null
     onSelect: (voice: StoredCharacterVoice | null) => void
     onClose: () => void
+    /** The catalog lists only voices that can speak on a call (call setup). */
+    worksInCalls?: boolean
 }
 
 export function VoicePickerDialog(props: VoicePickerDialogProps) {
@@ -34,6 +36,7 @@ export function VoicePickerDialog(props: VoicePickerDialogProps) {
             capabilities={capabilities}
             onSelect={props.onSelect}
             onClose={props.onClose}
+            worksInCalls={props.worksInCalls}
         />
     )
 }

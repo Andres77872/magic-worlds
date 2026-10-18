@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ChatResponseSegment, TurnEntry } from '@/shared'
-import { callTurnDisplay, isCallReply } from './callTurnMarkup'
+import { callTurnDisplay, isCallReply, isCallTurn, isCallUserTurn, turnVoiceSessionId } from './callTurnMarkup'
 
 const SPOKEN = 'Hold on. <#0.4#> (sighs) The door is open.'
 const SHOWN = 'Hold on. The door is open.'
@@ -9,7 +9,7 @@ const SHOWN = 'Hold on. The door is open.'
 function callMetadata(): Record<string, unknown> {
     return {
         conversation_mode: 'voice_call',
-        voice: { voice_session_id: 7, segment_seq: 2, stt_provider: 'groq', tts_provider: 'elevenlabs_streaming', partial: false },
+        voice: { voice_session_id: 'vs-7', segment_seq: 2, stt_provider: 'groq', tts_provider: 'elevenlabs_streaming', partial: false },
         response_display_text: SPOKEN,
     }
 }
@@ -29,8 +29,29 @@ describe('isCallReply (D23 gate: the turn\'s own provenance)', () => {
         ['a text reply', turn({ metadata: { voice: { tts_provider: 'elevenlabs_streaming' } } })],
         ['a live reply (no metadata)', turn()],
         ['the player\'s call turn', turn({ type: 'user', metadata: callMetadata() })],
+        ['null or undefined', undefined],
     ])('is false for %s', (_label, entry) => {
         expect(isCallReply(entry)).toBe(false)
+    })
+})
+
+describe('isCallUserTurn, isCallTurn, and turnVoiceSessionId', () => {
+    it('identifies user call lines via source="voice" or call.voiceSessionId', () => {
+        const userCallByMeta = turn({ type: 'user', metadata: { source: 'voice', voice: { voice_session_id: 'vs-9' } } })
+        const userCallByLink = turn({ type: 'user', call: { voiceSessionId: 'vs-10' } })
+        const normalUser = turn({ type: 'user', metadata: {} })
+
+        expect(isCallUserTurn(userCallByMeta)).toBe(true)
+        expect(isCallUserTurn(userCallByLink)).toBe(true)
+        expect(isCallUserTurn(normalUser)).toBe(false)
+
+        expect(isCallTurn(userCallByMeta)).toBe(true)
+        expect(isCallTurn(turn({ metadata: callMetadata() }))).toBe(true)
+        expect(isCallTurn(normalUser)).toBe(false)
+
+        expect(turnVoiceSessionId(userCallByMeta)).toBe('vs-9')
+        expect(turnVoiceSessionId(userCallByLink)).toBe('vs-10')
+        expect(turnVoiceSessionId(normalUser)).toBeUndefined()
     })
 })
 

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { Editor } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import { Markdown } from '@tiptap/markdown'
@@ -27,7 +27,35 @@ function rangeOf(editor: Editor, text: string) {
 }
 
 describe('AiSuggestion lifecycle', () => {
-    it('lands a continuation as marked text and accept strips the mark without markdown artifacts', () => {
+    it('protects a target through every step of a transaction that first shifts it', () => {
+        const editor = createEditor('The gate held.')
+        const range = rangeOf(editor, 'held')
+        editor.commands.aiStartPending(range.to, range)
+        const prefix = 'Earlier. '.repeat(20)
+        const tr = editor.state.tr.insertText(prefix, 1)
+        tr.insertText('changed', range.from + prefix.length, range.to + prefix.length)
+        editor.view.dispatch(tr)
+        expect(editor.getMarkdown()).toBe('The gate held.')
+        expect(editor.storage.aiSuggestionState.phase).toBe('pending')
+        editor.destroy()
+    })
+    it('keeps typing immediately after acceptance in a separate undo event', () => {
+        const editor = createEditor('The gate held.')
+        const range = rangeOf(editor, 'held')
+        editor.commands.aiStartPending(range.to, range)
+        insert(editor, 'broke', true)
+        editor.commands.aiAccept()
+        const accepted = editor.getJSON()
+        editor.commands.insertContentAt(editor.state.doc.content.size - 1, ' Again.')
+        editor.commands.undo()
+        expect(editor.getJSON()).toEqual(accepted)
+        editor.commands.undo()
+        expect(editor.getMarkdown()).toBe('The gate held.')
+        editor.commands.redo()
+        expect(editor.getJSON()).toEqual(accepted)
+        editor.destroy()
+    })
+    it('keeps a continuation outside canonical prose until explicit acceptance', () => {
         const phases: InlineAIPhase[] = []
         const editor = createEditor('The gate held.', { onPhaseChange: (phase) => phases.push(phase) })
         const end = editor.state.doc.content.size - 1
@@ -37,7 +65,8 @@ describe('AiSuggestion lifecycle', () => {
 
         insert(editor, 'Then it broke.\n\nDust rose over the wall.')
         expect(editor.storage.aiSuggestionState.phase).toBe('reviewing')
-        expect(findAiSuggestionRange(editor.state.doc)).not.toBeNull()
+        expect(findAiSuggestionRange(editor.state.doc)).toBeNull()
+        expect(editor.getMarkdown()).toBe('The gate held.')
 
         editor.commands.aiAccept()
         expect(editor.storage.aiSuggestionState.phase).toBe('idle')
@@ -82,7 +111,7 @@ describe('AiSuggestion lifecycle', () => {
 
         editor.commands.aiStartPending(to, { from, to })
         insert(editor, 'shattered like glass', true)
-        expect(editor.getMarkdown()).toBe('The gate shattered like glass.')
+        expect(editor.getMarkdown()).toBe('The gate held strong.')
 
         editor.commands.aiReject()
         expect(editor.getMarkdown()).toBe('The gate held strong.')
@@ -102,17 +131,35 @@ describe('AiSuggestion lifecycle', () => {
         editor.destroy()
     })
 
-    it('fires onImplicitAccept when the user edits during review but not for AI transactions', () => {
-        const onImplicitAccept = vi.fn()
-        const editor = createEditor('The gate held.', { onImplicitAccept })
-        const end = editor.state.doc.content.size - 1
-
-        editor.commands.aiStartPending(end)
+    it('unrelated edits and Tab never accept a proposal', () => {
+        const editor = createEditor('The gate held.')
+        editor.commands.aiStartPending(editor.state.doc.content.size - 1)
         insert(editor, 'Then it broke.')
-        expect(onImplicitAccept).not.toHaveBeenCalled()
-
         editor.commands.insertContentAt(1, 'Hark! ')
-        expect(onImplicitAccept).toHaveBeenCalledTimes(1)
+        expect(editor.storage.aiSuggestionState.phase).toBe('reviewing')
+        expect(editor.getMarkdown()).toBe('Hark! The gate held.')
+        const tab = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
+        editor.view.dom.dispatchEvent(tab)
+        expect(tab.defaultPrevented).toBe(false)
+        expect(editor.storage.aiSuggestionState.phase).toBe('reviewing')
+        editor.commands.aiReject()
+        expect(editor.getMarkdown()).toBe('Hark! The gate held.')
+        editor.destroy()
+    })
+
+    it('an accepted rich-text replacement has exact undo and redo', () => {
+        const editor = createEditor('The gate **held strong**.')
+        const original = editor.getJSON()
+        const range = rangeOf(editor, 'held strong')
+        editor.commands.aiStartPending(range.to, range)
+        insert(editor, 'shattered like glass', true)
+        expect(editor.getJSON()).toEqual(original)
+        editor.commands.aiAccept()
+        const accepted = editor.getJSON()
+        expect(editor.commands.undo()).toBe(true)
+        expect(editor.getJSON()).toEqual(original)
+        expect(editor.commands.redo()).toBe(true)
+        expect(editor.getJSON()).toEqual(accepted)
         editor.destroy()
     })
 
@@ -144,7 +191,8 @@ describe('AiSuggestion lifecycle', () => {
         insert(editor, '## The Fall\n\n> A quote of ash.\n\nProse after.')
         // trim: StarterKit's TrailingNode appends an empty paragraph after
         // non-paragraph blocks, which serializes as trailing whitespace.
-        expect(editor.getMarkdown().trim()).toBe('Intro.\n\n## The Fall\n\n> A quote of ash.\n\nProse after.')
+        expect(editor.getMarkdown()).toBe('Intro.')
+        expect(editor.view.dom.querySelector('[data-testid="ai-proposal-preview"]')?.textContent).toContain('The Fall')
 
         editor.commands.aiReject()
         // Exact, not trimmed: the tracked range takes the block split and the
@@ -247,7 +295,7 @@ describe('AiSuggestion regenerate', () => {
 
         // The re-armed range means the replay lands in the same place…
         insert(editor, 'cracked', true)
-        expect(editor.getMarkdown()).toBe('The gate cracked.')
+        expect(editor.getMarkdown()).toBe('The gate held strong.')
 
         // …and the writer's own words are still what a decline restores.
         editor.commands.aiReject()

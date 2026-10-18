@@ -74,12 +74,12 @@ export function SynthLab({ initialVoiceKey = null }: { initialVoiceKey?: string 
     }, [])
 
     const voice = voiceKey ? catalog.byKey.get(voiceKey) : undefined
-    const models = labModels.models.filter((option) => !voice || (voice.provider === 'fish_audio') === (option.alias === 'fish_drama_3'))
+    const models = labModels.models.filter((option) => !voice || (voice.provider === 'fish_audio') === (['fish_drama_3', 'fish_s2_1_pro'].includes(option.alias)))
     const model: LabModelOption =
         models.find((profile) => profile.alias === modelAlias) ?? models.find((profile) => profile.available) ?? models[0] ?? labModels.models[0]
     const modelLabel = (option: LabModelOption) =>
         option.label ?? (KNOWN_ALIASES.has(option.alias) ? t(`admin.voices.lab.models.${option.alias}`) : option.alias)
-    const modelAvailable = model.available && (!voice || (voice.provider === 'fish_audio') === (model.alias === 'fish_drama_3'))
+    const modelAvailable = model.available && (!voice || (voice.provider === 'fish_audio') === (['fish_drama_3', 'fish_s2_1_pro'].includes(model.alias)))
     const maxChars = labTextLimit(model, capabilities, learnedLimits[model.alias])
     const tooLong = text.length > maxChars
     // What this model offers, minus what the BFF refused for it; the selection falls back to the first offer.

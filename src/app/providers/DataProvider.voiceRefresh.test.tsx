@@ -1,3 +1,4 @@
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { useContext } from 'react'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -94,7 +95,7 @@ function Probe() {
 describe('DataProvider voice refresh (EP-2)', () => {
     beforeEach(() => {
         vi.clearAllMocks()
-        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'true')
+        setTestFeatureFlags({ adventures: true })
         vi.mocked(apiService.getAdventureSessions).mockResolvedValue([SESSION_ROW])
         vi.mocked(apiService.getCharacterChats).mockResolvedValue([CHAT_ROW])
         scopedApi.refreshAdventureVoices.mockResolvedValue({ ...SESSION_ROW, template_snapshot: snapshotWith(NEW_VOICE, { effective_voice: PROJECTION }) })

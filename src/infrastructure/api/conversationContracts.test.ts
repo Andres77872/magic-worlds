@@ -1,3 +1,7 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { StoredConversationMessage } from '@/shared'
 import { apiService } from './index'
@@ -26,7 +30,7 @@ function json(body: unknown): Response {
 describe('stored API request contracts', () => {
     beforeEach(() => {
         vi.clearAllMocks()
-        vi.stubEnv('VITE_FEATURE_LOREBOOKS_ENABLED', 'true')
+        setTestFeatureFlags({ lorebooks: true })
         localStorage.clear()
         localStorage.setItem('magic_worlds:token', 'test-token')
         vi.stubGlobal('fetch', fetchMock)

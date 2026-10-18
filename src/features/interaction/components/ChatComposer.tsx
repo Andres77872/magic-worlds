@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 import { isVoicesFeatureEnabled } from '@/shared/featureFlags'
 import { memo, useCallback, useEffect, useRef } from 'react'
 import type { KeyboardEvent, ReactNode, RefObject } from 'react'
@@ -26,6 +27,8 @@ interface ChatComposerProps {
     /** Disable Reset when there is nothing to clear. */
     canReset: boolean
     placeholder: string
+    /** Scene image toggle and model chip, shown next to the narrate toggle. */
+    imageControl?: ReactNode
     /** Compact control shown in the toolbar after the icon buttons (e.g. the model chip). */
     accessory?: ReactNode
     /** Lets suggested replies focus the same composer after inserting their draft. */
@@ -36,8 +39,8 @@ interface ChatComposerProps {
 
 /**
  * Roleplay message composer — a single rounded surface holding a multi-line,
- * auto-growing textarea and a slim toolbar (narrate + reset on the left, the
- * ember Send / Stop on the right).
+ * auto-growing textarea and a slim toolbar (narrate, scene images and reset on
+ * the left, the ember Send / Stop on the right).
  *
  * Deliberately not a <form>: under React 19's synchronous discrete-event
  * commits, swapping a type=submit button for Stop mid-click fires a phantom
@@ -61,11 +64,13 @@ export const ChatComposer = memo(function ChatComposer({
     onToggleAutoNarrate,
     onReset,
     canReset,
+    imageControl,
     accessory,
     placeholder,
     inputRef,
     loreMatcher,
 }: ChatComposerProps) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const localTextareaRef = useRef<HTMLTextAreaElement | null>(null)
     const textareaRef = inputRef ?? localTextareaRef
@@ -164,6 +169,7 @@ export const ChatComposer = memo(function ChatComposer({
                         >
                             <Volume2 size={17} strokeWidth={1.75} />
                         </IconButton>}
+                        {imageControl}
                         <IconButton
                             label={t('interaction.composer.clearMessages')}
                             size="sm"

@@ -2,11 +2,15 @@
  * Authentication types
  */
 
+export type AvatarVariantId = 'A' | 'B' | 'C' | 'D'
+
 export interface User {
     user_hash: string
     username: string
     /** Optional public-facing name. Null/absent → fall back to {@link username}. */
     display_name?: string | null
+    /** Protected root-relative avatar URL (e.g. `/user/me/avatar/variant_A/512.webp`). */
+    avatar_url?: string | null
     email?: string | null
     user_type: string
     created_at: string | null
@@ -182,6 +186,12 @@ export interface UserProfile {
     username: string
     /** Optional public-facing name. Null/absent → fall back to {@link username}. */
     display_name?: string | null
+    /** Protected root-relative URL for the active profile avatar variant. */
+    avatar_url?: string | null
+    /** Currently active variant ('A' | 'B' | 'C' | 'D'), or null if none ready yet. */
+    active_avatar_variant?: AvatarVariantId | null
+    /** Variants ready on disk for selection ('A'..'D'). */
+    available_avatar_variants?: AvatarVariantId[]
     user_type: string
     membership: Membership
     card_counts: UserCardCounts

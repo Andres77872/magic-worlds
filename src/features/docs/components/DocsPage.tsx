@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * In-app product docs (#/docs): a candlelit hero, a Guide / Roadmap view switch
  * (WAI-ARIA tabs) with one search that narrows whichever view is open, and
@@ -41,6 +42,7 @@ function afterPaint(run: () => void) {
 }
 
 export function DocsPage() {
+    useFeatureFlags()
     const { t } = useTranslation()
     const docs = useMemo(() => getDocsContent(t), [t])
     const { setPage } = useNavigation()

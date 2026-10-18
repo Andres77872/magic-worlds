@@ -22,8 +22,10 @@ import { BubbleMenu } from '@tiptap/react/menus'
 import {
     Bold,
     BookmarkPlus,
+    Highlighter,
     ChevronDown,
     Italic,
+    Link,
     Quote,
     Sparkles,
     Strikethrough,
@@ -41,20 +43,23 @@ function preventToolbarBlur(event: MouseEvent) {
 export interface EditorBubbleMenuProps {
     editor: Editor
     phase: InlineAIPhase
+    remoteDisabled?: boolean
     onSelectionCommand: (command: StoryGenerationCommand) => void
     /** Opens the beat composer with the current selection as its target. */
     onBeatOnSelection: () => void
     onAddToCodex?: () => void
+    onEditLink?:()=>void
 }
 
-export function EditorBubbleMenu({ editor, phase, onSelectionCommand, onBeatOnSelection, onAddToCodex }: EditorBubbleMenuProps) {
+export function EditorBubbleMenu({ editor, phase, remoteDisabled = false, onSelectionCommand, onBeatOnSelection, onAddToCodex,onEditLink }: EditorBubbleMenuProps) {
     const { t } = useTranslation()
     const [aiOpen, setAiOpen] = useState(false)
     const aiRef = useRef<HTMLDivElement>(null!)
     const aiMenuRef = useRef<HTMLDivElement>(null!)
     // While a suggestion is alive the trigger is disabled and the menu render is
     // gated below, so the menu can never act on a stale selection.
-    const aiDisabled = phase !== 'idle'
+    const busy = phase !== 'idle'
+    const aiDisabled = busy || remoteDisabled
     const { position } = useAnchoredPopup(aiOpen && !aiDisabled, aiRef, aiMenuRef, undefined, 240)
     // The submenu is portalled outside TipTap's toolbar element, so it must
     // follow the toolbar's lifecycle when a keyboard action collapses selection.
@@ -119,6 +124,8 @@ export function EditorBubbleMenu({ editor, phase, onSelectionCommand, onBeatOnSe
                 <Icon icon={Strikethrough} size={14} />
             </ToolButton>
 
+            <ToolButton label={t('novelEditor.writingMarks.highlight')} active={editor.isActive('highlight')} disabled={busy||!editor.isEditable} onClick={()=>editor.chain().focus().toggleManuscriptHighlight().run()}><Icon icon={Highlighter} size={14}/></ToolButton>
+
             <Divider />
 
             <ToolButton label={t('novelEditor.bubbleMenu.quote')} active={editor.isActive('blockquote')} onClick={() => editor.chain().focus().toggleBlockquote().run()}>
@@ -127,6 +134,7 @@ export function EditorBubbleMenu({ editor, phase, onSelectionCommand, onBeatOnSe
 
             <Divider />
 
+            {onEditLink&&<ToolButton label={t('novelEditor.links.edit')} active={editor.isActive('link')} disabled={busy} onClick={onEditLink}><Icon icon={Link} size={14}/></ToolButton>}
             <div className="relative" ref={aiRef}>
                 {/* variant="arcane" is the design system's AI treatment (arcane tint +
                     arcane-300 text). A ghost button with a text-arcane-300 override would

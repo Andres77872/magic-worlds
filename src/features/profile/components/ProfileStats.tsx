@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * Compact content-stat strip for the profile identity header — character, world,
  * item, adventure and credit counts as open inline metrics so the
@@ -21,6 +22,7 @@ interface StatItemProps {
 }
 
 function StatItem({ icon, label, value }: StatItemProps) {
+    useFeatureFlags()
     return (
         <div className="inline-flex items-center gap-2 py-1">
             <dt className="inline-flex items-center gap-2 font-ui text-caption text-fg-subtle">
@@ -33,6 +35,7 @@ function StatItem({ icon, label, value }: StatItemProps) {
 }
 
 export function ProfileStats({ profile }: { profile: UserProfile }) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const { card_counts: counts } = profile
     return (

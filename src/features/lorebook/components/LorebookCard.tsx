@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 import { useRef, type KeyboardEvent, type MouseEvent } from 'react'
 import { BookOpen, EyeOff, FileText, KeyRound, Link2, ScrollText } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -20,6 +21,7 @@ interface LorebookCardProps {
 }
 
 export function LorebookCard({ lorebook, options, onClick, onTagClick, deleting = false, view = 'card' }: LorebookCardProps) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const enabledEntries = lorebook.entries.filter((entry) => entry.enabled).length
     const secretEntries = lorebook.entries.filter((entry) => entry.isSecret).length

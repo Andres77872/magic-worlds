@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * Landing — an adaptive front door.
  *
@@ -17,10 +18,11 @@ import { useNavigation, useData, useAuth } from '@/app/hooks'
 import { isPageFocused, usePageFocus } from '@/app/hooks/usePageFocus'
 import type { Adventure, Character, CharacterChatSession, Item, Lorebook, PageType, Story, StoryCreateRequest, World } from '@/shared'
 import { MODE_META } from '@/shared/modes'
-import { NovelCreateModal } from '@/features/novel/components/NovelCreateModal'
+import { NovelCreateDialog as NovelCreateModal } from '@/features/novel/components/NovelCreateDialog'
+import { NovelPendingCreations } from '@/features/novel/components/NovelPendingCreations'
 import { PersonaPickerDialog } from '@/ui/components'
 import { CallStartErrorToast, useStartCall } from '@/features/call'
-import { isFrontendVoiceModeEnabled } from '@/shared/voiceFeatureFlag'
+import { isCallsFeatureEnabled } from '@/shared/featureFlags'
 import { isAdventuresFeatureEnabled, isLorebooksFeatureEnabled, isNovelsFeatureEnabled } from '@/shared/featureFlags'
 import { chatDisplayTitle } from '@/utils/chatTitle'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
@@ -72,6 +74,7 @@ const EMPTY_ADVENTURES: Adventure[] = []
 
 
 export function LandingPage() {
+    useFeatureFlags()
     const { t } = useTranslation()
     const { setPage } = useNavigation()
     const { isAuthenticated, openLoginModal } = useAuth()
@@ -106,6 +109,7 @@ export function LandingPage() {
         stories,
         openStory,
         createStory,
+        novelCreations,
         lorebooks,
         editLorebook,
         setEditingLorebook,
@@ -156,7 +160,7 @@ export function LandingPage() {
     const showcaseRef = useRef<HTMLElement>(null)
     // Voice-call entry from character cards (mirrors the gallery). Gated by the
     // voice flag; the hook carries its own persona-picker for callers w/o a default.
-    const voiceEnabled = isFrontendVoiceModeEnabled()
+    const voiceEnabled = isCallsFeatureEnabled()
     const lorebooksEnabled = isLorebooksFeatureEnabled()
     const novelsEnabled = isNovelsFeatureEnabled()
     const adventuresEnabled = isAdventuresFeatureEnabled()
@@ -277,6 +281,7 @@ export function LandingPage() {
             setPage('story')
         } catch (error) {
             console.error('Failed to create novel:', error)
+            throw error
         } finally {
             setCreatingNovel(false)
         }
@@ -676,12 +681,15 @@ export function LandingPage() {
 
             <LandingFooter onNavigate={setPage} />
 
+            {novelsEnabled && <NovelPendingCreations/>}
             {novelsEnabled && (
                 <NovelCreateModal
                     open={novelModalOpen}
                     creating={creatingNovel}
                     onClose={() => setNovelModalOpen(false)}
                     onCreate={handleNovelCreate}
+                    blocked={novelCreations?.items.some((item)=>!item.write.ack&&!item.write.rejected)}
+                    recovery={<NovelPendingCreations/>}
                 />
             )}
 

@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * LorebookPreviewBody — read-only overview of a lorebook for a floating preview
  * window. It shows manual entries plus extracted resource summaries/snippets.
@@ -14,6 +15,7 @@ interface LorebookPreviewBodyProps {
 }
 
 export function LorebookPreviewBody({ lorebook }: LorebookPreviewBodyProps) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const resources = isLorebookResourcesFeatureEnabled() ? lorebookResourcesFromMetadata(lorebook.metadata) : []
     return (

@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * Character creator — a guided "Creator Studio": create mode opens on a
  * template gallery (starting shapes + empty card), then a two-pane editor of
@@ -132,11 +133,13 @@ function toCharacter(card: CharacterCardResponse): Character {
 
 /** A committed workspace switch starts a fresh form and assistant (document 08: reset local origin forms). */
 export function CharacterCreator() {
+    useFeatureFlags()
     const { workspaceEpoch } = useWorkspace()
     return <CharacterCreatorForm key={workspaceEpoch} />
 }
 
 function CharacterCreatorForm() {
+    useFeatureFlags()
     const { t } = useTranslation()
     const { goBack, cardEdit, replaceHash } = useNavigation()
     const { editingCharacter, setEditingCharacter, loadData, characters = [] } = useData()

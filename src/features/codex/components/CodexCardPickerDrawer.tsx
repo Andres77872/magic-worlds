@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * Shared multi-select card browser for Codex shelves. Adding sends only
  * kind+cardId; each backend clones the snapshot into its own scope.
@@ -9,7 +10,7 @@
  * While that workspace is archived (or the host says `readOnly`) the library
  * stays browsable, but nothing can be selected or added.
  */
-import { isContentTypeFeatureEnabled, isWorkspacesFeatureEnabled } from '@/shared/featureFlags'
+import { isContentTypeFeatureEnabled } from '@/shared/featureFlags'
 
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -21,6 +22,7 @@ import { SELECTED_CARD_CLASS } from '@/ui/components/lists/Card'
 import { useCodexCardBrowser } from '../hooks/useCodexCardBrowser'
 import { useWorkspaceSwitch } from '../hooks/useWorkspaceSwitch'
 import { CODEX_LIBRARY_KINDS, KIND_ICONS, KIND_META, type CodexLibraryCardKind, type CodexLibraryCardSelection } from '../utils/codexUtils'
+import { cardSourceStatusText, type CodexContextCardDetail } from '../utils/cardSourceStatus'
 
 interface PickerCopyKeys {
     eyebrow?: string
@@ -45,10 +47,14 @@ interface CodexCardPickerDrawerProps {
      */
     readOnly?: boolean
     existingCardKeys: Set<string>
+    /** Saved context stays visible when its source has disappeared from the library. */
+    contextCardDetails?: ReadonlyMap<string, CodexContextCardDetail>
     /** Seeds the search field each time the drawer opens (e.g. an "Add to codex" selection). */
     initialQuery?: string
     onClose: () => void
-    onAdd: (cards: CodexLibraryCardSelection[]) => Promise<void>
+    onAdd: (cards: CodexLibraryCardSelection[], labels?:Record<string,string>) => Promise<void>
+    /** Opt-in labels for a creation review; the ordinary selection wire stays kind+cardId. */
+    includeSelectionLabels?:boolean
     copyKeys?: PickerCopyKeys
 }
 
@@ -64,7 +70,8 @@ const DEFAULT_COPY_KEYS: Required<PickerCopyKeys> = {
     adding: 'novelEditor.cardPicker.adding',
 }
 
-export function CodexCardPickerDrawer({ open, workspaceId, busy, readOnly: hostReadOnly = false, existingCardKeys, initialQuery, onClose, onAdd, copyKeys }: CodexCardPickerDrawerProps) {
+export function CodexCardPickerDrawer({ open, workspaceId, busy, readOnly: hostReadOnly = false, existingCardKeys, contextCardDetails, initialQuery, onClose, onAdd, copyKeys,includeSelectionLabels=false }: CodexCardPickerDrawerProps) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const keys = { ...DEFAULT_COPY_KEYS, ...copyKeys }
     const archived = useWorkspaceReadOnly(workspaceId)
@@ -72,9 +79,13 @@ export function CodexCardPickerDrawer({ open, workspaceId, busy, readOnly: hostR
     const [kind, setKind] = useState<CodexLibraryCardKind>('character')
     const [query, setQuery] = useState('')
     const [collectionId, setCollectionId] = useState('')
-    const [selected, setSelected] = useState<Map<string, CodexLibraryCardSelection>>(new Map())
+    const [selected, setSelected] = useState<Map<string, CodexLibraryCardSelection&{label?:string}>>(new Map())
     const browser = useCodexCardBrowser({ workspaceId, kind, query, collectionId, enabled: open })
-    const { options, loading } = browser
+    const { options: libraryOptions, loading } = browser
+    const unavailable = [...(contextCardDetails?.values() ?? [])].filter((card) => card.sourceUnavailable && card.type === kind
+        && (!query.trim() || card.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))
+        && !libraryOptions.some((option) => option.type === card.type && option.id === card.id))
+    const options = [...unavailable, ...libraryOptions]
 
     const collectionOptions = useMemo<SelectOption[]>(
         () => [
@@ -113,7 +124,7 @@ export function CodexCardPickerDrawer({ open, workspaceId, busy, readOnly: hostR
         setSelected((prev) => {
             const next = new Map(prev)
             if (next.has(key)) next.delete(key)
-            else next.set(key, { kind: optionKind as CodexLibraryCardKind, cardId })
+            else next.set(key, { kind: optionKind as CodexLibraryCardKind, cardId,label:options.find((option)=>option.id===cardId&&option.type===optionKind)?.name })
             return next
         })
     }
@@ -121,7 +132,9 @@ export function CodexCardPickerDrawer({ open, workspaceId, busy, readOnly: hostR
     const submit = async () => {
         // Disabled while read-only; an archived workspace would reject the add.
         if (readOnly) return
-        await onAdd(Array.from(selected.values()))
+        const cards=Array.from(selected.values()).map(({kind,cardId})=>({kind,cardId}))
+        if(includeSelectionLabels)await onAdd(cards,Object.fromEntries([...selected].flatMap(([key,card])=>card.label?[[key,card.label]]:[])))
+        else await onAdd(cards)
         close()
     }
 
@@ -194,7 +207,7 @@ export function CodexCardPickerDrawer({ open, workspaceId, busy, readOnly: hostR
                         />
                         {loading && <Loader2 size={15} className="absolute right-3 animate-spin text-ember-500" aria-hidden="true" />}
                     </div>
-                    {isWorkspacesFeatureEnabled() && browser.collections.length > 0 && (
+                    {browser.collections.length > 0 && (
                         <div className="sm:w-52">
                             <Select
                                 size="sm"
@@ -214,8 +227,12 @@ export function CodexCardPickerDrawer({ open, workspaceId, busy, readOnly: hostR
                 <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
                     {options.map((option) => {
                         const key = `${option.type}:${option.id}`
-                        const inCodex = existingCardKeys.has(key)
+                        const inCodex = existingCardKeys.has(key) || Boolean(contextCardDetails?.has(key))
                         const isSelected = selected.has(key)
+                        const context = contextCardDetails?.get(key)
+                        const sourceStatus = context?.status ?? ('sourceStatus' in option && option.sourceStatus
+                            ? cardSourceStatusText(option.type as CodexLibraryCardKind, null, option.sourceStatus, 'ready', t) : '')
+                        const imageUrl = context ? context.imageUrl : ('imageUrl' in option ? option.imageUrl : undefined)
                         return (
                             <li key={key}>
                                 <button
@@ -235,14 +252,20 @@ export function CodexCardPickerDrawer({ open, workspaceId, busy, readOnly: hostR
                                     )}
                                     data-testid="codex-card-option"
                                 >
-                                    {option.imageUrl ? (
-                                        <AuthenticatedImage src={option.imageUrl} alt="" className="h-8 w-8 shrink-0 rounded-md object-cover" />
+                                    {imageUrl ? (
+                                        <AuthenticatedImage src={imageUrl} alt="" className="h-8 w-8 shrink-0 rounded-md object-cover" />
                                     ) : (
                                         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-ink-800 text-parchment-500">
                                             <Icon icon={KIND_ICONS[option.type]} size={14} />
                                         </span>
                                     )}
-                                    <span className="min-w-0 flex-1 truncate font-ui text-sm text-parchment-100">{option.name}</span>
+                                    <span className="min-w-0 flex-1 font-ui text-sm text-parchment-100">
+                                        <span className="block truncate">{context?.name ?? option.name}</span>
+                                        {sourceStatus && <span className="block text-caption text-parchment-400">{sourceStatus}</span>}
+                                        {context && !context.sourceUnavailable && context.name !== option.name && (
+                                            <span className="block text-caption text-parchment-400">{t('characterChat.codex.sourceStatus.libraryName', { name: option.name })}</span>
+                                        )}
+                                    </span>
                                     {inCodex ? (
                                         <Tag className="shrink-0">{t(keys.inCodex)}</Tag>
                                     ) : (
@@ -259,7 +282,7 @@ export function CodexCardPickerDrawer({ open, workspaceId, busy, readOnly: hostR
                 {browser.hasMore && !loading && (
                     <div className="flex items-center justify-between gap-2">
                         <span className="font-ui text-xs text-parchment-400">
-                            {t('workspaceContent.codex.showing', { shown: options.length, total: browser.total })}
+                            {t('workspaceContent.codex.showing', { shown: libraryOptions.length, total: browser.total })}
                         </span>
                         <Button
                             variant="secondary"

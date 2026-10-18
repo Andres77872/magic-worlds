@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * State and API actions behind both LLM profile pages (the user's "Models and
  * profiles" and root's "LLM profiles"). The view renders whatever this returns,
@@ -115,6 +116,7 @@ const toAssignments = (preferences: LlmPreferences): LlmPreferences =>
     ({ default_profile_id: preferences.default_profile_id, feature_profiles: { ...preferences.feature_profiles } })
 
 export function useLlmProfilesConsole(systemAdmin: boolean): LlmProfilesConsole & { authorized: boolean } {
+    const featureFlagGeneration = useFeatureFlags().generation
     const { t } = useTranslation()
     const { isAuthenticated, accountKey, user } = useAuth()
     const authorized = isAuthenticated && (!systemAdmin || user?.user_type === 'root')
@@ -184,7 +186,7 @@ export function useLlmProfilesConsole(systemAdmin: boolean): LlmProfilesConsole 
                 .then(entries => { if (epoch === generation.current) setDetails(Object.fromEntries(entries)) })
         } catch (failure) { if (epoch === generation.current) setError(message(failure)) }
         finally { if (epoch === generation.current) setLoading(false) }
-    }, [authorized, offset, systemAdmin, message, t])
+    }, [authorized, offset, systemAdmin, message, t, featureFlagGeneration])
 
     useEffect(() => {
         testIntent.current = null

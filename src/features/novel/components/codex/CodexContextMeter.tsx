@@ -14,10 +14,10 @@ export interface CodexContextMeterProps {
     totalCount: number
     /** null until a generation has run — no trace means no numbers to show. */
     estimatedTokens: number | null
-    chapterCount: number | null
+    sceneCount: number | null
 }
 
-export function CodexContextMeter({ enabledCount, totalCount, estimatedTokens, chapterCount }: CodexContextMeterProps) {
+export function CodexContextMeter({ enabledCount, totalCount, estimatedTokens, sceneCount }: CodexContextMeterProps) {
     const { t } = useTranslation()
 
     const total = safeCount(totalCount)
@@ -27,12 +27,12 @@ export function CodexContextMeter({ enabledCount, totalCount, estimatedTokens, c
     // A trace only exists after the first generation; until then the footer
     // explains the toggles instead of printing a number nobody measured.
     const tokens = estimatedTokens !== null && Number.isFinite(estimatedTokens) ? safeCount(estimatedTokens) : null
-    const chapters = chapterCount !== null && Number.isFinite(chapterCount) ? safeCount(chapterCount) : null
+    const scenes = sceneCount !== null && Number.isFinite(sceneCount) ? safeCount(sceneCount) : null
 
     const footer =
         tokens === null
             ? t('novelEditor.codex.context.hint')
-            : [t('novelEditor.codex.context.tokens', { tokens }), chapters === null ? null : t('novelEditor.codex.context.chapters', { count: chapters })]
+            : [t('novelEditor.codex.context.tokens', { tokens }), scenes === null ? null : t('novelEditor.codex.context.scenes', { count: scenes })]
                   .filter(Boolean)
                   .join(' · ')
 

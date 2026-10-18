@@ -1,3 +1,7 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -174,10 +178,10 @@ describe('GalleryPage', () => {
     beforeEach(() => {
         authed = true
         vi.clearAllMocks()
-        vi.stubEnv('VITE_FEATURE_COMMUNITY_CARDS_ENABLED', 'true')
-        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
-        vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'true')
-        vi.stubEnv('VITE_FEATURE_GROUP_CHATS_ENABLED', 'true')
+        setTestFeatureFlags({ communityCards: true })
+        setTestFeatureFlags({ calls: true })
+        setTestFeatureFlags({ novels: true })
+        setTestFeatureFlags({ groupChats: true })
         if (!globalThis.IntersectionObserver) {
             vi.stubGlobal('IntersectionObserver', class IntersectionObserver {
                 observe() {}

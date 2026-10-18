@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Bot, Mic, ShieldCheck, Waves } from 'lucide-react'
 import { IN_APP_COPY_DRAFTS, consentCopyFor, legalLanguage, releasedInAppCopy, type ConsentVersion } from '@/features/legal/documents'
@@ -8,6 +9,10 @@ export interface VoiceConsentModalProps {
     consentVersion?: ConsentVersion
     staleConsent?: boolean
     isAccepting?: boolean
+    /** The call setup (voice, conversation model), shown above the disclosures. */
+    setup?: ReactNode
+    /** The setup is not ready (no usable voice or model yet): the start waits for it. */
+    startDisabled?: boolean
     onAccept: () => void | Promise<void>
     onDecline: () => void
 }
@@ -19,7 +24,7 @@ export interface VoiceConsentModalProps {
  */
 const DISCLOSURES = ['aiInteraction', 'micAccess', 'processing', 'transcripts', 'noRecordings', 'endAnytime'] as const
 
-export function VoiceConsentModal({ open, consentVersion = 'voice-v2', staleConsent = false, isAccepting = false, onAccept, onDecline }: VoiceConsentModalProps) {
+export function VoiceConsentModal({ open, consentVersion = 'voice-v2', staleConsent = false, isAccepting = false, setup, startDisabled = false, onAccept, onDecline }: VoiceConsentModalProps) {
     const { t, i18n } = useTranslation()
     const copy = consentCopyFor(consentVersion)
     const language = legalLanguage(i18n.language)
@@ -46,7 +51,7 @@ export function VoiceConsentModal({ open, consentVersion = 'voice-v2', staleCons
                     <Button
                         variant="primary"
                         onClick={() => void onAccept()}
-                        disabled={isAccepting}
+                        disabled={isAccepting || startDisabled}
                         iconLeft={<Icon icon={ShieldCheck} size={16} />}
                     >
                         {isAccepting ? t('interaction.voiceConsent.starting') : t('interaction.voiceConsent.consentStart')}
@@ -55,6 +60,7 @@ export function VoiceConsentModal({ open, consentVersion = 'voice-v2', staleCons
             }
         >
             <div className="flex flex-col gap-5 text-body text-parchment-200">
+                {setup}
                 <div className="flex flex-wrap items-center gap-2">
                     <Badge tone="ember" icon={<Icon icon={Waves} size={12} />}>{t('interaction.voiceConsent.badgeMicrophone')}</Badge>
                     <Badge tone="arcane" icon={<Icon icon={Bot} size={12} />}>{t('interaction.voiceConsent.badgeAiVoice')}</Badge>

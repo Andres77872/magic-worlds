@@ -1,3 +1,4 @@
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { i18n } from '@/app/i18n'
 import { getRoadmapContent, ROADMAP_STAGES, roadmapStage } from './roadmapContent'
@@ -66,6 +67,15 @@ describe('getRoadmapContent', () => {
         }
     })
 
+    it('shows group voice calls as planned next to the 1:1 calls area', () => {
+        const roadmap = getRoadmapContent(i18n.getFixedT('en'))
+        const ids = roadmap.items.map((item) => item.id)
+        const groupCalls = roadmap.items.find((item) => item.id === 'groupCalls')
+        expect(groupCalls?.state).toBe('planned')
+        expect(groupCalls?.stage).toBe('planned')
+        expect(ids.indexOf('groupCalls')).toBe(ids.indexOf('calls') + 1)
+    })
+
     it('details the assistant tools and content safety plans on their area cards', () => {
         const roadmap = getRoadmapContent(i18n.getFixedT('en'))
         for (const id of ['appAssistant', 'contentSafety'] as const) {
@@ -88,12 +98,12 @@ describe('getRoadmapContent', () => {
     })
 
     it('ties each initiative to its area status for this version', () => {
-        vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'false')
+        setTestFeatureFlags({ novels: false })
         const off = getRoadmapContent(i18n.getFixedT('en'))
         expect(off.initiatives.find((initiative) => initiative.id === 'novels')?.stage).toBe('off')
         expect(off.items.find((item) => item.id === 'novels')?.initiative).toBe('novels')
 
-        vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'true')
+        setTestFeatureFlags({ novels: true })
         const on = getRoadmapContent(i18n.getFixedT('en'))
         expect(on.initiatives.find((initiative) => initiative.id === 'novels')?.stage).toBe('progress')
         expect(on.initiatives.find((initiative) => initiative.id === 'charaStudio')?.stage).toBe('planned')

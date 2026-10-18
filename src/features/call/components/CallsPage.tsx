@@ -19,6 +19,7 @@ import { hasAssignedVoice } from '@/shared/voice'
 import { EmptyState, CardGrid, GalleryCard, PersonaPickerDialog } from '@/ui/components'
 import { Badge, Button, Callout, Icon, IconButton, IconTile, PageHeader, controlClass } from '@/ui/primitives'
 import { useStartCall } from '../useStartCall'
+import { clearCallTranscriptHash, readCallIdFromLocation } from '../callLinks'
 import { useWorkspaceReadOnly } from '@/shared/hooks/useWorkspaceReadOnly'
 import { CallHistoryRow } from './CallHistoryRow'
 import { CallStartErrorToast } from './CallStartErrorToast'
@@ -34,7 +35,7 @@ function hasVoice(character: Character): boolean {
 export function CallsPage() {
     const { t } = useTranslation()
     const { isAuthenticated } = useAuth()
-    const { characters, characterChats, loadingState, loadData } = useData()
+    const { characters, characterChats, loadingState, loadData, openCharacterChatById } = useData()
     const { setPage } = useNavigation()
     // Workspace R1: call history is workspace-local; the account's one-live-call policy is not.
     const { api, capture, isCurrent, workspaceEpoch } = useWorkspace()
@@ -50,16 +51,38 @@ export function CallsPage() {
     const [loadingCalls, setLoadingCalls] = useState(isAuthenticated)
     const [callsError, setCallsError] = useState(false)
     const [reloadCalls, setReloadCalls] = useState(0)
-    const [selectedCall, setSelectedCall] = useState<CallSummary | null>(null)
+    const [selectedCall, setSelectedCall] = useState<CallSummary | null>(() => {
+        const id = readCallIdFromLocation()
+        return id ? { voice_session_id: id, chat_id: '', status: 'ended', duration_seconds: 0, segment_count: 0 } : null
+    })
+    const [unavailableNotice, setUnavailableNotice] = useState(false)
     const [hasMoreCalls, setHasMoreCalls] = useState(false)
     const [loadingMoreCalls, setLoadingMoreCalls] = useState(false)
     const [moreCallsError, setMoreCallsError] = useState(false)
+
+    // Listen to `#/calls?call=<id>` deep-link changes while mounted.
+    useEffect(() => {
+        const syncFromHash = () => {
+            const id = readCallIdFromLocation()
+            if (!id) return
+            setUnavailableNotice(false)
+            setSelectedCall((prev) => {
+                if (prev?.voice_session_id === id) return prev
+                const match = recentCalls.find((c) => c.voice_session_id === id)
+                return match ?? { voice_session_id: id, chat_id: '', status: 'ended', duration_seconds: 0, segment_count: 0 }
+            })
+        }
+        syncFromHash()
+        window.addEventListener('hashchange', syncFromHash)
+        return () => window.removeEventListener('hashchange', syncFromHash)
+    }, [recentCalls])
 
     // A committed switch shows the new workspace's history: drop the open transcript.
     const [historyEpoch, setHistoryEpoch] = useState(workspaceEpoch)
     if (historyEpoch !== workspaceEpoch) {
         setHistoryEpoch(workspaceEpoch)
         setSelectedCall(null)
+        setUnavailableNotice(false)
         setRecentCalls([])
         setHasMoreCalls(false)
     }
@@ -86,6 +109,11 @@ export function CallsPage() {
                 const items = response.items ?? []
                 setRecentCalls(items)
                 setHasMoreCalls(items.length >= CALLS_PAGE_SIZE)
+                setSelectedCall((prev) => {
+                    if (!prev) return null
+                    const match = items.find((c) => c.voice_session_id === prev.voice_session_id)
+                    return match ?? prev
+                })
             })
             .catch((error) => {
                 console.error('Failed to load recent calls:', error)
@@ -125,7 +153,7 @@ export function CallsPage() {
     /** Continue the call's own chat when we still have it; otherwise start a fresh one. */
     const callAgainHandler = (entry: CallSummary) => {
         if (readOnly || callsUnavailable) return undefined
-        const chat = entry.chat_id != null
+        const chat = entry.chat_id != null && String(entry.chat_id) !== ''
             ? (characterChats ?? []).find((candidate) => candidate.id === String(entry.chat_id) && candidate.kind !== 'character_group')
             : undefined
         if (chat) return () => call.resumeCall(chat)
@@ -133,6 +161,15 @@ export function CallsPage() {
             ? (characters ?? []).find((candidate) => candidate.id === entry.character_card_id)
             : undefined
         return character ? () => call.startCall(character) : undefined
+    }
+
+    /** Open the character chat that owns this call. */
+    const openChatHandler = (entry: CallSummary) => {
+        if (entry.chat_id == null || String(entry.chat_id) === '') return undefined
+        return () => {
+            clearCallTranscriptHash()
+            void openCharacterChatById(String(entry.chat_id))
+        }
     }
 
     // Callable characters: real characters (not personas), voice-configured first.
@@ -159,8 +196,37 @@ export function CallsPage() {
                 <CallTranscriptView
                     call={selectedCall}
                     characters={characters ?? []}
-                    onBack={() => setSelectedCall(null)}
+                    onBack={() => {
+                        clearCallTranscriptHash()
+                        setSelectedCall(null)
+                    }}
+                    onOpenChat={(resolved) => {
+                        const handler = openChatHandler(resolved)
+                        handler?.()
+                    }}
+                    onCallAgain={!readOnly && !callsUnavailable ? (resolved) => {
+                        const handler = callAgainHandler(resolved)
+                        handler?.()
+                    } : undefined}
+                    onUnavailable={(voiceSessionId) => {
+                        clearCallTranscriptHash()
+                        setRecentCalls((prev) => prev.filter((c) => c.voice_session_id !== voiceSessionId))
+                        setSelectedCall(null)
+                        setUnavailableNotice(true)
+                    }}
                 />
+                <PersonaPickerDialog
+                    open={call.personaPickOpen}
+                    title={t('call.page.personaTitle')}
+                    actionLabel={t('call.page.personaAction')}
+                    description={t('call.page.personaDescription')}
+                    error={call.personaPickError}
+                    isConfirming={call.personaPickConfirming}
+                    characters={characters ?? []}
+                    onConfirm={call.confirmPersonaPick}
+                    onClose={call.closePersonaPick}
+                />
+                <CallStartErrorToast error={call.error} onClose={call.clearError} />
             </div>
         )
     }
@@ -175,6 +241,20 @@ export function CallsPage() {
                 subtitle={t('call.page.subtitle')}
                 size="lg"
             />
+            {unavailableNotice && (
+                <Callout
+                    tone="info"
+                    icon={<Icon icon={PhoneOff} size={16} />}
+                    data-testid="call-transcript-unavailable-notice"
+                    action={
+                        <IconButton size="sm" label={t('common.close')} onClick={() => setUnavailableNotice(false)}>
+                            <Icon icon={X} size={14} />
+                        </IconButton>
+                    }
+                >
+                    {t('call.transcript.unavailableNotice')}
+                </Callout>
+            )}
 
             <section className="flex flex-col gap-3" aria-labelledby="calls-launch-heading">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -294,6 +374,7 @@ export function CallsPage() {
                                 call={entry}
                                 characters={characters ?? []}
                                 onView={() => setSelectedCall(entry)}
+                                onOpenChat={openChatHandler(entry)}
                                 onCallAgain={callAgainHandler(entry)}
                             />
                         ))}

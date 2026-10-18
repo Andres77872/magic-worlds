@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import '@/app/i18n'
@@ -15,7 +18,7 @@ const profile = { project_hash: 'project-one', profile_id: '11111111-1111-4111-8
     resolution_source: 'user_default', catalog_revision: 'catalog-one', policy_revision: 'policy-one', roles: { primary: {} } }
 const KEY = 'FAKE_DIALOG_CANARY'
 const token = `header.${btoa(JSON.stringify({ project_hash: 'project-one' }))}.signature`
-beforeEach(() => { credentialSession.clear(); authSession.continueSignedOut(); authSession.authenticate('alice', token); credentialSession.setProject('project-one', authSession.getSnapshot().accountKey); mocks.resolve.mockResolvedValue(profile) })
+beforeEach(() => { credentialSession.clear(); authSession.continueSignedOut(); authSession.authenticate('alice', token); grantFixtureFeatures(true); credentialSession.setProject('project-one', authSession.getSnapshot().accountKey); mocks.resolve.mockResolvedValue(profile) })
 afterEach(() => { credentialSession.clear(); authSession.continueSignedOut(); vi.clearAllMocks() })
 
 it('confirms a key once, clears the input and materializes it only at dispatch', async () => {

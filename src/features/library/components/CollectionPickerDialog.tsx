@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * Add to collection: choose one or more collections of this workspace for the
  * selected cards. Adding is a membership set operation — the cards stay in the
@@ -34,6 +35,7 @@ export function CollectionPickerDialog({
     onCreateCollection,
     onConfirm,
 }: CollectionPickerDialogProps) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
     const [saving, setSaving] = useState(false)

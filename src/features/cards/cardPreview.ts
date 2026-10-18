@@ -24,8 +24,9 @@ export interface CardPreview {
     categories?: Array<{ name: string; description?: string; attributes?: Array<Record<string, string>> }>
     createdAt?: string
     updatedAt?: string
-    /** Newest saved version number (versionable cards only); 0/undefined when none. */
+    /** Version of this displayed copy; 0/undefined when no saved version is recorded. */
     versionNumber?: number
+    sourceStatusLabel?: string
     /**
      * Character cards only, never personas (D38): the stored voice and its
      * read-only projection. The body shows a voice line only for an ElevenLabs projection.

@@ -1,7 +1,12 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiService } from './index'
 import { authSession } from './authSession'
 import type { TextGenerationEvent } from '@/shared'
+import { storyStreamFetch } from '@/test-utils/storyStreamFetch'
 
 const fetchMock = vi.fn()
 const frame = (event: string, data: unknown) => new TextEncoder().encode(`event: ${event}\r\ndata: ${JSON.stringify(data)}\r\n\r\n`)
@@ -14,8 +19,8 @@ function stream() {
 }
 
 function storyResult(requestId: string, replayed = false) {
-    return { generation: { id: 'execution-1', chapterId: 'chapter-1', requestId, output: 'Saved text' },
-        chapter: { id: 'chapter-1' }, stagedCardUpdates: [],
+    return { generation: { id: 'execution-1', chapterId: 'chapter-1', sceneId:'scene-1', requestId, output: 'Saved text' },
+        scene: { id: 'scene-1' }, stagedCardUpdates: [],
         llm_execution: { execution_id: 'execution-1', profile_id: 'profile-1', revision_id: 'revision-1',
             resolution_source: 'system_default', credential_mode: 'platform', replayed } }
 }
@@ -31,9 +36,9 @@ function cardResult(requestId = 'req-1', replayed = false) {
 beforeEach(() => {
     vi.clearAllMocks()
     authSession.authenticate('stream-test-user', 'test-token')
-    vi.stubGlobal('fetch', fetchMock)
-    vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'true')
-    vi.stubEnv('VITE_FEATURE_TEXT_STREAMING_ENABLED', 'true')
+    vi.stubGlobal('fetch', storyStreamFetch(fetchMock))
+    setTestFeatureFlags({ novels: true })
+
 })
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs() })
 
@@ -79,7 +84,7 @@ describe('saved generation streaming', () => {
         const wire = stream()
         const saved = storyResult('req-1', true)
         fetchMock.mockResolvedValueOnce(wire.response).mockResolvedValueOnce(json(saved))
-        const pending = apiService.generateStory('story-1', { chapterId: 'chapter-1', command: 'continue' }, { requestId: 'req-1' })
+        const pending = apiService.generateStory('story-1', { sceneId: 'scene-1', baseRevision:1, command: 'continue' }, { requestId: 'req-1' })
         wire.end()
         expect(await pending).toEqual(saved)
         expect(fetchMock.mock.calls.map((call) => call[1].method)).toEqual(['POST', 'GET'])
@@ -87,31 +92,31 @@ describe('saved generation streaming', () => {
         expect(fetchMock.mock.calls[1][1].body).toBeUndefined()
     })
 
-    it('selects the synchronous fallback before starting a request', async () => {
-        vi.stubEnv('VITE_FEATURE_TEXT_STREAMING_ENABLED', 'false')
+    it('uses the stable stream endpoint without a frontend transport flag', async () => {
+
         fetchMock.mockResolvedValueOnce(json(storyResult('req-1')))
-        await apiService.generateStory('story-1', { chapterId: 'chapter-1', command: 'continue' }, { requestId: 'req-1', onEvent: vi.fn() })
+        await apiService.generateStory('story-1', { sceneId: 'scene-1', baseRevision:1, command: 'continue' }, { requestId: 'req-1', onEvent: vi.fn() })
         expect(fetchMock).toHaveBeenCalledOnce()
-        expect(fetchMock.mock.calls[0][0]).toMatch(/\/generate$/)
+        expect(fetchMock.mock.calls[0][0]).toMatch(/\/generate\/stream$/)
     })
 
     it('omits transient credentials from context previews', async () => {
         fetchMock.mockResolvedValueOnce(json({ cards: [], chapters: [], loreEntries: [], totalEstimatedTokens: 0 }))
-        await apiService.previewStoryContext('story-1', { chapterId: 'chapter-1', command: 'continue',
+        await apiService.previewStoryContext('story-1', { sceneId: 'scene-1', baseRevision:1, command: 'continue',
             llm: { expected_revision_id: 'revision-1', credentials: { api_key: 'FAKE_TRANSIENT_KEY' } } })
-        expect(fetchMock.mock.calls[0][1].body).toBe(JSON.stringify({ chapterId: 'chapter-1', command: 'continue' }))
+        expect(fetchMock.mock.calls[0][1].body).toBe(JSON.stringify({ sceneId: 'scene-1', baseRevision:1, command: 'continue' }))
     })
 
     it.each(['missing_plan', 'different_request', 'different_execution', 'different_chapter', 'private_field'])('rejects %s in novel execution results', async (invalid) => {
-        vi.stubEnv('VITE_FEATURE_TEXT_STREAMING_ENABLED', 'false')
+
         const result: Record<string, unknown> = storyResult('req-1')
         if (invalid === 'missing_plan') delete result.llm_execution
         else if (invalid === 'different_request') result.generation = { ...storyResult('req-1').generation, requestId: 'another' }
         else if (invalid === 'different_execution') result.llm_execution = { ...storyResult('req-1').llm_execution, execution_id: 'another' }
-        else if (invalid === 'different_chapter') result.chapter = { id: 'another' }
+        else if (invalid === 'different_chapter') result.scene = { id: 'another' }
         else result.llm_execution = { ...storyResult('req-1').llm_execution, api_key: 'FAKE_TRANSIENT_KEY' }
         fetchMock.mockResolvedValueOnce(json(result))
-        await expect(apiService.generateStory('story-1', { chapterId: 'chapter-1', command: 'continue' }, { requestId: 'req-1' }))
+        await expect(apiService.generateStory('story-1', { sceneId: 'scene-1', baseRevision:1, command: 'continue' }, { requestId: 'req-1' }))
             .rejects.toMatchObject({ code: 'story_execution_contract' })
         expect(fetchMock).toHaveBeenCalledOnce()
     })
@@ -131,7 +136,7 @@ describe('saved generation streaming', () => {
     it('does not send a generation when already aborted', async () => {
         const controller = new AbortController()
         controller.abort()
-        await expect(apiService.generateStory('story-1', { chapterId: 'chapter-1', command: 'continue' }, { signal: controller.signal })).rejects.toMatchObject({ name: 'AbortError' })
+        await expect(apiService.generateStory('story-1', { sceneId: 'scene-1', baseRevision:1, command: 'continue' }, { signal: controller.signal })).rejects.toMatchObject({ name: 'AbortError' })
         expect(fetchMock).not.toHaveBeenCalled()
     })
 
@@ -140,7 +145,7 @@ describe('saved generation streaming', () => {
         fetchMock.mockResolvedValueOnce(json({ detail: 'expired' }, 401))
             .mockImplementationOnce(() => new Promise<Response>((resolve) => { resolveRefresh = resolve }))
         const controller = new AbortController()
-        const pending = apiService.generateStory('story-1', { chapterId: 'chapter-1', command: 'continue' }, { signal: controller.signal })
+        const pending = apiService.generateStory('story-1', { sceneId: 'scene-1', baseRevision:1, command: 'continue' }, { signal: controller.signal })
         await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
         expect(fetchMock.mock.calls[1][0]).toMatch(/\/auth\/refresh$/)
         controller.abort()

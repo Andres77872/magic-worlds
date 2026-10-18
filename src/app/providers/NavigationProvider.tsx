@@ -18,7 +18,7 @@ import { createContext, useCallback, useContext, useEffect, useLayoutEffect, use
 import type { PageType, NavigationState } from '../../shared'
 import type { Workspace } from '../../shared/types'
 import { ApiError, apiService, isWorkspaceApiError } from '../../infrastructure/api'
-import { isWorkspacesFeatureEnabled, isPageFeatureEnabled } from '../../shared/featureFlags'
+import { isPageFeatureEnabled } from '../../shared/featureFlags'
 import { endActiveVoiceCall, hasActiveVoiceCall } from '../../features/call/activeVoiceCall'
 import {
     legacyContentRef,
@@ -324,7 +324,6 @@ export function NavigationProvider({ children }: NavigationProviderProps) {
         let destination: Workspace | null = null
         if (switching && targetId) {
             if (!ws || ws.status !== 'ready') return 'unavailable'
-            if (!isWorkspacesFeatureEnabled() && targetId !== ws.defaultWorkspaceId) return 'unavailable'
             destination = request.workspace ?? ws.workspaces.find((item) => item.id === targetId) ?? null
             if (!destination) {
                 try {
@@ -376,7 +375,7 @@ export function NavigationProvider({ children }: NavigationProviderProps) {
         }
 
         // An external hash keeps its own params until its record is validated.
-        const finalHash = destination && isWorkspacesFeatureEnabled() && isWorkspaceContentPage(request.page)
+        const finalHash = destination && isWorkspaceContentPage(request.page)
             ? withHashWorkspace(request.hash, destination.id)
             : request.verify ? request.hash : stampWorkspaceHash(request.page, request.hash, source)
 
@@ -438,7 +437,7 @@ export function NavigationProvider({ children }: NavigationProviderProps) {
         const selected = selectedWorkspace()
         const hashWorkspace = explicitHash && isWorkspaceContentPage(nextPage) ? readHashWorkspace(explicitHash) : null
         const otherWorkspace = selected !== null && hashWorkspace !== null && hashWorkspace !== selected
-        if (otherWorkspace && isWorkspacesFeatureEnabled()) {
+        if (otherWorkspace) {
             void runRequestRef.current({
                 page: nextPage,
                 hash: explicitHash ?? pageHash(nextPage),
@@ -511,7 +510,7 @@ export function NavigationProvider({ children }: NavigationProviderProps) {
         const ws = workspaceRef.current
         const selected = ws?.status === 'ready' ? ws.selectedWorkspaceId : null
         const routeWorkspace = isWorkspaceContentPage(route.page) ? (readHashWorkspace(route.hash) ?? stamp?.workspaceId ?? null) : null
-        const switching = isWorkspacesFeatureEnabled() && selected !== null && routeWorkspace !== null && routeWorkspace !== selected
+        const switching = selected !== null && routeWorkspace !== null && routeWorkspace !== selected
         const indexed = stamp && stamp.index !== committedIndexRef.current ? stamp.index : null
 
         if (!switching && interceptorsRef.current.size === 0) {
@@ -615,10 +614,6 @@ export function NavigationProvider({ children }: NavigationProviderProps) {
                     setCurrentHash(liveHash())
                 }
                 settle(null)
-                return
-            }
-            if (!isWorkspacesFeatureEnabled()) {
-                settle(target === current?.defaultWorkspaceId ? null : 'unavailable')
                 return
             }
             settle('resolving')

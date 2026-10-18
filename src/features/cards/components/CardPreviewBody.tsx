@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * CardPreviewBody — the read-only card renderer shared by the CardPreviewModal
  * and the floating preview windows: portrait + badge + description + metadata
@@ -30,6 +31,7 @@ function localizedCardPreviewTypeLabel(type: CardPreviewTargetType, t: TFunction
 }
 
 function CardMetadata({ card, showUsage = false }: { card: CardPreview; showUsage?: boolean }) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const createdAt = formatDateTime(card.createdAt)
     const updatedAt = formatDateTime(card.updatedAt)
@@ -53,6 +55,7 @@ function CardMetadata({ card, showUsage = false }: { card: CardPreview; showUsag
                 </div>
             )}
             {showUsage && <CardUsageLine usage={usage} />}
+            {card.sourceStatusLabel && <p className="m-0 font-ui text-caption text-parchment-400">{card.sourceStatusLabel}</p>}
             {card.triggers.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
                     {card.triggers.slice(0, 6).map((trigger) => (
@@ -84,6 +87,7 @@ function CardMetadata({ card, showUsage = false }: { card: CardPreview; showUsag
  * read only for a projection badged `leaving`.
  */
 function CardVoiceLine({ voice }: { voice: NonNullable<CardPreview['voice']> }) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const leaving = useLeavingVoice(voice.stored, voice.effective)
     return (
@@ -114,6 +118,7 @@ export function CardPreviewBody({
     showUsage = false,
     alreadyImported = false,
 }: CardPreviewBodyProps) {
+    useFeatureFlags()
     const { t } = useTranslation()
 
     if (loading) {

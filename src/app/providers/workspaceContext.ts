@@ -38,8 +38,6 @@ export interface WorkspaceContextValue {
     status: WorkspaceStatus
     unavailableReason: WorkspaceUnavailableReason | null
     staleReason: WorkspaceStaleReason | null
-    /** `VITE_FEATURE_WORKSPACES_ENABLED`: whether the R1 product surfaces are shown. */
-    featureEnabled: boolean
     /** Every workspace of the account, archived included (default first, then created_at/id). */
     workspaces: readonly Workspace[]
     /** `workspaces` without archived ones. */
@@ -51,22 +49,16 @@ export interface WorkspaceContextValue {
     /** Monotonic; bumps on every commit/reset, so captured work can detect a switch. */
     workspaceEpoch: number
     /**
-     * Flag `false` and the account has more than one active workspace: show
-     * "Some workspaces are temporarily unavailable. Their content is safe."
-     */
-    hasHiddenWorkspaces: boolean
-    /**
      * The scoped client of the committed workspace (`apiService.withWorkspace`),
      * `null` while nothing is selected. Its identity changes on every commit.
      */
     api: ApiService | null
     /**
      * Commits a workspace in one React update (bumps `workspaceEpoch`, persists
-     * it as last-used when the flag is on). Run navigation guards and revalidate
+     * it as last-used). Run navigation guards and revalidate
      * the destination BEFORE calling this. Pass a `Workspace` you just fetched
      * (e.g. an archived one from `resolve-content`) to add it to the known list.
      * Returns `false` (and changes nothing) when not `ready`, the ID is unknown,
-     * or the flag is off and the target is not the protected default.
      */
     commitWorkspace: (target: string | Workspace) => boolean
     /**

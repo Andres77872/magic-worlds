@@ -41,3 +41,6 @@ ds-bundle/
 .codex
 .design-sync/app-dist/
 .design-sync/reverie-compiled.css
+
+# Private development database backups and their verification manifests
+.dev/backups/

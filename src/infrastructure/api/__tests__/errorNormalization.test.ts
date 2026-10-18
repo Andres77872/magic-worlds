@@ -2,6 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { normalizeApiErrorBody } from '../index'
 
 describe('API error normalization', () => {
+    it('preserves the preview spending precondition needed for a confirmed retry', () => {
+        const detail = { code: 'preview_credit_confirmation_required', message: 'Confirm the credit price.',
+            retryable: false, required_credit_cost: 1, previews_left: 7, free_previews_left: 0 }
+        expect(normalizeApiErrorBody({ detail })).toMatchObject({
+            code: detail.code, retryable: false, details: detail,
+        })
+    })
     it('normalizes nested provider and detail envelopes', () => {
         expect(normalizeApiErrorBody({
             detail: {

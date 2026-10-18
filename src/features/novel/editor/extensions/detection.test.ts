@@ -93,8 +93,8 @@ describe('createDetection', () => {
         const hits = harness.hits()
         const names = hits.filter((hit) => hit.kind === 'name')
         const lore = hits.filter((hit) => hit.kind === 'lore')
-        // "Iron Citadel" is both a name and a lore key — lore wins, so only Elara remains a name.
-        expect(names.map((hit) => hit.codexId)).toEqual(['c1'])
+        // Lore paints overlapping text; both identities remain available for inspection.
+        expect(names.map((hit) => hit.codexId)).toEqual(['c1', 'c2'])
         expect(lore).toHaveLength(2)
         harness.editor.destroy()
     })

@@ -427,7 +427,7 @@ function DrawerSection({ title, children }: { title: string; children: ReactNode
     )
 }
 
-const ALL_SETTING_KEYS = ['stability', 'similarity_boost', 'speed', 'style', 'use_speaker_boost'] as const
+const ALL_SETTING_KEYS = ['stability', 'similarity_boost'] as const
 
 function MetadataForm({ voice, saving, onSave }: { voice: AdminCatalogVoice; saving: boolean; onSave: (body: AdminCatalogUpdate) => void }) {
     const { t } = useTranslation()
@@ -457,7 +457,7 @@ function MetadataForm({ voice, saving, onSave }: { voice: AdminCatalogVoice; sav
                 .map((tag) => tag.trim())
                 .filter(Boolean),
             ...(Number.isFinite(rank) ? { sort_rank: rank } : {}),
-            ...(voice.provider === 'elevenlabs' ? { default_settings: settings } : {}),
+            ...(voice.provider === 'elevenlabs' ? { default_settings: Object.fromEntries(ALL_SETTING_KEYS.filter(key => settings[key] !== undefined).map(key => [key, settings[key]])) } : {}),
         })
     }
 

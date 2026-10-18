@@ -1,6 +1,7 @@
 /**
  * Interaction and messaging types
  */
+import type { ImageProvider } from './imageProfile.types'
 import type { LlmRequest } from './llm.types'
 import type { VoiceSubstitutionReason } from './voiceCatalog.types'
 
@@ -95,6 +96,80 @@ export interface ChatImageError {
     code?: string | null
 }
 
+/** Why a chat image job ran: the turn's automatic image, or a regenerate (`prompt_edited` tells an edited scene). */
+export type ChatImageTrigger = 'auto' | 'regenerate'
+
+/** How the job's provider was paid for: the platform's key, or the player's own one (BYOK). */
+export type ChatImageCredentialMode = 'platform' | 'user_byok'
+
+/**
+ * The model and cost of one chat image job, as the REST reads carry them.
+ * Image frames may carry it as `generation` in a later server; today they
+ * carry ids and status only, and never prompt text.
+ */
+export interface ChatImageGenerationSummary {
+    image_profile_id?: string | null
+    profile_name?: string | null
+    model?: string | null
+    model_display_name?: string | null
+    provider?: ImageProvider | null
+    credential_mode?: ChatImageCredentialMode | null
+    credit_cost?: number | null
+    /** For example `3:2`; reserves the placeholder's shape. */
+    aspect_ratio?: string | null
+    trigger?: ChatImageTrigger | null
+    created_at?: string | null
+    updated_at?: string | null
+}
+
+/**
+ * One image job of an assistant message, read from the server's image_job
+ * table (`image_generations` on GET messages, the `/messages/{id}/images`
+ * endpoints). A turn keeps every job, newest last after ordering.
+ */
+export interface ChatImageGeneration extends ChatImageGenerationSummary {
+    job_id: string
+    status: ImageLifecycleStatus
+    assistant_message_id?: number | null
+    turn_id?: string | null
+    status_url?: string | null
+    result_url?: string | null
+    assets: ChatImageAsset[]
+    error?: ChatImageError | null
+    /** The scene prompt the job ran on (edited, or the turn's own); null for jobs older than the field. */
+    prompt?: string | null
+    /** The player edited the scene prompt for this job. */
+    prompt_edited?: boolean | null
+    /** The prompt built for the model from the scene prompt. */
+    model_prompt?: string | null
+}
+
+/**
+ * The image choice of one chat frame. Omitted, the server generates with the
+ * account's default profile. `credentials` only travels with the frame that is
+ * being sent and is never stored.
+ */
+export interface ChatImageRequest {
+    generate: boolean
+    image_profile_id?: string
+    credentials?: { api_key: string }
+}
+
+/** Body of `POST /<basePath>/<id>/messages/<mid>/images`; the prompt defaults to the turn's own. */
+export interface ChatImageGenerateBody {
+    prompt?: string
+    image_profile_id?: string
+    credentials?: { api_key: string }
+}
+
+/** Server features named on the `ready` frame; absent on older servers. */
+export interface ChatSocketCapabilities {
+    /** The chat frame accepts an `image` field. */
+    chat_image_request: boolean
+    /** Scene images can be generated at all (an image engine is configured). */
+    chat_images: boolean
+}
+
 /**
  * TTS narration job lifecycle. A superset of {@link ImageLifecycleStatus}: it adds
  * `synthesizing`, `rate_limited`, `timeout`, and `content_blocked`, and has no
@@ -139,6 +214,7 @@ export type ChatTtsErrorCode =
     | 'workspace_archived'
     | 'voice_safety_pause'
     | 'voice_region_unavailable'
+    | 'call_reply_not_narratable'
 
 /**
  * `code` is public and closed on the server (06 §6.6), e.g. `voice_unavailable`,
@@ -198,6 +274,7 @@ export interface ChatTtsSegmentClip extends ChatTtsClipVoiceFields {
     status_url?: string | null
     result_url?: string | null
     url?: string | null
+    audio_url?: string | null
     assets?: ChatTtsAsset[]
     error?: ChatTtsError | null
 }
@@ -229,6 +306,10 @@ export interface StoredConversationMessage {
     created_at: string
     updated_at: string
     completed_at: string | null
+    /** Present when the message was spoken or answered during a voice call. */
+    call?: { voice_session_id: string } | null
+    /** Assistant rows on newer servers: the message's image jobs (newest 20), read from the image_job table. */
+    image_generations?: ChatImageGeneration[]
 }
 
 /**
@@ -240,27 +321,27 @@ export interface StoredConversationMessage {
  * ignored. See magic-worlds-api `route_chat.chat_session_ws`.
  */
 export type ChatSocketClientMessage =
-    | { type: 'chat'; content: string; request_id?: string; existing_user_message_id?: number }
+    | { type: 'chat'; content: string; request_id?: string; existing_user_message_id?: number; image?: ChatImageRequest }
     | { type: 'tts'; assistant_message_id: number; turn_id: string; request_id?: string }
     | { type: 'cancel' }
     | { type: 'ping' }
 
 export type ChatSocketServerMessage = ChatFrameIdentity & (
     | { type: 'turn_started'; user_message_id: number; assistant_message_id: number; turn_id: string; execution_attempt?: ChatExecutionAttempt }
-    | { type: 'ready' }
+    | { type: 'ready'; capabilities?: ChatSocketCapabilities }
     | { type: 'speakers'; roster: ChatSpeakerRosterEntry[]; narrator?: ChatNarratorIdentity | null }
     | { type: 'delta'; content: string }
     | { type: 'metadata'; forwardOptions?: ForwardOption[]; imagePrompt?: string }
     | { type: 'segments'; responseFormat: string; segments: ChatResponseSegment[]; displayText?: string }
-    | { type: 'image_job'; adventure_id: number; assistant_message_id: number; turn_id: string; job_id: string; status: Extract<ImageLifecycleStatus, 'pending' | 'in_progress' | 'mirroring'>; status_url: string; result_url: string }
-    | { type: 'image_complete'; adventure_id: number; assistant_message_id: number; turn_id: string; job_id: string; status: 'completed'; assets: ChatImageAsset[]; status_url?: string; result_url?: string }
-    | { type: 'image_failed'; adventure_id: number; assistant_message_id: number; turn_id: string; job_id: string | null; status: Extract<ImageLifecycleStatus, 'failed' | 'canceled' | 'unavailable' | 'invalid' | 'quota_exceeded'>; error: ChatImageError; status_url?: string | null; result_url?: string | null }
+    | { type: 'image_job'; adventure_id: number; assistant_message_id: number; turn_id: string; job_id: string; status: Extract<ImageLifecycleStatus, 'pending' | 'in_progress' | 'mirroring'>; status_url: string; result_url: string; generation?: ChatImageGenerationSummary | null }
+    | { type: 'image_complete'; adventure_id: number; assistant_message_id: number; turn_id: string; job_id: string; status: 'completed'; assets: ChatImageAsset[]; status_url?: string; result_url?: string; generation?: ChatImageGenerationSummary | null }
+    | { type: 'image_failed'; adventure_id: number; assistant_message_id: number; turn_id: string; job_id: string | null; status: Extract<ImageLifecycleStatus, 'failed' | 'canceled' | 'unavailable' | 'invalid' | 'quota_exceeded'>; error: ChatImageError; status_url?: string | null; result_url?: string | null; generation?: ChatImageGenerationSummary | null }
     | { type: 'image'; [key: string]: unknown } // reserved for a future image step
     | ({ type: 'tts_job'; adventure_id: number; assistant_message_id: number; turn_id: string; job_id: string; status: Extract<TtsLifecycleStatus, 'pending' | 'in_progress' | 'synthesizing' | 'mirroring'>; status_url: string; result_url: string } & ChatTtsSegmentFrameFields)
     | ({ type: 'tts_complete'; adventure_id: number; assistant_message_id: number; turn_id: string; job_id: string; status: 'completed'; url?: string; assets: ChatTtsAsset[]; status_url?: string; result_url?: string } & ChatTtsSegmentFrameFields)
     | ({ type: 'tts_failed'; adventure_id: number; assistant_message_id: number; turn_id: string; job_id: string | null; status: Extract<TtsLifecycleStatus, 'failed' | 'invalid' | 'unavailable' | 'quota_exceeded' | 'rate_limited' | 'timeout' | 'content_blocked'>; error: ChatTtsError; status_url?: string | null; result_url?: string | null } & ChatTtsSegmentFrameFields)
     | { type: 'action'; [key: string]: unknown } // reserved for future actions
-    | { type: 'done'; interrupted?: boolean; user_message_id?: number; assistant_message_id?: number; turn_id?: string }
+    | { type: 'done'; interrupted?: boolean; user_message_id?: number; assistant_message_id?: number; turn_id?: string; image_scheduled?: boolean }
     | { type: 'error'; message: string; category?: string; code?: string }
     | { type: 'pong' }
     | VoiceSafetyNoticeFrame

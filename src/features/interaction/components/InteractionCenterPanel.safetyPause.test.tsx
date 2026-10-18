@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
 import { useState } from 'react'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -36,6 +39,8 @@ vi.mock('../hooks/useAdventureChatSocket', () => ({
 vi.mock('@/app/hooks/usePageFocus', () => ({
     usePageFocus: () => true,
     isPageFocused: () => true,
+    usePageVisible: () => true,
+    isPageVisible: () => true,
 }))
 
 const PLAY = 'Play narration'

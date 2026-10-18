@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
 /**
  * R1-FE-05 (D23, 03 §5.5, 10 §2.4 #16-#17): a voice-call reply shows in the
  * chat without speech markup v1; every other turn renders byte-identically to

@@ -272,7 +272,7 @@ interface WorkspaceSwitcherProps {
 
 export function WorkspaceSwitcher({ collapsed = false, panel = false, onNavigate }: WorkspaceSwitcherProps) {
     const workspace = useContext(WorkspaceContext)
-    if (!workspace || !workspace.featureEnabled || workspace.status !== 'ready' || !workspace.selectedWorkspaceId) return null
+    if (!workspace || workspace.status !== 'ready' || !workspace.selectedWorkspaceId) return null
     return <ConnectedWorkspaceSwitcher collapsed={collapsed} panel={panel} onNavigate={onNavigate} />
 }
 

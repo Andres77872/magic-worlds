@@ -1,5 +1,8 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
+import { setTestFeatureFlags, setAllTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { FRONTEND_FEATURE_ENV } from '@/shared/featureFlags'
 import { apiService } from '../index'
 import { authSession } from '../authSession'
 
@@ -8,7 +11,7 @@ const fetchMock = vi.fn()
 const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { 'Content-Type': 'application/json' } })
 
 beforeEach(() => {
-    for (const env of Object.values(FRONTEND_FEATURE_ENV)) vi.stubEnv(env, 'true')
+    setAllTestFeatureFlags(true)
     localStorage.setItem('magic_worlds:token', 'feature-flags-test-token')
     fetchMock.mockReset().mockResolvedValue(json({}))
     vi.stubGlobal('fetch', fetchMock)
@@ -16,8 +19,15 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); localStorage.clear() })
 
 describe('frontend dispatch with disabled product features', () => {
+    it('allows owner exposure withdrawal with community and adventure permissions off', async () => {
+        setAllTestFeatureFlags(false)
+        fetchMock.mockImplementation(async () => json({}))
+        await apiService.withWorkspace(WORKSPACE).revokeSharedCardLink('owned-share')
+        await apiService.withWorkspace(WORKSPACE).unpublishCard('adventure_template', 'owned-template')
+        expect(fetchMock.mock.calls.map(([, init]) => init.method)).toEqual(['DELETE', 'DELETE'])
+    })
     it('continues filtered Library pages in scope and invalidates them after a private write or account change', async () => {
-        vi.stubEnv(FRONTEND_FEATURE_ENV.adventures, 'false')
+        setTestFeatureFlags({ adventures: false })
         let rows = Array.from({ length: 125 }, (_, index) => ({
             card_type: 'character', card: { id: `visible-${index}`, organization: { workspace_id: WORKSPACE, collection_ids: [] } },
         }))
@@ -45,7 +55,7 @@ describe('frontend dispatch with disabled product features', () => {
         expect((fetchMock.mock.calls[9][1].headers as Record<string, string>).Authorization).toBe('Bearer another-feature-test-token')
     })
     it('blocks community reads, publication, sharing and imports before dispatch', async () => {
-        vi.stubEnv(FRONTEND_FEATURE_ENV.communityCards, 'false')
+        setTestFeatureFlags({ communityCards: false })
         const api = apiService.withWorkspace(WORKSPACE)
         await expect(api.listPublicCards()).rejects.toThrow('disabled')
         await expect(api.publishCard('character', 'card')).rejects.toThrow('disabled')
@@ -56,7 +66,7 @@ describe('frontend dispatch with disabled product features', () => {
         expect(fetchMock).not.toHaveBeenCalled()
     })
     it('sends no voice or call request when voices are off and calls are on', async () => {
-        vi.stubEnv(FRONTEND_FEATURE_ENV.voices, 'false')
+        setTestFeatureFlags({ voices: false })
         const api = apiService.withWorkspace(WORKSPACE)
         await expect(api.getVoiceCapabilities()).rejects.toThrow('Voices are disabled.')
         await expect(api.getTtsJob('job')).rejects.toThrow('Voices are disabled.')
@@ -69,9 +79,9 @@ describe('frontend dispatch with disabled product features', () => {
     })
 
     it('blocks disabled adventure, group and resource writes before dispatch', async () => {
-        vi.stubEnv(FRONTEND_FEATURE_ENV.adventures, 'false')
-        vi.stubEnv(FRONTEND_FEATURE_ENV.groupChats, 'false')
-        vi.stubEnv(FRONTEND_FEATURE_ENV.lorebooks, 'false')
+        setTestFeatureFlags({ adventures: false })
+        setTestFeatureFlags({ groupChats: false })
+        setTestFeatureFlags({ lorebooks: false })
         const api = apiService.withWorkspace(WORKSPACE)
         await expect(api.createAdventureTemplate({})).rejects.toThrow('Adventures are disabled.')
         await expect(api.duplicateCard('adventure_template', 'card')).rejects.toThrow()
@@ -82,7 +92,7 @@ describe('frontend dispatch with disabled product features', () => {
     })
 
     it('keeps default-workspace discovery and scoped private requests with every flag off', async () => {
-        for (const env of Object.values(FRONTEND_FEATURE_ENV)) vi.stubEnv(env, 'false')
+        setAllTestFeatureFlags(false)
         fetchMock.mockImplementation(async (url: string) => json(url.includes('/workspaces/capabilities') ? { workspace_r1: true } : []))
         await apiService.getWorkspaceCapabilities()
         await apiService.withWorkspace(WORKSPACE).getCharacters()
@@ -91,20 +101,21 @@ describe('frontend dispatch with disabled product features', () => {
         expect(url).toContain('/characters/')
         expect((init.headers as Record<string, string>)['X-Workspace-Id']).toBe(WORKSPACE)
         expect((init.headers as Record<string, string>).Authorization).toBe('Bearer feature-flags-test-token')
-        await expect(apiService.listCollections(WORKSPACE)).rejects.toThrow('Workspaces are disabled.')
-        expect(fetchMock).toHaveBeenCalledTimes(2)
+        fetchMock.mockResolvedValueOnce(json({ items: [] }))
+        await apiService.listCollections(WORKSPACE)
+        expect(fetchMock).toHaveBeenCalledTimes(3)
     })
 
     it('filters disabled LLM contracts from a server catalog', async () => {
-        vi.stubEnv(FRONTEND_FEATURE_ENV.voices, 'false')
-        vi.stubEnv(FRONTEND_FEATURE_ENV.novels, 'false')
+        setTestFeatureFlags({ voices: false })
+        setTestFeatureFlags({ novels: false })
         fetchMock.mockResolvedValueOnce(json({ features: ['callbot', 'moderation', 'novel', 'chat_character'].map(feature_key => ({ feature_key })) }))
-        expect((await apiService.getLlmFeatures()).features.map(feature => feature.feature_key)).toEqual(['chat_character'])
+        expect((await apiService.getLlmFeatures()).features.map(feature => feature.feature_key)).toEqual(['moderation', 'chat_character'])
     })
 
     it('hides disabled tasks without discarding the raw pagination cursor', async () => {
-        vi.stubEnv(FRONTEND_FEATURE_ENV.voices, 'false')
-        vi.stubEnv(FRONTEND_FEATURE_ENV.adventures, 'false')
+        setTestFeatureFlags({ voices: false })
+        setTestFeatureFlags({ adventures: false })
         const items = [
             { task_id: 'narration', operation: 'text_to_speech', target: { type: 'character', id: 'card' } },
             { task_id: 'adventure', operation: 'theme_song', target: { type: 'adventure_template', id: 'card' } },

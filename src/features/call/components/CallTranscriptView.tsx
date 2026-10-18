@@ -12,100 +12,54 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AlertTriangle, ArrowLeft, Mic, PhoneCall, Volume2 } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, MessageSquareText, Phone, PhoneCall } from 'lucide-react'
 import { useWorkspace } from '@/app/hooks/useWorkspace'
-import { useAuthenticatedMediaUrl } from '@/infrastructure/api/useAuthenticatedMediaUrl'
+import { ApiError } from '@/infrastructure/api'
 import type { CallSummary, CallTranscriptSegment, Character } from '@/shared'
 import { EmptyState } from '@/ui/components'
-import { VoiceClipPlayer } from '@/ui/components/audio'
-import { Button, Icon, IconTile, PageHeader } from '@/ui/primitives'
-import { stripSpeechMarkupV1 } from '@/shared/voice/speechMarkup'
-import { callDisplay, formatCallDuration, formatCallTime } from '../callTransforms'
+import { Badge, Button, Icon, IconTile, PageHeader } from '@/ui/primitives'
+import { callDisplay, callMetaLine, formatCallDuration, formatCallTime } from '../callTransforms'
+import { CharacterTranscriptLine, UserTranscriptLine } from './CallTranscriptLines'
 
 interface CallTranscriptViewProps {
     call: CallSummary
     characters: Character[]
     onBack: () => void
+    /** Open the character chat this call belongs to. */
+    onOpenChat?: (call: CallSummary) => void
+    /** Start a new call in the same chat or with the same character. */
+    onCallAgain?: (call: CallSummary) => void
+    /** Called when the server reports 404 (call deleted or all lines purged). */
+    onUnavailable?: (voiceSessionId: string) => void
     /** Strip speech markup from the saved character lines (default true). */
     stripMarkup?: boolean
 }
 
-function lineText(text: string | null | undefined, stripMarkup: boolean): string | null | undefined {
-    return stripMarkup && text ? stripSpeechMarkupV1(text) : text
-}
-
-/** One-shot visibility gate (same approach as the lazy Portrait): flips true once the node nears the viewport. */
-function useNearViewport<T extends Element>(enabled: boolean) {
-    const ref = useRef<T>(null)
-    const [near, setNear] = useState(() => !enabled || typeof IntersectionObserver === 'undefined')
-
-    useEffect(() => {
-        if (near) return
-        const node = ref.current
-        if (!node) return
-        const observer = new IntersectionObserver(
-            (entries) => {
-                if (entries.some((entry) => entry.isIntersecting)) {
-                    setNear(true)
-                    observer.disconnect()
-                }
-            },
-            { rootMargin: '200px 0px', threshold: 0 },
-        )
-        observer.observe(node)
-        return () => observer.disconnect()
-    }, [near])
-
-    return [ref, near] as const
-}
-
-function CharacterTranscriptLine({ segment, speaker, stripMarkup }: { segment: CallTranscriptSegment; speaker: string; stripMarkup: boolean }) {
-    const { t } = useTranslation()
-    const [lineRef, nearViewport] = useNearViewport<HTMLDivElement>(Boolean(segment.audio_url))
-    const { src, loading } = useAuthenticatedMediaUrl(nearViewport ? segment.audio_url ?? undefined : undefined, 'audio/mpeg')
-    return (
-        <div ref={lineRef} className="border-l-2 border-arcane-500/30 py-2 pl-4 text-body text-parchment-100">
-            <p>
-                <span className="mb-1 flex items-center gap-1 text-caption font-semibold text-arcane-300">
-                    <Icon icon={Volume2} size={12} />
-                    {speaker}
-                </span>{' '}
-                {lineText(segment.text, stripMarkup)}
-            </p>
-            {segment.audio_url && (
-                <div className="mt-2">
-                    {src ? (
-                        <VoiceClipPlayer src={src} title={t('call.transcript.voiceClip', { speaker })} durationMs={segment.duration_ms} />
-                    ) : (
-                        <span className="text-caption text-parchment-400">{loading ? t('call.transcript.loadingAudio') : ''}</span>
-                    )}
-                </div>
-            )}
-        </div>
-    )
-}
-
-function UserTranscriptLine({ segment }: { segment: CallTranscriptSegment }) {
-    const { t } = useTranslation()
-    return (
-        <div className="border-l-2 border-ember-500/30 py-2 pl-4 text-body text-parchment-100">
-            <p>
-                <span className="mb-1 flex items-center gap-1 text-caption font-semibold text-ember-300">
-                    <Icon icon={Mic} size={12} />
-                    {t('call.transcript.youSaid')}
-                </span>{' '}
-                {segment.text}
-            </p>
-        </div>
-    )
-}
-
-export function CallTranscriptView({ call, characters, onBack, stripMarkup = true }: CallTranscriptViewProps) {
+export function CallTranscriptView({
+    call,
+    characters,
+    onBack,
+    onOpenChat,
+    onCallAgain,
+    onUnavailable,
+    stripMarkup = true,
+}: CallTranscriptViewProps) {
     const { t } = useTranslation()
     const [segments, setSegments] = useState<CallTranscriptSegment[]>([])
+    const [resolvedCall, setResolvedCall] = useState<CallSummary>(call)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
-    const display = useMemo(() => callDisplay(call, characters, t), [call, characters, t])
+    const onUnavailableRef = useRef(onUnavailable)
+    useEffect(() => {
+        onUnavailableRef.current = onUnavailable
+    }, [onUnavailable])
+
+    useEffect(() => {
+        setResolvedCall(call)
+    }, [call])
+
+    const activeCall = resolvedCall.voice_session_id === call.voice_session_id ? resolvedCall : call
+    const display = useMemo(() => callDisplay(activeCall, characters, t), [activeCall, characters, t])
     // Workspace R1: the history (and so this call) belongs to the committed workspace.
     const { api, capture, isCurrent } = useWorkspace()
 
@@ -119,10 +73,17 @@ export function CallTranscriptView({ call, characters, onBack, stripMarkup = tru
             .getVoiceCallTranscript(call.voice_session_id)
             .then((response) => {
                 if (cancelled || !isCurrent(scope)) return
+                if (response.call) setResolvedCall((prev) => ({ ...prev, ...response.call }))
                 setSegments(response.segments ?? [])
             })
             .catch((err) => {
                 if (cancelled) return
+                const isNotFound = (typeof ApiError === 'function' && err instanceof ApiError && err.status === 404)
+                    || (Boolean(err) && typeof err === 'object' && 'status' in err && (err as { status?: number }).status === 404)
+                if (isNotFound && onUnavailableRef.current) {
+                    onUnavailableRef.current(call.voice_session_id)
+                    return
+                }
                 console.error('Failed to load call transcript:', err)
                 setError(t('call.transcript.loadError'))
             })
@@ -134,8 +95,12 @@ export function CallTranscriptView({ call, characters, onBack, stripMarkup = tru
         }
     }, [api, call.voice_session_id, capture, isCurrent, t])
 
-    const duration = formatCallDuration(call.duration_seconds)
-    const subtitleParts = [formatCallTime(call), duration].filter(Boolean)
+    const duration = formatCallDuration(activeCall.duration_seconds)
+    const subtitleParts = [formatCallTime(activeCall), duration].filter(Boolean)
+    const metaLine = callMetaLine(
+        { ...activeCall, segment_count: segments.length || activeCall.segment_count },
+        t,
+    )
 
     return (
         <div className="mx-auto flex w-full max-w-[760px] flex-col gap-5" data-testid="call-transcript-view">
@@ -147,11 +112,42 @@ export function CallTranscriptView({ call, characters, onBack, stripMarkup = tru
                 subtitle={subtitleParts.join(' · ')}
                 size="md"
                 actions={
-                    <Button variant="secondary" iconLeft={<Icon icon={ArrowLeft} size={16} />} onClick={onBack}>
-                        {t('call.transcript.backToCalls')}
-                    </Button>
+                    <div className="flex flex-wrap items-center gap-2">
+                        {onOpenChat && activeCall.chat_id != null && String(activeCall.chat_id) !== '' && (
+                            <Button
+                                variant="secondary"
+                                iconLeft={<Icon icon={MessageSquareText} size={16} />}
+                                onClick={() => onOpenChat(activeCall)}
+                                data-testid="call-transcript-open-chat"
+                            >
+                                {t('call.transcript.openChat')}
+                            </Button>
+                        )}
+                        {onCallAgain && (
+                            <Button
+                                variant="secondary"
+                                iconLeft={<Icon icon={Phone} size={16} />}
+                                onClick={() => onCallAgain(activeCall)}
+                                data-testid="call-transcript-call-again"
+                            >
+                                {t('call.history.callAgain')}
+                            </Button>
+                        )}
+                        <Button variant="secondary" iconLeft={<Icon icon={ArrowLeft} size={16} />} onClick={onBack}>
+                            {t('call.transcript.backToCalls')}
+                        </Button>
+                    </div>
                 }
             />
+
+            {!loading && !error && (metaLine || activeCall.end_reason) && (
+                <div className="flex flex-wrap items-center gap-2" data-testid="call-transcript-meta">
+                    {metaLine && <Badge tone="glass">{metaLine}</Badge>}
+                    {activeCall.end_reason && (
+                        <Badge tone="arcane">{t(`call.transcript.endReason.${activeCall.end_reason}`, { defaultValue: activeCall.end_reason })}</Badge>
+                    )}
+                </div>
+            )}
 
             {loading ? (
                 <div className="flex flex-col gap-2" aria-busy="true">
@@ -184,3 +180,4 @@ export function CallTranscriptView({ call, characters, onBack, stripMarkup = tru
         </div>
     )
 }
+

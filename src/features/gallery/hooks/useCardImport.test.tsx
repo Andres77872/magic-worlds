@@ -1,3 +1,7 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, apiService } from '@/infrastructure/api'
@@ -44,8 +48,8 @@ afterEach(() => {
 
 describe('useCardImport', () => {
     it('does not import a shared adventure while adventures are disabled', async () => {
-        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'false')
-        vi.stubEnv('VITE_FEATURE_COMMUNITY_CARDS_ENABLED', 'true')
+        setTestFeatureFlags({ adventures: false })
+        setTestFeatureFlags({ communityCards: true })
         const imported = vi.spyOn(apiService, 'importSharedCard')
         const { result } = renderHook(() => useCardImport({ client: apiService }))
         await act(async () => {

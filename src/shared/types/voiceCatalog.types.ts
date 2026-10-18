@@ -56,6 +56,7 @@ export interface EffectiveVoiceResponse {
 export type CatalogVoiceStatus = 'active' | 'hidden' | 'deprecating' | 'removed' | 'blocked'
 
 export interface CatalogVoiceLanguage {
+    model_ids?: string[]
     language: string
     native: boolean
     accent: string | null
@@ -149,6 +150,7 @@ export interface VoiceSurfaceCapabilities {
 }
 
 export interface VoiceProviderCapabilities {
+    models?: VoiceModelCapabilities[]
     provider: VoiceProvider
     profile_id: string
     label: string
@@ -157,6 +159,17 @@ export interface VoiceProviderCapabilities {
     languages: string[]
     output_format: string
     operations: string[]
+}
+
+export interface VoiceModelCapabilities {
+    model_id: 'eleven_v4' | 'eleven_v4_turbo' | 'drama-3' | 's2.1-pro'
+    label: string
+    settings: string[]
+    surfaces: string[]
+    supports_emotion: boolean
+    supports_direction: boolean
+    supports_pronunciation: boolean
+    supports_scoped_delivery: boolean
 }
 
 /**

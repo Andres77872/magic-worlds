@@ -47,10 +47,10 @@ export function ArchivedWorkspaceBannerView({ restoring, error, onRestore }: Arc
     )
 }
 
-/** Connected banner: renders only for an archived selected workspace with the R1 UI on. */
+/** Connected banner: renders only for an archived selected workspace . */
 export function ArchivedWorkspaceBanner() {
     const workspace = useContext(WorkspaceContext)
-    const selected = workspace?.featureEnabled && workspace.status === 'ready' ? workspace.selectedWorkspace : null
+    const selected = workspace?.status === 'ready' ? workspace.selectedWorkspace : null
     if (!selected?.archived_at) return null
     return <ConnectedArchivedBanner key={selected.id} workspace={selected} />
 }

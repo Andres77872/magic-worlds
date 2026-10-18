@@ -73,6 +73,8 @@ export interface UseCatalogBrowserOptions {
     defaultLanguage?: string | null
     /** The default language is still being read: hold the first page until it settles. */
     defaultsPending?: boolean
+    /** Only voices that can speak on a call (`works_in_calls`), for the call voice picker. */
+    worksInCalls?: boolean
 }
 
 export function useCatalogBrowser({
@@ -81,6 +83,7 @@ export function useCatalogBrowser({
     recommendedFor = null,
     defaultLanguage = null,
     defaultsPending = false,
+    worksInCalls = false,
 }: UseCatalogBrowserOptions = {}) {
     const [filterState, setFilterState] = useState<CatalogFilters>(initialFilters)
     /** The user chose a language or "Any": the default no longer applies. */
@@ -115,8 +118,9 @@ export function useCatalogBrowser({
             tags: tags.length > 0 ? tags : undefined,
             limit: CATALOG_BROWSER_PAGE_SIZE,
             ...(recommending && recommendationCard ? { recommended_for: recommendationCard } : {}),
+            ...(worksInCalls ? { works_in_calls: true } : {}),
         }
-    }, [filters, debouncedQ, recommending, recommendationCard])
+    }, [filters, debouncedQ, recommending, recommendationCard, worksInCalls])
     const queryKey = JSON.stringify(query)
 
     const fetchPage = useCallback((page: CatalogQuery, cursor: string | null, signal: AbortSignal): Promise<CatalogPage> => {

@@ -2,6 +2,7 @@ import { defineConfig, type PluginOption } from 'vite'
 import { fileURLToPath, URL } from 'node:url'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { offlineShellPlugin } from './build/offlineShellPlugin'
 
 type BuildSource = 'cloudflare-pages' | 'local'
 
@@ -49,7 +50,7 @@ export default defineConfig({
   define: {
     __MW_BUILD_INFO__: JSON.stringify(buildInfo),
   },
-  plugins: [react(), tailwindcss(), appVersionPlugin()],
+  plugins: [react(), tailwindcss(), appVersionPlugin(), offlineShellPlugin(buildInfo.buildId)],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

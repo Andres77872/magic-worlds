@@ -1,5 +1,7 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor,within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+vi.mock('@/app/hooks',()=>({useAuth:()=>({userHash:'drawer-author'})}))
+
 import { apiService } from '@/infrastructure/api'
 import {
     OTHER_WORKSPACE_ID,
@@ -10,6 +12,8 @@ import {
 import type { CodexEntry } from '../../hooks/useCodex'
 import { CodexEntryDrawer } from './CodexEntryDrawer'
 import { CodexLorebookPickerDrawer } from './CodexLorebookPickerDrawer'
+import { storyReference } from '@/test/fixtures/story'
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 
 describe('Codex drawer recovery', () => {
     afterEach(() => vi.restoreAllMocks())
@@ -26,6 +30,7 @@ describe('Codex drawer recovery', () => {
     })
 
     it('distinguishes a lorebook loading failure from an empty search', async () => {
+        setTestFeatureFlags({ novels: true, lorebooks: true })
         vi.spyOn(apiService, 'getLorebooks').mockRejectedValue(new Error('Could not load your lorebooks.'))
         const workspace = createWorkspaceTestState({ api: apiService })
         render(
@@ -37,7 +42,30 @@ describe('Codex drawer recovery', () => {
         expect(screen.queryByText('No matching lorebooks')).not.toBeInTheDocument()
     })
 
+    it('recovers a closed snapshot form and explicitly rebases only its changed fields before saving',async()=>{
+        localStorage.clear()
+        const entry:CodexEntry={id:'reference-1',kind:'character',label:'Mira',description:'Original note',enabled:true,ref:storyReference(),contextRevision:2}
+        const onSave=vi.fn().mockResolvedValue(undefined)
+        const props={busy:false,onClose:vi.fn(),onSave,workspaceId:TEST_WORKSPACE_ID}
+        const view=render(<CodexEntryDrawer {...props} entry={entry}/>)
+        fireEvent.change(screen.getByRole('textbox',{name:'Description'}),{target:{value:'My private revision'}})
+        view.rerender(<CodexEntryDrawer {...props} entry={null}/>)
+        const account={...entry,label:'Renamed elsewhere',contextRevision:4}
+        view.rerender(<CodexEntryDrawer {...props} entry={account}/>)
+        expect(screen.getByText(/Unsent private snapshot edits/)).toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button',{name:'Resume device draft'}))
+        expect(screen.getByRole('textbox',{name:'Description'})).toHaveValue('My private revision')
+        fireEvent.click(screen.getByRole('button',{name:'Compare versions'}))
+        const compare=await screen.findByRole('dialog',{name:'Compare versions'})
+        expect(within(compare).getByText('Renamed elsewhere')).toBeInTheDocument()
+        fireEvent.click(within(compare).getByRole('button',{name:'Keep my changed fields'}))
+        expect(screen.getByRole('textbox',{name:'Name'})).toHaveValue('Renamed elsewhere')
+        fireEvent.click(screen.getByRole('button',{name:'Save'}))
+        await waitFor(()=>expect(onSave).toHaveBeenCalledWith(expect.objectContaining({contextRevision:4}),{label:'Renamed elsewhere',description:'My private revision'}))
+    })
+
     it("lists the story's workspace and closes on a committed workspace switch", async () => {
+        setTestFeatureFlags({ novels: true, lorebooks: true })
         const getLorebooks = vi.spyOn(apiService, 'getLorebooks').mockResolvedValue([
             { id: 'lb-1', name: 'Twin Courts', description: null, entries: [] },
         ])

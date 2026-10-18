@@ -1,3 +1,7 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ChatSocket, configureChatSocketAuthRefresh } from './chatSocket'
 
@@ -391,8 +395,8 @@ describe('ChatSocket auth recovery', () => {
     })
 
     it('keeps text frames but drops narration frames with voices off and calls on', async () => {
-        vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'false')
-        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
+        setTestFeatureFlags({ voices: false })
+        setTestFeatureFlags({ calls: true })
         const socket = new ChatSocket(7, WORKSPACE_ID, { onMessage: vi.fn() }, 'character-chats')
         socket.connect()
         const ws = MockWebSocket.instances[0]
@@ -459,6 +463,27 @@ describe('ChatSocket auth recovery', () => {
         expect(onMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'error', category: 'not_found', code: 'CHAT_SESSION_NOT_FOUND' }))
     })
 
+    it('refreshes permissions without refreshing authentication or reconnecting after a feature refusal', async () => {
+        vi.useFakeTimers()
+        const refresh = vi.fn()
+        configureChatSocketAuthRefresh(refresh)
+        const invalidated = vi.fn()
+        window.addEventListener('feature-flags:invalidate', invalidated)
+        const socket = new ChatSocket(3, WORKSPACE_ID, { onMessage: vi.fn() })
+        try {
+            socket.connect()
+            MockWebSocket.instances[0].emitOpen()
+            MockWebSocket.instances[0].emitClose(4453)
+            await vi.advanceTimersByTimeAsync(60_000)
+            expect(MockWebSocket.instances).toHaveLength(1)
+            expect(refresh).not.toHaveBeenCalled()
+            expect(invalidated).toHaveBeenCalledOnce()
+        } finally {
+            socket.close()
+            window.removeEventListener('feature-flags:invalidate', invalidated)
+        }
+    })
+
     it('treats a 4422 (no workspace sent: stale client) as terminal and asks for a reload', async () => {
         vi.useFakeTimers()
         const onMessage = vi.fn()
@@ -520,6 +545,73 @@ describe('ChatSocket auth recovery', () => {
             content: 'hello',
             request_id: 'request-7',
         })
+    })
+
+    it('reads the image choice when a queued frame leaves and never sends its key without HTTPS', () => {
+        const socket = new ChatSocket(7, WORKSPACE_ID, { onMessage: vi.fn() })
+        socket.connect()
+        let reads = 0
+        const image = { generate: true, image_profile_id: '11111111-1111-4111-8111-111111111111', credentials: { api_key: 'FAKE_IMAGE_KEY' } }
+        socket.sendChat('hello', 'request-8', undefined, undefined, () => { reads += 1; return image })
+        expect(reads).toBe(0)
+        MockWebSocket.instances[0].emitOpen()
+        // Whether the frame may carry `image` is named on the ready frame: it waits for it.
+        expect(reads).toBe(0)
+        expect(MockWebSocket.instances[0].send).not.toHaveBeenCalled()
+        MockWebSocket.instances[0].emitMessage({ type: 'ready', capabilities: { chat_image_request: true, chat_images: true } })
+
+        expect(reads).toBe(1)
+        const sent = String(MockWebSocket.instances[0].send.mock.calls[0][0])
+        expect(JSON.parse(sent)).toEqual({
+            type: 'chat', content: 'hello', request_id: 'request-8', llm: { selection: { mode: 'inherit' } },
+            image: { generate: true, image_profile_id: '11111111-1111-4111-8111-111111111111' },
+        })
+        expect(sent).not.toContain('FAKE_IMAGE_KEY')
+        // The materialized key is dropped once the frame is out.
+        expect(image).not.toHaveProperty('credentials')
+    })
+
+    it('reads the server capabilities before building the image field of a new chat\'s first frame', () => {
+        let accepted = false
+        const onMessage = vi.fn((message: { type: string; capabilities?: { chat_image_request: boolean } }) => {
+            if (message.type === 'ready') accepted = message.capabilities?.chat_image_request === true
+        })
+        const socket = new ChatSocket(7, WORKSPACE_ID, { onMessage })
+        socket.connect()
+        socket.sendChat('hello', 'request-10', undefined, undefined, () => (accepted ? { generate: false } : undefined))
+        MockWebSocket.instances[0].emitOpen()
+        MockWebSocket.instances[0].emitMessage({ type: 'ready', capabilities: { chat_image_request: true, chat_images: true } })
+
+        expect(JSON.parse(String(MockWebSocket.instances[0].send.mock.calls[0][0])).image).toEqual({ generate: false })
+    })
+
+    it('holds a frame sent between open and ready, and sends text-only frames at once', () => {
+        const socket = new ChatSocket(7, WORKSPACE_ID, { onMessage: vi.fn() })
+        socket.connect()
+        const ws = MockWebSocket.instances[0]
+        ws.emitOpen()
+
+        socket.sendChat('plain', 'request-11')
+        expect(ws.send).toHaveBeenCalledTimes(1)
+
+        socket.sendChat('with image', 'request-12', undefined, undefined, () => ({ generate: true }))
+        expect(ws.send).toHaveBeenCalledTimes(1)
+        // An older server's ready frame names no capabilities; the frame still leaves.
+        ws.emitMessage({ type: 'ready' })
+        expect(ws.send).toHaveBeenCalledTimes(2)
+        expect(MockWebSocket.instances).toHaveLength(1)
+
+        socket.sendChat('after ready', 'request-13', undefined, undefined, () => ({ generate: true }))
+        expect(ws.send).toHaveBeenCalledTimes(3)
+    })
+
+    it('sends no image field when the choice materializes to nothing', () => {
+        const socket = new ChatSocket(7, WORKSPACE_ID, { onMessage: vi.fn() })
+        socket.connect()
+        MockWebSocket.instances[0].emitOpen()
+        MockWebSocket.instances[0].emitMessage({ type: 'ready' })
+        socket.sendChat('hello', 'request-9', undefined, undefined, () => undefined)
+        expect(JSON.parse(String(MockWebSocket.instances[0].send.mock.calls[0][0]))).not.toHaveProperty('image')
     })
 
     it('preserves the stored user message id while a retry waits for connection', () => {

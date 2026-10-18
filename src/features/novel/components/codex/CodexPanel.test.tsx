@@ -1,3 +1,5 @@
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
+import { novel } from '@/test/fixtures/story'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -5,25 +7,40 @@ const addStoryCardRefs = vi.fn().mockResolvedValue(undefined)
 const updateStoryCardRef = vi.fn().mockResolvedValue(undefined)
 const deleteStoryCardRef = vi.fn().mockResolvedValue(undefined)
 
+const restoreStoryCardRef=vi.fn().mockResolvedValue(undefined)
+const changeStoryCodex=vi.fn(async(storyId,write)=>{
+    const operation=write.operation
+    if(operation.op==='add')await addStoryCardRefs(storyId,operation.refs)
+    if(operation.op==='update')await updateStoryCardRef(storyId,operation.id,operation.patch)
+    if(operation.op==='remove')await deleteStoryCardRef(storyId,operation.id)
+    if(operation.op==='restore')await restoreStoryCardRef(storyId,operation.id)
+    return {contextRevision:write.expectedContextRevision+1,refs:[]}
+})
+const refreshStory=vi.fn().mockResolvedValue(undefined)
 vi.mock('@/app/hooks', () => ({
-    useData: () => ({ addStoryCardRefs, updateStoryCardRef, deleteStoryCardRef }),
+    useData: () => ({changeStoryCodex,refreshStory}),
+    useAuth:()=>({userHash:'codex-author',isAuthenticated:true,openLoginModal:vi.fn()}),
     useFloatingWindows: () => ({ openWindow: vi.fn(), closeWindow: vi.fn(), closeAll: vi.fn(), focusWindow: vi.fn(), windows: [] }),
 }))
 
-vi.mock('@/infrastructure/api', () => {
+vi.mock('@/infrastructure/api', async (importOriginal) => {
+    const {ApiError}=await importOriginal<typeof import('@/infrastructure/api')>()
     const apiService: Record<string, unknown> = {
         getLorebooks: vi.fn(),
         getCharacters: vi.fn().mockResolvedValue([]),
         getWorlds: vi.fn().mockResolvedValue([]),
         getItems: vi.fn().mockResolvedValue([]),
         getAdventureTemplates: vi.fn().mockResolvedValue([]),
+        getStoryCodexLibraryVersions: vi.fn().mockResolvedValue({ versions: [], changed: [] }),
+        getStoryCodexLibrary: vi.fn(),
+        listStoryPlanItems: vi.fn().mockResolvedValue({ storyId: 's1', kind: 'fact', items: [], truncated: false }),
     }
     apiService.withWorkspace = vi.fn(() => apiService)
-    return { apiService, resolveMediaUrl: (url?: string | null) => url ?? undefined }
+    return { ApiError, apiService, resolveMediaUrl: (url?: string | null) => url ?? undefined }
 })
 
 import type { Story, StoryCardRef, StoryCardSnapshot, StoryContextTrace } from '@/shared'
-import { apiService } from '@/infrastructure/api'
+import { ApiError, apiService } from '@/infrastructure/api'
 import {
     OTHER_WORKSPACE_ID,
     TEST_WORKSPACE_ID,
@@ -52,7 +69,7 @@ function ref(overrides: Partial<StoryCardRef>): StoryCardRef {
     return {
         id: 'ref-x',
         storyId: 's1',
-        chapterId: null,
+        chapterId: null, sceneId: null, removedAt: null,
         kind: 'character',
         cardId: 'card-x',
         source: 'manual',
@@ -65,6 +82,7 @@ function ref(overrides: Partial<StoryCardRef>): StoryCardRef {
 
 function story(refs: StoryCardRef[]): Story {
     return {
+        ...novel({chapters:[]}),
         id: 's1',
         title: 'Glass War',
         description: null,
@@ -76,7 +94,7 @@ function story(refs: StoryCardRef[]): Story {
             includeLorebooks: true,
             includeRecentChapters: 2,
             tokenBudget: 6000,
-            styleSource: 'current_chapter',
+            styleSource: 'current_scene',
             customStyleInstruction: null,
         },
     }
@@ -136,9 +154,9 @@ describe('CodexPanel', () => {
             ref({ id: 'hidden-lore', kind: 'lorebook_entry', snapshot: snapshot({ name: 'Hidden pact', story_card_kind: 'lorebook_entry' }) }),
         ]
         const original = structuredClone(stored)
-        vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'true')
-        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'false')
-        vi.stubEnv('VITE_FEATURE_LOREBOOKS_ENABLED', 'false')
+        setTestFeatureFlags({ novels: true })
+        setTestFeatureFlags({ adventures: false })
+        setTestFeatureFlags({ lorebooks: false })
         const disabled = render(<Harness refs={stored} />)
         expect(screen.getByText('Aria')).toBeInTheDocument()
         expect(screen.queryByText('Hidden quest')).not.toBeInTheDocument()
@@ -149,8 +167,8 @@ describe('CodexPanel', () => {
         expect(stored).toEqual(original)
 
         disabled.unmount()
-        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'true')
-        vi.stubEnv('VITE_FEATURE_LOREBOOKS_ENABLED', 'true')
+        setTestFeatureFlags({ adventures: true })
+        setTestFeatureFlags({ lorebooks: true })
         render(<Harness refs={stored} />)
         expect(screen.getByText('Hidden quest')).toBeInTheDocument()
         expect(screen.getByText('Hidden pact')).toBeInTheDocument()
@@ -158,8 +176,8 @@ describe('CodexPanel', () => {
         expect(stored).toEqual(original)
     })
     it('keeps card selection but hides lorebooks when only novels are enabled', () => {
-        vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'true')
-        vi.stubEnv('VITE_FEATURE_LOREBOOKS_ENABLED', 'false')
+        setTestFeatureFlags({ novels: true })
+        setTestFeatureFlags({ lorebooks: false })
         render(<Harness refs={[]} />)
         openAddMenu()
         expect(screen.queryByRole('menuitem', { name: /lorebook/i })).not.toBeInTheDocument()
@@ -167,7 +185,7 @@ describe('CodexPanel', () => {
         expect(apiService.getLorebooks).not.toHaveBeenCalled()
     })
     beforeEach(() => {
-        vi.clearAllMocks()
+        vi.clearAllMocks();localStorage.clear()
         vi.mocked(apiService.getLorebooks).mockResolvedValue([RAW_LOREBOOK])
     })
 
@@ -197,15 +215,16 @@ describe('CodexPanel', () => {
         const trace: StoryContextTrace = {
             cards: [],
             loreEntries: [],
-            chapters: [
-                { chapterId: 'c1', title: 'One', included: true, reason: 'current', estimatedTokens: 120 },
-                { chapterId: 'c2', title: 'Two', included: true, reason: 'recent', estimatedTokens: 80 },
+            structureRevision:1,novelMetadataRevision:1,contextRevision:1,
+            scenes: [
+                { sceneId:'sc1',revision:1,metadataRevision:1,chapterId: 'c1', title: 'One', included: true, reason: 'current', estimatedTokens: 120 },
+                { sceneId:'sc2',revision:1,metadataRevision:1,chapterId: 'c2', title: 'Two', included: true, reason: 'recent', estimatedTokens: 80 },
             ],
             totalEstimatedTokens: 1420,
         }
         rerender(<Harness refs={[ref({ id: 'a' }), ref({ id: 'b', enabled: false })]} trace={trace} />)
 
-        expect(within(screen.getByTestId('codex-context-meter')).getByText('~1420 tokens · 2 chapters')).toBeInTheDocument()
+        expect(within(screen.getByTestId('codex-context-meter')).getByText('~1420 tokens · 2 scenes')).toBeInTheDocument()
     })
 
     it('filters entries by label and description, then reports no matches', () => {
@@ -292,6 +311,7 @@ describe('CodexPanel', () => {
     })
 
     it('clones selected lorebook entries through the two-step drawer', async () => {
+        setTestFeatureFlags({ novels: true, lorebooks: true })
         render(<Harness refs={[]} />)
 
         openAddMenu()
@@ -339,7 +359,7 @@ describe('CodexPanel in an archived workspace', () => {
     }
 
     beforeEach(() => {
-        vi.clearAllMocks()
+        vi.clearAllMocks();localStorage.clear()
         archivedState = createWorkspaceTestState({
             api: apiService,
             workspaces: [
@@ -382,5 +402,108 @@ describe('CodexPanel in an archived workspace', () => {
         expect(updateStoryCardRef).not.toHaveBeenCalled()
         expect(deleteStoryCardRef).not.toHaveBeenCalled()
         expect(addStoryCardRefs).not.toHaveBeenCalled()
+    })
+})
+
+describe('CodexPanel library updates', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();localStorage.clear()
+        setTestFeatureFlags({ novels: true })
+    })
+
+    it('offers a newer library version and takes only the reviewed details into the novel copy', async () => {
+        const linked = ref({ snapshot: snapshot({ alias: 'The Red', race: 'Elf', source_card_id: 'card-x', source_card_version_id: 'v3', source_card_version_number: 3 }) })
+        vi.mocked(apiService.getStoryCodexLibraryVersions).mockResolvedValue({ versions: [{ refId: 'ref-x', latestVersionNumber: 5 }], changed: [] })
+        vi.mocked(apiService.getStoryCodexLibrary).mockResolvedValue({ refId: 'ref-x',
+            current: snapshot({ alias: 'The Bold', race: 'Human', description: 'A ranger of the north road.', source_card_id: 'card-x', source_card_version_id: 'v5', source_card_version_number: 5 }),
+            // The novel kept the copied alias and description, and changed the race the library also changed.
+            base: { name: 'Aria', alias: 'The Red', description: 'A card.', race: 'Half-elf' }, sourceVersionId: 'v5' })
+        render(<Harness refs={[linked]} />)
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Review library v5 of Aria' }))
+        const dialog = await screen.findByRole('dialog')
+        expect(await within(dialog).findByText(/taken from library version 3\. The library card is now at version 5/)).toBeInTheDocument()
+        expect(within(dialog).getAllByText('Changed in the library')).toHaveLength(2)
+        expect(within(dialog).getByText('Changed in both')).toBeInTheDocument()
+        expect(within(dialog).getByText('1 detail already matches the library.')).toBeInTheDocument()
+        expect(within(dialog).getByText('Applies to the whole novel.')).toBeInTheDocument()
+        const race = within(dialog).getByRole('region', { name: 'Race' })
+        expect(within(race).getByRole('radio', { name: 'Keep this novel’s' })).toHaveAttribute('aria-checked', 'true')
+        fireEvent.click(within(race).getByRole('radio', { name: 'Use library' }))
+        expect(within(dialog).getByRole('button', { name: 'Take 3 details' })).toBeInTheDocument()
+        fireEvent.click(within(race).getByRole('radio', { name: 'Keep this novel’s' }))
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Take 2 details' }))
+
+        await waitFor(() => expect(changeStoryCodex).toHaveBeenCalledWith('s1', expect.objectContaining({ expectedContextRevision: 1,
+            operation: { op: 'refresh', id: 'ref-x', sourceVersionId: 'v5', take: ['alias', 'description'] } })))
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+        expect(apiService.getStoryCodexLibrary).toHaveBeenCalledWith(expect.objectContaining({ id: 'ref-x', storyId: 's1' }))
+    })
+
+    it('reloads the review when the library card changed again, without reporting a Codex conflict', async () => {
+        const linked = ref({ snapshot: snapshot({ race: 'Elf', source_card_id: 'card-x', source_card_version_id: 'v3', source_card_version_number: 3 }) })
+        vi.mocked(apiService.getStoryCodexLibraryVersions).mockResolvedValue({ versions: [{ refId: 'ref-x', latestVersionNumber: 4 }], changed: [] })
+        const library = (version: number, race: string) => ({ refId: 'ref-x', base: { name: 'Aria', description: 'A card.', race: 'Elf' }, sourceVersionId: 'v' + version,
+            current: snapshot({ race, source_card_id: 'card-x', source_card_version_id: 'v' + version, source_card_version_number: version }) })
+        vi.mocked(apiService.getStoryCodexLibrary).mockResolvedValueOnce(library(4, 'Human')).mockResolvedValueOnce(library(5, 'Half-elf'))
+        changeStoryCodex.mockRejectedValueOnce(new ApiError(409, 'changed', { code: 'STORY_CODEX_SOURCE_CHANGED' }))
+        render(<Harness refs={[linked]} />)
+        fireEvent.click(await screen.findByRole('button', { name: 'Review library v4 of Aria' }))
+        const dialog = await screen.findByRole('dialog')
+        fireEvent.click(await within(dialog).findByRole('button', { name: 'Take 1 detail' }))
+
+        expect(await within(dialog).findByText('The library card changed again while you were reviewing. The newer version is shown now.')).toBeInTheDocument()
+        expect(await within(dialog).findByText('Half-elf')).toBeInTheDocument()
+        expect(changeStoryCodex).toHaveBeenCalledWith('s1', expect.objectContaining({ operation: { op: 'refresh', id: 'ref-x', sourceVersionId: 'v4', take: ['race'] } }))
+        expect(refreshStory).not.toHaveBeenCalled()
+        expect(screen.queryByText(/account Codex changed/)).not.toBeInTheDocument()
+    })
+
+    it('offers a changed lorebook entry for review, lists the facts in its description and records the reviewed library state', async () => {
+        setTestFeatureFlags({ novels: true, lorebooks: true })
+        const state = 'b'.repeat(64)
+        const copy = snapshot({ id: 'entry-1', name: 'The Tide Bell', description: 'Rings once for a boat. Mara hears it at dawn.', story_card_kind: 'lorebook_entry',
+            source_lorebook_id: 'book-1', source_base: { state_id: 'a'.repeat(64), name: 'The Tide Bell', description: 'Rings once for a boat.' } })
+        const entry = ref({ kind: 'lorebook_entry', cardId: 'entry-1', snapshot: copy })
+        const fact = (codexRefId: string, statement: string) => ({ id: 'fact-' + statement.length, storyId: 's1', kind: 'fact', state: 'approved', sceneId: null, revision: 1,
+            createdAt: '2026-10-18T00:00:00Z', updatedAt: '2026-10-18T00:00:00Z', data: { subject: 'Mara', kind: 'event', statement, origin: 'author', codexRefId, codexRevision: 2 } })
+        vi.mocked(apiService.getStoryCodexLibraryVersions).mockResolvedValue({ versions: [], changed: [{ refId: 'ref-x', sourceVersionId: state }] })
+        vi.mocked(apiService.getStoryCodexLibrary).mockResolvedValue({ refId: 'ref-x', sourceVersionId: state, base: { name: 'The Tide Bell', description: 'Rings once for a boat.' },
+            current: snapshot({ id: 'entry-1', name: 'The Drowned Bell', description: 'Rings twice for the drowned.', story_card_kind: 'lorebook_entry', source_lorebook_id: 'book-1' }) })
+        vi.mocked(apiService.listStoryPlanItems).mockResolvedValue({ storyId: 's1', kind: 'fact', truncated: false,
+            items: [fact('ref-x', 'Mara hears the bell at dawn.'), fact('other-ref', 'Elsewhere entirely.')] } as never)
+        render(<Harness refs={[entry]} />)
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Review library changes to The Tide Bell' }))
+        const dialog = await screen.findByRole('dialog')
+        expect(await within(dialog).findByText(/The library’s lorebook entry changed since this novel’s copy was taken or last reviewed/)).toBeInTheDocument()
+        expect(within(dialog).getByText('Changed in the library')).toBeInTheDocument()
+        expect(within(dialog).getByText('Changed in both')).toBeInTheDocument()
+        expect(await within(dialog).findByText(/1 approved story fact was applied to this entry’s description\. Taking the library’s description leaves it out/)).toBeInTheDocument()
+        expect(within(dialog).getByText('Mara hears the bell at dawn.')).toBeInTheDocument()
+        expect(within(dialog).queryByText('Elsewhere entirely.')).not.toBeInTheDocument()
+        expect(within(dialog).getAllByText('Library now')).toHaveLength(2)
+        expect(apiService.listStoryPlanItems).toHaveBeenCalledWith('s1', 'fact', { state: 'approved' })
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Take 1 detail' }))
+
+        await waitFor(() => expect(changeStoryCodex).toHaveBeenCalledWith('s1', expect.objectContaining({
+            operation: { op: 'refresh', id: 'ref-x', sourceVersionId: state, take: ['name'] } })))
+    })
+
+    it('shows no notice for a copy that names the newest version and keeps the novel copy when the library card is gone', async () => {
+        const linked = ref({ snapshot: snapshot({ source_card_id: 'card-x', source_card_version_id: 'v5', source_card_version_number: 5 }) })
+        vi.mocked(apiService.getStoryCodexLibraryVersions).mockResolvedValue({ versions: [{ refId: 'ref-x', latestVersionNumber: 5 }], changed: [] })
+        const view = render(<Harness refs={[linked]} />)
+        await waitFor(() => expect(apiService.getStoryCodexLibraryVersions).toHaveBeenCalledWith('s1'))
+        expect(screen.queryByRole('button', { name: /Review library/ })).not.toBeInTheDocument()
+        view.unmount()
+
+        vi.mocked(apiService.getStoryCodexLibraryVersions).mockResolvedValue({ versions: [{ refId: 'ref-x', latestVersionNumber: 6 }], changed: [] })
+        vi.mocked(apiService.getStoryCodexLibrary).mockRejectedValue(new ApiError(404, 'gone', { code: 'STORY_CODEX_SOURCE_MISSING' }))
+        render(<Harness refs={[linked]} />)
+        fireEvent.click(await screen.findByRole('button', { name: 'Review library v6 of Aria' }))
+        expect(await screen.findByText('The library card is gone or is in another workspace. This copy stays as it is.')).toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: /^Take|Mark as reviewed/ })).not.toBeInTheDocument()
+        expect(changeStoryCodex).not.toHaveBeenCalled()
     })
 })

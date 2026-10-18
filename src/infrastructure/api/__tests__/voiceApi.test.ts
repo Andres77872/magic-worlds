@@ -1,3 +1,7 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiService } from '../index'
 import type { VoiceSegmentUploadRequest } from '@/shared/types/voice.types'
@@ -34,7 +38,7 @@ function segmentBody(): VoiceSegmentUploadRequest {
 
 describe('voice API helpers', () => {
     beforeEach(() => {
-        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
+        setTestFeatureFlags({ calls: true })
         localStorage.clear()
         localStorage.setItem('magic_worlds:token', 'old-token')
     })

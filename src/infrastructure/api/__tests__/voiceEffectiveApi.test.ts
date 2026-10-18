@@ -1,3 +1,7 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearVoiceCapabilitiesCache } from '@/shared/voice/voiceCapabilities'
 import { apiService } from '../index'
@@ -36,7 +40,7 @@ describe('effective voice API (R1-FE-03)', () => {
         localStorage.clear()
         localStorage.setItem('magic_worlds:token', 'token-1')
         vi.stubGlobal('fetch', fetchMock)
-        vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'true')
+        setTestFeatureFlags({ voices: true })
         vi.spyOn(console, 'error').mockImplementation(() => undefined)
         vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     })
@@ -124,7 +128,7 @@ describe('effective voice API (R1-FE-03)', () => {
     })
 
     it('refuses while voices are disabled', async () => {
-        vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'false')
+        setTestFeatureFlags({ voices: false })
         await expect(apiService.getEffectiveVoice('preset', 'p1')).rejects.toThrow('Voices are disabled.')
         expect(fetchMock).not.toHaveBeenCalled()
     })

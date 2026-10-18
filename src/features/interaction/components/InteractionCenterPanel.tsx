@@ -1,9 +1,10 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 import { isVoicesFeatureEnabled } from '@/shared/featureFlags'
 import { frameBatch } from '@/utils/frameBatch'
-import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {Fragment, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useTranslation} from 'react-i18next'
 import type {ChatNarratorIdentity, ChatResponseSegment, ChatSpeakerRosterEntry, ForwardOption, TurnEntry} from '../../../shared'
-import type {ImageJobPublicResponse, TtsJobPublicResponse} from '../../../infrastructure/api'
+import {ApiError, type TtsJobPublicResponse} from '../../../infrastructure/api'
 import {useAuth, useData} from '../../../app/hooks'
 import {useWorkspace} from '@/app/hooks/useWorkspace'
 import {isPageFocused, usePageFocus} from '@/app/hooks/usePageFocus'
@@ -12,17 +13,27 @@ import {Button, Callout, Icon, IconButton} from '../../../ui/primitives'
 import {ConfirmDialog} from '@/ui/components'
 import {ChatComposer} from './ChatComposer'
 import {ChatTurn} from './ChatTurn'
+import {CallDivider} from './CallDivider'
 import type {VoiceRefreshTarget} from './NarrationVoiceNotes'
 import {UnsavedReplyNotice} from './UnsavedReplyNotice'
 import {useSessionLorebookEntries} from '@/features/lorebook'
 import {generateUUID} from '../../../utils/uuid'
 import type {ChatSessionConfig} from '../chatSessionConfig'
-import {useAdventureChatSocket, type AdventureChatSocketErrorDetail} from '../hooks/useAdventureChatSocket'
+import {useAdventureChatSocket, type AdventureChatSocketErrorDetail, type ChatImageChoice} from '../hooks/useAdventureChatSocket'
+import {useChatImages} from '../hooks/useChatImages'
+import {ChatImageActionsContext, type ChatImageActions, type ChatImageKeyRequest} from './chatImageActions'
+import {ChatImageControl} from './ChatImageControl'
+import {ChatImageDetailsDialog} from './ChatImageDetailsDialog'
+import {chatImageChoice, useChatImageSettings} from '../hooks/useChatImageSettings'
+import {useChatImageProfiles} from '../hooks/useChatImageProfiles'
+import {ImageKeyDialog} from '@/features/imageProfiles/ImageKeyDialog'
+import {imageCredentialSession} from '@/features/imageProfiles/imageCredentialSession'
 import { authSession } from '@/infrastructure/api/authSession'
-import {hasNonTerminalImageJob, mergeHydratedImageTurns, upsertChatImageFrame, upsertImageJobResult} from '../utils/chatImageTurnState'
 import {hasNonTerminalTtsJob, mergeHydratedTtsTurns, nonTerminalTtsJobIds, upsertChatTtsFrame, upsertTtsJobResult} from '../utils/chatTtsTurnState'
 import {mergeHydratedChatTurns} from '../utils/chatTurnMerge'
 import {isUnsavedReply, lastUserIndex, latestExchangeReply, transcriptItems, unsavedReplyReason} from '../utils/chatTurnVisibility'
+import {isCallReply, isCallTurn, turnVoiceSessionId} from '../utils/callTurnMarkup'
+import {buildCallTranscriptHash} from '@/features/call/callLinks'
 import {finalizeResponseSegments, resolveSegmentIdentity, segmentsToPlainText, streamingXmlToPlainText, streamingXmlToSegments} from '@/utils/chatSegments'
 import { scrollBehavior } from '@/utils/motion'
 import type { LlmFeature } from '@/shared/types/llm.types'
@@ -40,13 +51,12 @@ import { NarrationAllowanceNote } from './NarrationAllowanceNote'
 import { BreakNudge, SafetyPauseNotice, useSafetyPause } from '@/features/safety'
 import { readSafeguards } from '@/shared/voice/voiceCapabilities'
 
-// Extend TurnEntry to include forward options and the (out-of-scope) image prompt
+// Extend TurnEntry with the live-only fields this panel adds while streaming
 interface ExtendedTurnEntry extends TurnEntry {
     forwardOptions?: ForwardOption[]
     segments?: ChatResponseSegment[]
     isStreaming?: boolean
     narratorIdentity?: ChatNarratorIdentity | null
-    imagePrompt?: string  // Text prompt for a future image-generation step (not rendered)
 }
 
 interface InteractionCenterPanelProps {
@@ -76,6 +86,12 @@ interface InteractionCenterPanelProps {
      * only, so "Voice replaced" offers no refresh here.
      */
     isGroupChat?: boolean
+    /**
+     * Overrides the scene-image choice new turns are sent with (on or off, and
+     * the profile). Omitted, the composer's image control decides. Resends of a
+     * request keep the choice it was first sent with.
+     */
+    imageRequest?: ChatImageChoice
 }
 
 interface ChatAttempt {
@@ -88,6 +104,7 @@ interface ChatAttempt {
     target?: AdventureChatSocketErrorDetail['llmRetry']
     /** Set once the hook confirmed the request is spent: a retry starts a fresh reply. */
     llmRetry?: AdventureChatSocketErrorDetail['llmRetry']
+    image?: ChatImageChoice
 }
 
 // Cleared TTS lifecycle fields, applied whenever an AI turn is (re)generated or
@@ -100,17 +117,6 @@ const RESET_TTS_FIELDS = {
     ttsAssets: undefined,
     ttsUrl: undefined,
     ttsError: undefined,
-} satisfies Partial<ExtendedTurnEntry>
-
-// Image counterpart of RESET_TTS_FIELDS, for the same (re)generate/edit paths.
-const RESET_IMAGE_FIELDS = {
-    imageJobId: undefined,
-    imageStatus: undefined,
-    imageStatusUrl: undefined,
-    imageResultUrl: undefined,
-    imageAssets: undefined,
-    imageUrl: undefined,
-    imageError: undefined,
 } satisfies Partial<ExtendedTurnEntry>
 
 // Clear an optimistic `pending` that never received its `tts_job` ack (socket
@@ -165,7 +171,8 @@ function storedMessageId(turn?: TurnEntry | null): number | undefined {
     return undefined
 }
 
-export function InteractionCenterPanel({sessionId: initialSessionId, ensureSession, turns, setTurns, config, speakerRoster, llmFeature, onEditNarratorVoice, isGroupChat = false}: InteractionCenterPanelProps) {
+export function InteractionCenterPanel({sessionId: initialSessionId, ensureSession, turns, setTurns, config, speakerRoster, llmFeature, onEditNarratorVoice, isGroupChat = false, imageRequest: imageRequestOverride}: InteractionCenterPanelProps) {
+    const featureFlagGeneration = useFeatureFlags().generation
     const { t } = useTranslation()
     const voicesEnabled = isVoicesFeatureEnabled()
     const [createdSessionId, setCreatedSessionId] = useState<number | null>(null)
@@ -208,6 +215,17 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
     useEffect(() => {
         readOnlyRef.current = readOnly
     }, [readOnly])
+    // Scene images live beside the turns, keyed by assistant message: frames,
+    // job polls and every server projection fold in there (see useChatImages).
+    const chatImages = useChatImages({ api: config.api, basePath: config.basePath, sessionId, active: sessionActive, enabled: config.showImages })
+    const { adoptHydrated: adoptHydratedImages, applyFrame: applyImageFrame, markScheduled: markImageScheduled, regenerate: regenerateImage, select: selectImage } = chatImages
+    // The composer's image choice for this chat (kept in this browser) and the profiles it can pick.
+    const imageSettings = useChatImageSettings(config.kind, Number.isInteger(sessionId) && sessionId > 0 ? String(sessionId) : null)
+    const imageProfiles = useChatImageProfiles(config.api, config.showImages && isAuthenticated && !readOnly)
+    const composerImageChoice = config.showImages ? chatImageChoice(imageSettings, imageProfiles.loaded ? imageProfiles.profiles : null) : undefined
+    // Images on with the account default is what the server does without the field, so the frame leaves it out.
+    const imageRequest = imageRequestOverride
+        ?? (composerImageChoice?.generate && !composerImageChoice.image_profile_id ? undefined : composerImageChoice)
     // `generation` errors belong to the reply at the tail and render inline in its
     // notice; `retryable` ones offer a one-tap retry there. Everything else
     // (edit, delete, clear, narration) uses the banner.
@@ -284,7 +302,7 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
     // Stable composer-toolbar callbacks (memoized ChatComposer props).
     const handleToggleAutoNarrate = useCallback(() => {
         if (isVoicesFeatureEnabled()) setAutoNarrate((on) => !on)
-    }, [])
+    }, [featureFlagGeneration])
     // Today's narration allowance (D24), read only once narration is in use here.
     const [narrationRequested, setNarrationRequested] = useState(false)
     const narrationAllowance = useNarrationAllowance(config.api, turns, voicesEnabled && isAuthenticated && (autoNarrate || narrationRequested))
@@ -434,15 +452,25 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
 
     // Adopt a server projection. Hydration owns ordering/deletions, while the live
     // stream may temporarily be the only source with parsed response segments;
-    // image then TTS state fold in with terminal-precedence merges so a staler
-    // response can't clobber live socket state.
+    // TTS state folds in with a terminal-precedence merge and scene images with a
+    // union per job, so a staler response can't clobber live socket state.
     const adoptServerTurns = useCallback((hydrated: TurnEntry[]): TurnEntry[] => {
         const textMerged = mergeHydratedChatTurns(turnsRef.current, hydrated)
-        const imageMerged = mergeHydratedImageTurns(turnsRef.current, textMerged)
-        const next = resolveTurnIdentities(mergeHydratedTtsTurns(imageMerged, textMerged))
+        adoptHydratedImages(textMerged)
+        const next = resolveTurnIdentities(mergeHydratedTtsTurns(textMerged, textMerged))
         setTurnState(next)
         return next
-    }, [resolveTurnIdentities, setTurnState])
+    }, [adoptHydratedImages, resolveTurnIdentities, setTurnState])
+    // Edits, deletes and clears answer with the server's projection as it is;
+    // its scene images are adopted all the same.
+    const adoptProjection = useCallback((list: TurnEntry[]) => {
+        adoptHydratedImages(list)
+        setTurnState(list)
+    }, [adoptHydratedImages, setTurnState])
+    // Turns the parent seeds or reloads carry their server snapshot too.
+    useEffect(() => {
+        adoptHydratedImages(turns)
+    }, [adoptHydratedImages, turns])
 
     const hydrateTurnsFromApi = useCallback(async () => {
         if (!isAuthenticated || Number.isNaN(sessionId) || !isPageFocused() || !sessionActiveRef.current) return
@@ -469,37 +497,6 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
         }
     }, [adoptServerTurns, config, isAuthenticated, sessionId, setError])
 
-    const imagePollInFlightRef = useRef(false)
-    const pollNonTerminalImageJobs = useCallback(async (snapshot: TurnEntry[] = turnsRef.current) => {
-        if (!isPageFocused() || imagePollInFlightRef.current || !sessionActiveRef.current) return
-        imagePollInFlightRef.current = true
-        try {
-            const jobs = snapshot.filter(hasNonTerminalImageJob)
-            for (const turn of jobs) {
-                if (!isPageFocused()) return
-                if (!turn.imageJobId) continue
-                try {
-                    const result: ImageJobPublicResponse = await config.api.getImageJob(turn.imageJobId)
-                    if (!mountedRef.current || !sessionActiveRef.current) return
-                    const next = upsertImageJobResult(turnsRef.current, result)
-                    if (next !== turnsRef.current) setTurnState(next)
-                } catch (err) {
-                    console.warn('Failed to poll image job:', err)
-                }
-            }
-        } finally {
-            imagePollInFlightRef.current = false
-        }
-    }, [config.api, setTurnState])
-
-    const applyImageFrame = useCallback((frame: Parameters<typeof upsertChatImageFrame>[1]) => {
-        const next = upsertChatImageFrame(turnsRef.current, frame)
-        if (next !== turnsRef.current) {
-            setTurnState(next)
-            if (isPageFocused()) void pollNonTerminalImageJobs(next)
-        }
-    }, [pollNonTerminalImageJobs, setTurnState])
-
     const ttsPollInFlightRef = useRef(false)
     const pollNonTerminalTtsJobs = useCallback(async (snapshot: TurnEntry[] = turnsRef.current) => {
         if (!isVoicesFeatureEnabled() || !isPageFocused() || ttsPollInFlightRef.current || !sessionActiveRef.current) return
@@ -523,7 +520,7 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
         } finally {
             ttsPollInFlightRef.current = false
         }
-    }, [config.api, setTurnState])
+    }, [config.api, setTurnState, featureFlagGeneration])
 
     const applyTtsFrame = useCallback((frame: Parameters<typeof upsertChatTtsFrame>[1]) => {
         if (!isVoicesFeatureEnabled()) return
@@ -573,11 +570,11 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
             setTurnState(next)
             if (isPageFocused()) void pollNonTerminalTtsJobs(next)
         }
-    }, [pollNonTerminalTtsJobs, reportAutoNarrationPaused, setError, setTurnState, t, workspaceNoticeKey])
+    }, [pollNonTerminalTtsJobs, reportAutoNarrationPaused, setError, setTurnState, t, workspaceNoticeKey, featureFlagGeneration])
 
     // The conversation + all turn metadata stream over one per-session WebSocket.
     // Gate the connection behind auth (and a valid session id).
-    const { status: socketStatus, sendChat, sendTts, cancel } = useAdventureChatSocket(
+    const { status: socketStatus, capabilities: socketCapabilities, sendChat, sendTts, cancel } = useAdventureChatSocket(
         isAuthenticated && token && !Number.isNaN(sessionId) ? sessionId : null,
         {
             onSpeakers: ({ roster, narrator }) => {
@@ -642,7 +639,7 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
                 const content = displayText?.trim() || segmentsToPlainText(resolved)
                 updateStreamingTurn((t) => ({ ...t, segments: resolved, content: content || t.content }))
             },
-            onDone: ({ interrupted, userMessageId, assistantMessageId, turnId }) => {
+            onDone: ({ interrupted, userMessageId, assistantMessageId, turnId, imageScheduled }) => {
                 deltaBatchRef.current?.flush()
                 if (!streamingIdRef.current) return
                 clearGenerationWatchdog()
@@ -678,6 +675,8 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
                     return t
                 })
                 setTurnState(next)
+                // "Starting" shows from the end of the reply until the image's first frame.
+                if (!interrupted && assistantMessageId && imageScheduled !== undefined) markImageScheduled(assistantMessageId, imageScheduled)
                 // Announce the finished AI turn to assistive tech (once, on done).
                 // The streaming turn's id is reassigned to the assistant message id
                 // in `next`, so look it up by that — not the old streaming id.
@@ -692,10 +691,7 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
                 streamingIdRef.current = null
                 rawResponseRef.current = ''
                 setIsLoading(false)
-                if (isPageFocused()) {
-                    void hydrateTurnsFromApi()
-                    void pollNonTerminalImageJobs(next)
-                }
+                if (isPageFocused()) void hydrateTurnsFromApi()
                 // Auto-narrate: request TTS for the just-finished GM turn. The audio
                 // streams back over the same socket; playback still needs a tap (see
                 // TurnNarration) because WS callbacks have no user-gesture context.
@@ -798,7 +794,6 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
     }, [turns])
 
     // Reconcile after a connection opens or the reader returns to this tab.
-    const hasPendingImageJob = turns.some(hasNonTerminalImageJob)
     const hasPendingTtsJob = voicesEnabled && turns.some(hasNonTerminalTtsJob)
     const lastPresenceRef = useRef({ socketStatus: 'closed' as typeof socketStatus, pageFocused })
     useEffect(() => {
@@ -808,11 +803,28 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
         const connected = pageFocused && socketStatus === 'open' && previous.socketStatus !== 'open'
         if (resumed && recoveryRef.current) recoveryRef.current.until = Date.now() + 30_000
         if (resumed || connected) void hydrateTurnsFromApi()
-        if (resumed) {
-            if (hasPendingImageJob) void pollNonTerminalImageJobs()
-            if (hasPendingTtsJob) void pollNonTerminalTtsJobs()
-        }
-    }, [hasPendingImageJob, hasPendingTtsJob, hydrateTurnsFromApi, pageFocused, pollNonTerminalImageJobs, pollNonTerminalTtsJobs, socketStatus])
+        if (resumed && hasPendingTtsJob) void pollNonTerminalTtsJobs()
+    }, [hasPendingTtsJob, hydrateTurnsFromApi, pageFocused, pollNonTerminalTtsJobs, socketStatus])
+
+    // Hydrate once on mount over REST (e.g. right after leaving a voice call) so
+    // saved call turns and audio appear immediately without waiting for WS open.
+    useEffect(() => {
+        if (!isAuthenticated || Number.isNaN(sessionId) || !sessionActive) return
+        void hydrateTurnsFromApi()
+    }, [hydrateTurnsFromApi, isAuthenticated, sessionActive, sessionId])
+
+    // When a turn is still streaming from a foreign source (such as a voice call
+    // that is finishing its post-end truncation), poll briefly until it settles.
+    const hasForeignStreamingTurn = !isLoading && turns.some((turn) => Boolean(turn.isStreaming))
+    useEffect(() => {
+        if (!pageFocused || !hasForeignStreamingTurn) return
+        const startedAt = Date.now()
+        const timer = window.setInterval(() => {
+            if (!isPageFocused() || Date.now() - startedAt > 15_000) return
+            void hydrateTurnsFromApi()
+        }, 2_500)
+        return () => window.clearInterval(timer)
+    }, [hasForeignStreamingTurn, hydrateTurnsFromApi, pageFocused])
 
     // Reconnect may race the server's interrupted-turn commit. Re-read briefly,
     // without replaying the chat or replacing visible partial text with a spinner.
@@ -837,19 +849,19 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
         setTurnState(resolveTurnIdentities(turnsRef.current))
     }, [resolveTurnIdentities, setTurnState])
 
-    // Depend on the derived booleans, not on `turns`: the array is replaced on every
+    // Depend on the derived boolean, not on `turns`: the array is replaced on every
     // streamed chunk, so an interval keyed on it was cleared and recreated many times
     // a second and never reached its 3s tick — precisely during the stream the poller
-    // exists to recover from. Both callbacks read the latest turns through a ref.
+    // exists to recover from. The callback reads the latest turns through a ref.
+    // Scene images poll on their own (useChatImages), while the page is visible.
     useEffect(() => {
-        if (!pageFocused || (!hasPendingImageJob && !hasPendingTtsJob)) return
+        if (!pageFocused || !hasPendingTtsJob) return
         const timer = window.setInterval(() => {
             if (!isPageFocused()) return
-            if (hasPendingImageJob) void pollNonTerminalImageJobs()
-            if (hasPendingTtsJob) void pollNonTerminalTtsJobs()
+            void pollNonTerminalTtsJobs()
         }, 3_000)
         return () => window.clearInterval(timer)
-    }, [hasPendingImageJob, hasPendingTtsJob, pageFocused, pollNonTerminalImageJobs, pollNonTerminalTtsJobs])
+    }, [hasPendingTtsJob, pageFocused, pollNonTerminalTtsJobs])
 
     useEffect(() => {
         const recover = () => {
@@ -898,11 +910,16 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
         setError(null)
         try {
             const storedTurns = await config.clearMessages(sessionId)
-            setTurnState(storedTurns)
+            adoptProjection(storedTurns)
         } catch (error) {
             console.error('Failed to clear turns:', error)
             setTurnState(previousTurns)
-            setError(t('interaction.center.clearFailed'))
+            const conflictMsg = (typeof ApiError === 'function' && error instanceof ApiError && error.status === 409 && error.message)
+                ? error.message
+                : (error !== null && typeof error === 'object' && 'status' in error && error.status === 409 && 'message' in error && typeof error.message === 'string')
+                    ? error.message
+                    : ''
+            setError(conflictMsg || t('interaction.center.clearFailed'))
         } finally {
             setIsClearingTurns(false)
             setResetConfirmOpen(false)
@@ -920,6 +937,8 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
     // `tts_job` frame arrives; the WS frames then drive the real lifecycle.
     const handleRequestNarration = useCallback((assistantMessageId?: number, turnId?: string) => {
         if (!isVoicesFeatureEnabled() || !assistantMessageId || !turnId || narrationBlocked) return
+        const targetTurn = turnsRef.current.find((t) => t.assistantMessageId === assistantMessageId || t.turnId === turnId)
+        if (isCallReply(targetTurn)) return
         if (!isAuthenticated) {
             openLoginModal()
             return
@@ -956,7 +975,7 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
             })
             if (rolledBack) setTurnState(recovered)
         }, TTS_PENDING_WATCHDOG_MS))
-    }, [isAuthenticated, narrationBlocked, openLoginModal, sendTts, setTurnState, socketStatus, t])
+    }, [isAuthenticated, narrationBlocked, openLoginModal, sendTts, setTurnState, socketStatus, t, featureFlagGeneration])
 
     // A clip refused with `attestation_required` (D26): open the prompt, then
     // request that clip once more if the user attested.
@@ -970,7 +989,7 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
         void attestation.requestAttestation().then((attested) => {
             if (attested && mountedRef.current) requestNarrationRef.current(assistantMessageId, turnId)
         })
-    }, [attestation])
+    }, [attestation, featureFlagGeneration])
 
     // Put the targeted AI turn into a clean streaming state and request a
     // generation over the socket. `history` is everything before that AI turn.
@@ -1002,9 +1021,9 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
                     segments: undefined,
                     narratorIdentity: undefined,
                     imagePrompt: undefined,
+                    imageGenerations: undefined,
                     assistantMessageId: undefined,
                     turnId: undefined,
-                    ...RESET_IMAGE_FIELDS,
                     ...RESET_TTS_FIELDS,
                 }
                 : !resume && t.id === precedingUser?.id ? { ...t, metadata: { ...t.metadata, request_id: requestId } } : t
@@ -1021,10 +1040,15 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
             return
         }
         const existingUserMessageId = resume ? resume.existingUserMessageId : storedMessageId(precedingUser)
+        // A resumed request keeps the image choice it was first sent with.
+        const image = resume ? resume.image : imageRequest
         attemptRef.current = { requestId, content, existingUserMessageId, aiTurnId: aiTurn.id,
             accountKey: authSession.getSnapshot().accountKey, sessionKey: JSON.stringify([config.basePath, sessionId]),
-            ...(target ? { target } : {}) }
-        if (resume && target) sendChat(content, requestId, existingUserMessageId, target, true)
+            ...(target ? { target } : {}), ...(image ? { image } : {}) }
+        if (resume && target) {
+            if (image) sendChat(content, requestId, existingUserMessageId, target, true, image)
+            else sendChat(content, requestId, existingUserMessageId, target, true)
+        } else if (image) sendChat(content, requestId, existingUserMessageId, undefined, false, image)
         else if (existingUserMessageId !== undefined) sendChat(content, requestId, existingUserMessageId)
         else sendChat(content, requestId)
         armGenerationWatchdog()
@@ -1137,12 +1161,17 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
             const messageId = storedMessageId(target)
             if (messageId) {
                 const storedTurns = await config.deleteMessage(sessionId, messageId)
-                setTurnState(storedTurns)
+                adoptProjection(storedTurns)
             }
         } catch (error) {
             console.error('Failed to delete turn:', error)
             setTurnState(previousTurns)
-            setError(t('interaction.center.deleteFailed'))
+            const conflictMsg = (typeof ApiError === 'function' && error instanceof ApiError && error.status === 409 && error.message)
+                ? error.message
+                : (error !== null && typeof error === 'object' && 'status' in error && error.status === 409 && 'message' in error && typeof error.message === 'string')
+                    ? error.message
+                    : ''
+            setError(conflictMsg || t('interaction.center.deleteFailed'))
         } finally {
             setIsDeletingTurn(false)
             setPendingDeleteTurn(null)
@@ -1158,15 +1187,19 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
         void confirmDeleteTurnRef.current()
     }, [])
     const handleCancelDeleteTurn = useCallback(() => setPendingDeleteTurn(null), [])
+    const handleOpenCallTranscript = useCallback((voiceSessionId: string) => {
+        window.location.hash = buildCallTranscriptHash(voiceSessionId)
+    }, [])
 
     const handleEditTurn = useCallback(async (turnId: string, newContent: string) => {
         const previousTurns = turnsRef.current
         const updatedTurns = turnsRef.current.map((turn) => {
             if (turn.id !== turnId) return turn
             const edited = { ...turn, content: newContent, timestamp: new Date().toISOString() }
-            // Drop media generated from the prior assistant text so stale assets
-            // are never replayed while the stored edit is in flight.
-            return turn.type === 'ai' ? { ...edited, segments: undefined, ...RESET_IMAGE_FIELDS, ...RESET_TTS_FIELDS } : edited
+            // Drop narration of the prior assistant text so stale audio is never
+            // replayed while the stored edit is in flight. Scene images stay: they
+            // belong to the message, not to its wording.
+            return turn.type === 'ai' ? { ...edited, segments: undefined, ...RESET_TTS_FIELDS } : edited
         })
         setTurnState(updatedTurns)
         const target = previousTurns.find((turn) => turn.id === turnId)
@@ -1174,13 +1207,67 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
         if (!messageId) return
         try {
             const storedTurns = await config.updateMessage(sessionId, messageId, newContent)
-            setTurnState(storedTurns)
+            adoptProjection(storedTurns)
         } catch (error) {
             console.error('Failed to edit turn:', error)
             setTurnState(previousTurns)
             setError(t('interaction.center.editFailed'))
         }
-    }, [config, sessionId, setError, setTurnState, t])
+    }, [adoptProjection, config, sessionId, setError, setTurnState, t])
+
+    // Scene-image actions reach the memoized turns through context. A personal
+    // (BYOK) profile asks for the provider key once per tab, then generates.
+    const [imageKeyPrompt, setImageKeyPrompt] = useState<(ChatImageKeyRequest & { messageId: number }) | null>(null)
+    // The image whose prompt, model and metadata are open; it follows the live job (status, assets).
+    const [imageDetails, setImageDetails] = useState<{ messageId: number; jobId: string } | null>(null)
+    const detailsGeneration = imageDetails
+        ? chatImages.views.get(imageDetails.messageId)?.generations.find(generation => generation.job_id === imageDetails.jobId) ?? null
+        : null
+    const canGenerateImages = config.showImages && chatImages.supported && !readOnly && isAuthenticated && socketCapabilities?.chat_images !== false
+    const imageActions = useMemo<ChatImageActions>(() => ({
+        canGenerate: canGenerateImages,
+        regenerate: (messageId, options) => {
+            if (options?.provider && !imageCredentialSession.has(options.provider)) {
+                setImageKeyPrompt({ messageId, provider: options.provider, imageProfileId: options.imageProfileId })
+                return
+            }
+            void regenerateImage(messageId, options)
+        },
+        select: selectImage,
+        addKeyAndGenerate: (messageId, request) => {
+            if (imageCredentialSession.has(request.provider)) {
+                void regenerateImage(messageId, { imageProfileId: request.imageProfileId ?? undefined, provider: request.provider })
+                return
+            }
+            setImageKeyPrompt({ messageId, ...request })
+        },
+        openDetails: (messageId, jobId) => setImageDetails({ messageId, jobId }),
+    }), [canGenerateImages, regenerateImage, selectImage])
+    // The composer's toggle and model chip: hidden where new turns cannot carry an image choice.
+    const showImageControl = config.showImages && isAuthenticated && !readOnly && !imageProfiles.unavailable
+        && socketCapabilities?.chat_images !== false && socketCapabilities?.chat_image_request !== false
+    const { enabled: imagesEnabled, profileId: imageProfileId, setEnabled: setImagesEnabled, setProfileId: setImageProfileId } = imageSettings
+    const imageControl = useMemo(() => (showImageControl ? (
+        <ChatImageControl
+            enabled={imagesEnabled}
+            profileId={imageProfileId}
+            profiles={imageProfiles.profiles}
+            defaultId={imageProfiles.defaultId}
+            loading={imageProfiles.loading}
+            failed={imageProfiles.failed}
+            onToggle={() => setImagesEnabled(!imagesEnabled)}
+            onSelectProfile={setImageProfileId}
+            onRetry={imageProfiles.reload}
+        />
+    ) : undefined), [showImageControl, imagesEnabled, imageProfileId, imageProfiles.profiles, imageProfiles.defaultId, imageProfiles.loading, imageProfiles.failed, imageProfiles.reload, setImagesEnabled, setImageProfileId])
+    const submitImageKey = (key: string) => {
+        const prompt = imageKeyPrompt
+        if (!prompt) return
+        // Throws the session's key errors back to the dialog, which shows them.
+        imageCredentialSession.remember(prompt.provider, key)
+        setImageKeyPrompt(null)
+        void regenerateImage(prompt.messageId, { imageProfileId: prompt.imageProfileId ?? undefined, provider: prompt.provider })
+    }
 
     const handleGenerateResponse = () => {
         if (!canGenerateResponse) return
@@ -1411,6 +1498,7 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
     }
 
     return (
+        <ChatImageActionsContext.Provider value={imageActions}>
         <div className="flex h-full flex-col bg-ink-800">
             {/* Polite live region: announces each completed AI turn once to screen readers. */}
             <div className="sr-only" aria-live="polite" aria-atomic="true">
@@ -1459,53 +1547,74 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
                         </div>
                     ) : (
                         <>
-                            {transcript.map((item) => {
+                            {transcript.map((item, idx) => {
                                 const { turn } = item
+                                const prevTurn = idx > 0 ? transcript[idx - 1].turn : undefined
+                                const currentCallSessionId = turnVoiceSessionId(turn)
+                                const prevCallSessionId = prevTurn ? turnVoiceSessionId(prevTurn) : null
+                                const showCallDivider = isCallTurn(turn) && (!prevTurn || !isCallTurn(prevTurn) || (currentCallSessionId !== null && currentCallSessionId !== prevCallSessionId))
+                                const turnKey = item.kind !== 'unsaved' && item.versions ? 'latest-reply-versions' : turn.id
                                 if (item.kind === 'unsaved') {
                                     return (
-                                        <UnsavedReplyNotice
-                                            key={turn.id}
-                                            reason={unsavedReplyReason(turn)}
-                                            aiLabel={config.aiLabel}
-                                            detail={readOnly ? workspaceNotice : inlineError?.message}
-                                            onRetry={readOnly ? undefined : handleRetryGeneration}
-                                            retrying={isLoading || isMutatingTurns || Boolean(inlineError && !inlineError.retryable)}
-                                        />
+                                        <Fragment key={turnKey}>
+                                            {showCallDivider && (
+                                                <CallDivider
+                                                    voiceSessionId={currentCallSessionId}
+                                                    onViewTranscript={handleOpenCallTranscript}
+                                                />
+                                            )}
+                                            <UnsavedReplyNotice
+                                                reason={unsavedReplyReason(turn)}
+                                                aiLabel={config.aiLabel}
+                                                detail={readOnly ? workspaceNotice : inlineError?.message}
+                                                onRetry={readOnly ? undefined : handleRetryGeneration}
+                                                retrying={isLoading || isMutatingTurns || Boolean(inlineError && !inlineError.retryable)}
+                                            />
+                                        </Fragment>
                                     )
                                 }
                                 const isDeleteTarget = pendingDeleteTurn?.id === turn.id
                                 return (
-                                    <ChatTurn
-                                        // Switching versions swaps the turn in one slot; a
-                                        // stable key keeps focus on the switcher.
-                                        key={item.versions ? 'latest-reply-versions' : turn.id}
-                                        turn={turn}
-                                        versions={item.versions}
-                                        onSelectVersion={item.versions ? handleSelectVersion : undefined}
-                                        versionsDisabled={readOnly || isLoading || isClearingTurns || isDeletingTurn}
-                                        aiLabel={config.aiLabel}
-                                        aiSpeaker={aiSpeaker}
-                                        showForwardOptions={config.showForwardOptions}
-                                        showImage={config.showImages}
-                                        onForwardOptionClick={handleForwardOptionClick}
-                                        onRegenerateClick={turn.id === latestReplyId && !readOnly ? handleRegenerateResponse : undefined}
-                                        onDeleteClick={handleDeleteTurn}
-                                        onConfirmDeleteClick={handleConfirmDeleteTurn}
-                                        onCancelDeleteClick={handleCancelDeleteTurn}
-                                        onEditClick={handleEditTurn}
-                                        // Read-only (archived workspace): stored clips still play, nothing new is requested.
-                                        onRequestNarration={!voicesEnabled || readOnly ? undefined : handleRequestNarration}
-                                        onAttestNarration={!voicesEnabled || readOnly ? undefined : handleAttestNarration}
-                                        narrationUnavailable={narrationBlocked}
-                                        onRefreshVoice={handleRefreshVoice}
-                                        onEditNarratorVoice={config.kind === 'adventure' ? onEditNarratorVoice : undefined}
-                                        refreshDisabled={refreshVoiceDisabled}
-                                        onNarrationPlayingChange={handleNarrationPlayingChange}
-                                        confirmingDelete={isDeleteTarget}
-                                        deleting={isDeleteTarget && isDeletingTurn}
-                                        actionsDisabled={readOnly || isLoading || isClearingTurns || isSwitchingVersion || (isDeletingTurn && !isDeleteTarget)}
-                                        loreMatcher={loreMatcher}
-                                    />
+                                    <Fragment key={turnKey}>
+                                        {showCallDivider && (
+                                            <CallDivider
+                                                voiceSessionId={currentCallSessionId}
+                                                onViewTranscript={handleOpenCallTranscript}
+                                            />
+                                        )}
+                                        <ChatTurn
+                                            // Switching versions swaps the turn in one slot; a
+                                            // stable key keeps focus on the switcher.
+                                            turn={turn}
+                                            versions={item.versions}
+                                            onSelectVersion={item.versions ? handleSelectVersion : undefined}
+                                            versionsDisabled={readOnly || isLoading || isClearingTurns || isDeletingTurn}
+                                            aiLabel={config.aiLabel}
+                                            aiSpeaker={aiSpeaker}
+                                            showForwardOptions={config.showForwardOptions}
+                                            showImage={config.showImages}
+                                            images={turn.assistantMessageId ? chatImages.views.get(turn.assistantMessageId) : undefined}
+                                            onForwardOptionClick={handleForwardOptionClick}
+                                            onRegenerateClick={turn.id === latestReplyId && !readOnly ? handleRegenerateResponse : undefined}
+                                            onDeleteClick={handleDeleteTurn}
+                                            onConfirmDeleteClick={handleConfirmDeleteTurn}
+                                            onCancelDeleteClick={handleCancelDeleteTurn}
+                                            onEditClick={handleEditTurn}
+                                            onOpenCallTranscript={handleOpenCallTranscript}
+                                            // Read-only (archived workspace): stored clips still play, nothing new is requested.
+                                            onRequestNarration={!voicesEnabled || readOnly ? undefined : handleRequestNarration}
+                                            onAttestNarration={!voicesEnabled || readOnly ? undefined : handleAttestNarration}
+                                            narrationUnavailable={narrationBlocked}
+                                            onRefreshVoice={handleRefreshVoice}
+                                            onEditNarratorVoice={config.kind === 'adventure' ? onEditNarratorVoice : undefined}
+                                            refreshDisabled={refreshVoiceDisabled}
+                                            onNarrationPlayingChange={handleNarrationPlayingChange}
+                                            confirmingDelete={isDeleteTarget}
+                                            deleting={isDeleteTarget && isDeletingTurn}
+                                            actionsDisabled={readOnly || isLoading || isClearingTurns || isSwitchingVersion || (isDeletingTurn && !isDeleteTarget)}
+                                            loreMatcher={loreMatcher}
+                                        />
+                                    </Fragment>
                                 )
                             })}
                             {canGenerateResponse && !readOnly && (
@@ -1573,6 +1682,7 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
                     onToggleAutoNarrate={handleToggleAutoNarrate}
                     onReset={handleReset}
                     canReset={turns.length > 0}
+                    imageControl={imageControl}
                     accessory={<LlmFeatureControl feature={llmFeature ?? (config.kind === 'adventure' ? 'chat_adventure' : 'chat_character')}
                         disabled={isLoading || isMutatingTurns} />}
                     placeholder={config.copy.placeholder}
@@ -1653,6 +1763,16 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
                 retryAfterSeconds={safetyPause.retryAfterSeconds}
                 onClose={safetyPause.dismiss}
             />
+            <ImageKeyDialog provider={imageKeyPrompt?.provider ?? null} onSubmit={submitImageKey} onCancel={() => setImageKeyPrompt(null)} />
+            <ChatImageDetailsDialog
+                generation={detailsGeneration}
+                profiles={imageProfiles.profiles}
+                defaultId={imageProfiles.defaultId}
+                canGenerate={canGenerateImages}
+                onClose={() => setImageDetails(null)}
+                onRegenerate={options => { if (imageDetails) imageActions.regenerate(imageDetails.messageId, options) }}
+            />
         </div>
+        </ChatImageActionsContext.Provider>
     )
 }

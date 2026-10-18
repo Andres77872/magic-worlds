@@ -1,3 +1,4 @@
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearVoiceCapabilitiesCache } from '@/shared/voice/voiceCapabilities'
 import { apiService } from '../index'
@@ -37,7 +38,7 @@ describe('voice catalog and capabilities API (08 §5.1)', () => {
         localStorage.clear()
         localStorage.setItem('magic_worlds:token', 'token-1')
         vi.stubGlobal('fetch', fetchMock)
-        vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'true')
+        setTestFeatureFlags({ voices: true })
         vi.spyOn(console, 'error').mockImplementation(() => undefined)
         vi.spyOn(console, 'warn').mockImplementation(() => undefined)
         clearVoiceCapabilitiesCache()

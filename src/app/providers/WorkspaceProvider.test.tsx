@@ -1,8 +1,8 @@
+import { setTestFeatureFlags, setAllTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { useContext, useLayoutEffect } from 'react'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Workspace, WorkspaceList } from '@/shared/types'
-import { FRONTEND_FEATURE_ENV } from '@/shared/featureFlags'
 
 const apiStatusState = vi.hoisted(() => ({ status: 'online' as 'checking' | 'online' | 'degraded' | 'offline' }))
 
@@ -47,6 +47,7 @@ import {
     workspaceStorageKey,
 } from '@/shared/workspaceStorage'
 import { WorkspaceProvider } from './WorkspaceProvider'
+import * as deviceWorkspaces from '@/features/novel/persistence/deviceWorkspaceStorage'
 import { WorkspaceContext, type WorkspaceContextValue } from './workspaceContext'
 
 const DEFAULT_ID = '0f1e2d3c-4b5a-4978-8a6b-5c4d3e2f1a0b'
@@ -87,7 +88,6 @@ function Probe() {
             <span data-testid="selected">{value.selectedWorkspaceId ?? 'none'}</span>
             <span data-testid="epoch">{value.workspaceEpoch}</span>
             <span data-testid="reason">{value.unavailableReason ?? value.staleReason ?? 'none'}</span>
-            <span data-testid="hidden">{String(value.hasHiddenWorkspaces)}</span>
         </div>
     )
 }
@@ -107,7 +107,7 @@ describe('WorkspaceProvider startup handshake', () => {
         localStorage.clear()
         setWorkspaceWritesBlocked(false)
         apiStatusState.status = 'online'
-        vi.stubEnv('VITE_FEATURE_WORKSPACES_ENABLED', 'false')
+
         act(() => {
             authSession.continueSignedOut()
             authSession.authenticate('user-a', 'token-a')
@@ -122,8 +122,44 @@ describe('WorkspaceProvider startup handshake', () => {
         setWorkspaceWritesBlocked(false)
     })
 
+    it('keeps a newer archive when overlapping refreshes or an older link target arrive late', async () => {
+
+        listWorkspaces.mockResolvedValue(list(workspace(DEFAULT_ID), workspace(SECOND_ID, { row_version: 2 })))
+        renderProvider(); await waitFor(() => expect(ctx().status).toBe('ready'))
+        act(() => { ctx().commitWorkspace(SECOND_ID) })
+        let oldRead!: (value: WorkspaceList) => void, newRead!: (value: WorkspaceList) => void
+        listWorkspaces.mockImplementationOnce(() => new Promise((resolve) => { oldRead = resolve }))
+            .mockImplementationOnce(() => new Promise((resolve) => { newRead = resolve }))
+        const older = ctx().refreshWorkspaces(), newer = ctx().refreshWorkspaces()
+        const archived = workspace(SECOND_ID, { row_version: 3, archived_at: '2026-10-17T00:00:00Z' })
+        await act(async () => { newRead(list(workspace(DEFAULT_ID), archived)); await newer })
+        const epoch = ctx().workspaceEpoch
+        await act(async () => { oldRead(list(workspace(DEFAULT_ID), workspace(SECOND_ID, { row_version: 2 }))); await older })
+        expect(ctx().selectedWorkspace).toMatchObject({ row_version: 3, archived_at: archived.archived_at })
+        act(() => { ctx().commitWorkspace(workspace(SECOND_ID, { row_version: 2 })) })
+        expect(ctx().selectedWorkspace).toMatchObject({ row_version: 3, archived_at: archived.archived_at })
+        expect(ctx().workspaceEpoch).toBe(epoch)
+        act(() => { ctx().commitWorkspace(workspace(SECOND_ID, { row_version: 4 })) })
+        expect(ctx().selectedWorkspace).toMatchObject({ row_version: 4, archived_at: null })
+        const captured = workspace(SECOND_ID, { row_version: 5, archived_at: archived.archived_at })
+        act(() => { ctx().commitWorkspace(captured) })
+        captured.archived_at = null
+        expect(ctx().selectedWorkspace).toMatchObject({ row_version: 5, archived_at: archived.archived_at })
+    })
+
+    it('retains checked workspace versions without a scene read and retires their publication on logout', async () => {
+        setTestFeatureFlags({ novels: true })
+        const retain = vi.spyOn(deviceWorkspaces, 'rememberDeviceWorkspaces').mockResolvedValue({ status: 'saved' })
+        renderProvider(); await waitFor(() => expect(ctx().status).toBe('ready'))
+        expect(retain).toHaveBeenCalledWith({ apiOrigin: ORIGIN, userHash: 'user-a' }, [expect.objectContaining({ id: DEFAULT_ID, rowVersion: 1, archived: false })], expect.any(Function))
+        const current = retain.mock.calls[0][2]!
+        expect(current()).toBe(true)
+        act(() => { authSession.beginLogout() })
+        expect(current()).toBe(false)
+    })
+
     it('runs the handshake and scopes the protected default with every product flag disabled', async () => {
-        for (const env of Object.values(FRONTEND_FEATURE_ENV)) vi.stubEnv(env, 'false')
+        setAllTestFeatureFlags(false)
         listWorkspaces.mockResolvedValue(list(workspace(DEFAULT_ID), workspace(SECOND_ID)))
         renderProvider()
         expect(screen.getByTestId('status')).toHaveTextContent('loading')
@@ -134,8 +170,6 @@ describe('WorkspaceProvider startup handshake', () => {
         expect(capabilities.mock.invocationCallOrder[0]).toBeLessThan(listWorkspaces.mock.invocationCallOrder[0])
         expect(screen.getByTestId('selected')).toHaveTextContent(DEFAULT_ID)
         expect(screen.getByTestId('epoch')).toHaveTextContent('1')
-        // Flag false + a second active workspace: the persistent "content is safe" notice.
-        expect(screen.getByTestId('hidden')).toHaveTextContent('true')
         expect(ctx().api?.workspaceScope?.workspaceId).toBe(DEFAULT_ID)
         expect(apiService.workspaceScope).toBeNull()
     })
@@ -149,23 +183,20 @@ describe('WorkspaceProvider startup handshake', () => {
         expect(ctx().api).toBeNull()
     })
 
-    it('restores a valid last-used workspace only when the flag is on', async () => {
+    it('restores a valid last-used workspace independently of temporary flags', async () => {
         localStorage.setItem(accountStorageKey(LAST_WORKSPACE_STORAGE_BASE, { apiOrigin: ORIGIN, userHash: 'user-a' }), SECOND_ID)
         listWorkspaces.mockResolvedValue(list(workspace(DEFAULT_ID), workspace(SECOND_ID)))
 
-        vi.stubEnv('VITE_FEATURE_WORKSPACES_ENABLED', 'true')
         const view = renderProvider()
         await waitFor(() => expect(screen.getByTestId('selected')).toHaveTextContent(SECOND_ID))
-        expect(screen.getByTestId('hidden')).toHaveTextContent('false')
         view.unmount()
 
-        vi.stubEnv('VITE_FEATURE_WORKSPACES_ENABLED', 'false')
         renderProvider()
-        await waitFor(() => expect(screen.getByTestId('selected')).toHaveTextContent(DEFAULT_ID))
+        await waitFor(() => expect(screen.getByTestId('selected')).toHaveTextContent(SECOND_ID))
     })
 
     it('falls back to the default when the last-used workspace is archived or unknown', async () => {
-        vi.stubEnv('VITE_FEATURE_WORKSPACES_ENABLED', 'true')
+
         localStorage.setItem(accountStorageKey(LAST_WORKSPACE_STORAGE_BASE, { apiOrigin: ORIGIN, userHash: 'user-a' }), ARCHIVED_ID)
         listWorkspaces.mockResolvedValue(list(workspace(DEFAULT_ID), workspace(ARCHIVED_ID, { archived_at: '2026-10-02T00:00:00Z' })))
         const view = renderProvider()
@@ -247,7 +278,7 @@ describe('WorkspaceProvider selection and ownership', () => {
         probe.latest = null
         localStorage.clear()
         setWorkspaceWritesBlocked(false)
-        vi.stubEnv('VITE_FEATURE_WORKSPACES_ENABLED', 'true')
+
         act(() => {
             authSession.continueSignedOut()
             authSession.authenticate('user-a', 'token-a')
@@ -294,12 +325,12 @@ describe('WorkspaceProvider selection and ownership', () => {
         expect(ctx().commitWorkspace({ ...archived, id: 'not-a-uuid' })).toBe(false)
     })
 
-    it('only commits the protected default while the flag is off', async () => {
-        vi.stubEnv('VITE_FEATURE_WORKSPACES_ENABLED', 'false')
+    it('commits a known non-default workspace without a rollout permission', async () => {
+
         renderProvider()
         await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('ready'))
-        expect(ctx().commitWorkspace(SECOND_ID)).toBe(false)
-        expect(screen.getByTestId('selected')).toHaveTextContent(DEFAULT_ID)
+        act(() => { expect(ctx().commitWorkspace(SECOND_ID)).toBe(true) })
+        expect(screen.getByTestId('selected')).toHaveTextContent(SECOND_ID)
     })
 
     it('keeps an archived selection on refresh and falls back to the default when it disappears', async () => {

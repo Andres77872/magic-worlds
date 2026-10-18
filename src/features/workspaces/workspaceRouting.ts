@@ -7,7 +7,7 @@
  */
 import type { PageType } from '@/shared'
 import type { Workspace, WorkspaceCardType, WorkspacePreferredUse } from '@/shared/types'
-import { isPageFeatureEnabled, isWorkspacesFeatureEnabled } from '@/shared/featureFlags'
+import { isPageFeatureEnabled } from '@/shared/featureFlags'
 import { PAGE_ACCESS } from '@/app/router/pageAccess'
 import { legacyGalleryTarget, pageHash, readHashWorkspace, withHashWorkspace } from '@/features/gallery/galleryLinks'
 import type { GalleryType } from '@/features/gallery/galleryConfig'
@@ -48,9 +48,9 @@ export function isWorkspaceContentPage(page: PageType): boolean {
     return PAGE_ACCESS[page] === 'private'
 }
 
-/** The hash with the workspace stamped when the R1 UI is on and the page holds content. */
+/** The hash with the workspace stamped when the page holds workspace content. */
 export function stampWorkspaceHash(page: PageType, hash: string, workspaceId: string | null): string {
-    if (!workspaceId || !isWorkspacesFeatureEnabled() || !isWorkspaceContentPage(page)) return hash
+    if (!workspaceId || !isWorkspaceContentPage(page)) return hash
     return readHashWorkspace(hash) ? hash : withHashWorkspace(hash, workspaceId)
 }
 
@@ -71,12 +71,12 @@ const GALLERY_CARD_TYPE: Record<GalleryType, WorkspaceCardType> = {
 }
 
 /**
- * With the R1 UI on, an owned type-gallery hash opens the Library with that
+ * An owned type-gallery hash opens the Library with that
  * type filter (and reveals a linked card); public and group-chat views stay
  * galleries. Returns the route unchanged otherwise.
  */
 export function normalizeRoute(page: PageType, hash: string): { page: PageType; hash: string } {
-    if (!isWorkspacesFeatureEnabled() || !isPageFeatureEnabled(page)) return { page, hash }
+    if (!isPageFeatureEnabled(page)) return { page, hash }
     if (page !== 'gallery-characters' && page !== 'gallery-personas' && page !== 'gallery-worlds'
         && page !== 'gallery-items' && page !== 'gallery-adventures') return { page, hash }
     const legacy = legacyGalleryTarget(hash || pageHash(page))

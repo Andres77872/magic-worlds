@@ -764,6 +764,10 @@ export interface AdminLabModel {
 
 /** `POST /admin/voice-presets/global` body; `PUT /{preset_id}` takes any subset. */
 export interface AdminGlobalPresetInput {
+    schema_version?: 2 | 3
+    provider?: 'elevenlabs' | 'fish_audio'
+    model_id?: import('./voicePreset.types').FishSpeechModel
+    performance?: import('./voicePerformance.types').VoicePerformance | null
     name: string
     description: string | null
     voice_key: string

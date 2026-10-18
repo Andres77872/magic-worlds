@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ImageCatalogModel } from '@/shared/types/imageProfile.types'
-import { imageCatalog, personalDraft } from './imageProfileFixtures'
-import { imageOptionsParser, nameIssue, settingIssue, trimmedDraft, withModel } from './imageProfileModel'
+import { archivedProfile, geminiProfile, gptProfile, imageCatalog, kreaProfile, personalDraft, personalProfile, rootList, userList } from './imageProfileFixtures'
+import { chatDefaultProfileId, chatPickableProfiles, imageOptionsParser, nameIssue, settingIssue, trimmedDraft, withModel } from './imageProfileModel'
 
 const model = (modelId: string) => imageCatalog.models.find(item => item.model_id === modelId)!
 const krea = model('fal-ai/krea-2/turbo')
@@ -59,5 +59,22 @@ describe('profile text', () => {
     it('trims the name and description it sends, keeping the description’s line breaks', () => {
         expect(trimmedDraft({ ...personalDraft, name: ' My Flux ', description: '\nLine one\nLine two \n' }))
             .toMatchObject({ name: 'My Flux', description: 'Line one\nLine two' })
+    })
+})
+
+describe('chat image profiles', () => {
+    it('offers active, available fal profiles with app profiles before personal ones', () => {
+        const picked = chatPickableProfiles([personalProfile, geminiProfile, archivedProfile, gptProfile, kreaProfile])
+        expect(picked.map(profile => profile.name)).toEqual(['GPT Image 2.5 Flare', 'Krea 2 Turbo', 'My Sana'])
+    })
+
+    it('names the default the server runs a chat image on', () => {
+        expect(chatDefaultProfileId(rootList)).toBe(kreaProfile.profile_id)
+        // A personal default needs a key no turn carries by default: the app default runs instead.
+        expect(chatDefaultProfileId(userList)).toBe(kreaProfile.profile_id)
+        expect(chatDefaultProfileId({ ...rootList, user_default_profile_id: gptProfile.profile_id })).toBe(gptProfile.profile_id)
+        // An OpenRouter default cannot make chat images.
+        expect(chatDefaultProfileId({ ...rootList, user_default_profile_id: null, system_default_profile_id: geminiProfile.profile_id })).toBeNull()
+        expect(chatDefaultProfileId(null)).toBeNull()
     })
 })

@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
 import { render as baseRender, screen, waitFor } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -117,5 +120,41 @@ describe('CallTranscriptView', () => {
         render(<CallTranscriptView call={CALL} characters={[]} onBack={vi.fn()} />)
 
         expect(await screen.findByText('No transcript for this call')).toBeInTheDocument()
+    })
+
+    it('renders Open chat, Call again, and end-reason metadata badges when provided', async () => {
+        const onOpenChat = vi.fn()
+        const onCallAgain = vi.fn()
+        getVoiceCallTranscript.mockResolvedValue({
+            call: { ...CALL, end_reason: 'user' },
+            segments: [{ segment_id: 's0', seq: 0, role: 'user', text: 'Hello there.' }],
+        })
+        render(
+            <CallTranscriptView
+                call={CALL}
+                characters={[]}
+                onBack={vi.fn()}
+                onOpenChat={onOpenChat}
+                onCallAgain={onCallAgain}
+            />,
+        )
+
+        expect(await screen.findByText('Hello there.')).toBeInTheDocument()
+        expect(screen.getByTestId('call-transcript-meta')).toHaveTextContent('Ended by you')
+
+        screen.getByTestId('call-transcript-open-chat').click()
+        expect(onOpenChat).toHaveBeenCalledWith(expect.objectContaining({ voice_session_id: 'vs-1', chat_id: 1 }))
+
+        screen.getByTestId('call-transcript-call-again').click()
+        expect(onCallAgain).toHaveBeenCalledWith(expect.objectContaining({ voice_session_id: 'vs-1' }))
+    })
+
+    it('invokes onUnavailable instead of showing load error when the transcript returns 404', async () => {
+        const onUnavailable = vi.fn()
+        getVoiceCallTranscript.mockRejectedValue({ status: 404, message: 'Call transcript not found' })
+        render(<CallTranscriptView call={CALL} characters={[]} onBack={vi.fn()} onUnavailable={onUnavailable} />)
+
+        await waitFor(() => expect(onUnavailable).toHaveBeenCalledWith('vs-1'))
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     })
 })

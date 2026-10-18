@@ -3,7 +3,7 @@
  * Modal's candlelit surface and header/footer bands, but slides in from the edge and
  * fills the viewport height. Closes on scrim click or Escape.
  */
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode, type Ref } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { X } from 'lucide-react'
@@ -24,6 +24,7 @@ interface DrawerProps {
     footer?: ReactNode
     className?: string
     children: ReactNode
+    bodyRef?:Ref<HTMLDivElement>
 }
 
 const WIDTH: Record<DrawerSize, string> = {
@@ -47,6 +48,7 @@ export function Drawer({
     footer,
     className,
     children,
+    bodyRef,
 }: DrawerProps) {
     const { t } = useTranslation()
     const titleId = useId()
@@ -121,7 +123,7 @@ export function Drawer({
                     </div>
                 )}
                 {/* `relative` keeps absolute content (`sr-only` labels) inside this scroller. */}
-                <div className="relative min-h-0 flex-1 overflow-y-auto px-6 py-5">{children}</div>
+                <div ref={bodyRef} className="relative min-h-0 flex-1 overflow-y-auto px-6 py-5">{children}</div>
                 {footer && (
                     <div className="flex justify-end gap-2 border-t border-parchment-50/10 px-6 py-4">{footer}</div>
                 )}

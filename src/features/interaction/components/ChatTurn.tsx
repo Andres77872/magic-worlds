@@ -1,12 +1,13 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 import { isVoicesFeatureEnabled } from '@/shared/featureFlags'
 import { memo, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { ChatImageAsset, ChatNarratorIdentity, ChatResponseSegment, ForwardOption, ImageLifecycleStatus, TurnEntry } from '../../../shared'
-import { cx, Eyebrow } from '../../../ui/primitives'
+import { Phone } from 'lucide-react'
+import type { ChatNarratorIdentity, ChatResponseSegment, ForwardOption, TurnEntry } from '../../../shared'
+import { Badge, cx, Eyebrow, Icon } from '../../../ui/primitives'
 import type { TriggerMatcher } from '@/features/lorebook'
 import { formatApiTime } from '@/utils/time'
-import { isSafeAssetUrl } from '../utils/chatImageTurnState'
-import { callTurnDisplay } from '../utils/callTurnMarkup'
+import { callTurnDisplay, isCallReply, isCallTurn, turnVoiceSessionId } from '../utils/callTurnMarkup'
 import { ChatAvatar } from './ChatAvatar'
 import { ChatMessage } from './ChatMessage'
 import { ChatActions } from './ChatActions'
@@ -14,20 +15,17 @@ import { ReplyVersionSwitcher } from './ReplyVersionSwitcher'
 import type { ReplyVersions } from '../utils/chatTurnVisibility'
 import { ForwardOptions } from './ForwardOptions'
 import { EditMode } from './EditMode'
-import { GeneratedImage } from './GeneratedImage'
+import { ChatTurnImages } from './ChatTurnImages'
+import type { ChatTurnImagesView } from '../hooks/useChatImages'
 import { TurnNarration } from './TurnNarration'
 import type { VoiceRefreshTarget } from './NarrationVoiceNotes'
 
-// Extend TurnEntry to include forward options and the (out-of-scope) image prompt
+// Extend TurnEntry with the live-only fields the chat panel adds while streaming
 interface ExtendedTurnEntry extends TurnEntry {
     forwardOptions?: ForwardOption[]
     segments?: ChatResponseSegment[]
     isStreaming?: boolean
     narratorIdentity?: ChatNarratorIdentity | null
-    imagePrompt?: string
-    imageStatus?: ImageLifecycleStatus
-    imageAssets?: ChatImageAsset[]
-    imageUrl?: string
 }
 
 interface ChatTurnProps {
@@ -46,10 +44,15 @@ interface ChatTurnProps {
     narrationUnavailable?: boolean
     /** Label for the AI speaker (e.g. "Game Master" or a character's name). */
     aiLabel?: string
-    /** Render the suggested-replies (forwardOptions) row. Off for 1:1 character chat. */
+    /** Render the suggested-replies (forwardOptions) row (`ChatSessionConfig.showForwardOptions`). */
     showForwardOptions?: boolean
-    /** Render per-turn generated scene images. Off for 1:1 character chat. */
+    /** Render per-turn generated scene images (`ChatSessionConfig.showImages`). */
     showImage?: boolean
+    /**
+     * This reply's scene images (`useChatImages`), one view per assistant
+     * message; actions come from `ChatImageActionsContext`.
+     */
+    images?: ChatTurnImagesView
     /** Hide mutating turn actions while the session is busy. */
     actionsDisabled?: boolean
     confirmingDelete?: boolean
@@ -70,18 +73,25 @@ interface ChatTurnProps {
     refreshDisabled?: boolean
     /** Told when this turn's narration starts or stops playing (stable callback; keyed by turn id). */
     onNarrationPlayingChange?: (turnId: string, playing: boolean) => void
+    /** Open the saved voice-call transcript for this turn's call session. */
+    onOpenCallTranscript?: (voiceSessionId: string) => void
 }
 
 // Memoized: the panel re-renders on every streaming delta and composer
 // keystroke — untouched turns keep their object identity and must not re-run
 // their markdown rendering.
-export const ChatTurn = memo(function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDeleteClick, onConfirmDeleteClick, onCancelDeleteClick, onEditClick, onRequestNarration, onAttestNarration, narrationUnavailable = false, aiLabel, showForwardOptions = true, showImage = true, actionsDisabled = false, confirmingDelete = false, deleting = false, loreMatcher, aiSpeaker, versions, onSelectVersion, versionsDisabled = false, onRefreshVoice, onEditNarratorVoice, refreshDisabled, onNarrationPlayingChange }: ChatTurnProps) {
+export const ChatTurn = memo(function ChatTurn({ turn, onForwardOptionClick, onRegenerateClick, onDeleteClick, onConfirmDeleteClick, onCancelDeleteClick, onEditClick, onRequestNarration, onAttestNarration, narrationUnavailable = false, aiLabel, showForwardOptions = true, showImage = true, images, actionsDisabled = false, confirmingDelete = false, deleting = false, loreMatcher, aiSpeaker, versions, onSelectVersion, versionsDisabled = false, onRefreshVoice, onEditNarratorVoice, refreshDisabled, onNarrationPlayingChange, onOpenCallTranscript }: ChatTurnProps) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const resolvedAiLabel = aiLabel ?? t('interaction.chat.gameMaster')
     const isUser = turn.type === 'user'
     const [isEditing, setIsEditing] = useState(false)
+    const callReply = isCallReply(turn)
+    const callTurn = isCallTurn(turn)
+    const callSessionId = turnVoiceSessionId(turn)
 
     const handleEditStart = () => {
+        if (callTurn) return
         setIsEditing(true)
     }
 
@@ -96,8 +106,6 @@ export const ChatTurn = memo(function ChatTurn({ turn, onForwardOptionClick, onR
         setIsEditing(false)
     }
 
-    const safeAssets = (turn.imageAssets ?? []).filter((asset) => isSafeAssetUrl(asset.url))
-    const imageUrl = safeAssets[0]?.url ?? (turn.imageUrl && isSafeAssetUrl(turn.imageUrl) ? turn.imageUrl : undefined)
     const hasNarration = Boolean(turn.ttsUrl || turn.ttsAssets?.length || turn.ttsSegments?.length)
     // D23: a call reply shows, and copies, without speech markup; any other turn passes its own content and segments.
     // Editing still starts from the stored text.
@@ -112,6 +120,25 @@ export const ChatTurn = memo(function ChatTurn({ turn, onForwardOptionClick, onR
                     <Eyebrow tone={isUser ? 'ember' : 'arcane'} className="min-w-0 truncate">
                         {isUser ? t('interaction.chat.player') : turn.narratorIdentity?.name || resolvedAiLabel}
                     </Eyebrow>
+                    {callTurn && (
+                        callSessionId && onOpenCallTranscript ? (
+                            <button
+                                type="button"
+                                onClick={() => onOpenCallTranscript(callSessionId)}
+                                className="inline-flex shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-arcane-400"
+                                title={t('interaction.chat.viewCallTranscript')}
+                                data-testid="chat-turn-call-badge"
+                            >
+                                <Badge tone="arcane" icon={<Icon icon={Phone} size={11} />}>
+                                    {t('interaction.chat.callBadge')}
+                                </Badge>
+                            </button>
+                        ) : (
+                            <Badge tone="arcane" icon={<Icon icon={Phone} size={11} />} data-testid="chat-turn-call-badge">
+                                {t('interaction.chat.callBadge')}
+                            </Badge>
+                        )
+                    )}
                     <time dateTime={turn.timestamp} className="shrink-0 font-mono text-caption text-parchment-400">
                         {formatApiTime(turn.timestamp)}
                     </time>
@@ -129,12 +156,11 @@ export const ChatTurn = memo(function ChatTurn({ turn, onForwardOptionClick, onR
                         <ChatMessage content={display.content} isUser={isUser} isStreaming={turn.isStreaming} segments={display.segments} narratorIdentity={turn.narratorIdentity} aiLabel={resolvedAiLabel} loreMatcher={loreMatcher} soloSpeakerId={aiSpeaker?.id} />
                     )}
                     {!isUser && !isEditing && showImage && (
-                        <GeneratedImage
-                            status={turn.imageStatus}
-                            url={imageUrl}
-                            width={safeAssets[0]?.width}
-                            height={safeAssets[0]?.height}
-                            errorDetail={turn.imageError?.detail}
+                        <ChatTurnImages
+                            messageId={turn.assistantMessageId}
+                            images={images}
+                            hasPrompt={Boolean(turn.imagePrompt)}
+                            streaming={turn.isStreaming}
                         />
                     )}
                 </div>
@@ -151,13 +177,14 @@ export const ChatTurn = memo(function ChatTurn({ turn, onForwardOptionClick, onR
                                 onSelect={(index) => onSelectVersion(versions.ids[index])}
                             />
                         )}
-                        {isVoicesFeatureEnabled() && !isUser && (onRequestNarration || hasNarration) && (
+                        {isVoicesFeatureEnabled() && !isUser && (callReply ? hasNarration : (onRequestNarration || hasNarration)) && (
                             <TurnNarration
+                                mode={callReply ? 'call' : 'narration'}
                                 status={turn.ttsStatus}
                                 url={turn.ttsUrl ?? turn.ttsAssets?.[0]?.url}
                                 segments={turn.ttsSegments}
                                 error={turn.ttsError}
-                                canRequest={Boolean(onRequestNarration) && !turn.isStreaming && Boolean(turn.assistantMessageId || turn.turnId)}
+                                canRequest={!callReply && Boolean(onRequestNarration) && !turn.isStreaming && Boolean(turn.assistantMessageId || turn.turnId)}
                                 onRequest={() => onRequestNarration?.(turn.assistantMessageId, turn.turnId)}
                                 onAttest={onAttestNarration ? () => onAttestNarration(turn.assistantMessageId, turn.turnId) : undefined}
                                 unavailable={narrationUnavailable}
@@ -174,7 +201,7 @@ export const ChatTurn = memo(function ChatTurn({ turn, onForwardOptionClick, onR
                             isStreaming={turn.isStreaming}
                             actionsDisabled={actionsDisabled}
                             messageContent={display.content}
-                            onEditClick={onEditClick ? handleEditStart : undefined}
+                            onEditClick={!callTurn && onEditClick ? handleEditStart : undefined}
                             onRegenerateClick={onRegenerateClick}
                             onDeleteClick={onDeleteClick}
                             confirmingDelete={confirmingDelete}
@@ -195,3 +222,4 @@ export const ChatTurn = memo(function ChatTurn({ turn, onForwardOptionClick, onR
         </article>
     )
 })
+

@@ -1,3 +1,7 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactElement, ReactNode } from 'react'
 import { I18nextProvider } from 'react-i18next'
@@ -172,7 +176,7 @@ describe('CardPreviewModal voice line (R1-FE-03)', () => {
     }
 
     it('hides stored voice details when the parent flag is off', () => {
-        vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'false')
+        setTestFeatureFlags({ voices: false })
         try {
             renderCard(CHARACTER)
             expect(screen.queryByTestId('card-preview-voice')).not.toBeInTheDocument()

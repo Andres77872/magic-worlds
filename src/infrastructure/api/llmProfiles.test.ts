@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { apiService } from './index'
 import { authSession } from './authSession'
@@ -6,7 +9,7 @@ vi.mock('./baseUrl', () => ({ API_BASE_URL: 'https://api.test.invalid' }))
 const fetchMock = vi.fn()
 const PROFILE = '11111111-1111-4111-8111-111111111111'
 const REVISION = '22222222-2222-4222-8222-222222222222'
-beforeEach(() => { fetchMock.mockReset(); vi.stubGlobal('fetch', fetchMock); authSession.continueSignedOut(); authSession.authenticate('alice', 'FAKE_APP_TOKEN') })
+beforeEach(() => { fetchMock.mockReset(); vi.stubGlobal('fetch', fetchMock); authSession.continueSignedOut(); authSession.authenticate('alice', 'FAKE_APP_TOKEN'); grantFixtureFeatures(true) })
 afterEach(() => { vi.unstubAllGlobals(); authSession.continueSignedOut() })
 
 it('sends the complete preference replacement with a quoted version and no-store', async () => {

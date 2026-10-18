@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 import { isVoicesFeatureEnabled } from '@/shared/featureFlags'
 import { useEffect, useState } from 'react'
 import type { ApiService } from '@/infrastructure/api'
@@ -17,6 +18,7 @@ export function useVoiceCapabilitiesSnapshot(
     requestedActive: boolean,
     refreshKey: unknown = 0,
 ): VoiceCapabilities | null {
+    useFeatureFlags()
     const active = requestedActive && isVoicesFeatureEnabled()
     const [capabilities, setCapabilities] = useState<VoiceCapabilities | null>(null)
 

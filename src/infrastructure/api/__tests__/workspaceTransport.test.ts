@@ -1,3 +1,7 @@
+import { authSession } from '@/infrastructure/api/authSession'
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
     ApiError,
@@ -40,7 +44,7 @@ describe('workspace-scoped transport', () => {
     beforeEach(() => {
         vi.clearAllMocks()
         localStorage.clear()
-        localStorage.setItem('magic_worlds:token', 'old-token')
+        authSession.authenticate('u1', 'old-token'); grantFixtureFeatures(true)
         localStorage.setItem('magic_worlds:user', JSON.stringify({ username: 'nyra' }))
         vi.stubGlobal('fetch', fetchMock)
         vi.spyOn(console, 'error').mockImplementation(() => undefined)
@@ -66,6 +70,17 @@ describe('workspace-scoped transport', () => {
         expect(headersAt(1)).not.toHaveProperty('X-Workspace-Id')
         expect(apiService.workspaceScope).toBeNull()
         expect(scoped.workspaceScope).toEqual({ workspaceId: WS_A, initialCollectionIds: [] })
+    })
+
+    it('checks source status in the explicit workspace using read-only metadata transport', async () => {
+        const cards = [{ card_type: 'character' as const, card_id: 'c1' }]
+        const result = { items: [{ ...cards[0], available: false, latest_version_id: null, latest_version_number: null, has_draft: null }] }
+        fetchMock.mockResolvedValueOnce(jsonResponse(result))
+        expect(await apiService.withWorkspace(WS_A).getCardSourceStatuses(WS_B, cards)).toEqual(result)
+        expect(urlAt(0)).toMatch(new RegExp(`/workspaces/${WS_B}/cards/source-status$`))
+        expect(headersAt(0)).not.toHaveProperty('X-Workspace-Id')
+        expect(JSON.parse(fetchMock.mock.calls[0][1].body as string)).toEqual({ cards })
+        expect(fetchMock.mock.calls[0][1].cache).toBe('no-store')
     })
 
     it('keeps the captured workspace on the replay after an auth refresh', async () => {

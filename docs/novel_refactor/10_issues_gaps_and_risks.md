@@ -1,12 +1,16 @@
 # Issues, gaps, and risks
 
-**Source/lifecycle reconciliation, 2026-10-15:** this remains an active issue register. Save ordering (NE-001), acceptance after a false flush (NE-003), lowercase offset mapping (NE-007), and missing scene/revision/novel-assistant contracts were rechecked in current source. No controlled reproduction or application test was rerun. All NE-001–NE-023 retain their individual evidence class and remain open until their acceptance criteria are met.
+**Source/lifecycle and deep cleanup review, 2026-10-15:** this remains an active issue register. Save ordering (NE-001), acceptance after a false flush (NE-003), lowercase offset mapping (NE-007), and missing scene/revision/novel-assistant contracts were rechecked in current source. The later migration/cleanup review passed the focused baseline suites in [01](01_current_state_and_evidence.md#deep-migration-and-cleanup-revalidation--2026-10-15), without rerunning the historical controlled defect fixtures or applying fixes. All NE-001–NE-023 retain their individual evidence class and remain open until their acceptance criteria are met.
 
 **Documentation review:** 2026-10-14. **Status:** WIP audit backlog — open source concerns, prior controlled reports, target gaps, and unmeasured risks; no remediation shipped by this update. Overall novel availability is **WIP**, disabled in the example configuration and enabled in the reviewed local override. See [actual status and roadmap](14_status_and_roadmap.md) for evidence, rollout gates, and TBDs.
 
+**Reuse/provenance clarification, 2026-10-16:** [07](07_target_architecture.md#reuse-and-overlap-decisions) records existing foundations, two duplicated Codex helpers and adjacent-plan ownership. NE-020 is narrowed below: custom instructions are already embedded in the persisted frozen execution payload; safe history exposure and manuscript application lineage remain missing. No source fix or new defect reproduction was performed.
+
 Research snapshot: 2026-10-14. Confidence definitions and reproduction evidence are in [01](01_current_state_and_evidence.md). P1 requires early remediation for manuscript integrity or reliable expanded AI; P2 is important correctness/workflow work; P3 is a later capability or optimization. A gap is not mislabeled as a current defect.
 
-**Disposition at this review:** NE-001–NE-023 remain open; no fix was implemented by the documentation update. Their mechanisms or missing contracts were compared with current source. “Reproduced” in the index refers to the prior dossier's controlled checks, which were not rerun and have no standalone reproduction script retained here. Recreate those fixtures before closing a finding. The existing 211-test pass does not resolve them. The prioritized next work and dependencies are in [14](14_status_and_roadmap.md).
+**Disposition at this review:** NE-001–NE-023 remain open; no fix was implemented by the documentation update. Their mechanisms or missing contracts were compared with current source. “Reproduced” in the index refers to the prior dossier's controlled checks, which were not rerun and have no standalone reproduction script retained here. Recreate those fixtures before closing a finding. Neither the historical 211-test pass nor the new 221-frontend/290-backend baseline resolves them. The prioritized next work and dependencies are in [14](14_status_and_roadmap.md).
+
+**Execution update, 2026-10-16:** the historical mechanisms below describe the audited baseline. D1 fixes and retained regressions now exist; see [current disposition](14_status_and_roadmap.md#execution-disposition-of-findings) and [execution evidence](01_current_state_and_evidence.md#execution-evidence--2026-10-16). Basic revisions do not implement trash; link fidelity does not establish a complete document support contract; partial accessibility changes do not constitute an audit pass.
 
 ## Finding index
 
@@ -28,19 +32,19 @@ Research snapshot: 2026-10-14. Confidence definitions and reproduction evidence 
 | NE-012 | P1 | Story token budget is a prompt setting rather than an enforced assembly limit | Source-confirmed within reviewed assembly path |
 | NE-013 | P1 | No durable recovery of the latest unsaved draft | Gap |
 | NE-014 | P1 | No user-facing manuscript revisions or chapter trash/restore | Gap |
-| NE-015 | P1 target gap | No novel-bound conversational assistant with changesets | Gap |
+| NE-015 | P1 target gap | No novel-bound conversational assistant with changesets | Built (2026-10-18): bound assistant runs (D3) and outline changesets with one undo run (D4); grouped multi-scene prose changesets and acceptance remain |
 | NE-016 | P2 | Chapter model/UI lacks full scene organization and structure operations | Gap |
 | NE-017 | P2 | Status, autocomplete, toolbar, contrast, and focus need accessibility work | Source-confirmed concerns; live audit outstanding |
-| NE-018 | P2 | Whole-document work occurs on hot editing/save paths | Source-confirmed mechanism; performance risk unmeasured |
+| NE-018 | P2 | Whole-document work occurs on hot editing/save paths | Measured 2026-10-18 on a 1,500-scene novel (development build): typing p95 40 ms and a 76 ms save after fixing whole-novel rendering and cache copies on the typing path; production and low-end hardware unmeasured. See [large-manuscript performance](14_status_and_roadmap.md#d2-slice--large-manuscript-performance-2026-10-18) |
 | NE-019 | P2 | Unrelated edits and ordinary Tab can implicitly accept an AI proposal | Source-confirmed behavior; UX risk |
-| NE-020 | P2 | Exact instructions and generation lineage are incompletely exposed/persisted | Source-confirmed gap |
-| NE-021 | P2 | No complete manuscript import/export workflow in current novel UI | Gap |
+| NE-020 | P2 | Durable instructions lack safe history exposure; revision/application lineage is incomplete | Source-confirmed gap; frozen execution prompt already persists |
+| NE-021 | P2 | No complete manuscript import/export workflow in current novel UI | Built (2026-10-18): D5 export (Word/EPUB/PDF/Markdown/text), import of six formats with loss reports, packages and export jobs; EPUBCheck and e-reader acceptance remain |
 | NE-022 | P2 | Metadata failure paths and blank-title save feedback need reconciliation | Source-confirmed concern; focused runtime check needed |
 | NE-023 | P2 target gap | No narrative-time canon and derived-memory invalidation contract | Gap |
 
 ## NE-001: stale save acknowledgements
 
-Source: [useChapterDraft](../../src/features/novel/hooks/useChapterDraft.ts), `save()` around line 156; [DataProvider](../../src/app/providers/DataProvider.tsx), `updateStoryChapter`; backend `StoryModel.update_chapter()` in `src/database/mysql/models.py`.
+Source: [useChapterDraft](../../src/features/novel/hooks/useSceneDraft.ts), `save()` around line 156; [DataProvider](../../src/app/providers/DataProvider.tsx), `updateStoryChapter`; backend `StoryModel.update_chapter()` in `src/database/mysql/models.py`.
 
 The hook starts another request without waiting for `saveInFlightRef`. A controlled two-request fixture completed the newer write before the older write. The final visible content was newer, the simulated server content older, and the hook reported saved. The BFF locks rows but does not compare an expected chapter revision. Database locking serializes transactions; it does not establish the user's intended edit order.
 
@@ -66,7 +70,7 @@ Approach: preferably commit body revision and accepted proposal status in one do
 
 ## NE-005 and NE-006: target correctness
 
-Source: [useInlineAI](../../src/features/novel/editor/hooks/useInlineAI.ts), anchor around 224; [markdownSelection](../../src/features/novel/editor/markdownSelection.ts), lines 28–44; backend `StoryContextPayload` and `story_writer.v3.json`.
+Source: [useInlineAI](../../src/features/novel/editor/hooks/useInlineAI.ts), anchor around 224; [markdownSelection](../../src/features/novel/editor/documentSelection.ts), lines 28–44; backend `StoryContextPayload` and `story_writer.v3.json`.
 
 The client retains an insertion position but sends no cursor position. The writer graph tells Continue to extend the current chapter ending. Mid-chapter insertion therefore has incompatible prompt and application targets. Separately, `indexOf` locates the first repeated passage, and the compact-whitespace fallback returns indexes from a different string.
 
@@ -84,7 +88,7 @@ Sources: [codexMention](../../src/features/novel/editor/extensions/codexMention.
 
 Mentions retain an ID in memory but emit only `@Name`. Equal names resolve to the first entry after reload. Beat HTML comments contribute to raw Markdown word counts; unspaced Chinese prose counts as one token. Disabled links discard URLs during parsing/serialization, and the next ordinary edit persists the normalized body.
 
-Approach: versioned structured documents with stable mention IDs; separate annotations from prose; locale-aware count rules; explicit import/export support and conversion-loss reports. Keep legacy raw Markdown available during migration. See [07](07_target_architecture.md) and [09](09_persistence_revisions_and_recovery.md).
+Approach: versioned structured documents with stable mention IDs; separate annotations from prose; locale-aware count rules; explicit import/export support and conversion-loss reports. Preserve current novels and recovered non-novel rows under [15](15_database_migration_and_legacy_cleanup.md); retain raw input for author import/conversion features that need it. See [07](07_target_architecture.md) and [09](09_persistence_revisions_and_recovery.md).
 
 ## NE-011 and NE-012: misleading context
 
@@ -117,7 +121,7 @@ These source findings require the keyboard, screen-reader, zoom, reflow, and tou
 |---|---|---|
 | NE-018 | Every ordinary update serializes the chapter; detection/search rescan it; the chapter rail counts all loaded bodies; saves reload story children/history | Profile first; cache revision-based statistics, scan changed blocks, return small save responses, paginate history |
 | NE-019 | Any non-AI document change accepts a suggestion, even outside its passage | Require explicit acceptance or deliberately constrained edits within the suggestion; preserve focus navigation |
-| NE-020 | Exact typed prompt lives in local history state; backend promptSummary describes a command/context; inline replacement prompts are not durable beat nodes | Persist an allowlisted generation record with exact instruction, profile/graph revision, source revisions, and change-set lineage; redact credentials |
+| NE-020 | Local history keeps the typed instruction, while backend `promptSummary` only describes command/context. The instruction also enters `build_story_execution_payload` and is persisted in `tb_llm_execution_plan.frozen_payload`; it is not absent from backend durability. Public generation history lacks an allowlisted instruction projection and source-revision/application lineage; inline prompts are not durable beat nodes | Extend the existing generation/execution projection with safe instruction fields, source revisions and changeset/result lineage. Reuse stored profile/graph/execution identities; never expose raw frozen payloads or add a second full-prompt archive |
 | NE-021 | Header exposes Find/History but no full manuscript import/export; history copies individual outputs | Dedicated import preview and manuscript compiler with support/loss matrix |
 | NE-022 | Blank chapter title is omitted from save while UI can stay blank; metadata/deletion call sites fire promises without a complete local feedback flow | Validate metadata separately, reconcile accepted server values, show actionable failure state and retain drafts; verify focused flows before implementation |
 | NE-023 | No first-class scene summaries, temporal facts, or dependency invalidation for context | Version derived memory against source revisions; preserve author-approved canon; recompute on relevant edits/reorders |
@@ -128,7 +132,7 @@ These risks describe the proposed expanded system, not newly discovered vulnerab
 
 | Risk | Consequence | Mitigation and release evidence |
 |---|---|---|
-| Lossy Markdown migration | Irrecoverable imported or historical content | Preserve raw source, conversion report, fixture corpus, reversible migration |
+| Lossy author import or editor serialization | Future writing loses supported content/references | Preserve author import sources, report unsupported content and check the changed serializer; disposable test rows need no migration corpus |
 | Two independently editable canonical bodies | Markdown/JSON drift and stale saves | One authority per schema version; derived formats generated from its revision |
 | Unbounded agent operation | High latency/spend and broad unintended edits | Step/tool/token limits, explicit scope, stop/resume, proposal-only mutations |
 | Stale AI target | Overwrites author edits made during generation | Base revisions, quotes/hashes, conflict invalidation, explicit rebase review |
@@ -143,6 +147,21 @@ These risks describe the proposed expanded system, not newly discovered vulnerab
 | Automated critique overreach | False continuity/style advice erodes trust | Evidence-linked findings, uncertainty, user-dismissable rules, human evaluation |
 | Metrics reward volume over usefulness | Models generate more words but worse assistance | Task success, retained edits, voice preservation, agency and cost metrics |
 | Growing history/storage | Expensive queries and retention problems | Paginated revisions, checkpoints, explicit retention/export/erase policies |
+
+## Migration and cleanup review additions
+
+**Policy revision, 2026-10-16:** the user confirmed a development project with no users and disposable test data, and authorizes destructive changes only to this project's test DB. The earlier production backfill/compatibility/observation obligations and eighteen migration scenarios are superseded by [15](15_database_migration_and_legacy_cleanup.md) and the three DEV checks in [12](12_validation_and_acceptance.md#database-migration-and-cleanup-acceptance).
+
+| Source-backed concern | Development plan response |
+|---|---|
+| Exact-schema verification rejects mismatched columns/marker/seeds | Stop this project's workers, install the current schema/seed by reset and start matching code; no intermediate compatibility reader |
+| Legacy writers mix body/order/metadata and acceptance updates status only | Remove/replace those paths with current services and callers; no old-client support program |
+| Physical delete cannot supply product trash/restore | Implement lifecycle semantics for new data. The developer reset itself remains explicitly destructive |
+| Old test chapters, generations, local goals and checkpoints use the former model | Discard/reseed project DB data and clear known obsolete project browser records; no historical mapping/backfill work |
+| Novel assistant storage has constraints beyond its kind union | Update current enums, target/result checks, registry/profile contracts and fixtures together |
+| Obsolete code/data can outlive its replacement | Use CL-01–CL-10 as the removal inventory and the short current-contract smoke; do not create a separate migration test program |
+
+The product NE findings remain open until their implementations are corrected. Keep revision/undo/ownership/AI acceptance behavior for new writing, without making preservation of developer fixtures a delivery requirement.
 
 ## Decisions still needed
 

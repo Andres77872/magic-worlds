@@ -1,3 +1,4 @@
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -62,9 +63,8 @@ const backgroundTasks = {
 
 const apiStatus: ApiStatusContextValue = { status: 'online', checkedAt: null, services: [] } as unknown as ApiStatusContextValue
 
-function Providers({ children, featureEnabled }: { children: ReactNode; featureEnabled: boolean }) {
+function Providers({ children }: { children: ReactNode }) {
     const workspace = createWorkspaceTestState({
-        featureEnabled,
         workspaces: [testWorkspace(TEST_WORKSPACE_ID, 'Main library'), testWorkspace(OTHER_WORKSPACE_ID, 'Novel A')],
     })
     return (
@@ -80,9 +80,9 @@ function Providers({ children, featureEnabled }: { children: ReactNode; featureE
     )
 }
 
-function renderSidebar(featureEnabled: boolean) {
+function renderSidebar() {
     return render(
-        <Providers featureEnabled={featureEnabled}>
+        <Providers>
             <Sidebar />
         </Providers>,
     )
@@ -92,26 +92,24 @@ const TYPE_GALLERIES = ['Characters', 'Worlds', 'Items', 'Adventures']
 
 describe('Sidebar with Workspace R1', () => {
     beforeEach(() => {
-        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'true')
+        setTestFeatureFlags({ adventures: true })
         window.history.replaceState(null, '', '#/')
         window.localStorage.removeItem('magic-worlds-sidebar-groups')
     })
 
     afterEach(() => vi.unstubAllEnvs())
 
-    it('keeps today’s per-type galleries and no switcher while the flag is off', () => {
-        vi.stubEnv('VITE_FEATURE_WORKSPACES_ENABLED', 'false')
-        renderSidebar(false)
-        for (const label of TYPE_GALLERIES) expect(screen.getByRole('button', { name: label })).toBeInTheDocument()
-        // Only today's "Library" group header (a fold toggle), no Library page entry.
-        const libraryButtons = screen.queryAllByRole('button', { name: 'Library' })
-        expect(libraryButtons.filter((button) => !button.hasAttribute('aria-expanded'))).toHaveLength(0)
-        expect(screen.queryByRole('button', { name: /Switch workspace/ })).not.toBeInTheDocument()
+    it('keeps Library and workspace switching available without a workspace permission', () => {
+
+        renderSidebar()
+        for (const label of TYPE_GALLERIES) expect(screen.queryByRole('button', { name: label })).not.toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Library' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: /Switch workspace/ })).toBeInTheDocument()
     })
 
     it('replaces the type galleries with one Library entry and shows the workspace switcher', () => {
-        vi.stubEnv('VITE_FEATURE_WORKSPACES_ENABLED', 'true')
-        renderSidebar(true)
+
+        renderSidebar()
         for (const label of TYPE_GALLERIES) expect(screen.queryByRole('button', { name: label })).not.toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Switch workspace, current: Main library' })).toBeInTheDocument()
 

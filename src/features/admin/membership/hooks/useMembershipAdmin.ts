@@ -41,6 +41,8 @@ export function useMembershipAdmin(isRoot: boolean) {
     const [overview, setOverview] = useState<MembershipOverviewResponse | null>(null)
     const [overviewLoading, setOverviewLoading] = useState(false)
     const [plans, setPlans] = useState<MembershipPlan[]>([])
+    const [flagCatalog, setFlagCatalog] = useState<import('@/shared/featureFlagRuntime').FeatureFlagDefinition[]>([])
+    const [catalogRevision, setCatalogRevision] = useState<string | undefined>()
     const [operations, setOperations] = useState<string[]>([])
     const [plansLoading, setPlansLoading] = useState(false)
 
@@ -91,6 +93,8 @@ export function useMembershipAdmin(isRoot: boolean) {
         try {
             const res = await apiService.listMembershipPlans()
             setPlans(res.items)
+            setFlagCatalog(res.flags ?? [])
+            setCatalogRevision(res.catalog_revision)
             setOperations(res.operations)
         } catch (err) {
             setError(err instanceof Error ? err.message : t('admin.membership.errors.loadPlans'))
@@ -285,6 +289,8 @@ export function useMembershipAdmin(isRoot: boolean) {
         overview,
         overviewLoading,
         plans,
+        flagCatalog,
+        catalogRevision,
         operations,
         plansLoading,
         // member filters

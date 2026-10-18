@@ -6,6 +6,7 @@ import type {
     ImageCatalog,
     ImageCatalogModel,
     ImageProfile,
+    ImageProfileList,
     ImageProfileMutation,
     ImageProvider,
     ImageSettingValue,
@@ -116,6 +117,30 @@ export function settingIssue(model: ImageCatalogModel, key: string, value: Image
 export function pickableProfiles(profiles: ImageProfile[]): ImageProfile[] {
     return profiles.filter(profile => profile.status === 'active' && profile.available)
         .sort((a, b) => Number(a.scope === 'user') - Number(b.scope === 'user') || a.name.localeCompare(b.name))
+}
+
+/**
+ * The profiles a chat scene image can run on: the pickable fal ones, app
+ * (platform) profiles first, then the player's own (BYOK). OpenRouter results
+ * cannot be kept as chat images yet, so the server refuses them in chat.
+ */
+export function chatPickableProfiles(profiles: ImageProfile[]): ImageProfile[] {
+    return pickableProfiles(profiles).filter(profile => profile.provider === 'fal')
+}
+
+/**
+ * The profile a chat image runs on when none is picked, as the server resolves
+ * it: the player's default, else the app default, skipping a personal (BYOK)
+ * one (no key travels with a turn by default) and any that cannot run. Null
+ * when neither qualifies for chat.
+ */
+export function chatDefaultProfileId(list: ImageProfileList | null): string | null {
+    if (!list) return null
+    const platform = chatPickableProfiles(list.items).filter(profile => profile.credential_mode === 'platform')
+    for (const candidate of [list.user_default_profile_id, list.system_default_profile_id]) {
+        if (candidate && platform.some(profile => profile.profile_id === candidate)) return candidate
+    }
+    return null
 }
 
 export function sameDraft(a: ImageProfileMutation, b: ImageProfileMutation): boolean {

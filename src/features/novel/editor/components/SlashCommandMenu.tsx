@@ -49,6 +49,7 @@ const SECTION_HEADERS: Record<SlashSection, string> = {
 }
 
 interface SlashCommandMenuProps {
+    menuId?: string
     items: SlashItem[]
     selectedIndex: number
     anchor: { left: number; top: number }
@@ -56,11 +57,12 @@ interface SlashCommandMenuProps {
     onSelect: (item: SlashItem) => void
 }
 
-export function SlashCommandMenu({ items, selectedIndex, anchor, onHover, onSelect }: SlashCommandMenuProps) {
+export function SlashCommandMenu({ items, selectedIndex, anchor, onHover, onSelect, menuId }: SlashCommandMenuProps) {
     const { t } = useTranslation()
     if (items.length === 0) return null
     return (
         <div
+            id={menuId}
             role="listbox"
             aria-label={t('novelEditor.slash.label')}
             className="absolute z-[100] w-[300px] max-w-[calc(100%-16px)] overflow-hidden rounded-md border border-parchment-50/[.12] bg-ink-700 p-1 shadow-lg"
@@ -84,7 +86,8 @@ export function SlashCommandMenu({ items, selectedIndex, anchor, onHover, onSele
                             <li>
                                 <button
                                     type="button"
-                                    role="option"
+                                    id={menuId ? `${menuId}-option-${index}` : undefined}
+                            role="option"
                                     aria-selected={index === selectedIndex}
                                     onMouseDown={(event) => event.preventDefault()}
                                     onMouseEnter={() => onHover(index)}

@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * Chat header voice indicator (R1-FE-04; 09 §4.5, 05 §7.8, 03 §5.12, AC-C6).
  *
@@ -52,6 +53,7 @@ export interface ChatVoiceIndicatorProps {
 }
 
 export function ChatVoiceIndicator({ variant, chatId, workspaceId, className }: ChatVoiceIndicatorProps) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const hintId = useId()
     const data = useContext(DataContext)
@@ -151,6 +153,7 @@ export function ChatVoiceIndicator({ variant, chatId, workspaceId, className }: 
 }
 
 function DriftBadge({ drift }: { drift: SessionVoiceDrift }) {
+    useFeatureFlags()
     const { t } = useTranslation()
     if (drift.replaced) return <VoiceBadges badges={['replaced']} context={{ name: drift.sessionName }} />
     return (

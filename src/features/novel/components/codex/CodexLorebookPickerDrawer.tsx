@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * CodexLorebookPickerDrawer — two-step lorebook cloning: search lorebooks
  * (entries arrive inline with the list), then pick entries to clone. Each
@@ -40,6 +41,7 @@ interface CodexLorebookPickerDrawerProps {
 }
 
 export function CodexLorebookPickerDrawer({ open, workspaceId, busy, readOnly = false, existingEntryIds, onClose, onClone }: CodexLorebookPickerDrawerProps) {
+    const featureFlagGeneration = useFeatureFlags().generation
     const { t } = useTranslation()
     const api = useScopedApi(workspaceId)
     const { capture, isCurrent } = useWorkspace()
@@ -75,7 +77,7 @@ export function CodexLorebookPickerDrawer({ open, workspaceId, busy, readOnly = 
                 })
         }, SEARCH_DEBOUNCE_MS)
         return () => clearTimeout(timer)
-    }, [api, capture, isCurrent, open, query, t])
+    }, [api, capture, isCurrent, open, query, t, featureFlagGeneration])
 
     const reset = () => {
         setPicked(null)

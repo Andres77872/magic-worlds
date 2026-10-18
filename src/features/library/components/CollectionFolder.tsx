@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * A collection as a compact folder entry in the Library browser (document 08
  * "Selected library browsing contract"): folder icon, the word Collection, its
@@ -21,6 +22,7 @@ interface CollectionFolderProps {
 }
 
 export function CollectionFolder({ collection, view = 'card', onOpen, options = [] }: CollectionFolderProps) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const count = t('library.folder.cardCount', { count: collection.card_count })
     return (

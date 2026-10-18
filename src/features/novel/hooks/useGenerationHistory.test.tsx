@@ -1,56 +1,24 @@
+import { novel, storyChapter, storyGeneration } from '@/test/fixtures/story'
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import type { Story, StoryChapter, StoryGeneration } from '@/shared'
+import type { Story, StoryGeneration } from '@/shared'
 import { useGenerationHistory } from './useGenerationHistory'
 
 function generation(id: string, overrides: Partial<StoryGeneration> = {}): StoryGeneration {
-    return {
-        id,
-        storyId: 's1',
-        chapterId: 'ch1',
-        command: 'continue',
-        inputRange: null,
-        promptSummary: '',
-        contextTrace: { cards: [], loreEntries: [], chapters: [], totalEstimatedTokens: 0 },
-        output: `Output ${id}`,
-        status: 'candidate',
-        createdAt: `2026-08-01T00:0${id.slice(-1)}:00`,
-        ...overrides,
-    }
+    return storyGeneration({id,storyId:'s1',chapterId:'ch1',sceneId:'sc1',output:`Output ${id}`,createdAt:`2026-08-01T00:0${id.slice(-1)}:00`,...overrides})
 }
-
 function story(generations: StoryGeneration[]): Story {
-    const chapter: StoryChapter = {
-        id: 'ch1',
-        storyId: 's1',
-        title: 'Chapter 1',
-        body: '',
-        order: 0,
-        status: 'draft',
-        povCardId: null,
-        locationCardId: null,
-        activeCardRefs: [],
-        generationHistory: generations,
-    }
-    return {
-        id: 's1',
-        title: 'Glass War',
-        description: null,
-        source: { kind: 'blank', id: null, title: null },
-        chapters: [chapter],
-        activeCardRefs: [],
-        activeContext: {
-            includeSelectedCards: true,
-            includeLorebooks: true,
-            includeRecentChapters: 2,
-            tokenBudget: 6000,
-            styleSource: 'current_chapter',
-            customStyleInstruction: null,
-        },
-    }
+    return novel({id:'s1',chapters:[storyChapter({id:'ch1',storyId:'s1',generationHistory:generations})]})
 }
 
 describe('useGenerationHistory', () => {
+    it('does not show a late result from a previously open story', () => {
+        const { result, rerender } = renderHook(({ s }) => useGenerationHistory({ story: s }), { initialProps: { s: story([]) } })
+        const oldRecord = result.current.record
+        rerender({ s: { ...story([]), id: 's2', chapters: [] } })
+        act(() => oldRecord(generation('g1'), 'Old chapter', 'Private old prompt'))
+        expect(result.current.generations).toEqual([])
+    })
     it('shows locally recorded generations before any story refetch, newest first', () => {
         const { result } = renderHook(() => useGenerationHistory({ story: story([generation('g1')]) }))
 

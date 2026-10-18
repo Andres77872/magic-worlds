@@ -1,3 +1,4 @@
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactElement, ReactNode } from 'react'
 import { I18nextProvider } from 'react-i18next'
@@ -110,8 +111,8 @@ describe('LorebookGalleryPage', () => {
         await i18n.changeLanguage('en')
         authed = true
         vi.clearAllMocks()
-        vi.stubEnv('VITE_FEATURE_LOREBOOKS_ENABLED', 'true')
-        vi.stubEnv('VITE_FEATURE_LOREBOOK_RESOURCES_ENABLED', 'true')
+        setTestFeatureFlags({ lorebooks: true })
+        setTestFeatureFlags({ lorebookResources: true })
         vi.mocked(apiService.getLorebooks).mockResolvedValue([LOREBOOK])
         workspace = createWorkspaceTestState({ api: apiService })
     })

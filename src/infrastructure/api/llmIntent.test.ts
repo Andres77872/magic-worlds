@@ -1,5 +1,10 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LlmRequest } from '@/shared/types/llm.types'
+import { storyStreamFetch } from '@/test-utils/storyStreamFetch'
 
 const FAKE_KEY = 'FAKE_INTENT_KEY_CANARY'
 const fetchMock = vi.fn()
@@ -7,8 +12,8 @@ const json = (data: unknown, status = 200) => new Response(JSON.stringify(data),
 const selection = { mode: 'profile' as const, profile_id: 'profile-1' }
 
 function storyResult(requestId: string) {
-    return { generation: { id: 'execution-1', chapterId: 'chapter-1', requestId, output: 'Saved text' },
-        chapter: { id: 'chapter-1' }, stagedCardUpdates: [],
+    return { generation: { id: 'execution-1', chapterId: 'chapter-1',sceneId:'scene-1',requestId, output: 'Saved text' },
+        scene: { id: 'scene-1' }, stagedCardUpdates: [],
         llm_execution: { execution_id: 'execution-1', profile_id: 'profile-1', revision_id: 'revision-1',
             resolution_source: 'user_feature', credential_mode: 'user_byok', replayed: true } }
 }
@@ -18,19 +23,21 @@ async function load() {
     const [{ apiService }, { authSession }, { configureLlmPreparation }, intent] = await Promise.all([
         import('./index'), import('./authSession'), import('./llmPreparation'), import('./llmIntent')])
     authSession.authenticate('intent-test-user', 'test-token')
+    const { setAllTestFeatureFlags } = await import('@/shared/hooks/testing/featureFlagTestUtils')
+    setAllTestFeatureFlags(true)
     const prepared = vi.fn<(feature: string, signal?: AbortSignal, chosen?: unknown) => LlmRequest>()
     configureLlmPreparation(async (feature, signal, chosen) => () => prepared(feature, signal, chosen))
     const sent = () => fetchMock.mock.calls.map(([, init]) => JSON.parse(String((init as RequestInit).body)).llm)
-    const generate = (requestId: string) => apiService.generateStory('story-1', { chapterId: 'chapter-1', command: 'continue' }, { requestId })
+    const generate = (requestId: string) => apiService.generateStory('story-1', { sceneId: 'scene-1', baseRevision:1, command: 'continue' }, { requestId })
     return { authSession, prepared, sent, generate, ...intent }
 }
 
 beforeEach(() => {
     fetchMock.mockReset()
-    vi.stubGlobal('fetch', fetchMock)
+    vi.stubGlobal('fetch', storyStreamFetch(fetchMock))
     vi.stubEnv('VITE_API_BASE_URL', 'https://api.test.invalid')
-    vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'true')
-    vi.stubEnv('VITE_FEATURE_TEXT_STREAMING_ENABLED', 'false')
+    setTestFeatureFlags({ novels: true })
+
 })
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs() })
 
@@ -105,10 +112,10 @@ describe('LLM request intents', () => {
         expect(llmIntents.matches(retained!, { selection: { mode: 'profile', profile_id: 'other' }, expected_revision_id: 'revision-1' })).toBe(false)
         // An expired token keeps the owner, so reauthenticating can still recover.
         authSession.expire()
-        authSession.authenticate('intent-test-user', 'test-token')
+        authSession.authenticate('intent-test-user', 'test-token'); grantFixtureFeatures(true)
         expect(llmIntents.retained('novel', 'request-5')).toEqual(retained)
         authSession.beginLogout()
-        authSession.authenticate('intent-test-user', 'test-token')
+        authSession.authenticate('intent-test-user', 'test-token'); grantFixtureFeatures(true)
         expect(llmIntents.retained('novel', 'request-5')).toBeNull()
     })
 })

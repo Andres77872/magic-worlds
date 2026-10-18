@@ -28,7 +28,7 @@ export function SideBySideRenders({ renders, language, scriptVersion = null }: S
     const { t } = useTranslation()
     return (
         <div className="grid gap-4 lg:grid-cols-2">
-            {(renders.some((item) => item.model_id === 'drama-3') ? [{ modelId: 'drama-3', titleKey: 'admin.voices.acceptance.review.flashRender' }] : COLUMNS).map((column) => {
+            {(renders.some((item) => ['drama-3', 's2.1-pro'].includes(item.model_id)) ? [...new Set(renders.map(item => item.model_id))].filter(id => ['drama-3', 's2.1-pro'].includes(id)).map(modelId => ({ modelId, titleKey: 'admin.voices.acceptance.review.flashRender' })) : COLUMNS).map((column) => {
                 const items = renders
                     .filter((render) => render.model_id === column.modelId)
                     .sort((a, b) => SCRIPT_KINDS.indexOf(a.script_kind) - SCRIPT_KINDS.indexOf(b.script_kind))

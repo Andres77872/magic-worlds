@@ -9,13 +9,16 @@ import type { AdminCatalogVoice, AdminGlobalPresetInput, VoiceEmotion, VoicePres
 import { SETTING_RANGES, type LabSettingKey } from './constants'
 
 export const GLOBAL_PRESET_NAME_MAX = 255
-/** EP-5 allows all five settings on a global preset. */
-export const GLOBAL_PRESET_SETTING_KEYS: readonly LabSettingKey[] = ['stability', 'similarity_boost', 'style', 'use_speaker_boost', 'speed']
+/** Global presets expose only the controls supported by the playback models. */
+export const GLOBAL_PRESET_SETTING_KEYS: readonly LabSettingKey[] = ['stability', 'similarity_boost']
 export const GLOBAL_PRESET_EMOTIONS: readonly VoiceEmotion[] = ['calm', 'happy', 'sad', 'angry', 'fearful', 'disgusted', 'surprised']
 const LANGUAGE_CODE = /^[a-z]{2,3}$/
 
 /** The editor's working copy; empty strings mean "not set". */
 export interface GlobalPresetDraft {
+    provider?: 'elevenlabs' | 'fish_audio'
+    model_id?: import('@/shared').FishSpeechModel
+    direction?: string
     name: string
     description: string
     voice_key: string
@@ -34,7 +37,7 @@ export interface GlobalPresetIssue {
     setting?: Exclude<LabSettingKey, 'use_speaker_boost'>
 }
 
-const NUMERIC_SETTINGS = Object.keys(SETTING_RANGES) as Exclude<LabSettingKey, 'use_speaker_boost'>[]
+const NUMERIC_SETTINGS = ['stability', 'similarity_boost'] as const
 
 export function emptyGlobalPresetDraft(): GlobalPresetDraft {
     return { name: '', description: '', voice_key: '', settings: null, emotion: null, language_code: '' }
@@ -42,6 +45,8 @@ export function emptyGlobalPresetDraft(): GlobalPresetDraft {
 
 export function draftFromPreset(preset: VoicePreset): GlobalPresetDraft {
     return {
+        provider: preset.provider,
+        ...(preset.provider === 'fish_audio' ? { model_id: preset.model_id ?? 'drama-3', direction: preset.performance?.direction ?? '' } : {}),
         name: preset.name,
         description: preset.description ?? '',
         voice_key: preset.voice_key,
@@ -98,10 +103,12 @@ export function compactSettings(settings: VoiceSettingsV2 | null | undefined): V
 /** The EP-5 body for a valid draft. */
 export function toGlobalPresetInput(draft: GlobalPresetDraft): AdminGlobalPresetInput {
     return {
+        provider: draft.provider ?? 'elevenlabs', schema_version: draft.provider === 'fish_audio' ? 3 : 2,
+        ...(draft.provider === 'fish_audio' ? { model_id: draft.model_id ?? 'drama-3', performance: draft.direction?.trim() ? { version: 1, direction: draft.direction.trim(), dictionary_refs: [] } : null } : {}),
         name: draft.name.trim(),
         description: draft.description.trim() || null,
         voice_key: draft.voice_key.trim(),
-        settings: compactSettings(draft.settings),
+        settings: draft.provider === 'fish_audio' ? null : compactSettings(draft.settings),
         emotion: draft.emotion,
         language_code: draft.language_code.trim() || null,
     }

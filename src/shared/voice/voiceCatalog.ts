@@ -46,6 +46,7 @@ function language(value: unknown): CatalogVoiceLanguage | null {
         native: wire.native === true,
         accent: text(wire.accent),
         accepted_models: tiers(wire.accepted_models),
+        model_ids: strings(wire.model_ids).filter(id => ['eleven_v4', 'eleven_v4_turbo', 'drama-3', 's2.1-pro'].includes(id)),
         sample_url: typeof wire.sample_url === 'string' ? wire.sample_url : '',
     }
 }

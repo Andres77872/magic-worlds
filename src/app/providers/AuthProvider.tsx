@@ -128,8 +128,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
             localStorage.setItem(TOKEN_STORAGE_KEY, nextToken)
 
             if (detail.user) {
-                setUser(detail.user)
-                localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(detail.user))
+                setUser((prev) => {
+                    const merged: User = {
+                        ...detail.user!,
+                        display_name: detail.user!.display_name ?? prev?.display_name ?? null,
+                        avatar_url: detail.user!.avatar_url ?? prev?.avatar_url ?? null,
+                    }
+                    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(merged))
+                    return merged
+                })
             }
             if (detail.accessible_projects) {
                 setProjects(detail.accessible_projects)
@@ -139,6 +146,43 @@ export function AuthProvider({ children }: AuthProviderProps) {
         window.addEventListener('auth:refreshed', handleAuthRefreshed)
         return () => window.removeEventListener('auth:refreshed', handleAuthRefreshed)
     }, [user?.user_hash])
+
+    // When a newly registered user's avatar is generating in the background (or an
+    // existing localStorage session predates avatar_url), gently check /user/me once
+    // on mount and once after ~18s to hydrate avatar_url as soon as variant_A is ready.
+    useEffect(() => {
+        if (!isAuthenticated || !user?.user_hash || user.avatar_url) return
+        let cancelled = false
+
+        const syncProfileAvatar = async () => {
+            try {
+                const profile = await apiService.getUserProfile()
+                if (cancelled || !profile?.avatar_url) return
+                setUser((prev) => {
+                    if (!prev || prev.user_hash !== profile.user_hash) return prev
+                    const next: User = {
+                        ...prev,
+                        display_name: profile.display_name ?? prev.display_name ?? null,
+                        avatar_url: profile.avatar_url,
+                    }
+                    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(next))
+                    return next
+                })
+            } catch {
+                // Silent fallback: initial+gradient avatar remains active.
+            }
+        }
+
+        void syncProfileAvatar()
+        const timer = window.setTimeout(() => {
+            void syncProfileAvatar()
+        }, 18_000)
+
+        return () => {
+            cancelled = true
+            window.clearTimeout(timer)
+        }
+    }, [isAuthenticated, user?.user_hash, user?.avatar_url])
 
     const applyAuthenticatedResponse = useCallback((data: BrowserAuthResponse): boolean => {
         const nextToken = selectAccessToken(data)

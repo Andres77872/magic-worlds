@@ -63,7 +63,7 @@ function cardPreviewLanguage(row: VoicePreset, item: CatalogVoice | null, langua
         if (![own, item.primary_language].some((code) => accepted.includes(baseLanguageCode(code) ?? ''))) return null
     }
     const text = studioPreviewLanguage(item, { languageCode: own, preferredLanguage: language, fallback: appLanguage })
-    if (!item || (row.provider === 'fish_audio' && row.performance) || !isDefaultRecipe(row.settings, row.emotion)) return text
+    if (!item || (row.provider === 'fish_audio' && (row.performance || row.model_id === 's2.1-pro')) || !isDefaultRecipe(row.settings, row.emotion)) return text
     // The sample served on each tier (none: a render in the text language); they must agree.
     const [standard, expressive] = (['standard', 'expressive'] as const).map((tier) => {
         const url = previewSampleUrl(item, text, tier)
@@ -142,7 +142,7 @@ export function PresetCardV2({
                 <div className="flex min-w-0 flex-col gap-1">
                     <div className="flex flex-wrap items-center gap-2">
                         <p className="min-w-0 break-words font-ui text-body font-semibold text-parchment-50">{row.name}</p>
-                        {row.provider === 'fish_audio' && <Badge tone="neutral">Fish Audio</Badge>}
+                        {row.provider === 'fish_audio' && <Badge tone="neutral">Fish Audio · {row.model_id === 's2.1-pro' ? 'S2.1 Pro' : 'Drama 3'}</Badge>}
                         {row.is_global && <Badge tone="arcane">{t('voices.studio.defaultBadge')}</Badge>}
                     </div>
                     <EffectiveVoiceLabel

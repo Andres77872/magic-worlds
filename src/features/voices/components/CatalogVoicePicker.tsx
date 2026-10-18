@@ -49,6 +49,8 @@ export interface CatalogVoicePickerProps {
     searchRef?: Ref<HTMLInputElement>
     /** Root only: open a voice in the voice console. */
     onManage?: (item: CatalogVoice) => void
+    /** List only voices that can speak on a call (the call voice picker). */
+    worksInCalls?: boolean
 }
 
 /** What `useCatalogSample` returns: the clip, its loading and error state, `play` and `stop`. */
@@ -66,6 +68,7 @@ export function CatalogVoicePicker({
     sample: hostSample,
     searchRef,
     onManage,
+    worksInCalls = false,
 }: CatalogVoicePickerProps) {
     const { t, i18n } = useTranslation()
     const cardLanguage = baseLanguageCode(language)
@@ -77,6 +80,7 @@ export function CatalogVoicePicker({
         recommendedFor,
         defaultLanguage,
         defaultsPending: !cardLanguage && !allLanguagesInitially && preferred.pending,
+        worksInCalls,
     })
     const ownSample = useCatalogSample()
     const providerState = useVoiceCapabilities({ enabled: capabilities === undefined && enabled && browser.items.some((item) => item.provider === 'fish_audio') })

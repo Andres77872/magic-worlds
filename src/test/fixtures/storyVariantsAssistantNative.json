@@ -1,0 +1,1649 @@
+{
+  "source": "Native BFF/MySQL retained assistant plans and fictional replies; no upstream executor/provider",
+  "sourceReportSha256": "b4f043d9173d15004b6c1619e0c8617fd22a1d494ac0621dfc383c364b9a0011",
+  "projectDatabaseWrites": 0,
+  "providerRequests": 0,
+  "upstreamExecutorCalls": 0,
+  "containsCredentials": false,
+  "cases": [
+    {
+      "versions": [
+        {
+          "schemaVersion": 1,
+          "storyId": "618ca1b5-d913-5077-9314-716a2e1f9723",
+          "variant": {
+            "schemaVersion": 1,
+            "projection": "generation_variant",
+            "authorship": "author_edited",
+            "storyId": "618ca1b5-d913-5077-9314-716a2e1f9723",
+            "id": "native-authored-0",
+            "title": "Authored alternative 1",
+            "parent": {
+              "schemaVersion": 1,
+              "parent": {
+                "id": "0f2db243-28db-46b3-9e27-3a79ed5f073f",
+                "storyId": "618ca1b5-d913-5077-9314-716a2e1f9723",
+                "chapterId": "b0d1b7d1-7f0a-4ed0-9cbe-d8b94b055d24",
+                "sceneId": "4a3d303e-08af-44b1-bb36-545fd40e9373",
+                "baseRevision": 2,
+                "command": "rewrite",
+                "range": {
+                  "startOffset": 0,
+                  "endOffset": 56,
+                  "textHash": "61dd7cf1706ee5bd47839d2f360f68656c8e795360dec22c276d5708a40f9994"
+                },
+                "output": "Aria, seventeen, left the unopened letter beside the candle.",
+                "instruction": "Make the description of the letter more restrained.",
+                "parentGenerationId": null
+              },
+              "parentHash": "59787a0740f38869d5dd56fd46bd52ab4a149c338d7a127d9f49c1f7127dc146"
+            },
+            "operation": {
+              "id": "native-author-operation-0",
+              "type": "replace_scene_snapshot",
+              "sceneId": "4a3d303e-08af-44b1-bb36-545fd40e9373",
+              "expectedRevision": 2,
+              "expectedContentHash": "fb59d4bced7f532e546a9c878ac5fd9cec49e307511d043521c6852de3d61f20",
+              "document": {
+                "content": {
+                  "type": "doc",
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "attrs": {
+                        "nodeId": "authored-paragraph-0"
+                      },
+                      "content": [
+                        {
+                          "text": "Aria, seventeen, kept the letter sealed beneath a quiet candle. 🌙",
+                          "type": "text"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "schemaVersion": 1
+              },
+              "anchorEdits": null
+            },
+            "baseDocument": {
+              "content": {
+                "type": "doc",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "attrs": {
+                      "nodeId": "paragraph-1"
+                    },
+                    "content": [
+                      {
+                        "text": "Aria was seventeen. The letter waited beside the candle.",
+                        "type": "text"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "schemaVersion": 1
+            },
+            "documentHash": "3d2006646aed3de4d66da80ef9d8b8435ec5857c2f9740b977537e07542738a3",
+            "variantHash": "87fe5c1933b15ed62debf752d14a3cb6abd14b0b35eb1a01e9917e3e4878bdf7"
+          },
+          "status": "candidate",
+          "appliedRevision": null,
+          "createdAt": "2026-10-17T16:42:15",
+          "updatedAt": "2026-10-17T16:42:15"
+        },
+        {
+          "schemaVersion": 1,
+          "storyId": "618ca1b5-d913-5077-9314-716a2e1f9723",
+          "variant": {
+            "schemaVersion": 1,
+            "projection": "generation_variant",
+            "authorship": "author_edited",
+            "storyId": "618ca1b5-d913-5077-9314-716a2e1f9723",
+            "id": "native-authored-1",
+            "title": "Authored alternative 2",
+            "parent": {
+              "schemaVersion": 1,
+              "parent": {
+                "id": "0f2db243-28db-46b3-9e27-3a79ed5f073f",
+                "storyId": "618ca1b5-d913-5077-9314-716a2e1f9723",
+                "chapterId": "b0d1b7d1-7f0a-4ed0-9cbe-d8b94b055d24",
+                "sceneId": "4a3d303e-08af-44b1-bb36-545fd40e9373",
+                "baseRevision": 2,
+                "command": "rewrite",
+                "range": {
+                  "startOffset": 0,
+                  "endOffset": 56,
+                  "textHash": "61dd7cf1706ee5bd47839d2f360f68656c8e795360dec22c276d5708a40f9994"
+                },
+                "output": "Aria, seventeen, left the unopened letter beside the candle.",
+                "instruction": "Make the description of the letter more restrained.",
+                "parentGenerationId": null
+              },
+              "parentHash": "59787a0740f38869d5dd56fd46bd52ab4a149c338d7a127d9f49c1f7127dc146"
+            },
+            "operation": {
+              "id": "native-author-operation-1",
+              "type": "replace_scene_snapshot",
+              "sceneId": "4a3d303e-08af-44b1-bb36-545fd40e9373",
+              "expectedRevision": 2,
+              "expectedContentHash": "fb59d4bced7f532e546a9c878ac5fd9cec49e307511d043521c6852de3d61f20",
+              "document": {
+                "content": {
+                  "type": "doc",
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "attrs": {
+                        "nodeId": "authored-paragraph-1"
+                      },
+                      "content": [
+                        {
+                          "text": "Aria set the unopened letter beside the candle and waited.",
+                          "type": "text"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "schemaVersion": 1
+              },
+              "anchorEdits": null
+            },
+            "baseDocument": {
+              "content": {
+                "type": "doc",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "attrs": {
+                      "nodeId": "paragraph-1"
+                    },
+                    "content": [
+                      {
+                        "text": "Aria was seventeen. The letter waited beside the candle.",
+                        "type": "text"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "schemaVersion": 1
+            },
+            "documentHash": "56b4f95984ad01d530914733388be47b227b249fecdf8615e7baefade3ed1300",
+            "variantHash": "1525d5d929832b506f9b9513976acfa8509d3f3d97b65fb659bfebd89a3432a7"
+          },
+          "status": "candidate",
+          "appliedRevision": null,
+          "createdAt": "2026-10-17T16:42:15",
+          "updatedAt": "2026-10-17T16:42:15"
+        },
+        {
+          "schemaVersion": 1,
+          "storyId": "618ca1b5-d913-5077-9314-716a2e1f9723",
+          "variant": {
+            "schemaVersion": 1,
+            "projection": "generation_variant",
+            "authorship": "author_edited",
+            "storyId": "618ca1b5-d913-5077-9314-716a2e1f9723",
+            "id": "native-authored-2",
+            "title": "Authored alternative 3",
+            "parent": {
+              "schemaVersion": 1,
+              "parent": {
+                "id": "0f2db243-28db-46b3-9e27-3a79ed5f073f",
+                "storyId": "618ca1b5-d913-5077-9314-716a2e1f9723",
+                "chapterId": "b0d1b7d1-7f0a-4ed0-9cbe-d8b94b055d24",
+                "sceneId": "4a3d303e-08af-44b1-bb36-545fd40e9373",
+                "baseRevision": 2,
+                "command": "rewrite",
+                "range": {
+                  "startOffset": 0,
+                  "endOffset": 56,
+                  "textHash": "61dd7cf1706ee5bd47839d2f360f68656c8e795360dec22c276d5708a40f9994"
+                },
+                "output": "Aria, seventeen, left the unopened letter beside the candle.",
+                "instruction": "Make the description of the letter more restrained.",
+                "parentGenerationId": null
+              },
+              "parentHash": "59787a0740f38869d5dd56fd46bd52ab4a149c338d7a127d9f49c1f7127dc146"
+            },
+            "operation": {
+              "id": "native-author-operation-2",
+              "type": "replace_scene_snapshot",
+              "sceneId": "4a3d303e-08af-44b1-bb36-545fd40e9373",
+              "expectedRevision": 2,
+              "expectedContentHash": "fb59d4bced7f532e546a9c878ac5fd9cec49e307511d043521c6852de3d61f20",
+              "document": {
+                "content": {
+                  "type": "doc",
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "attrs": {
+                        "nodeId": "authored-paragraph-2"
+                      },
+                      "content": [
+                        {
+                          "text": "An alternative the author will reject without losing the original.",
+                          "type": "text"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "schemaVersion": 1
+              },
+              "anchorEdits": null
+            },
+            "baseDocument": {
+              "content": {
+                "type": "doc",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "attrs": {
+                      "nodeId": "paragraph-1"
+                    },
+                    "content": [
+                      {
+                        "text": "Aria was seventeen. The letter waited beside the candle.",
+                        "type": "text"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "schemaVersion": 1
+            },
+            "documentHash": "5f36f423117f2a7ecf50132e263d205c387c76952494b6193b6c6d752a901f99",
+            "variantHash": "59ab7361337e6a0cf346149b910a3c4e2107595bd493d2a9a78647aea8df9ed7"
+          },
+          "status": "candidate",
+          "appliedRevision": null,
+          "createdAt": "2026-10-17T16:42:15",
+          "updatedAt": "2026-10-17T16:42:15"
+        }
+      ],
+      "creationRequests": [
+        {
+          "requestId": "native-create-author-version-0",
+          "reviewedHash": "87fe5c1933b15ed62debf752d14a3cb6abd14b0b35eb1a01e9917e3e4878bdf7",
+          "intent": {
+            "id": "native-authored-0",
+            "title": "Authored alternative 1",
+            "parent": {
+              "generationId": "0f2db243-28db-46b3-9e27-3a79ed5f073f",
+              "parentHash": "59787a0740f38869d5dd56fd46bd52ab4a149c338d7a127d9f49c1f7127dc146"
+            },
+            "operation": {
+              "id": "native-author-operation-0",
+              "type": "replace_scene_snapshot",
+              "sceneId": "4a3d303e-08af-44b1-bb36-545fd40e9373",
+              "expectedRevision": 2,
+              "expectedContentHash": "fb59d4bced7f532e546a9c878ac5fd9cec49e307511d043521c6852de3d61f20",
+              "document": {
+                "schemaVersion": 1,
+                "content": {
+                  "type": "doc",
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "attrs": {
+                        "nodeId": "authored-paragraph-0"
+                      },
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "Aria, seventeen, kept the letter sealed beneath a quiet candle. 🌙"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              "anchorEdits": null
+            }
+          }
+        },
+        {
+          "requestId": "native-create-author-version-1",
+          "reviewedHash": "1525d5d929832b506f9b9513976acfa8509d3f3d97b65fb659bfebd89a3432a7",
+          "intent": {
+            "id": "native-authored-1",
+            "title": "Authored alternative 2",
+            "parent": {
+              "generationId": "0f2db243-28db-46b3-9e27-3a79ed5f073f",
+              "parentHash": "59787a0740f38869d5dd56fd46bd52ab4a149c338d7a127d9f49c1f7127dc146"
+            },
+            "operation": {
+              "id": "native-author-operation-1",
+              "type": "replace_scene_snapshot",
+              "sceneId": "4a3d303e-08af-44b1-bb36-545fd40e9373",
+              "expectedRevision": 2,
+              "expectedContentHash": "fb59d4bced7f532e546a9c878ac5fd9cec49e307511d043521c6852de3d61f20",
+              "document": {
+                "schemaVersion": 1,
+                "content": {
+                  "type": "doc",
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "attrs": {
+                        "nodeId": "authored-paragraph-1"
+                      },
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "Aria set the unopened letter beside the candle and waited."
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              "anchorEdits": null
+            }
+          }
+        },
+        {
+          "requestId": "native-create-author-version-2",
+          "reviewedHash": "59ab7361337e6a0cf346149b910a3c4e2107595bd493d2a9a78647aea8df9ed7",
+          "intent": {
+            "id": "native-authored-2",
+            "title": "Authored alternative 3",
+            "parent": {
+              "generationId": "0f2db243-28db-46b3-9e27-3a79ed5f073f",
+              "parentHash": "59787a0740f38869d5dd56fd46bd52ab4a149c338d7a127d9f49c1f7127dc146"
+            },
+            "operation": {
+              "id": "native-author-operation-2",
+              "type": "replace_scene_snapshot",
+              "sceneId": "4a3d303e-08af-44b1-bb36-545fd40e9373",
+              "expectedRevision": 2,
+              "expectedContentHash": "fb59d4bced7f532e546a9c878ac5fd9cec49e307511d043521c6852de3d61f20",
+              "document": {
+                "schemaVersion": 1,
+                "content": {
+                  "type": "doc",
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "attrs": {
+                        "nodeId": "authored-paragraph-2"
+                      },
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "An alternative the author will reject without losing the original."
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              "anchorEdits": null
+            }
+          }
+        }
+      ],
+      "retainedVersions": [
+        {
+          "schemaVersion": 1,
+          "storyId": "618ca1b5-d913-5077-9314-716a2e1f9723",
+          "variant": {
+            "schemaVersion": 1,
+            "projection": "generation_variant",
+            "authorship": "author_edited",
+            "storyId": "618ca1b5-d913-5077-9314-716a2e1f9723",
+            "id": "native-authored-0",
+            "title": "Authored alternative 1",
+            "parent": {
+              "schemaVersion": 1,
+              "parent": {
+                "id": "0f2db243-28db-46b3-9e27-3a79ed5f073f",
+                "storyId": "618ca1b5-d913-5077-9314-716a2e1f9723",
+                "chapterId": "b0d1b7d1-7f0a-4ed0-9cbe-d8b94b055d24",
+                "sceneId": "4a3d303e-08af-44b1-bb36-545fd40e9373",
+                "baseRevision": 2,
+                "command": "rewrite",
+                "range": {
+                  "startOffset": 0,
+                  "endOffset": 56,
+                  "textHash": "61dd7cf1706ee5bd47839d2f360f68656c8e795360dec22c276d5708a40f9994"
+                },
+                "output": "Aria, seventeen, left the unopened letter beside the candle.",
+                "instruction": "Make the description of the letter more restrained.",
+                "parentGenerationId": null
+              },
+              "parentHash": "59787a0740f38869d5dd56fd46bd52ab4a149c338d7a127d9f49c1f7127dc146"
+            },
+            "operation": {
+              "id": "native-author-operation-0",
+              "type": "replace_scene_snapshot",
+              "sceneId": "4a3d303e-08af-44b1-bb36-545fd40e9373",
+              "expectedRevision": 2,
+              "expectedContentHash": "fb59d4bced7f532e546a9c878ac5fd9cec49e307511d043521c6852de3d61f20",
+              "document": {
+                "content": {
+                  "type": "doc",
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "attrs": {
+                        "nodeId": "authored-paragraph-0"
+                      },
+                      "content": [
+                        {
+                          "text": "Aria, seventeen, kept the letter sealed beneath a quiet candle. 🌙",
+                          "type": "text"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "schemaVersion": 1
+              },
+              "anchorEdits": null
+            },
+            "baseDocument": {
+              "content": {
+                "type": "doc",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "attrs": {
+                      "nodeId": "paragraph-1"
+                    },
+                    "content": [
+                      {
+                        "text": "Aria was seventeen. The letter waited beside the candle.",
+                        "type": "text"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "schemaVersion": 1
+            },
+            "documentHash": "3d2006646aed3de4d66da80ef9d8b8435ec5857c2f9740b977537e07542738a3",
+            "variantHash": "87fe5c1933b15ed62debf752d14a3cb6abd14b0b35eb1a01e9917e3e4878bdf7"
+          },
+          "status": "accepted",
+          "appliedRevision": 3,
+          "createdAt": "2026-10-17T16:42:15",
+          "updatedAt": "2026-10-17T16:42:15"
+        },
+        {
+          "schemaVersion": 1,
+          "storyId": "618ca1b5-d913-5077-9314-716a2e1f9723",
+          "variant": {
+            "schemaVersion": 1,
+            "projection": "generation_variant",
+            "authorship": "author_edited",
+            "storyId": "618ca1b5-d913-5077-9314-716a2e1f9723",
+            "id": "native-authored-1",
+            "title": "Authored alternative 2",
+            "parent": {
+              "schemaVersion": 1,
+              "parent": {
+                "id": "0f2db243-28db-46b3-9e27-3a79ed5f073f",
+                "storyId": "618ca1b5-d913-5077-9314-716a2e1f9723",
+                "chapterId": "b0d1b7d1-7f0a-4ed0-9cbe-d8b94b055d24",
+                "sceneId": "4a3d303e-08af-44b1-bb36-545fd40e9373",
+                "baseRevision": 2,
+                "command": "rewrite",
+                "range": {
+                  "startOffset": 0,
+                  "endOffset": 56,
+                  "textHash": "61dd7cf1706ee5bd47839d2f360f68656c8e795360dec22c276d5708a40f9994"
+                },
+                "output": "Aria, seventeen, left the unopened letter beside the candle.",
+                "instruction": "Make the description of the letter more restrained.",
+                "parentGenerationId": null
+              },
+              "parentHash": "59787a0740f38869d5dd56fd46bd52ab4a149c338d7a127d9f49c1f7127dc146"
+            },
+            "operation": {
+              "id": "native-author-operation-1",
+              "type": "replace_scene_snapshot",
+              "sceneId": "4a3d303e-08af-44b1-bb36-545fd40e9373",
+              "expectedRevision": 2,
+              "expectedContentHash": "fb59d4bced7f532e546a9c878ac5fd9cec49e307511d043521c6852de3d61f20",
+              "document": {
+                "content": {
+                  "type": "doc",
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "attrs": {
+                        "nodeId": "authored-paragraph-1"
+                      },
+                      "content": [
+                        {
+                          "text": "Aria set the unopened letter beside the candle and waited.",
+                          "type": "text"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "schemaVersion": 1
+              },
+              "anchorEdits": null
+            },
+            "baseDocument": {
+              "content": {
+                "type": "doc",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "attrs": {
+                      "nodeId": "paragraph-1"
+                    },
+                    "content": [
+                      {
+                        "text": "Aria was seventeen. The letter waited beside the candle.",
+                        "type": "text"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "schemaVersion": 1
+            },
+            "documentHash": "56b4f95984ad01d530914733388be47b227b249fecdf8615e7baefade3ed1300",
+            "variantHash": "1525d5d929832b506f9b9513976acfa8509d3f3d97b65fb659bfebd89a3432a7"
+          },
+          "status": "candidate",
+          "appliedRevision": null,
+          "createdAt": "2026-10-17T16:42:15",
+          "updatedAt": "2026-10-17T16:42:15"
+        },
+        {
+          "schemaVersion": 1,
+          "storyId": "618ca1b5-d913-5077-9314-716a2e1f9723",
+          "variant": {
+            "schemaVersion": 1,
+            "projection": "generation_variant",
+            "authorship": "author_edited",
+            "storyId": "618ca1b5-d913-5077-9314-716a2e1f9723",
+            "id": "native-authored-2",
+            "title": "Authored alternative 3",
+            "parent": {
+              "schemaVersion": 1,
+              "parent": {
+                "id": "0f2db243-28db-46b3-9e27-3a79ed5f073f",
+                "storyId": "618ca1b5-d913-5077-9314-716a2e1f9723",
+                "chapterId": "b0d1b7d1-7f0a-4ed0-9cbe-d8b94b055d24",
+                "sceneId": "4a3d303e-08af-44b1-bb36-545fd40e9373",
+                "baseRevision": 2,
+                "command": "rewrite",
+                "range": {
+                  "startOffset": 0,
+                  "endOffset": 56,
+                  "textHash": "61dd7cf1706ee5bd47839d2f360f68656c8e795360dec22c276d5708a40f9994"
+                },
+                "output": "Aria, seventeen, left the unopened letter beside the candle.",
+                "instruction": "Make the description of the letter more restrained.",
+                "parentGenerationId": null
+              },
+              "parentHash": "59787a0740f38869d5dd56fd46bd52ab4a149c338d7a127d9f49c1f7127dc146"
+            },
+            "operation": {
+              "id": "native-author-operation-2",
+              "type": "replace_scene_snapshot",
+              "sceneId": "4a3d303e-08af-44b1-bb36-545fd40e9373",
+              "expectedRevision": 2,
+              "expectedContentHash": "fb59d4bced7f532e546a9c878ac5fd9cec49e307511d043521c6852de3d61f20",
+              "document": {
+                "content": {
+                  "type": "doc",
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "attrs": {
+                        "nodeId": "authored-paragraph-2"
+                      },
+                      "content": [
+                        {
+                          "text": "An alternative the author will reject without losing the original.",
+                          "type": "text"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "schemaVersion": 1
+              },
+              "anchorEdits": null
+            },
+            "baseDocument": {
+              "content": {
+                "type": "doc",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "attrs": {
+                      "nodeId": "paragraph-1"
+                    },
+                    "content": [
+                      {
+                        "text": "Aria was seventeen. The letter waited beside the candle.",
+                        "type": "text"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "schemaVersion": 1
+            },
+            "documentHash": "5f36f423117f2a7ecf50132e263d205c387c76952494b6193b6c6d752a901f99",
+            "variantHash": "59ab7361337e6a0cf346149b910a3c4e2107595bd493d2a9a78647aea8df9ed7"
+          },
+          "status": "rejected",
+          "appliedRevision": null,
+          "createdAt": "2026-10-17T16:42:15",
+          "updatedAt": "2026-10-17T16:42:15"
+        }
+      ],
+      "stashRequest": {
+        "requestId": "native-stash-authored-version",
+        "reference": {
+          "id": "native-authored-0",
+          "variantHash": "87fe5c1933b15ed62debf752d14a3cb6abd14b0b35eb1a01e9917e3e4878bdf7"
+        },
+        "expectedStatus": "candidate",
+        "decision": "stash"
+      },
+      "stashReceipt": {
+        "schemaVersion": 1,
+        "storyId": "618ca1b5-d913-5077-9314-716a2e1f9723",
+        "variant": {
+          "schemaVersion": 1,
+          "projection": "generation_variant",
+          "authorship": "author_edited",
+          "storyId": "618ca1b5-d913-5077-9314-716a2e1f9723",
+          "id": "native-authored-0",
+          "title": "Authored alternative 1",
+          "parent": {
+            "schemaVersion": 1,
+            "parent": {
+              "id": "0f2db243-28db-46b3-9e27-3a79ed5f073f",
+              "storyId": "618ca1b5-d913-5077-9314-716a2e1f9723",
+              "chapterId": "b0d1b7d1-7f0a-4ed0-9cbe-d8b94b055d24",
+              "sceneId": "4a3d303e-08af-44b1-bb36-545fd40e9373",
+              "baseRevision": 2,
+              "command": "rewrite",
+              "range": {
+                "startOffset": 0,
+                "endOffset": 56,
+                "textHash": "61dd7cf1706ee5bd47839d2f360f68656c8e795360dec22c276d5708a40f9994"
+              },
+              "output": "Aria, seventeen, left the unopened letter beside the candle.",
+              "instruction": "Make the description of the letter more restrained.",
+              "parentGenerationId": null
+            },
+            "parentHash": "59787a0740f38869d5dd56fd46bd52ab4a149c338d7a127d9f49c1f7127dc146"
+          },
+          "operation": {
+            "id": "native-author-operation-0",
+            "type": "replace_scene_snapshot",
+            "sceneId": "4a3d303e-08af-44b1-bb36-545fd40e9373",
+            "expectedRevision": 2,
+            "expectedContentHash": "fb59d4bced7f532e546a9c878ac5fd9cec49e307511d043521c6852de3d61f20",
+            "document": {
+              "content": {
+                "type": "doc",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "attrs": {
+                      "nodeId": "authored-paragraph-0"
+                    },
+                    "content": [
+                      {
+                        "text": "Aria, seventeen, kept the letter sealed beneath a quiet candle. 🌙",
+                        "type": "text"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "schemaVersion": 1
+            },
+            "anchorEdits": null
+          },
+          "baseDocument": {
+            "content": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "nodeId": "paragraph-1"
+                  },
+                  "content": [
+                    {
+                      "text": "Aria was seventeen. The letter waited beside the candle.",
+                      "type": "text"
+                    }
+                  ]
+                }
+              ]
+            },
+            "schemaVersion": 1
+          },
+          "documentHash": "3d2006646aed3de4d66da80ef9d8b8435ec5857c2f9740b977537e07542738a3",
+          "variantHash": "87fe5c1933b15ed62debf752d14a3cb6abd14b0b35eb1a01e9917e3e4878bdf7"
+        },
+        "status": "stashed",
+        "appliedRevision": null,
+        "createdAt": "2026-10-17T16:42:15",
+        "updatedAt": "2026-10-17T16:42:15"
+      },
+      "pages": [
+        {
+          "schemaVersion": 1,
+          "storyId": "618ca1b5-d913-5077-9314-716a2e1f9723",
+          "generationId": "0f2db243-28db-46b3-9e27-3a79ed5f073f",
+          "before": null,
+          "items": [
+            {
+              "id": "native-authored-2",
+              "storyId": "618ca1b5-d913-5077-9314-716a2e1f9723",
+              "sceneId": "4a3d303e-08af-44b1-bb36-545fd40e9373",
+              "generationId": "0f2db243-28db-46b3-9e27-3a79ed5f073f",
+              "variantHash": "59ab7361337e6a0cf346149b910a3c4e2107595bd493d2a9a78647aea8df9ed7",
+              "title": "Authored alternative 3",
+              "baseRevision": 2,
+              "status": "rejected",
+              "appliedRevision": null,
+              "createdAt": "2026-10-17T16:42:15",
+              "updatedAt": "2026-10-17T16:42:15"
+            }
+          ],
+          "nextBefore": "native-authored-2"
+        },
+        {
+          "schemaVersion": 1,
+          "storyId": "618ca1b5-d913-5077-9314-716a2e1f9723",
+          "generationId": "0f2db243-28db-46b3-9e27-3a79ed5f073f",
+          "before": "native-authored-2",
+          "items": [
+            {
+              "id": "native-authored-1",
+              "storyId": "618ca1b5-d913-5077-9314-716a2e1f9723",
+              "sceneId": "4a3d303e-08af-44b1-bb36-545fd40e9373",
+              "generationId": "0f2db243-28db-46b3-9e27-3a79ed5f073f",
+              "variantHash": "1525d5d929832b506f9b9513976acfa8509d3f3d97b65fb659bfebd89a3432a7",
+              "title": "Authored alternative 2",
+              "baseRevision": 2,
+              "status": "candidate",
+              "appliedRevision": null,
+              "createdAt": "2026-10-17T16:42:15",
+              "updatedAt": "2026-10-17T16:42:15"
+            }
+          ],
+          "nextBefore": "native-authored-1"
+        },
+        {
+          "schemaVersion": 1,
+          "storyId": "618ca1b5-d913-5077-9314-716a2e1f9723",
+          "generationId": "0f2db243-28db-46b3-9e27-3a79ed5f073f",
+          "before": "native-authored-1",
+          "items": [
+            {
+              "id": "native-authored-0",
+              "storyId": "618ca1b5-d913-5077-9314-716a2e1f9723",
+              "sceneId": "4a3d303e-08af-44b1-bb36-545fd40e9373",
+              "generationId": "0f2db243-28db-46b3-9e27-3a79ed5f073f",
+              "variantHash": "87fe5c1933b15ed62debf752d14a3cb6abd14b0b35eb1a01e9917e3e4878bdf7",
+              "title": "Authored alternative 1",
+              "baseRevision": 2,
+              "status": "stashed",
+              "appliedRevision": null,
+              "createdAt": "2026-10-17T16:42:15",
+              "updatedAt": "2026-10-17T16:42:15"
+            }
+          ],
+          "nextBefore": null
+        }
+      ],
+      "sameAcceptConcurrency": 4,
+      "accountingTablesUnchanged": 52,
+      "archivedExactReceiptRecovery": true,
+      "case": "accept",
+      "executionFeature": "novel_assistant",
+      "executionPlanCompleted": true,
+      "originalGenerationId": "0f2db243-28db-46b3-9e27-3a79ed5f073f",
+      "originalOutput": "Aria, seventeen, left the unopened letter beside the candle.",
+      "exactRevisionLineage": {
+        "generation_id": "0f2db243-28db-46b3-9e27-3a79ed5f073f",
+        "variant_id": "native-authored-0"
+      },
+      "lateAcceptanceRollback": true,
+      "changedSourceRefusals": 0
+    },
+    {
+      "versions": [
+        {
+          "status": "candidate",
+          "storyId": "e4b95799-a03b-50ce-a16d-a9fc7a9635ae",
+          "variant": {
+            "id": "native-authored-0",
+            "title": "Authored alternative 1",
+            "parent": {
+              "parent": {
+                "id": "df114c9e-a009-4cf0-8682-9e78c368eba0",
+                "range": {
+                  "textHash": "61dd7cf1706ee5bd47839d2f360f68656c8e795360dec22c276d5708a40f9994",
+                  "endOffset": 56,
+                  "startOffset": 0
+                },
+                "output": "Aria, seventeen, left the unopened letter beside the candle.",
+                "command": "rewrite",
+                "sceneId": "f4ff2747-46e3-4f34-a411-8b12394107bf",
+                "storyId": "e4b95799-a03b-50ce-a16d-a9fc7a9635ae",
+                "chapterId": "170c84a8-9bf3-4fce-959b-65cfc97827f2",
+                "instruction": "Make the description of the letter more restrained.",
+                "baseRevision": 2,
+                "parentGenerationId": null
+              },
+              "parentHash": "220c56ce4781991609e7d001dc03dff388cc5dd376dc26125727122a88da014e",
+              "schemaVersion": 1
+            },
+            "storyId": "e4b95799-a03b-50ce-a16d-a9fc7a9635ae",
+            "operation": {
+              "id": "native-author-operation-0",
+              "type": "replace_scene_snapshot",
+              "sceneId": "f4ff2747-46e3-4f34-a411-8b12394107bf",
+              "document": {
+                "content": {
+                  "type": "doc",
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "attrs": {
+                        "nodeId": "authored-paragraph-0"
+                      },
+                      "content": [
+                        {
+                          "text": "Aria, seventeen, kept the letter sealed beneath a quiet candle. 🌙",
+                          "type": "text"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "schemaVersion": 1
+              },
+              "anchorEdits": null,
+              "expectedRevision": 2,
+              "expectedContentHash": "fb59d4bced7f532e546a9c878ac5fd9cec49e307511d043521c6852de3d61f20"
+            },
+            "authorship": "author_edited",
+            "projection": "generation_variant",
+            "variantHash": "d6a6e31b690e44e54e15970cb5bea7261c0d6fe3d0567c6d1f40e261a2ac3960",
+            "baseDocument": {
+              "content": {
+                "type": "doc",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "attrs": {
+                      "nodeId": "paragraph-1"
+                    },
+                    "content": [
+                      {
+                        "text": "Aria was seventeen. The letter waited beside the candle.",
+                        "type": "text"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "schemaVersion": 1
+            },
+            "documentHash": "3d2006646aed3de4d66da80ef9d8b8435ec5857c2f9740b977537e07542738a3",
+            "schemaVersion": 1
+          },
+          "createdAt": "2026-10-17T16:42:22",
+          "updatedAt": "2026-10-17T16:42:22",
+          "schemaVersion": 1,
+          "appliedRevision": null
+        },
+        {
+          "schemaVersion": 1,
+          "storyId": "e4b95799-a03b-50ce-a16d-a9fc7a9635ae",
+          "variant": {
+            "schemaVersion": 1,
+            "projection": "generation_variant",
+            "authorship": "author_edited",
+            "storyId": "e4b95799-a03b-50ce-a16d-a9fc7a9635ae",
+            "id": "native-authored-1",
+            "title": "Authored alternative 2",
+            "parent": {
+              "schemaVersion": 1,
+              "parent": {
+                "id": "df114c9e-a009-4cf0-8682-9e78c368eba0",
+                "storyId": "e4b95799-a03b-50ce-a16d-a9fc7a9635ae",
+                "chapterId": "170c84a8-9bf3-4fce-959b-65cfc97827f2",
+                "sceneId": "f4ff2747-46e3-4f34-a411-8b12394107bf",
+                "baseRevision": 2,
+                "command": "rewrite",
+                "range": {
+                  "startOffset": 0,
+                  "endOffset": 56,
+                  "textHash": "61dd7cf1706ee5bd47839d2f360f68656c8e795360dec22c276d5708a40f9994"
+                },
+                "output": "Aria, seventeen, left the unopened letter beside the candle.",
+                "instruction": "Make the description of the letter more restrained.",
+                "parentGenerationId": null
+              },
+              "parentHash": "220c56ce4781991609e7d001dc03dff388cc5dd376dc26125727122a88da014e"
+            },
+            "operation": {
+              "id": "native-author-operation-1",
+              "type": "replace_scene_snapshot",
+              "sceneId": "f4ff2747-46e3-4f34-a411-8b12394107bf",
+              "expectedRevision": 2,
+              "expectedContentHash": "fb59d4bced7f532e546a9c878ac5fd9cec49e307511d043521c6852de3d61f20",
+              "document": {
+                "content": {
+                  "type": "doc",
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "attrs": {
+                        "nodeId": "authored-paragraph-1"
+                      },
+                      "content": [
+                        {
+                          "text": "Aria set the unopened letter beside the candle and waited.",
+                          "type": "text"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "schemaVersion": 1
+              },
+              "anchorEdits": null
+            },
+            "baseDocument": {
+              "content": {
+                "type": "doc",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "attrs": {
+                      "nodeId": "paragraph-1"
+                    },
+                    "content": [
+                      {
+                        "text": "Aria was seventeen. The letter waited beside the candle.",
+                        "type": "text"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "schemaVersion": 1
+            },
+            "documentHash": "56b4f95984ad01d530914733388be47b227b249fecdf8615e7baefade3ed1300",
+            "variantHash": "8711e925c018c835053c76afd875dd113fe3958d657b50c43dd0d5c5db9db95f"
+          },
+          "status": "candidate",
+          "appliedRevision": null,
+          "createdAt": "2026-10-17T16:42:23",
+          "updatedAt": "2026-10-17T16:42:23"
+        },
+        {
+          "schemaVersion": 1,
+          "storyId": "e4b95799-a03b-50ce-a16d-a9fc7a9635ae",
+          "variant": {
+            "schemaVersion": 1,
+            "projection": "generation_variant",
+            "authorship": "author_edited",
+            "storyId": "e4b95799-a03b-50ce-a16d-a9fc7a9635ae",
+            "id": "native-authored-2",
+            "title": "Authored alternative 3",
+            "parent": {
+              "schemaVersion": 1,
+              "parent": {
+                "id": "df114c9e-a009-4cf0-8682-9e78c368eba0",
+                "storyId": "e4b95799-a03b-50ce-a16d-a9fc7a9635ae",
+                "chapterId": "170c84a8-9bf3-4fce-959b-65cfc97827f2",
+                "sceneId": "f4ff2747-46e3-4f34-a411-8b12394107bf",
+                "baseRevision": 2,
+                "command": "rewrite",
+                "range": {
+                  "startOffset": 0,
+                  "endOffset": 56,
+                  "textHash": "61dd7cf1706ee5bd47839d2f360f68656c8e795360dec22c276d5708a40f9994"
+                },
+                "output": "Aria, seventeen, left the unopened letter beside the candle.",
+                "instruction": "Make the description of the letter more restrained.",
+                "parentGenerationId": null
+              },
+              "parentHash": "220c56ce4781991609e7d001dc03dff388cc5dd376dc26125727122a88da014e"
+            },
+            "operation": {
+              "id": "native-author-operation-2",
+              "type": "replace_scene_snapshot",
+              "sceneId": "f4ff2747-46e3-4f34-a411-8b12394107bf",
+              "expectedRevision": 2,
+              "expectedContentHash": "fb59d4bced7f532e546a9c878ac5fd9cec49e307511d043521c6852de3d61f20",
+              "document": {
+                "content": {
+                  "type": "doc",
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "attrs": {
+                        "nodeId": "authored-paragraph-2"
+                      },
+                      "content": [
+                        {
+                          "text": "An alternative the author will reject without losing the original.",
+                          "type": "text"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "schemaVersion": 1
+              },
+              "anchorEdits": null
+            },
+            "baseDocument": {
+              "content": {
+                "type": "doc",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "attrs": {
+                      "nodeId": "paragraph-1"
+                    },
+                    "content": [
+                      {
+                        "text": "Aria was seventeen. The letter waited beside the candle.",
+                        "type": "text"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "schemaVersion": 1
+            },
+            "documentHash": "5f36f423117f2a7ecf50132e263d205c387c76952494b6193b6c6d752a901f99",
+            "variantHash": "4faf6ba860f1bb45e420e6653679de1e771ab0c86dda44f4a668f80d7a1e0580"
+          },
+          "status": "candidate",
+          "appliedRevision": null,
+          "createdAt": "2026-10-17T16:42:23",
+          "updatedAt": "2026-10-17T16:42:23"
+        }
+      ],
+      "creationRequests": [
+        {
+          "requestId": "native-create-author-version-0",
+          "reviewedHash": "d6a6e31b690e44e54e15970cb5bea7261c0d6fe3d0567c6d1f40e261a2ac3960",
+          "intent": {
+            "id": "native-authored-0",
+            "title": "Authored alternative 1",
+            "parent": {
+              "generationId": "df114c9e-a009-4cf0-8682-9e78c368eba0",
+              "parentHash": "220c56ce4781991609e7d001dc03dff388cc5dd376dc26125727122a88da014e"
+            },
+            "operation": {
+              "id": "native-author-operation-0",
+              "type": "replace_scene_snapshot",
+              "sceneId": "f4ff2747-46e3-4f34-a411-8b12394107bf",
+              "expectedRevision": 2,
+              "expectedContentHash": "fb59d4bced7f532e546a9c878ac5fd9cec49e307511d043521c6852de3d61f20",
+              "document": {
+                "schemaVersion": 1,
+                "content": {
+                  "type": "doc",
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "attrs": {
+                        "nodeId": "authored-paragraph-0"
+                      },
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "Aria, seventeen, kept the letter sealed beneath a quiet candle. 🌙"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              "anchorEdits": null
+            }
+          }
+        },
+        {
+          "requestId": "native-create-author-version-1",
+          "reviewedHash": "8711e925c018c835053c76afd875dd113fe3958d657b50c43dd0d5c5db9db95f",
+          "intent": {
+            "id": "native-authored-1",
+            "title": "Authored alternative 2",
+            "parent": {
+              "generationId": "df114c9e-a009-4cf0-8682-9e78c368eba0",
+              "parentHash": "220c56ce4781991609e7d001dc03dff388cc5dd376dc26125727122a88da014e"
+            },
+            "operation": {
+              "id": "native-author-operation-1",
+              "type": "replace_scene_snapshot",
+              "sceneId": "f4ff2747-46e3-4f34-a411-8b12394107bf",
+              "expectedRevision": 2,
+              "expectedContentHash": "fb59d4bced7f532e546a9c878ac5fd9cec49e307511d043521c6852de3d61f20",
+              "document": {
+                "schemaVersion": 1,
+                "content": {
+                  "type": "doc",
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "attrs": {
+                        "nodeId": "authored-paragraph-1"
+                      },
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "Aria set the unopened letter beside the candle and waited."
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              "anchorEdits": null
+            }
+          }
+        },
+        {
+          "requestId": "native-create-author-version-2",
+          "reviewedHash": "4faf6ba860f1bb45e420e6653679de1e771ab0c86dda44f4a668f80d7a1e0580",
+          "intent": {
+            "id": "native-authored-2",
+            "title": "Authored alternative 3",
+            "parent": {
+              "generationId": "df114c9e-a009-4cf0-8682-9e78c368eba0",
+              "parentHash": "220c56ce4781991609e7d001dc03dff388cc5dd376dc26125727122a88da014e"
+            },
+            "operation": {
+              "id": "native-author-operation-2",
+              "type": "replace_scene_snapshot",
+              "sceneId": "f4ff2747-46e3-4f34-a411-8b12394107bf",
+              "expectedRevision": 2,
+              "expectedContentHash": "fb59d4bced7f532e546a9c878ac5fd9cec49e307511d043521c6852de3d61f20",
+              "document": {
+                "schemaVersion": 1,
+                "content": {
+                  "type": "doc",
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "attrs": {
+                        "nodeId": "authored-paragraph-2"
+                      },
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "An alternative the author will reject without losing the original."
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              "anchorEdits": null
+            }
+          }
+        }
+      ],
+      "retainedVersions": [
+        {
+          "schemaVersion": 1,
+          "storyId": "e4b95799-a03b-50ce-a16d-a9fc7a9635ae",
+          "variant": {
+            "schemaVersion": 1,
+            "projection": "generation_variant",
+            "authorship": "author_edited",
+            "storyId": "e4b95799-a03b-50ce-a16d-a9fc7a9635ae",
+            "id": "native-authored-0",
+            "title": "Authored alternative 1",
+            "parent": {
+              "schemaVersion": 1,
+              "parent": {
+                "id": "df114c9e-a009-4cf0-8682-9e78c368eba0",
+                "storyId": "e4b95799-a03b-50ce-a16d-a9fc7a9635ae",
+                "chapterId": "170c84a8-9bf3-4fce-959b-65cfc97827f2",
+                "sceneId": "f4ff2747-46e3-4f34-a411-8b12394107bf",
+                "baseRevision": 2,
+                "command": "rewrite",
+                "range": {
+                  "startOffset": 0,
+                  "endOffset": 56,
+                  "textHash": "61dd7cf1706ee5bd47839d2f360f68656c8e795360dec22c276d5708a40f9994"
+                },
+                "output": "Aria, seventeen, left the unopened letter beside the candle.",
+                "instruction": "Make the description of the letter more restrained.",
+                "parentGenerationId": null
+              },
+              "parentHash": "220c56ce4781991609e7d001dc03dff388cc5dd376dc26125727122a88da014e"
+            },
+            "operation": {
+              "id": "native-author-operation-0",
+              "type": "replace_scene_snapshot",
+              "sceneId": "f4ff2747-46e3-4f34-a411-8b12394107bf",
+              "expectedRevision": 2,
+              "expectedContentHash": "fb59d4bced7f532e546a9c878ac5fd9cec49e307511d043521c6852de3d61f20",
+              "document": {
+                "content": {
+                  "type": "doc",
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "attrs": {
+                        "nodeId": "authored-paragraph-0"
+                      },
+                      "content": [
+                        {
+                          "text": "Aria, seventeen, kept the letter sealed beneath a quiet candle. 🌙",
+                          "type": "text"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "schemaVersion": 1
+              },
+              "anchorEdits": null
+            },
+            "baseDocument": {
+              "content": {
+                "type": "doc",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "attrs": {
+                      "nodeId": "paragraph-1"
+                    },
+                    "content": [
+                      {
+                        "text": "Aria was seventeen. The letter waited beside the candle.",
+                        "type": "text"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "schemaVersion": 1
+            },
+            "documentHash": "3d2006646aed3de4d66da80ef9d8b8435ec5857c2f9740b977537e07542738a3",
+            "variantHash": "d6a6e31b690e44e54e15970cb5bea7261c0d6fe3d0567c6d1f40e261a2ac3960"
+          },
+          "status": "stashed",
+          "appliedRevision": null,
+          "createdAt": "2026-10-17T16:42:22",
+          "updatedAt": "2026-10-17T16:42:23"
+        },
+        {
+          "schemaVersion": 1,
+          "storyId": "e4b95799-a03b-50ce-a16d-a9fc7a9635ae",
+          "variant": {
+            "schemaVersion": 1,
+            "projection": "generation_variant",
+            "authorship": "author_edited",
+            "storyId": "e4b95799-a03b-50ce-a16d-a9fc7a9635ae",
+            "id": "native-authored-1",
+            "title": "Authored alternative 2",
+            "parent": {
+              "schemaVersion": 1,
+              "parent": {
+                "id": "df114c9e-a009-4cf0-8682-9e78c368eba0",
+                "storyId": "e4b95799-a03b-50ce-a16d-a9fc7a9635ae",
+                "chapterId": "170c84a8-9bf3-4fce-959b-65cfc97827f2",
+                "sceneId": "f4ff2747-46e3-4f34-a411-8b12394107bf",
+                "baseRevision": 2,
+                "command": "rewrite",
+                "range": {
+                  "startOffset": 0,
+                  "endOffset": 56,
+                  "textHash": "61dd7cf1706ee5bd47839d2f360f68656c8e795360dec22c276d5708a40f9994"
+                },
+                "output": "Aria, seventeen, left the unopened letter beside the candle.",
+                "instruction": "Make the description of the letter more restrained.",
+                "parentGenerationId": null
+              },
+              "parentHash": "220c56ce4781991609e7d001dc03dff388cc5dd376dc26125727122a88da014e"
+            },
+            "operation": {
+              "id": "native-author-operation-1",
+              "type": "replace_scene_snapshot",
+              "sceneId": "f4ff2747-46e3-4f34-a411-8b12394107bf",
+              "expectedRevision": 2,
+              "expectedContentHash": "fb59d4bced7f532e546a9c878ac5fd9cec49e307511d043521c6852de3d61f20",
+              "document": {
+                "content": {
+                  "type": "doc",
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "attrs": {
+                        "nodeId": "authored-paragraph-1"
+                      },
+                      "content": [
+                        {
+                          "text": "Aria set the unopened letter beside the candle and waited.",
+                          "type": "text"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "schemaVersion": 1
+              },
+              "anchorEdits": null
+            },
+            "baseDocument": {
+              "content": {
+                "type": "doc",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "attrs": {
+                      "nodeId": "paragraph-1"
+                    },
+                    "content": [
+                      {
+                        "text": "Aria was seventeen. The letter waited beside the candle.",
+                        "type": "text"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "schemaVersion": 1
+            },
+            "documentHash": "56b4f95984ad01d530914733388be47b227b249fecdf8615e7baefade3ed1300",
+            "variantHash": "8711e925c018c835053c76afd875dd113fe3958d657b50c43dd0d5c5db9db95f"
+          },
+          "status": "candidate",
+          "appliedRevision": null,
+          "createdAt": "2026-10-17T16:42:23",
+          "updatedAt": "2026-10-17T16:42:23"
+        },
+        {
+          "schemaVersion": 1,
+          "storyId": "e4b95799-a03b-50ce-a16d-a9fc7a9635ae",
+          "variant": {
+            "schemaVersion": 1,
+            "projection": "generation_variant",
+            "authorship": "author_edited",
+            "storyId": "e4b95799-a03b-50ce-a16d-a9fc7a9635ae",
+            "id": "native-authored-2",
+            "title": "Authored alternative 3",
+            "parent": {
+              "schemaVersion": 1,
+              "parent": {
+                "id": "df114c9e-a009-4cf0-8682-9e78c368eba0",
+                "storyId": "e4b95799-a03b-50ce-a16d-a9fc7a9635ae",
+                "chapterId": "170c84a8-9bf3-4fce-959b-65cfc97827f2",
+                "sceneId": "f4ff2747-46e3-4f34-a411-8b12394107bf",
+                "baseRevision": 2,
+                "command": "rewrite",
+                "range": {
+                  "startOffset": 0,
+                  "endOffset": 56,
+                  "textHash": "61dd7cf1706ee5bd47839d2f360f68656c8e795360dec22c276d5708a40f9994"
+                },
+                "output": "Aria, seventeen, left the unopened letter beside the candle.",
+                "instruction": "Make the description of the letter more restrained.",
+                "parentGenerationId": null
+              },
+              "parentHash": "220c56ce4781991609e7d001dc03dff388cc5dd376dc26125727122a88da014e"
+            },
+            "operation": {
+              "id": "native-author-operation-2",
+              "type": "replace_scene_snapshot",
+              "sceneId": "f4ff2747-46e3-4f34-a411-8b12394107bf",
+              "expectedRevision": 2,
+              "expectedContentHash": "fb59d4bced7f532e546a9c878ac5fd9cec49e307511d043521c6852de3d61f20",
+              "document": {
+                "content": {
+                  "type": "doc",
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "attrs": {
+                        "nodeId": "authored-paragraph-2"
+                      },
+                      "content": [
+                        {
+                          "text": "An alternative the author will reject without losing the original.",
+                          "type": "text"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "schemaVersion": 1
+              },
+              "anchorEdits": null
+            },
+            "baseDocument": {
+              "content": {
+                "type": "doc",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "attrs": {
+                      "nodeId": "paragraph-1"
+                    },
+                    "content": [
+                      {
+                        "text": "Aria was seventeen. The letter waited beside the candle.",
+                        "type": "text"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "schemaVersion": 1
+            },
+            "documentHash": "5f36f423117f2a7ecf50132e263d205c387c76952494b6193b6c6d752a901f99",
+            "variantHash": "4faf6ba860f1bb45e420e6653679de1e771ab0c86dda44f4a668f80d7a1e0580"
+          },
+          "status": "rejected",
+          "appliedRevision": null,
+          "createdAt": "2026-10-17T16:42:23",
+          "updatedAt": "2026-10-17T16:42:23"
+        }
+      ],
+      "stashRequest": {
+        "requestId": "native-stash-authored-version",
+        "reference": {
+          "id": "native-authored-0",
+          "variantHash": "d6a6e31b690e44e54e15970cb5bea7261c0d6fe3d0567c6d1f40e261a2ac3960"
+        },
+        "expectedStatus": "candidate",
+        "decision": "stash"
+      },
+      "stashReceipt": {
+        "schemaVersion": 1,
+        "storyId": "e4b95799-a03b-50ce-a16d-a9fc7a9635ae",
+        "variant": {
+          "schemaVersion": 1,
+          "projection": "generation_variant",
+          "authorship": "author_edited",
+          "storyId": "e4b95799-a03b-50ce-a16d-a9fc7a9635ae",
+          "id": "native-authored-0",
+          "title": "Authored alternative 1",
+          "parent": {
+            "schemaVersion": 1,
+            "parent": {
+              "id": "df114c9e-a009-4cf0-8682-9e78c368eba0",
+              "storyId": "e4b95799-a03b-50ce-a16d-a9fc7a9635ae",
+              "chapterId": "170c84a8-9bf3-4fce-959b-65cfc97827f2",
+              "sceneId": "f4ff2747-46e3-4f34-a411-8b12394107bf",
+              "baseRevision": 2,
+              "command": "rewrite",
+              "range": {
+                "startOffset": 0,
+                "endOffset": 56,
+                "textHash": "61dd7cf1706ee5bd47839d2f360f68656c8e795360dec22c276d5708a40f9994"
+              },
+              "output": "Aria, seventeen, left the unopened letter beside the candle.",
+              "instruction": "Make the description of the letter more restrained.",
+              "parentGenerationId": null
+            },
+            "parentHash": "220c56ce4781991609e7d001dc03dff388cc5dd376dc26125727122a88da014e"
+          },
+          "operation": {
+            "id": "native-author-operation-0",
+            "type": "replace_scene_snapshot",
+            "sceneId": "f4ff2747-46e3-4f34-a411-8b12394107bf",
+            "expectedRevision": 2,
+            "expectedContentHash": "fb59d4bced7f532e546a9c878ac5fd9cec49e307511d043521c6852de3d61f20",
+            "document": {
+              "content": {
+                "type": "doc",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "attrs": {
+                      "nodeId": "authored-paragraph-0"
+                    },
+                    "content": [
+                      {
+                        "text": "Aria, seventeen, kept the letter sealed beneath a quiet candle. 🌙",
+                        "type": "text"
+                      }
+                    ]
+                  }
+                ]
+              },
+              "schemaVersion": 1
+            },
+            "anchorEdits": null
+          },
+          "baseDocument": {
+            "content": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "nodeId": "paragraph-1"
+                  },
+                  "content": [
+                    {
+                      "text": "Aria was seventeen. The letter waited beside the candle.",
+                      "type": "text"
+                    }
+                  ]
+                }
+              ]
+            },
+            "schemaVersion": 1
+          },
+          "documentHash": "3d2006646aed3de4d66da80ef9d8b8435ec5857c2f9740b977537e07542738a3",
+          "variantHash": "d6a6e31b690e44e54e15970cb5bea7261c0d6fe3d0567c6d1f40e261a2ac3960"
+        },
+        "status": "stashed",
+        "appliedRevision": null,
+        "createdAt": "2026-10-17T16:42:22",
+        "updatedAt": "2026-10-17T16:42:23"
+      },
+      "pages": [
+        {
+          "schemaVersion": 1,
+          "storyId": "e4b95799-a03b-50ce-a16d-a9fc7a9635ae",
+          "generationId": "df114c9e-a009-4cf0-8682-9e78c368eba0",
+          "before": null,
+          "items": [
+            {
+              "id": "native-authored-2",
+              "storyId": "e4b95799-a03b-50ce-a16d-a9fc7a9635ae",
+              "sceneId": "f4ff2747-46e3-4f34-a411-8b12394107bf",
+              "generationId": "df114c9e-a009-4cf0-8682-9e78c368eba0",
+              "variantHash": "4faf6ba860f1bb45e420e6653679de1e771ab0c86dda44f4a668f80d7a1e0580",
+              "title": "Authored alternative 3",
+              "baseRevision": 2,
+              "status": "rejected",
+              "appliedRevision": null,
+              "createdAt": "2026-10-17T16:42:23",
+              "updatedAt": "2026-10-17T16:42:23"
+            }
+          ],
+          "nextBefore": "native-authored-2"
+        },
+        {
+          "schemaVersion": 1,
+          "storyId": "e4b95799-a03b-50ce-a16d-a9fc7a9635ae",
+          "generationId": "df114c9e-a009-4cf0-8682-9e78c368eba0",
+          "before": "native-authored-2",
+          "items": [
+            {
+              "id": "native-authored-1",
+              "storyId": "e4b95799-a03b-50ce-a16d-a9fc7a9635ae",
+              "sceneId": "f4ff2747-46e3-4f34-a411-8b12394107bf",
+              "generationId": "df114c9e-a009-4cf0-8682-9e78c368eba0",
+              "variantHash": "8711e925c018c835053c76afd875dd113fe3958d657b50c43dd0d5c5db9db95f",
+              "title": "Authored alternative 2",
+              "baseRevision": 2,
+              "status": "candidate",
+              "appliedRevision": null,
+              "createdAt": "2026-10-17T16:42:23",
+              "updatedAt": "2026-10-17T16:42:23"
+            }
+          ],
+          "nextBefore": "native-authored-1"
+        },
+        {
+          "schemaVersion": 1,
+          "storyId": "e4b95799-a03b-50ce-a16d-a9fc7a9635ae",
+          "generationId": "df114c9e-a009-4cf0-8682-9e78c368eba0",
+          "before": "native-authored-1",
+          "items": [
+            {
+              "id": "native-authored-0",
+              "storyId": "e4b95799-a03b-50ce-a16d-a9fc7a9635ae",
+              "sceneId": "f4ff2747-46e3-4f34-a411-8b12394107bf",
+              "generationId": "df114c9e-a009-4cf0-8682-9e78c368eba0",
+              "variantHash": "d6a6e31b690e44e54e15970cb5bea7261c0d6fe3d0567c6d1f40e261a2ac3960",
+              "title": "Authored alternative 1",
+              "baseRevision": 2,
+              "status": "stashed",
+              "appliedRevision": null,
+              "createdAt": "2026-10-17T16:42:22",
+              "updatedAt": "2026-10-17T16:42:23"
+            }
+          ],
+          "nextBefore": null
+        }
+      ],
+      "sameAcceptConcurrency": 0,
+      "accountingTablesUnchanged": 52,
+      "archivedExactReceiptRecovery": true,
+      "case": "changed_sources",
+      "executionFeature": "novel_assistant",
+      "executionPlanCompleted": true,
+      "originalGenerationId": "df114c9e-a009-4cf0-8682-9e78c368eba0",
+      "originalOutput": "Aria, seventeen, left the unopened letter beside the candle.",
+      "exactRevisionLineage": null,
+      "lateAcceptanceRollback": false,
+      "changedSourceRefusals": 3
+    }
+  ]
+}

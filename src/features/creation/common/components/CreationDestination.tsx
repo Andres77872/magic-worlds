@@ -37,9 +37,9 @@ function useCollectionName(workspaceId: string | null, collectionId: string | nu
 
 export function CreationDestination({ origin }: { origin: CreationOrigin | null }) {
     const { t } = useTranslation()
-    const { workspaces, featureEnabled } = useWorkspace()
+    const { workspaces } = useWorkspace()
     const collectionName = useCollectionName(origin?.workspaceId ?? null, origin?.collectionId ?? null)
-    if (!origin || !featureEnabled) return null
+    if (!origin) return null
     const workspace = workspaces.find((candidate) => candidate.id === origin.workspaceId)?.name
         ?? t('workspaceContent.destination.unknownWorkspace')
     const collection = origin.collectionId

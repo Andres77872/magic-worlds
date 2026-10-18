@@ -1,3 +1,7 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { activeCapacityUsage, emptyCapacityUsage } from '../llmCapacityUsage.fixtures'
@@ -101,8 +105,8 @@ describe('UsageSection voice panel (D24)', () => {
 
 
 it('hides voice usage and quota rows while preserving other usage', () => {
-    vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'false')
-    vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
+    setTestFeatureFlags({ voices: false })
+    setTestFeatureFlags({ calls: true })
     render(<UsageSection profile={{ ...baseProfile, membership: { ...baseProfile.membership!,
         narration_chars_used: 500, narration_chars_limit: 2500, call_seconds_used: 90, call_seconds_limit: 180, previews_left: 2,
     } }} />)

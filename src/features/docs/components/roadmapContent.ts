@@ -17,7 +17,6 @@ import type { LucideIcon } from 'lucide-react'
 import { BookOpenText, Bot, Palette, ShieldCheck } from 'lucide-react'
 import { docsArt } from '@/assets/marketing'
 import { isFeatureEnabled, type FrontendFeatureFlag } from '@/shared/featureFlags'
-import { isBillingFeatureEnabled } from '@/shared/billingFeatureFlag'
 
 /** Implementation scope, independent of whether this build turns it on. */
 export type RoadmapState = 'implemented' | 'partial' | 'planned'
@@ -131,7 +130,7 @@ export const ROADMAP_REVIEWED_DATE = '2026-10-15'
 const ROADMAP_SOURCES: readonly {
     key: string
     state: RoadmapState
-    feature?: FrontendFeatureFlag | 'billing'
+    feature?: FrontendFeatureFlag
     initiative?: RoadmapInitiativeId
 }[] = [
     { key: 'core', state: 'implemented' },
@@ -140,20 +139,23 @@ const ROADMAP_SOURCES: readonly {
     { key: 'charaStudio', state: 'planned', initiative: 'charaStudio' },
     { key: 'lorebooks', state: 'implemented', feature: 'lorebooks' },
     { key: 'resources', state: 'implemented', feature: 'lorebookResources' },
-    { key: 'workspaces', state: 'implemented', feature: 'workspaces' },
+    { key: 'workspaces', state: 'implemented',  },
     { key: 'adventures', state: 'implemented', feature: 'adventures' },
     { key: 'groupChats', state: 'implemented', feature: 'groupChats' },
     { key: 'community', state: 'implemented', feature: 'communityCards' },
     { key: 'voices', state: 'partial', feature: 'voices' },
     { key: 'calls', state: 'partial', feature: 'calls' },
+    // Calls are 1:1 today (the BFF refuses group callbots); multi-character calls are planned.
+    { key: 'groupCalls', state: 'planned' },
     { key: 'appAssistant', state: 'implemented', feature: 'appAssistant', initiative: 'appAssistant' },
     { key: 'contentSafety', state: 'partial', initiative: 'contentSafety' },
-    { key: 'billing', state: 'implemented', feature: 'billing' },
+    { key: 'billing', state: 'implemented',  },
     { key: 'patreon', state: 'planned' },
 ]
 
 /** Finished, bounded work confirmed against source in the latest review (newest first). */
 const DONE_SOURCES: readonly { id: string; area: string }[] = [
+    { id: 'callChatReplay', area: 'calls' },
     { id: 'chatStream', area: 'core' },
     { id: 'savedHistory', area: 'adventures' },
     { id: 'voiceCatalog', area: 'voices' },
@@ -241,8 +243,7 @@ export function roadmapStage(state: RoadmapState, enabled: boolean | null): Road
     return state === 'partial' ? 'progress' : 'available'
 }
 
-function featureEnabled(feature: FrontendFeatureFlag | 'billing' | undefined): boolean | null {
-    if (feature === 'billing') return isBillingFeatureEnabled()
+function featureEnabled(feature: FrontendFeatureFlag | undefined): boolean | null {
     return feature ? isFeatureEnabled(feature) : null
 }
 

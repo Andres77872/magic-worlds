@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
 import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -15,8 +18,8 @@ vi.mock('@/infrastructure/api', () => ({ apiService: { getCollection: mocks.getC
 import { CreationDestination } from './CreationDestination'
 import { OrganizationWarningNotice } from './OrganizationWarningNotice'
 
-function renderDestination(origin: Parameters<typeof CreationDestination>[0]['origin'], featureEnabled = true) {
-    const workspace = createWorkspaceTestState({ featureEnabled })
+function renderDestination(origin: Parameters<typeof CreationDestination>[0]['origin']) {
+    const workspace = createWorkspaceTestState()
     return render(<WorkspaceTestProvider state={workspace}><CreationDestination origin={origin} /></WorkspaceTestProvider>)
 }
 
@@ -39,9 +42,9 @@ describe('CreationDestination', () => {
         expect(mocks.getCollection).toHaveBeenCalledWith(TEST_WORKSPACE_ID, TEST_COLLECTION_ID)
     })
 
-    it('stays hidden while the workspace UI is switched off or before the handshake', () => {
-        const { unmount } = renderDestination({ workspaceId: TEST_WORKSPACE_ID, collectionId: null, returnTo: null }, false)
-        expect(screen.queryByTestId('creation-destination')).toBeNull()
+    it('shows a known workspace destination and stays hidden before an origin is selected', () => {
+        const { unmount } = renderDestination({ workspaceId: TEST_WORKSPACE_ID, collectionId: null, returnTo: null })
+        expect(screen.getByTestId('creation-destination')).toBeInTheDocument()
         unmount()
         renderDestination(null)
         expect(screen.queryByTestId('creation-destination')).toBeNull()

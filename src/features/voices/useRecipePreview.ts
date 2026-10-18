@@ -5,15 +5,18 @@
  * - One request at a time, latest wins: a new run aborts the previous request,
  *   and a sequence number drops any late response, so a slow preview never
  *   replaces a newer one (the D30 preview race).
- * - `previewsLeft` is seeded from the membership usage (`GET /user/me`, D24)
- *   and corrected by every response; a daily-limit 429 sets it to 0.
+ * - Allowance is shared per account through PreviewAllowanceProvider, seeded
+ *   from membership usage and reconciled across tabs and interrupted requests.
+ * - Unconfirmed requests authorize zero credits. A server price precondition
+ *   opens the session confirmation and retries the same input with a cap of 1.
+ *   A cached result succeeds at cap 0 without consuming that confirmation.
  * - 428 `attestation_required` opens the attestation prompt and retries once
  *   (`useAttestation().withAttestation`).
  * - The audio is fetched as an authed blob (`/voice-presets/preview/…`) and
  *   played from an object URL, revoked when replaced or on unmount.
  * - Thought previews play at ×0.708 (D16), times the voice's `gain_db` when the
  *   server sends one.
- * - The body is exactly `{voice_key, settings, emotion, text_id, language, tier}`
+ * - The recipe body includes `{voice_key, settings, emotion, text_id, language, tier, max_credit_cost}`
  *   (EP-6). When the server renders another tier than the one asked for
  *   (`tier_used`), the clip carries `fallback: 'standard_fallback'`.
  * - The credit state (AC-P5, 05 §6.3): `freePreviewsLeft` is the free renders
@@ -44,10 +47,14 @@ import type {
     UtterancePerformance,
 } from '@/shared'
 import { clipVolume } from '@/shared/voice/clipVolume'
-import { readVoiceUsage, type VoiceUsageView } from '@/shared/voice/voiceUsage'
+import { usePreviewAllowance } from './usePreviewAllowance'
+import { previewCreditConfirmed, usePreviewCreditConfirm } from './usePreviewCreditConfirm'
+
+export { FREE_PREVIEWS_PER_DAY, deriveFreePreviewsLeft } from './usePreviewAllowance'
 
 /** The recipe preview (EP-6): a catalog voice, its V2 settings and a narration tier. */
 export interface RecipePreviewInput {
+    modelId?: import('@/shared').FishSpeechModel
     performance?: VoicePerformance | UtterancePerformance | null
     authoredText?: string
     provider?: VoiceProvider
@@ -208,26 +215,6 @@ function count(value: unknown): number | null {
     return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.floor(value) : null
 }
 
-/** D18 / I-3: the first 3 recipe renders a day are free on every plan (the BFF's `FREE_PREVIEWS_PER_DAY`). */
-export const FREE_PREVIEWS_PER_DAY = 3
-
-/**
- * Free renders left today from the plan's hard limit and `previews_left`
- * (renders today = limit − left), never above `previews_left`; null when
- * either is unknown. An answer's own `free_previews_left` wins over this.
- */
-export function deriveFreePreviewsLeft(hardLimit: number | null, previewsLeft: number | null): number | null {
-    if (hardLimit === null || previewsLeft === null) return null
-    const used = Math.max(0, hardLimit - previewsLeft)
-    return Math.max(0, Math.min(previewsLeft, FREE_PREVIEWS_PER_DAY - used))
-}
-
-/** The plan's `voice_preview` daily hard limit from a profile membership, or null. */
-function previewHardLimit(membership: unknown): number | null {
-    const limits = (membership as { limits?: Record<string, { daily_limit?: unknown } | undefined> } | null | undefined)?.limits
-    return count(limits?.voice_preview?.daily_limit)
-}
-
 /**
  * The transcript under a played clip: the server's text, else the chooser's fixed
  * text. A catalog sample (EP-6 `source: 'sample'`) is the voice's own recording,
@@ -248,11 +235,12 @@ export function previewAudioUrl(response: VoicePresetPreviewResponse | null | un
     return null
 }
 
-/** EP-6: exactly these six keys (the BFF model is extra=forbid). */
+/** Audio identity only; run adds the separately authorized spending cap. */
 export function previewRequestBody(input: RecipePreviewInput): VoicePresetPreviewRequestV2 {
     return {
         voice_key: input.voiceKey,
         ...(input.provider === 'fish_audio' ? { schema_version: 3 as const, provider: 'fish_audio' as const } : {}),
+        ...(input.provider === 'fish_audio' ? { model_id: input.modelId ?? 'drama-3' } : {}),
         ...(input.provider === 'fish_audio' && input.performance ? { performance: input.performance } : {}),
         settings: input.settings ?? null,
         emotion: input.emotion ?? null,
@@ -265,57 +253,27 @@ export function previewRequestBody(input: RecipePreviewInput): VoicePresetPrevie
 export interface UseRecipePreviewOptions {
     /** Seeds the allowance while true (an open drawer, a signed-in page). */
     enabled?: boolean
+    userHash?: string | null
 }
 
-export function useRecipePreview({ enabled = true }: UseRecipePreviewOptions = {}) {
+export function useRecipePreview({ enabled = true, userHash = null }: UseRecipePreviewOptions = {}) {
     const { t } = useTranslation()
     const attestation = useAttestation()
     const attestationRef = useRef(attestation)
     const [state, setState] = useState<PreviewState>(IDLE)
-    const [previewsLeft, setPreviewsLeft] = useState<number | null>(null)
-    const [freePreviewsLeft, setFreePreviewsLeft] = useState<number | null>(null)
-    const [usage, setUsage] = useState<VoiceUsageView | null>(null)
-    // The plan's `voice_preview` hard limit, from the last profile read (derives the free count).
-    const hardLimit = useRef<number | null>(null)
+    const allowance = usePreviewAllowance(enabled, userHash)
+    const { previewsLeft, freePreviewsLeft, usage, beginRequest, setAllowance, refreshAllowance, invalidate } = allowance
+    const account = allowance.userHash
+    const credit = usePreviewCreditConfirm(account)
+    const guardCredit = credit.guard
+    const cancelCredit = credit.cancel
     const seq = useRef(0)
     const controller = useRef<AbortController | null>(null)
     const objectUrl = useRef<string | null>(null)
-    // Bumped by every allowance write, so a slow profile read never overwrites a newer response.
-    const allowanceSeq = useRef(0)
 
     useEffect(() => {
         attestationRef.current = attestation
     }, [attestation])
-
-    /** `free`: the server's own free count, when it sends one; otherwise derived from the hard limit. */
-    const setAllowance = useCallback((left: number | null, free: number | null = null) => {
-        allowanceSeq.current += 1
-        setPreviewsLeft(left)
-        setFreePreviewsLeft(free !== null && left !== null ? Math.min(free, left) : deriveFreePreviewsLeft(hardLimit.current, left))
-    }, [])
-
-    const refreshAllowance = useCallback(() => {
-        const mine = ++allowanceSeq.current
-        void Promise.resolve()
-            .then(() => apiService.getUserProfile())
-            .then((profile) => {
-                const read = readVoiceUsage(profile?.membership)
-                const left = read?.previewsLeft ?? null
-                hardLimit.current = previewHardLimit(profile?.membership) ?? hardLimit.current
-                if (read) setUsage(read)
-                if (mine === allowanceSeq.current && left !== null) {
-                    setPreviewsLeft(left)
-                    setFreePreviewsLeft(deriveFreePreviewsLeft(hardLimit.current, left))
-                }
-            })
-            .catch(() => {
-                // The count is a hint: keep the last value.
-            })
-    }, [])
-
-    useEffect(() => {
-        if (enabled) refreshAllowance()
-    }, [enabled, refreshAllowance])
 
     const replaceObjectUrl = useCallback((next: string | null) => {
         if (objectUrl.current) URL.revokeObjectURL(objectUrl.current)
@@ -324,24 +282,31 @@ export function useRecipePreview({ enabled = true }: UseRecipePreviewOptions = {
 
     useEffect(() => () => {
         seq.current += 1
+        if (controller.current) invalidate()
         controller.current?.abort()
         controller.current = null
         if (objectUrl.current) URL.revokeObjectURL(objectUrl.current)
         objectUrl.current = null
-    }, [])
+    }, [invalidate])
 
-    const run = useCallback(async (input: RecipePreviewInput) => {
+    const execute = useCallback(async function executePreview(input: RecipePreviewInput, approved = false) {
+        cancelCredit()
+        if (controller.current) invalidate()
         controller.current?.abort()
         const abort = new AbortController()
         controller.current = abort
         const mine = ++seq.current
+        const allowanceRequest = beginRequest()
+        // A hint (including an unknown or stale free count) never authorizes a debit.
+        const maxCreditCost = approved || previewCreditConfirmed(account) ? 1 : 0
         setState((current) => ({ ...current, status: 'loading', problem: null }))
 
         const once = () => input.authoredText !== undefined
             ? apiService.previewVoicePerformance({ voice_key: input.voiceKey, text: input.authoredText,
+                model_id: input.modelId ?? 'drama-3',
                 language: input.language as 'en' | 'es', kind: input.textId, emotion: input.emotion,
-                performance: input.performance as UtterancePerformance }, abort.signal)
-            : apiService.previewVoice(previewRequestBody(input), { signal: abort.signal })
+                performance: input.performance as UtterancePerformance, max_credit_cost: maxCreditCost }, abort.signal)
+            : apiService.previewVoice({ ...previewRequestBody(input), max_credit_cost: maxCreditCost }, { signal: abort.signal })
         // 05 §6.4: a token-bucket 429 shows its copy, waits its Retry-After and retries once.
         let bucketRetried = false
         const request = async () => {
@@ -360,9 +325,10 @@ export function useRecipePreview({ enabled = true }: UseRecipePreviewOptions = {
         try {
             const gate = attestationRef.current
             const response = await (gate ? gate.withAttestation(request) : request())
-            if (mine !== seq.current) return
             const left = count(response?.previews_left)
-            if (left !== null) setAllowance(left, count(response?.free_previews_left))
+            // A stopped clip stays stopped, but its completed render still consumed allowance.
+            if (left !== null) setAllowance(left, count(response?.free_previews_left), allowanceRequest)
+            if (mine !== seq.current) return
             const url = previewAudioUrl(response)
             if (!url) throw new Error('The preview response has no audio.')
             const blob = await apiService.fetchProtectedMediaBlob(url, 'audio/mpeg')
@@ -390,12 +356,22 @@ export function useRecipePreview({ enabled = true }: UseRecipePreviewOptions = {
             })
         } catch (error) {
             if (mine !== seq.current || isAbort(error)) return
+            const failure = error as ErrorLike
+            const details = failure?.details as { required_credit_cost?: unknown; free_previews_left?: unknown } | undefined
+            if (failure?.status === 409 && failure.code === 'preview_credit_confirmation_required' && maxCreditCost === 0 && details?.required_credit_cost === 1) {
+                setAllowance(previewsLeftOf(error), count(details.free_previews_left), allowanceRequest)
+                setState(current => ({ ...current, status: current.clip ? 'ready' : 'idle', problem: null }))
+                guardCredit(true, () => {
+                    if (mine === seq.current && !abort.signal.aborted) void executePreview(input, true)
+                })
+                return
+            }
             const problem = classifyPreviewError(error)
             const left = previewsLeftOf(error)
             if (left !== null) {
-                setAllowance(left)
+                setAllowance(left, null, allowanceRequest)
             } else if (problem === 'limitReached') {
-                setAllowance(0)
+                setAllowance(0, 0, allowanceRequest)
                 // The server's own count wins when the profile reports one.
                 refreshAllowance()
             }
@@ -403,7 +379,9 @@ export function useRecipePreview({ enabled = true }: UseRecipePreviewOptions = {
         } finally {
             if (controller.current === abort) controller.current = null
         }
-    }, [replaceObjectUrl, setAllowance, refreshAllowance])
+    }, [account, beginRequest, cancelCredit, guardCredit, invalidate, replaceObjectUrl, setAllowance, refreshAllowance])
+
+    const run = useCallback((input: RecipePreviewInput) => execute(input), [execute])
 
     /**
      * Abort the client wait (the server may still finish and cache the render); keep the last clip.
@@ -411,19 +389,25 @@ export function useRecipePreview({ enabled = true }: UseRecipePreviewOptions = {
      */
     const stop = useCallback(() => {
         seq.current += 1
+        cancelCredit()
+        if (controller.current) invalidate()
         controller.current?.abort()
         controller.current = null
         setState((current) => (current.status === 'loading' ? { ...current, status: current.clip ? 'ready' : 'idle', problem: null } : current))
-    }, [])
+    }, [cancelCredit, invalidate])
 
     /** Stop and forget the clip (another text chosen, the drawer closed). */
     const reset = useCallback(() => {
         seq.current += 1
+        cancelCredit()
+        if (controller.current) invalidate()
         controller.current?.abort()
         controller.current = null
         replaceObjectUrl(null)
         setState((current) => (current === IDLE ? current : IDLE))
-    }, [replaceObjectUrl])
+    }, [cancelCredit, invalidate, replaceObjectUrl])
+
+    useEffect(() => { reset() }, [account, reset])
 
     return {
         status: state.status,
@@ -438,6 +422,7 @@ export function useRecipePreview({ enabled = true }: UseRecipePreviewOptions = {
         nextCostsCredit: previewsLeft !== null && previewsLeft > 0 && freePreviewsLeft === 0,
         /** Today's narration and call usage from the same profile read (AC-S3), or null. */
         usage,
+        credit,
         limitReached: previewsLeft === 0,
         run,
         stop,

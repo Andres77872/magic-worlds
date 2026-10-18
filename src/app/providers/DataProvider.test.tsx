@@ -1,4 +1,8 @@
-import { useContext, useState } from 'react'
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
+import { useContext, useState, type ContextType } from 'react'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AdventureSnapshot } from '../../shared'
@@ -87,7 +91,7 @@ function Saver() {
 describe('DataProvider.saveInProgressSnapshot', () => {
     beforeEach(() => {
         vi.clearAllMocks()
-        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'true')
+        setTestFeatureFlags({ adventures: true })
     })
 
     afterEach(() => {
@@ -189,13 +193,67 @@ function ChatProbe() {
 describe('DataProvider character chats', () => {
     beforeEach(() => {
         vi.clearAllMocks()
-        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
-        vi.stubEnv('VITE_FEATURE_GROUP_CHATS_ENABLED', 'true')
+        setTestFeatureFlags({ calls: true })
+        setTestFeatureFlags({ groupChats: true })
         vi.mocked(apiService.getCharacterChats).mockResolvedValue([CHAT_ROW])
     })
 
     afterEach(() => {
         vi.unstubAllEnvs()
+    })
+
+    it('displays the frozen cast/persona and their provenance while retaining the separate live library', async () => {
+        let data!: NonNullable<ContextType<typeof DataContext>>
+        function Capture() { data = useContext(DataContext)!; return null }
+        vi.mocked(apiService.getCharacters).mockResolvedValueOnce([
+            { ...CHAT_CHARACTER, name: 'Library name', description: 'Library v5', latest_version_number: 5 },
+            { ...CHAT_PERSONA, name: 'Library persona' },
+        ])
+        vi.mocked(apiService.getCharacterChats).mockResolvedValueOnce([{ ...CHAT_ROW,
+            characters: [{ ...CHAT_CHARACTER, name: 'Frozen name', description: 'Frozen v3',
+                source_card_id: 'c1', source_card_version_id: 'v3', source_card_version_number: 3, newer_version_available: true }],
+            persona: { ...CHAT_PERSONA, name: 'Frozen persona', source_card_version_number: 1 },
+        }])
+        render(<DataProvider><ChatProbe /><Capture /></DataProvider>)
+        await waitFor(() => expect(data.characterChats).toHaveLength(1))
+        expect(data.characters[0].name).toBe('Library name')
+        expect(data.characterChats[0].character).toMatchObject({ name: 'Frozen name', description: 'Frozen v3',
+            source_card_version_number: 3, source_card_version_id: 'v3', newer_version_available: true })
+        expect(data.characterChats[0].persona?.name).toBe('Frozen persona')
+        act(() => data.resumeCharacterChat(data.characterChats[0]))
+        expect(data.activeCharacterChat?.character?.name).toBe('Frozen name')
+    })
+
+    it('rejects participant and persona Codex additions in a group draft without creating a server chat', async () => {
+        let data!: NonNullable<ContextType<typeof DataContext>>
+        function Capture() { data = useContext(DataContext)!; return null }
+        render(<DataProvider><ChatProbe /><Capture /></DataProvider>)
+        await waitFor(() => expect(screen.getByTestId('chat-count')).toHaveTextContent('1'))
+        await act(async () => {
+            await data.startCharacterGroupChat([CHAT_CHARACTER, { ...CHAT_CHARACTER, id: 'c2' }], CHAT_PERSONA)
+        })
+        for (const cardId of ['c1', 'c2', 'p1']) {
+            await expect(data.addCharacterChatCodexCards(data.activeCharacterChat!.id, [{ kind: 'character', cardId }])).rejects.toThrow('already included')
+        }
+        expect(data.activeCharacterChat?.codexCards).toHaveLength(0)
+        expect(apiService.addCharacterChatCodexCards).not.toHaveBeenCalled()
+        expect(apiService.createCharacterGroupChat).not.toHaveBeenCalled()
+    })
+
+    it('blocks materializing an affected draft and re-enabling its duplicate while allowing manual disabling', async () => {
+        let data!: NonNullable<ContextType<typeof DataContext>>
+        function Capture() { data = useContext(DataContext)!; return null }
+        render(<DataProvider><ChatProbe /><Capture /></DataProvider>)
+        await waitFor(() => expect(screen.getByTestId('chat-count')).toHaveTextContent('1'))
+        await act(async () => { await data.startCharacterChat(CHAT_CHARACTER, CHAT_PERSONA) })
+        act(() => data.resumeCharacterChat({ ...data.activeCharacterChat!, codexCards: [{
+            id: 'legacy', kind: 'character', cardId: 'p1', enabled: true, precedence: 0, snapshot: {},
+        }] }))
+        await expect(data.ensureCharacterChatSession(data.activeCharacterChat!)).rejects.toThrow('already included')
+        expect(apiService.createCharacterChat).not.toHaveBeenCalled()
+        await act(async () => { await data.toggleCharacterChatCodexCard(data.activeCharacterChat!.id, 'legacy', false) })
+        await expect(data.toggleCharacterChatCodexCard(data.activeCharacterChat!.id, 'legacy', true)).rejects.toThrow('already included')
+        expect(data.activeCharacterChat?.codexCards?.[0].enabled).toBe(false)
     })
 
     it('loads the chat list and its character metadata', async () => {
@@ -467,7 +525,7 @@ function AdventureProbe() {
 describe('DataProvider adventure starts', () => {
     beforeEach(() => {
         vi.clearAllMocks()
-        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'true')
+        setTestFeatureFlags({ adventures: true })
         vi.mocked(apiService.createAdventureSession).mockResolvedValue({
             adventure_id: 11,
             adventure_template: 't1',

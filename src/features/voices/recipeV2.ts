@@ -1,7 +1,7 @@
 /**
  * ElevenLabs recipe helpers (R1-FE-02, D13, D18). Ranges, steps and defaults
  * always come from the capabilities controls (`VoiceControlSpec`); nothing here
- * hard-codes a range. Writes keep stability, similarity and speed only, on the
+ * hard-codes a range. Writes keep stability and similarity only, on the
  * 0.05 grid the BFF quantizes to (EP-3); `style` and `use_speaker_boost` are
  * never written (the BFF answers 422 for them).
  */
@@ -12,7 +12,7 @@ import type { VoiceControlKey, VoiceControlSpec, VoiceSettingsV2 } from '@/share
 export const WRITE_STEP = 0.05
 
 /** The user-editable V2 keys, in display order. */
-export const EDITABLE_KEYS: readonly VoiceControlKey[] = ['stability', 'similarity_boost', 'speed']
+export const EDITABLE_KEYS: readonly VoiceControlKey[] = ['stability', 'similarity_boost']
 
 const WRITE_KEYS: ReadonlySet<string> = new Set(EDITABLE_KEYS)
 
@@ -48,7 +48,7 @@ export function writtenSetting(key: string, value: number, controls: readonly Vo
 }
 
 /**
- * The settings a V2 preset write sends: stability, similarity_boost and speed
+ * The settings a V2 preset write sends: stability and similarity_boost
  * on the 0.05 grid, clamped to the controls' ranges when given; null stays null
  * and an empty result is null ("voice defaults").
  */
@@ -120,6 +120,5 @@ export function settingsChips(settings: VoiceSettingsV2 | null | undefined, t: T
     const chips: string[] = []
     if (typeof settings.stability === 'number') chips.push(`${t('voices.recipe.stability')} ${format(settings.stability)}`)
     if (typeof settings.similarity_boost === 'number') chips.push(`${t('voices.recipe.similarity')} ${format(settings.similarity_boost)}`)
-    if (typeof settings.speed === 'number') chips.push(t('voices.studio.chipSpeed', { value: format(settings.speed) }))
     return chips.length > 0 ? chips : [t('voices.recipe.voiceDefaults')]
 }

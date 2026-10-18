@@ -35,9 +35,13 @@ export function useAiActionRow(
     rowModelRef: RefObject<AiActionRowModel | null>,
 ) {
     const { t } = useTranslation()
-    const { words, previous, prompt } = inlineAI.rowMeta
+    const { words, previous, prompt, versionTitle } = inlineAI.rowMeta
     const live = phase === 'pending' || phase === 'reviewing'
 
+    // The decoration reads the ref during a ProseMirror state update, which can
+    // land a frame before React commits — so publish the model and then poke the
+    // view with a no-op transaction to recompute with it.
+    useEffect(() => {
     const model: AiActionRowModel | null = live
         ? {
               preview: inlineAI.rowMeta.preview,
@@ -53,13 +57,13 @@ export function useAiActionRow(
               // mid-paragraph rewrite gets no note (a block cannot go inline),
               // so there the row stays the only place it shows.
               prompt:
-                  prompt && (phase === 'pending' || previous != null)
+                  versionTitle ? t('novelEditor.variants.reviewLabel', { title: versionTitle }) : prompt && (phase === 'pending' || previous != null)
                       ? t('novelEditor.suggestion.prompt', { text: prompt })
                       : '',
               labels: {
                   actions: t('novelEditor.suggestion.actions'),
                   accept: t('novelEditor.suggestion.accept'),
-                  decline: t('novelEditor.suggestion.decline'),
+                  decline: t(versionTitle ? 'novelEditor.variants.keepSaved' : 'novelEditor.suggestion.decline'),
                   regenerate: t('novelEditor.suggestion.regenerate'),
                   cancel: t('novelEditor.suggestion.cancel'),
                   generating: inlineAI.rowMeta.stage ? t(`streaming.${inlineAI.rowMeta.stage as 'generating' | 'validating' | 'saving'}`) : t('novelEditor.suggestion.generating'),
@@ -75,10 +79,6 @@ export function useAiActionRow(
           }
         : null
 
-    // The decoration reads the ref during a ProseMirror state update, which can
-    // land a frame before React commits — so publish the model and then poke the
-    // view with a no-op transaction to recompute with it.
-    useEffect(() => {
         rowModelRef.current = model
         if (!live) return
         const editor = editorRef.current
@@ -86,7 +86,7 @@ export function useAiActionRow(
         editor.view.dispatch(editor.state.tr.setMeta(AI_SUGGESTION_META, true))
         const preview = editor.view.dom.querySelector('[data-testid="ai-stream-preview"]')
         if (preview) preview.textContent = model?.preview ?? ''
-    }, [editorRef, live, model, rowModelRef])
+    }, [editorRef,live,phase,inlineAI,words,previous,prompt,versionTitle,t,rowModelRef])
 
-    return { announcement: phase === 'reviewing' ? t('novelEditor.suggestion.announce', { count: words }) : '' }
+    return { announcement: phase === 'reviewing' ? versionTitle ? t('novelEditor.variants.announce', { title: versionTitle }) : t('novelEditor.suggestion.' + (inlineAI.canRegenerate ? 'announce' : 'announceSaved'), { count: words }) : '' }
 }

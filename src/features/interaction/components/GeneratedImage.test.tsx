@@ -6,7 +6,7 @@ import { GeneratedImage } from './GeneratedImage'
 vi.mock('@/infrastructure/api/useAuthenticatedMediaUrl', () => ({ useAuthenticatedMediaUrl: vi.fn() }))
 
 beforeEach(() => {
-    vi.mocked(useAuthenticatedMediaUrl).mockImplementation((url) => ({ src: url ?? undefined, loading: false, error: null }))
+    vi.mocked(useAuthenticatedMediaUrl).mockImplementation((url) => ({ src: url ?? undefined, loading: false, error: null, retry: vi.fn() }))
 })
 
 describe('GeneratedImage lifecycle feedback', () => {
@@ -21,12 +21,12 @@ describe('GeneratedImage lifecycle feedback', () => {
         rerender(<GeneratedImage status="mirroring" />)
         expect(screen.getByRole('status')).toHaveTextContent('Saving image…')
 
-        vi.mocked(useAuthenticatedMediaUrl).mockReturnValue({ src: undefined, loading: true, error: null })
+        vi.mocked(useAuthenticatedMediaUrl).mockReturnValue({ src: undefined, loading: true, error: null, retry: vi.fn() })
         rerender(<GeneratedImage status="completed" url="/scene.png" />)
         expect(screen.getByRole('status')).toHaveTextContent('Loading image…')
         expect(screen.queryByRole('img')).not.toBeInTheDocument()
 
-        vi.mocked(useAuthenticatedMediaUrl).mockReturnValue({ src: '/scene.png', loading: false, error: null })
+        vi.mocked(useAuthenticatedMediaUrl).mockReturnValue({ src: '/scene.png', loading: false, error: null, retry: vi.fn() })
         rerender(<GeneratedImage status="completed" url="/scene.png" />)
         expect(screen.getByRole('status')).toHaveTextContent('Loading image…')
         fireEvent.load(screen.getByRole('img', { name: 'Generated scene' }))
@@ -66,7 +66,7 @@ describe('GeneratedImage lifecycle feedback', () => {
     })
 
     it('reports a download error without claiming generation failed', () => {
-        vi.mocked(useAuthenticatedMediaUrl).mockReturnValue({ src: undefined, loading: false, error: new Error('Download failed') })
+        vi.mocked(useAuthenticatedMediaUrl).mockReturnValue({ src: undefined, loading: false, error: new Error('Download failed'), retry: vi.fn() })
         render(<GeneratedImage status="completed" url="/scene.png" />)
         expect(screen.getByRole('alert')).toHaveTextContent('The image could not be loaded.')
     })

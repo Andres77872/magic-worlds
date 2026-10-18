@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
 import { act, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -133,10 +136,10 @@ describe('AppRouter workspace gating (Workspace R1)', () => {
         expect(screen.getByRole('button', { name: /reload/i })).toBeInTheDocument()
     })
 
-    it('shows the persistent hidden-workspaces notice', async () => {
+    it('does not hide globally released workspaces behind a feature notice', async () => {
         mocks.workspace.hasHiddenWorkspaces = true
         mocks.page = 'profile'
         render(<AppRouter />)
-        expect(screen.getByText('Some workspaces are temporarily unavailable. Their content is safe.')).toBeInTheDocument()
+        expect(screen.queryByText('Some workspaces are temporarily unavailable. Their content is safe.')).not.toBeInTheDocument()
     })
 })

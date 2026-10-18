@@ -6,6 +6,7 @@ const PROTECTED_MEDIA_PATH_PREFIXES = [
     '/generated-images/',
     '/generated-audio/',
     '/tts/assets/',
+    '/user/me/avatar/',
     // Voice audio (D10, D18): catalog samples and recipe-preview renders are
     // owned, `Cache-Control: private` media, fetched as authed blobs and never
     // hotlinked as a bare `<audio src>`.
@@ -58,4 +59,24 @@ export function resolveMediaUrl(url?: string | null): string | undefined {
 
 export function isProtectedMediaUrl(url?: string | null): boolean {
     return Boolean(getProtectedMediaPath(url))
+}
+
+export function avatarVariantUrl(
+    variant: 'A' | 'B' | 'C' | 'D',
+    size: 128 | 256 | 512 | 'full' = 512,
+): string {
+    return `/user/me/avatar/variant_${variant}/${size}.webp`
+}
+
+/**
+ * Rewrite a `/user/me/avatar/variant_{X}/512.webp` URL to the smallest WebP tier
+ * (`128.webp`, `256.webp`, or `512.webp`) that covers a 2x Retina display of `pixelSize`.
+ */
+export function resolveAvatarUrlForSize(
+    url: string | null | undefined,
+    pixelSize: number,
+): string | null | undefined {
+    if (!url || !url.includes('/user/me/avatar/variant_')) return url
+    const tier = pixelSize <= 64 ? '128.webp' : pixelSize <= 128 ? '256.webp' : '512.webp'
+    return url.replace(/\/(128|256|512|full)\.(webp|png)(\?.*)?$/, `/${tier}$3`)
 }

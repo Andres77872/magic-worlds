@@ -1,3 +1,4 @@
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { I18nextProvider } from 'react-i18next'
@@ -94,11 +95,11 @@ it('allows saved audio with a disabled scene flag or archived workspace', async 
 })
 
 it('does not query the API when voices are disabled, and refreshes after a cast edit', async () => {
-    vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'false')
+    setTestFeatureFlags({ voices: false })
     const turns = [{ id: 'ai-9', type: 'ai' as const, content: 'The light is lit.', timestamp: '', assistantMessageId: 9, turnId: 'reply-9' }]
     const { rerender } = render(<SessionSceneNarration api={api} basePath="adventure-sessions" sessionId={7} turns={turns} revision="voice-a" />)
     expect(get).not.toHaveBeenCalled()
-    vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'true')
+    setTestFeatureFlags({ voices: true })
     rerender(<SessionSceneNarration api={api} basePath="adventure-sessions" sessionId={7} turns={turns} revision="voice-a" />)
     await screen.findByRole('button', { name: 'Scene narration' })
     rerender(<SessionSceneNarration api={api} basePath="adventure-sessions" sessionId={7} turns={turns} revision="voice-b" />)

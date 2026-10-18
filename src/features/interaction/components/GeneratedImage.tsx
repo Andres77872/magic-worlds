@@ -1,50 +1,89 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Maximize2 } from 'lucide-react'
 import { useAuthenticatedMediaUrl } from '../../../infrastructure/api/useAuthenticatedMediaUrl'
 import type { ImageLifecycleStatus } from '../../../shared'
-import { cx, Icon, ImageLightbox } from '@/ui/primitives'
-import { ImageGenerationStatus } from '@/ui/components'
+import { cx, Icon, IconButton, ImageLightbox } from '@/ui/primitives'
+import { ImageGenerationStatus, type ImageGenerationStage } from '@/ui/components'
 
 /**
- * GeneratedImage — renders the Game Master's scene image for a chat turn while
- * keeping a placeholder visible continuously across the whole lifecycle.
+ * Scene-image building blocks for chat turns. The backend finishes generating
+ * *before* the browser has fetched the bytes, so the slow part the player
+ * perceives is the download gap right after completion. To cover it:
+ *   - a space-reserving shimmer shows the real job stage while generating,
+ *   - explicit loading feedback stays until the <img> actually paints,
+ *   - the image fades in on `onLoad`, in a box that already holds its aspect
+ *     ratio, so nothing jumps.
  *
- * The backend finishes generating *before* the browser has fetched the bytes, so
- * the slow part the player perceives is the download gap right after the
- * `image_complete` frame. To cover it we:
- *   - show the real job stage in a space-reserving shimmer while generating,
- *   - keep explicit loading feedback until the <img> actually paints,
- *   - fade the image in on `onLoad` (no layout shift — the box already holds the
- *     final aspect ratio).
- *
- * `url` is expected to be already safety-filtered by the caller.
+ * URLs are expected to be already safety-filtered by the caller.
  */
-interface GeneratedImageProps {
-    status: ImageLifecycleStatus | undefined
-    url?: string
-    width?: number | null
-    height?: number | null
-    errorDetail?: string
+
+const MAX_SCENE_HEIGHT = 420
+/** The shape a scene box reserves before the asset says otherwise. */
+export const DEFAULT_SCENE_ASPECT = 3 / 2
+
+/** Glassy controls that float over the artwork (hover and focus; always on touch). */
+export const SCENE_OVERLAY_BUTTON = 'border border-parchment-50/10 bg-ink-900/60 text-parchment-100 shadow-md backdrop-blur-md hover:bg-ink-900/80 hover:text-parchment-50'
+
+/** The aspect-reserved box every scene state renders in. */
+export function SceneImageFrame({ aspectRatio, className, children }: { aspectRatio: number; className?: string; children: ReactNode }) {
+    return (
+        <figure className={cx('group relative w-full', className)} style={{ aspectRatio, maxHeight: MAX_SCENE_HEIGHT }}>
+            {children}
+        </figure>
+    )
 }
 
-const FAILED_STATUSES: ImageLifecycleStatus[] = ['failed', 'canceled', 'invalid', 'quota_exceeded']
-
-function ImageError({ detail }: { detail?: string }) {
+/** A running job, or the wait before it starts: the real stage over a shimmer. */
+export function SceneImagePlaceholder({ stage, aspectRatio = DEFAULT_SCENE_ASPECT, description, className }: {
+    stage: ImageGenerationStage
+    aspectRatio?: number
+    description?: string
+    className?: string
+}) {
     const { t } = useTranslation()
     return (
-        <div role="alert" className="mt-3 border-l-2 border-blood-500/40 py-2 pl-3 text-label text-blood-300">
-            {detail || t('interaction.image.failed')}
+        <SceneImageFrame aspectRatio={aspectRatio} className={className}>
+            <ImageGenerationStatus
+                stage={stage}
+                description={description ?? (stage === 'mirroring' || stage === 'loading' ? undefined : t('imageGeneration.keepChatting'))}
+                className="absolute inset-0 flex-col justify-center text-center"
+            />
+        </SceneImageFrame>
+    )
+}
+
+/**
+ * A line under the turn for a scene that has no artwork to show: a failure
+ * (`danger`, announced) or a quiet state such as a removed image.
+ */
+export function SceneImageNotice({ tone = 'danger', action, className, children }: {
+    tone?: 'danger' | 'quiet'
+    action?: ReactNode
+    className?: string
+    children: ReactNode
+}) {
+    return (
+        <div
+            role={tone === 'danger' ? 'alert' : 'status'}
+            className={cx(
+                'flex flex-wrap items-center gap-x-3 gap-y-1 border-l-2 py-2 pl-3 text-label',
+                tone === 'danger' ? 'border-blood-500/40 text-blood-300' : 'border-parchment-50/15 text-parchment-300',
+                className,
+            )}
+        >
+            <span className="min-w-0">{children}</span>
+            {action}
         </div>
     )
 }
 
 /**
- * The completed-image surface. Mounted with `key={url}` by the parent so its
- * load/fade state resets for free whenever the source changes (e.g. regenerate).
- * Once painted, the image opens full size in the shared lightbox.
+ * The completed-image surface. Mount it with `key={url}` so its load/fade state
+ * resets for free whenever the source changes. Once painted, the image opens
+ * full size in the shared lightbox; `actions` float beside the Full size control.
  */
-function SceneImage({ url, aspectRatio }: { url: string; aspectRatio: number }) {
+export function SceneImage({ url, aspectRatio, actions, className }: { url: string; aspectRatio: number; actions?: ReactNode; className?: string }) {
     const { t } = useTranslation()
     const [loaded, setLoaded] = useState(false)
     const [errored, setErrored] = useState(false)
@@ -52,13 +91,10 @@ function SceneImage({ url, aspectRatio }: { url: string; aspectRatio: number }) 
     const media = useAuthenticatedMediaUrl(url, 'image/*')
     const imageSrc = media.src
 
-    if (errored || media.error) return <ImageError detail={t('interaction.image.loadFailed')} />
+    if (errored || media.error) return <SceneImageNotice className={className}>{t('interaction.image.loadFailed')}</SceneImageNotice>
 
     return (
-        <figure
-            className="group relative mt-4 w-full"
-            style={{ aspectRatio, maxHeight: 420 }}
-        >
+        <SceneImageFrame aspectRatio={aspectRatio} className={className}>
             {imageSrc && (
                 // The button owns the rounding/clipping so the global focus ring
                 // (an outer box-shadow) is not clipped by the figure.
@@ -89,15 +125,19 @@ function SceneImage({ url, aspectRatio }: { url: string; aspectRatio: number }) 
                         onLoad={() => setLoaded(true)}
                         onError={() => setErrored(true)}
                     />
-                    {loaded && (
-                        <span
-                            aria-hidden="true"
-                            className="absolute bottom-2 right-2 flex h-8 w-8 items-center justify-center rounded-full border border-parchment-50/10 bg-ink-900/60 text-parchment-100 opacity-0 shadow-md backdrop-blur-md transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 pointer-coarse:opacity-100"
-                        >
-                            <Icon icon={Maximize2} size={16} />
-                        </span>
-                    )}
                 </button>
+            )}
+            {loaded && (
+                <div
+                    role="toolbar"
+                    aria-label={t('interaction.image.actions')}
+                    className="absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 pointer-coarse:opacity-100"
+                >
+                    {actions}
+                    <IconButton label={t('interaction.image.fullSize')} size="sm" className={SCENE_OVERLAY_BUTTON} aria-haspopup="dialog" onClick={() => setViewerOpen(true)}>
+                        <Icon icon={Maximize2} size={16} />
+                    </IconButton>
+                </div>
             )}
             {!loaded && (
                 <ImageGenerationStatus stage="loading" className="pointer-events-none absolute inset-0 flex-col justify-center text-center" />
@@ -109,10 +149,21 @@ function SceneImage({ url, aspectRatio }: { url: string; aspectRatio: number }) 
                 alt={t('interaction.image.alt')}
                 onClose={() => setViewerOpen(false)}
             />
-        </figure>
+        </SceneImageFrame>
     )
 }
 
+interface GeneratedImageProps {
+    status: ImageLifecycleStatus | undefined
+    url?: string
+    width?: number | null
+    height?: number | null
+    errorDetail?: string
+}
+
+const FAILED_STATUSES: ImageLifecycleStatus[] = ['failed', 'canceled', 'invalid', 'quota_exceeded']
+
+/** One scene image at one lifecycle status, with a placeholder held across the whole lifecycle. */
 export function GeneratedImage({ status, url, width, height, errorDetail }: GeneratedImageProps) {
     const { t } = useTranslation()
     const completed = status === 'completed'
@@ -120,29 +171,14 @@ export function GeneratedImage({ status, url, width, height, errorDetail }: Gene
     // per-turn failure the player can act on, so it renders nothing.
     const failed = status ? FAILED_STATUSES.includes(status) : false
 
-    if (failed) return <ImageError detail={errorDetail} />
+    if (failed) return <SceneImageNotice className="mt-3">{errorDetail || t('interaction.image.failed')}</SceneImageNotice>
 
-    // Completed + url: reserve the final aspect ratio, hold a shimmer over the
-    // download, then fade the image in once it paints.
     if (completed && url) {
-        const aspectRatio = width && height ? width / height : 3 / 2
-        return <SceneImage key={url} url={url} aspectRatio={aspectRatio} />
+        const aspectRatio = width && height ? width / height : DEFAULT_SCENE_ASPECT
+        return <SceneImage key={url} url={url} aspectRatio={aspectRatio} className="mt-4" />
     }
 
-    // No usable image yet → an aspect-reserved shimmer box while the job runs, so
-    // the layout doesn't jump when the box later swaps for the painted image.
-    if (completed) return <ImageError detail={errorDetail || t('interaction.image.loadFailed')} />
+    if (completed) return <SceneImageNotice className="mt-3">{errorDetail || t('interaction.image.loadFailed')}</SceneImageNotice>
     if (status !== 'pending' && status !== 'in_progress' && status !== 'mirroring') return null
-    return (
-        <figure
-            className="relative mt-4 w-full"
-            style={{ aspectRatio: 3 / 2, maxHeight: 420 }}
-        >
-            <ImageGenerationStatus
-                stage={status}
-                description={status === 'mirroring' ? undefined : t('imageGeneration.keepChatting')}
-                className="absolute inset-0 flex-col justify-center text-center"
-            />
-        </figure>
-    )
+    return <SceneImagePlaceholder stage={status} className="mt-4" />
 }

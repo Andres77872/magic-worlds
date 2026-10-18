@@ -1,3 +1,4 @@
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AssistantKind, AssistantTurnRequest } from '@/shared/types/assistant.types'
 import { assistantConversationFixture, assistantTurnFixture } from '@/test/assistantFixtures'
@@ -18,13 +19,13 @@ function turn(kind: AssistantKind): Record<string, unknown> {
     return structuredClone(assistantTurnFixture(kind, requestId)) as unknown as Record<string, unknown>
 }
 
-function turnBody(kind: AssistantKind): AssistantTurnRequest {
+function turnBody(kind: Exclude<AssistantKind,'novel'>): AssistantTurnRequest {
     if (kind === 'card') return { kind, message: 'Generate it', card_type: 'world' }
     if (kind === 'lorebook') return { kind, message: 'Generate it' }
     return { kind, message: 'Generate it', context: '# Guide', locale: 'en', page: '#/gallery/worlds' }
 }
 
-function send(kind: AssistantKind, onEvent = vi.fn(), options: Parameters<typeof apiService.streamAssistantMessage>[3] = {}) {
+function send(kind: Exclude<AssistantKind,'novel'>, onEvent = vi.fn(), options: Parameters<typeof apiService.streamAssistantMessage>[3] = {}) {
     return apiService.streamAssistantMessage(2, turnBody(kind), onEvent, { requestId, ...options })
 }
 
@@ -33,8 +34,8 @@ beforeEach(() => {
     localStorage.clear(); sessionStorage.clear()
     authSession.authenticate('assistant-owner', 'FAKE_SESSION')
     vi.stubGlobal('fetch', fetchMock)
-    vi.stubEnv('VITE_FEATURE_LOREBOOKS_ENABLED', 'true')
-    vi.stubEnv('VITE_FEATURE_APP_ASSISTANT_ENABLED', 'true')
+    setTestFeatureFlags({ lorebooks: true })
+    setTestFeatureFlags({ appAssistant: true })
 })
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs() })
 
@@ -294,7 +295,7 @@ describe('assistant conversation routes', () => {
     })
 
     it('leaves conversations of kinds this build switched off out of the history', async () => {
-        vi.stubEnv('VITE_FEATURE_LOREBOOKS_ENABLED', 'false')
+        setTestFeatureFlags({ lorebooks: false })
         const history = KINDS.map((kind, index) => assistantConversationFixture(kind, { conversation_id: index + 1 }))
         fetchMock.mockResolvedValueOnce(json({ conversations: history }))
         const { conversations } = await apiService.listAssistantConversations(null)
@@ -331,8 +332,8 @@ describe('assistant conversation routes', () => {
     })
 
     it('gates lorebook and app conversations on their feature flags before any request', async () => {
-        vi.stubEnv('VITE_FEATURE_LOREBOOKS_ENABLED', 'false')
-        vi.stubEnv('VITE_FEATURE_APP_ASSISTANT_ENABLED', 'false')
+        setTestFeatureFlags({ lorebooks: false })
+        setTestFeatureFlags({ appAssistant: false })
         await expect(apiService.listAssistantConversations({ kind: 'lorebook' })).rejects.toThrow('Lorebooks are disabled.')
         await expect(send('lorebook')).rejects.toThrow('Lorebooks are disabled.')
         await expect(apiService.listAssistantConversations({ kind: 'app' })).rejects.toThrow('The app assistant is disabled.')

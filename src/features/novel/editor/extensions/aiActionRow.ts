@@ -1,9 +1,8 @@
 /**
  * aiActionRow — the DOM for the in-document AI action row.
  *
- * Generated prose is real document text carrying the `aiSuggestion` mark, so
- * the controls that act on it belong to the document too: this row is mounted
- * by a ProseMirror widget decoration at the block boundary after the run. That
+ * Proposal prose and its controls are ProseMirror widget decorations outside
+ * canonical text. The row is mounted at the block boundary after its target. That
  * is why it can never drift — no `coordsAtPos`, no scroll or resize listeners,
  * no absolutely-positioned overlay chasing the caret.
  *
@@ -67,7 +66,7 @@ function button(
     const element = document.createElement('button')
     element.type = 'button'
     element.className = `ai-action-btn ai-action-btn--${variant}`
-    element.setAttribute('aria-keyshortcuts', shortcut)
+    if (shortcut) element.setAttribute('aria-keyshortcuts', shortcut)
     element.setAttribute('data-testid', testId)
     element.append(document.createTextNode(label), keyChip(chip))
     // The row lives inside a contenteditable; a mousedown that reaches the
@@ -135,10 +134,10 @@ export function renderActionRow(getModel: () => AiActionRowModel | null): HTMLEl
         return row
     }
 
-    controls.setAttribute('role', 'toolbar')
+    controls.setAttribute('role', 'group')
     controls.setAttribute('aria-label', labels.actions)
     controls.append(
-        button('accept', labels.accept, labels.acceptKey, 'Tab', () => getModel()?.onAccept(), 'ai-action-accept'),
+        button('accept', labels.accept, '', '', () => getModel()?.onAccept(), 'ai-action-accept'),
     )
     const divider = document.createElement('span')
     divider.className = 'ai-action-divider'

@@ -1,3 +1,4 @@
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, apiService } from '../index'
 
@@ -21,7 +22,7 @@ describe('root voice metrics API (R0-OPS-07)', () => {
     let fetchMock: ReturnType<typeof vi.fn>
 
     beforeEach(() => {
-        vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'true')
+        setTestFeatureFlags({ voices: true })
         localStorage.clear()
         localStorage.setItem('magic_worlds:token', 'root-token')
         fetchMock = vi.fn(async () => jsonResponse({ surface: 'narration' }))
@@ -73,7 +74,7 @@ describe('root voice metrics API (R0-OPS-07)', () => {
     })
 
     it('refuses metrics calls while voices are disabled', async () => {
-        vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'false')
+        setTestFeatureFlags({ voices: false })
         await expect(apiService.getAdminVoiceMetrics('narration')).rejects.toThrow('Voices are disabled.')
         expect(fetchMock).not.toHaveBeenCalled()
     })

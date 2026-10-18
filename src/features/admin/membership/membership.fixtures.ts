@@ -21,17 +21,24 @@ export const MEMBERSHIP_OPERATIONS = [
     'chat_interaction',
     'voice_call',
     'lorebook_resource_extraction',
+    'voice_preview',
 ] as const
 
 export function uniformLimits(
     dailyRequestLimit: number,
     maxInFlight = 1,
     creditCost = 1,
+    quantities: Record<string, number> = { tts_generation: 2500, voice_call: 180 },
 ): Record<string, MembershipPlanLimit> {
     return Object.fromEntries(
         MEMBERSHIP_OPERATIONS.map((operation) => [
             operation,
-            { daily_request_limit: dailyRequestLimit, max_in_flight: maxInFlight, credit_cost: creditCost },
+            {
+                daily_request_limit: dailyRequestLimit,
+                max_in_flight: maxInFlight,
+                credit_cost: creditCost,
+                daily_quantity_limit: quantities[operation] ?? null,
+            },
         ]),
     )
 }
@@ -57,7 +64,7 @@ export const plusPlan: MembershipPlan = {
     daily_credit_limit: 100,
     is_billing_synced: true,
     member_count: 17,
-    limits: uniformLimits(100, 2, 1),
+    limits: uniformLimits(100, 2, 1, { tts_generation: 8000, voice_call: 600 }),
 }
 
 export const proPlan: MembershipPlan = {
@@ -67,7 +74,7 @@ export const proPlan: MembershipPlan = {
     daily_credit_limit: 500,
     is_billing_synced: true,
     member_count: 4,
-    limits: uniformLimits(500, 4, 1),
+    limits: uniformLimits(500, 4, 1, { tts_generation: 20000, voice_call: 600 }),
 }
 
 export const sponsorPlan: MembershipPlan = {

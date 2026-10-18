@@ -1,3 +1,7 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { useEffect, useState } from 'react'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -13,6 +17,7 @@ import {
     type WorkspaceTestState,
 } from '@/shared/hooks/testing/workspaceTestUtils'
 import { clearVoiceCapabilitiesCache, toVoiceCapabilities } from '@/shared/voice/voiceCapabilities'
+import { gptProfile, kreaProfile, rootList } from '@/features/imageProfiles/imageProfileFixtures'
 import { InteractionCenterPanel } from './InteractionCenterPanel'
 
 vi.mock('../../../infrastructure/api/useAuthenticatedMediaUrl', () => ({
@@ -22,6 +27,8 @@ vi.mock('../../../infrastructure/api/useAuthenticatedMediaUrl', () => ({
 const hookMocks = vi.hoisted(() => ({
     useAdventureChatSocket: vi.fn(),
     pageFocused: true,
+    // Scene images poll while the page is visible, focused or not.
+    pageVisible: true,
 }))
 
 vi.mock('../../../app/hooks', () => ({
@@ -40,6 +47,8 @@ vi.mock('../hooks/useAdventureChatSocket', () => ({
 vi.mock('@/app/hooks/usePageFocus', () => ({
     usePageFocus: () => hookMocks.pageFocused,
     isPageFocused: () => hookMocks.pageFocused,
+    usePageVisible: () => hookMocks.pageVisible,
+    isPageVisible: () => hookMocks.pageVisible,
 }))
 
 afterEach(() => vi.unstubAllEnvs())
@@ -101,10 +110,13 @@ describe('InteractionCenterPanel message deletion', () => {
         vi.restoreAllMocks()
         workspace = createWorkspaceTestState({ api: apiService })
         hookMocks.pageFocused = true
+        hookMocks.pageVisible = true
         // The session-lore hook lists attachments on mount; keep it empty + offline-safe.
         vi.spyOn(apiService, 'listLorebookAttachments').mockResolvedValue([])
         // Narration availability reads the capabilities; offline reads fail open.
         vi.spyOn(apiService, 'getVoiceCapabilities').mockRejectedValue(new Error('offline'))
+        // The composer's image control lists the image profiles.
+        vi.spyOn(apiService, 'getImageProfiles').mockResolvedValue(rootList)
         // A plain failed turn is spent on the server, so Retry starts a new request.
         vi.spyOn(apiService, 'reconcileChatTurn').mockImplementation(async (_basePath, _sessionId, requestId) => {
             const send = hookMocks.useAdventureChatSocket.mock.results[hookMocks.useAdventureChatSocket.mock.results.length - 1]?.value.sendChat
@@ -804,8 +816,7 @@ describe('InteractionCenterPanel message deletion', () => {
                 turnId: 'turn-char-1',
                 forwardOptions: [{ label: 'Ask about the mirror', message: 'What do you see in the mirror?' }],
                 imagePrompt: 'A candlelit mirror in a fantasy parlor.',
-                imageStatus: 'in_progress',
-                imageJobId: 'img-char-1',
+                imageGenerations: [{ job_id: 'img-char-1', status: 'in_progress', assets: [] }],
             } as TurnEntry,
         ]
 
@@ -823,7 +834,7 @@ describe('InteractionCenterPanel message deletion', () => {
         expect(socketResult.value.sendChat).not.toHaveBeenCalled()
     })
 
-    it('removes obsolete per-frame generation toggles and sends stored chat content', async () => {
+    it('keeps the suggested-actions toggle removed and sends stored chat content with the default image choice', async () => {
         const sendChat = vi.fn()
         hookMocks.useAdventureChatSocket.mockReturnValue({
             status: 'open',
@@ -834,7 +845,6 @@ describe('InteractionCenterPanel message deletion', () => {
 
         renderPanel(makeConfig(), [])
 
-        expect(screen.queryByRole('button', { name: /generated images/i })).not.toBeInTheDocument()
         expect(screen.queryByRole('button', { name: /suggested actions/i })).not.toBeInTheDocument()
 
         fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Look around' } })
@@ -843,7 +853,7 @@ describe('InteractionCenterPanel message deletion', () => {
         await waitFor(() => expect(sendChat).toHaveBeenCalled())
         expect(sendChat).toHaveBeenCalledWith('Look around', expect.any(String))
     })
-    it('pauses image job polling while unfocused and catches up when focus returns', async () => {
+    it('keeps polling scene images while visible but unfocused, and pauses them while hidden', async () => {
         hookMocks.pageFocused = false
         const seed: TurnEntry[] = [{
             id: '201',
@@ -852,8 +862,7 @@ describe('InteractionCenterPanel message deletion', () => {
             timestamp: '2026-06-04T00:00:01',
             assistantMessageId: 201,
             turnId: 'turn-char-1',
-            imageStatus: 'in_progress',
-            imageJobId: 'img-char-1',
+            imageGenerations: [{ job_id: 'img-char-1', status: 'in_progress', assets: [] }],
         }]
         const loadTurns = vi.fn(async () => seed)
         const getImageJob = vi.spyOn(apiService, 'getImageJob').mockResolvedValue({
@@ -865,22 +874,19 @@ describe('InteractionCenterPanel message deletion', () => {
         vi.useFakeTimers()
         renderPanel(makeConfig({ loadTurns }), seed)
 
-        await act(async () => { vi.advanceTimersByTime(9_000) })
+        await act(async () => { await vi.advanceTimersByTimeAsync(2_000) })
+        // Text hydration still waits for focus; the image poll does not.
         expect(loadTurns).not.toHaveBeenCalled()
-        expect(getImageJob).not.toHaveBeenCalled()
-
-        hookMocks.pageFocused = true
-        fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Back on this tab' } })
-        await act(async () => {})
-        expect(loadTurns).toHaveBeenCalledTimes(1)
         expect(getImageJob).toHaveBeenCalledTimes(1)
 
-        await act(async () => { vi.advanceTimersByTime(3_000) })
-        expect(getImageJob).toHaveBeenCalledTimes(2)
+        hookMocks.pageVisible = false
+        fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Hidden now' } })
+        await act(async () => { await vi.advanceTimersByTimeAsync(30_000) })
+        expect(getImageJob).toHaveBeenCalledTimes(1)
 
-        hookMocks.pageFocused = false
-        fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Away again' } })
-        await act(async () => { vi.advanceTimersByTime(9_000) })
+        hookMocks.pageVisible = true
+        fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Visible again' } })
+        await act(async () => { await vi.advanceTimersByTimeAsync(0) })
         expect(getImageJob).toHaveBeenCalledTimes(2)
     })
 
@@ -893,8 +899,7 @@ describe('InteractionCenterPanel message deletion', () => {
             timestamp: '2026-06-04T00:00:01',
             assistantMessageId: 201,
             turnId: 'turn-char-1',
-            imageStatus: 'in_progress',
-            imageJobId: 'img-char-1',
+            imageGenerations: [{ job_id: 'img-char-1', status: 'in_progress', assets: [] }],
             ttsStatus: 'in_progress',
             ttsJobId: 'tts-char-1',
         }]
@@ -911,7 +916,7 @@ describe('InteractionCenterPanel message deletion', () => {
         vi.useFakeTimers()
         renderPanel(makeConfig({ loadTurns: vi.fn(async () => seed) }), seed)
 
-        await act(async () => { vi.advanceTimersByTime(12_000) })
+        await act(async () => { await vi.advanceTimersByTimeAsync(12_000) })
         expect(getImageJob).toHaveBeenCalledTimes(1)
         expect(getTtsJob).toHaveBeenCalledTimes(1)
 
@@ -919,13 +924,14 @@ describe('InteractionCenterPanel message deletion', () => {
             finishImage(imageResult)
             finishTts(ttsResult)
         })
-        await act(async () => { vi.advanceTimersByTime(3_000) })
+        // The image backs off 4 s after its first answer; narration keeps its 3 s interval.
+        await act(async () => { await vi.advanceTimersByTimeAsync(4_000) })
         expect(getImageJob).toHaveBeenCalledTimes(2)
         expect(getTtsJob).toHaveBeenCalledTimes(2)
     })
 
 
-    it('stops a sequential media scan before its next job when focus is lost mid-request', async () => {
+    it('stops a sequential media scan before its next job when the page goes away mid-request', async () => {
         const seed: TurnEntry[] = [201, 202].map((id) => ({
             id: String(id),
             type: 'ai',
@@ -933,8 +939,7 @@ describe('InteractionCenterPanel message deletion', () => {
             timestamp: '2026-06-04T00:00:01',
             assistantMessageId: id,
             turnId: 'turn-char-1',
-            imageStatus: 'in_progress',
-            imageJobId: 'img-char-' + id,
+            imageGenerations: [{ job_id: 'img-char-' + id, status: 'in_progress', assets: [] }],
             ttsStatus: 'in_progress',
             ttsJobId: 'tts-char-' + id,
         }))
@@ -951,18 +956,171 @@ describe('InteractionCenterPanel message deletion', () => {
         vi.useFakeTimers()
         renderPanel(makeConfig({ loadTurns: vi.fn(async () => seed) }), seed)
 
-        await act(async () => { vi.advanceTimersByTime(3_000) })
+        await act(async () => { await vi.advanceTimersByTimeAsync(3_000) })
         expect(getImageJob).toHaveBeenCalledTimes(1)
         expect(getTtsJob).toHaveBeenCalledTimes(1)
 
-        // This changes the live focus reading before React cleans up either interval.
+        // This changes the live readings before React cleans up either poller.
         hookMocks.pageFocused = false
+        hookMocks.pageVisible = false
         await act(async () => {
             finishImage(imageResult)
             finishTts(ttsResult)
         })
         expect(getImageJob).toHaveBeenCalledTimes(1)
         expect(getTtsJob).toHaveBeenCalledTimes(1)
+    })
+
+    it('carries a scene image from "starting" to painted, regenerates it and pages between both', async () => {
+        type Handler = (...args: unknown[]) => void
+        let handlers: { onTurnStarted: Handler; onDelta: Handler; onDone: Handler; onImageJob: Handler; onImageComplete: Handler } | undefined
+        const sendChat = vi.fn()
+        hookMocks.useAdventureChatSocket.mockImplementation((_sessionId: unknown, h: never) => {
+            handlers = h
+            return { status: 'open', capabilities: { chat_image_request: true, chat_images: true }, sendChat, sendTts: vi.fn(), cancel: vi.fn() }
+        })
+        vi.spyOn(apiService, 'getImageJob').mockImplementation(async (jobId) => ({ job_id: jobId, status: 'in_progress', status_url: '', result_url: '' }))
+        const generate = vi.spyOn(apiService, 'generateChatMessageImage').mockResolvedValue({
+            job_id: 'img-2', status: 'pending', assets: [], trigger: 'regenerate', image_profile_id: 'prof-1', created_at: '2026-06-04T00:05:00Z',
+        })
+        const projection: TurnEntry[] = [
+            ...initialTurns,
+            { id: '102', type: 'user', content: 'Look around', timestamp: '2026-06-04T00:00:02', turnId: 'turn-2' },
+            { id: '103', type: 'ai', content: 'The hall glows.', timestamp: '2026-06-04T00:00:03', assistantMessageId: 103, turnId: 'turn-2' },
+        ]
+        const loadTurns = vi.fn(async () => projection)
+        renderPanel(makeConfig({ loadTurns }))
+
+        fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Look around' } })
+        fireEvent.click(screen.getByLabelText('Send message'))
+        await waitFor(() => expect(sendChat).toHaveBeenCalled())
+        act(() => {
+            handlers!.onTurnStarted({ type: 'turn_started', user_message_id: 102, assistant_message_id: 103, turn_id: 'turn-2' })
+            handlers!.onDelta('The hall glows.')
+            handlers!.onDone({ interrupted: false, userMessageId: 102, assistantMessageId: 103, turnId: 'turn-2', imageScheduled: true })
+        })
+        // The placeholder appears as the reply finishes, before any image frame.
+        expect(await screen.findByText('Starting image generation…')).toBeInTheDocument()
+
+        // Frames carry ids and status only.
+        act(() => handlers!.onImageJob({ type: 'image_job', adventure_id: 7, assistant_message_id: 103, turn_id: 'turn-2', job_id: 'img-1', status: 'pending', status_url: '', result_url: '' }))
+        expect(screen.getByText('Image queued…')).toBeInTheDocument()
+        act(() => handlers!.onImageComplete({ type: 'image_complete', adventure_id: 7, assistant_message_id: 103, turn_id: 'turn-2', job_id: 'img-1', status: 'completed',
+            assets: [{ asset_id: 'a1', url: '/generated-images/a1.png', content_type: 'image/png' }] }))
+        const first = screen.getByRole('img', { name: 'Generated scene' })
+        expect(first).toHaveAttribute('src', '/generated-images/a1.png')
+        // The earlier reply never picked up this turn's image.
+        expect(screen.getAllByRole('img', { name: 'Generated scene' })).toHaveLength(1)
+        fireEvent.load(first)
+
+        fireEvent.click(screen.getByRole('button', { name: 'Regenerate image' }))
+        await waitFor(() => expect(generate).toHaveBeenCalledWith('adventure-sessions', 7, 103, {}))
+        expect(await screen.findByText('Image 2 of 2')).toBeInTheDocument()
+        expect(screen.getByText('Image queued…')).toBeInTheDocument()
+
+        // Paging back while the new one is generating shows the first image again.
+        fireEvent.click(screen.getByRole('button', { name: 'Previous image' }))
+        expect(screen.getByText('Image 1 of 2')).toBeInTheDocument()
+        expect(screen.getByRole('img', { name: 'Generated scene' })).toHaveAttribute('src', '/generated-images/a1.png')
+    })
+
+    it('asks for the provider key before regenerating a personal-key image', async () => {
+        const generate = vi.spyOn(apiService, 'generateChatMessageImage')
+        const seed: TurnEntry[] = [
+            initialTurns[0],
+            { ...initialTurns[1], imageGenerations: [{ job_id: 'img-1', status: 'completed', image_profile_id: 'prof-byok', provider: 'fal', credential_mode: 'user_byok',
+                assets: [{ asset_id: 'a1', url: '/generated-images/a1.png', content_type: 'image/png' }] }] },
+        ]
+        renderPanel(makeConfig(), seed)
+        fireEvent.load(screen.getByRole('img', { name: 'Generated scene' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Regenerate image' }))
+        expect(await screen.findByRole('dialog', { name: /fal/i })).toBeInTheDocument()
+        expect(generate).not.toHaveBeenCalled()
+    })
+
+    it('keeps a reply\'s scene images when its text is edited', async () => {
+        const seed: TurnEntry[] = [
+            initialTurns[0],
+            { ...initialTurns[1], imageGenerations: [{ job_id: 'img-1', status: 'completed', assets: [{ asset_id: 'a1', url: '/generated-images/a1.png', content_type: 'image/png' }] }] },
+        ]
+        // The edit's projection comes from a server that leaves images out of it.
+        const updateMessage = vi.fn(async () => [initialTurns[0], { ...initialTurns[1], content: 'The door swings wide.' }])
+        renderPanel(makeConfig({ updateMessage }), seed)
+        expect(screen.getByRole('img', { name: 'Generated scene' })).toBeInTheDocument()
+
+        const reply = screen.getByText('The door opens.').closest('article')!
+        fireEvent.click(within(reply).getByRole('button', { name: 'Edit message' }))
+        fireEvent.change(within(reply).getByRole('textbox'), { target: { value: 'The door swings wide.' } })
+        fireEvent.click(within(reply).getByRole('button', { name: 'Save' }))
+
+        await waitFor(() => expect(updateMessage).toHaveBeenCalledWith(7, 101, 'The door swings wide.'))
+        expect(await screen.findByText('The door swings wide.')).toBeInTheDocument()
+        expect(screen.getByRole('img', { name: 'Generated scene' })).toHaveAttribute('src', '/generated-images/a1.png')
+    })
+
+    it('sends turns with the scene image model picked in the composer', async () => {
+        const sendChat = vi.fn()
+        hookMocks.useAdventureChatSocket.mockReturnValue({ status: 'open', capabilities: { chat_image_request: true, chat_images: true }, sendChat, sendTts: vi.fn(), cancel: vi.fn() })
+        renderPanel(makeConfig())
+
+        fireEvent.click(await screen.findByRole('button', { name: 'Scene image model: Default · Krea 2 Turbo' }))
+        fireEvent.click(within(screen.getByRole('dialog', { name: 'Scene image model' })).getByRole('combobox'))
+        fireEvent.click(await screen.findByRole('option', { name: /GPT Image 2.5 Flare/ }))
+        fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Look around' } })
+        fireEvent.click(screen.getByLabelText('Send message'))
+
+        await waitFor(() => expect(sendChat).toHaveBeenCalledWith('Look around', expect.any(String), undefined, undefined, false,
+            { generate: true, image_profile_id: gptProfile.profile_id }))
+    })
+
+    it('turns scene images off for this chat from the composer', async () => {
+        const sendChat = vi.fn()
+        hookMocks.useAdventureChatSocket.mockReturnValue({ status: 'open', capabilities: { chat_image_request: true, chat_images: true }, sendChat, sendTts: vi.fn(), cancel: vi.fn() })
+        renderPanel(makeConfig())
+
+        fireEvent.click(screen.getByRole('button', { name: 'Generated images on' }))
+        expect(screen.getByRole('button', { name: 'Generated images off' })).toHaveAttribute('aria-pressed', 'false')
+        expect(screen.queryByRole('button', { name: /Scene image model/ })).toBeNull()
+        expect(JSON.parse(localStorage.getItem('mw:chat-image:adventure:7')!)).toEqual({ enabled: false, profileId: null })
+
+        fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Look around' } })
+        fireEvent.click(screen.getByLabelText('Send message'))
+        await waitFor(() => expect(sendChat).toHaveBeenCalledWith('Look around', expect.any(String), undefined, undefined, false, { generate: false }))
+    })
+
+    it('hides the image control when the server has no image engine', () => {
+        hookMocks.useAdventureChatSocket.mockReturnValue({ status: 'open', capabilities: { chat_image_request: true, chat_images: false }, sendChat: vi.fn(), sendTts: vi.fn(), cancel: vi.fn() })
+        renderPanel(makeConfig())
+        expect(screen.queryByRole('button', { name: /Generated images/ })).toBeNull()
+    })
+
+    it('opens an image\'s prompt and model, and regenerates an edited prompt on another model', async () => {
+        const generate = vi.spyOn(apiService, 'generateChatMessageImage').mockResolvedValue({
+            job_id: 'img-2', status: 'pending', assets: [], trigger: 'regenerate', image_profile_id: gptProfile.profile_id, created_at: '2026-06-04T00:05:00Z',
+        })
+        const seed: TurnEntry[] = [
+            initialTurns[0],
+            { ...initialTurns[1], imageGenerations: [{ job_id: 'img-1', status: 'completed', trigger: 'auto', prompt: 'A heavy oak door creaks open.',
+                image_profile_id: kreaProfile.profile_id, model_display_name: 'Krea 2 Turbo', credit_cost: 1,
+                assets: [{ asset_id: 'a1', url: '/generated-images/a1.png', content_type: 'image/png' }] }] },
+        ]
+        renderPanel(makeConfig(), seed)
+        await screen.findByRole('button', { name: /Scene image model/ })
+        fireEvent.load(screen.getByRole('img', { name: 'Generated scene' }))
+
+        fireEvent.click(screen.getByRole('button', { name: 'Image details' }))
+        const dialog = screen.getByRole('dialog', { name: 'Scene image' })
+        const prompt = within(dialog).getByRole('textbox', { name: 'Scene prompt' })
+        expect(prompt).toHaveValue('A heavy oak door creaks open.')
+        fireEvent.change(prompt, { target: { value: 'The door bursts into splinters.' } })
+        fireEvent.click(within(dialog).getByRole('combobox'))
+        fireEvent.click(await screen.findByRole('option', { name: /GPT Image 2.5 Flare/ }))
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Regenerate · 3 credits' }))
+
+        await waitFor(() => expect(generate).toHaveBeenCalledWith('adventure-sessions', 7, 101,
+            { prompt: 'The door bursts into splinters.', image_profile_id: gptProfile.profile_id }))
+        expect(screen.queryByRole('dialog', { name: 'Scene image' })).toBeNull()
+        expect(await screen.findByText('Image 2 of 2')).toBeInTheDocument()
     })
 
     it('defers interrupted-turn recovery until the page regains focus', async () => {
@@ -1333,8 +1491,8 @@ describe('InteractionCenterPanel auto-narration pause (D37)', () => {
     }
 
     it('hides narration and makes no voice requests with voices off, even with calls and a saved preference on', async () => {
-        vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'false')
-        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
+        setTestFeatureFlags({ voices: false })
+        setTestFeatureFlags({ calls: true })
         const getCapabilities = vi.spyOn(apiService, 'getVoiceCapabilities').mockResolvedValue(capabilities())
         const getTtsJob = vi.spyOn(apiService, 'getTtsJob')
         const socket = captureSocket()
@@ -1351,8 +1509,8 @@ describe('InteractionCenterPanel auto-narration pause (D37)', () => {
     })
 
     it('auto-narrates with calls off when the parent voices flag is on', async () => {
-        vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'true')
-        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'false')
+        setTestFeatureFlags({ voices: true })
+        setTestFeatureFlags({ calls: false })
         const getCapabilities = vi.spyOn(apiService, 'getVoiceCapabilities').mockResolvedValue(capabilities())
         const socket = captureSocket()
         renderPanel(makeConfig())

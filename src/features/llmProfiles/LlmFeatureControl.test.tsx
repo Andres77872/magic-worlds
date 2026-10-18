@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { ApiError } from '@/infrastructure/api'
@@ -15,7 +18,7 @@ vi.mock('@/app/hooks', () => ({ useAuth: () => authSession.getSnapshot() }))
 const token = `header.${btoa(JSON.stringify({ project_hash: 'fixture-project' }))}.signature`
 const KEY = 'FAKE_FEATURE_SESSION_CANARY'
 beforeEach(() => {
-    vi.resetAllMocks(); credentialSession.clear(); authSession.continueSignedOut(); authSession.authenticate('alice', token)
+    vi.resetAllMocks(); credentialSession.clear(); authSession.continueSignedOut(); authSession.authenticate('alice', token); grantFixtureFeatures(true)
     mocks.features.mockResolvedValue({ features: [featureFixture('novel'), featureFixture('card_assistant'), featureFixture('image_prompt', false)] })
     mocks.profiles.mockResolvedValue({ items: [applicationProfile, personalProfile], total: 2, offset: 0, limit: 25 })
     mocks.resolve.mockImplementation(async (_feature, selection) => selection?.mode === 'profile' && selection.profile_id === personalProfile.profile_id ? personalEffective : applicationEffective)
@@ -48,6 +51,18 @@ it('previews all resolved roles and inherited payer without enumerating profiles
     expect(screen.getByText('Application recommendation for this feature')).toBeInTheDocument()
     expect(screen.getByText('Uses platform credits')).toBeInTheDocument()
     expect(mocks.profiles).not.toHaveBeenCalled()
+    expect(screen.queryByLabelText('Provider API key')).not.toBeInTheDocument()
+})
+it('previews a draft-owned selection without replacing it with a session choice and reports only validated public intent', async () => {
+    const changed = vi.fn()
+    render(<LlmSessionProvider><LlmFeatureControl feature="novel" selection={{ mode: 'profile', profile_id: personalProfile.profile_id }} onSelectionChange={changed} /></LlmSessionProvider>)
+    const details = within(await openChip())
+    expect(await details.findByText('A provider key will be requested before running.')).toBeInTheDocument()
+    expect(mocks.resolve).toHaveBeenCalledWith('novel', { mode: 'profile', profile_id: personalProfile.profile_id })
+    expect(changed).not.toHaveBeenCalled()
+    await openChoices()
+    choose('Use my defaults and application recommendations')
+    await waitFor(() => expect(changed).toHaveBeenCalledWith({ mode: 'inherit' }))
     expect(screen.queryByLabelText('Provider API key')).not.toBeInTheDocument()
 })
 it('validates paginated choices on the server and disables incompatible or unpublished profiles', async () => {
@@ -121,8 +136,19 @@ it('discards a pending preview after an account change', async () => {
     let complete!: (value: typeof personalEffective) => void
     mocks.resolve.mockImplementationOnce(() => new Promise(resolve => { complete = resolve }))
     const view = mount()
-    act(() => { authSession.authenticate('bob', token); view.rerender(<LlmSessionProvider><LlmFeatureControl feature="novel" /></LlmSessionProvider>) })
+    act(() => { authSession.authenticate('bob', token); grantFixtureFeatures(true); view.rerender(<LlmSessionProvider><LlmFeatureControl feature="novel" /></LlmSessionProvider>) })
     await openChip(); await screen.findByText('Uses platform credits')
     await act(async () => complete(personalEffective))
     expect(screen.queryByText('A provider key will be requested before running.')).not.toBeInTheDocument()
+})
+it('reports the previewed resolution to a host that fits its budget, and clears it when resolution fails', async () => {
+    const effective = vi.fn()
+    const { unmount } = render(<LlmSessionProvider><LlmFeatureControl feature="novel" onEffectiveChange={effective} /></LlmSessionProvider>)
+    await waitFor(() => expect(effective).toHaveBeenLastCalledWith(applicationEffective))
+    unmount()
+    effective.mockClear(); mocks.resolve.mockRejectedValue(new ApiError(503, 'unavailable', { code: 'LLM_EXECUTION_CATALOG_UNAVAILABLE' }))
+    render(<LlmSessionProvider><LlmFeatureControl feature="novel" onEffectiveChange={effective} /></LlmSessionProvider>)
+    expect(await screen.findByText(/unavailable/i)).toBeInTheDocument()
+    expect(effective).toHaveBeenCalled()
+    expect(effective).not.toHaveBeenCalledWith(applicationEffective)
 })

@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 import { isTaskFeatureEnabled } from '@/shared/featureFlags'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -81,6 +82,7 @@ interface TaskNotice {
  * workspace's library data.
  */
 export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
+    const featureFlagGeneration = useFeatureFlags().generation
     const { t } = useTranslation()
     const pageFocused = usePageFocus()
     const { isAuthenticated, authEpoch = Number(isAuthenticated), accountKey = 'legacy' } = useAuth()
@@ -250,7 +252,7 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
                 if (isPageFocused()) setCatchUpTick((tick) => tick + 1)
             }
         }
-    }, [accountKey, authEpoch, isAuthenticated, selectedWorkspaceId, t, terminalPages, workspaceEpoch, workspaceReady])
+    }, [accountKey, authEpoch, isAuthenticated, selectedWorkspaceId, t, terminalPages, workspaceEpoch, workspaceReady, featureFlagGeneration])
 
     const loadMoreTerminalTasks = useCallback(async (bucket: 'completed' | 'failed') => {
         if (!terminalHasMore[bucket]) return
@@ -266,7 +268,7 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
         const tracked = withOrigin(task, workspaceId ?? authOwnerRef.current.workspaceId)
         previousStatusesRef.current.set(taskKey(tracked), tracked.status)
         setTasks((prev) => upsertTask(prev, tracked))
-    }, [])
+    }, [featureFlagGeneration])
 
     const registerThemeSongJob = useCallback(
         (job: ThemeSongJobPublic, workspaceId?: string | null) => {
@@ -347,7 +349,7 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
         setTerminalPages((current) => ({ ...current, [bucket]: 1 }))
         setTerminalHasMore((current) => ({ ...current, [bucket]: false }))
         if (failed) throw new Error('One or more background tasks could not be archived.')
-    }, [])
+    }, [featureFlagGeneration])
 
     useEffect(() => {
         const receive = (event: Event) => {
@@ -403,7 +405,7 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
         return () => window.clearTimeout(timer)
     }, [catchUpTick, isAuthenticated, pageFocused, refreshTasks])
 
-    const visibleTasks = useMemo(() => (isAuthenticated ? tasks.filter(isTaskFeatureEnabled) : []), [isAuthenticated, tasks])
+    const visibleTasks = useMemo(() => (isAuthenticated ? tasks.filter(isTaskFeatureEnabled) : []), [isAuthenticated, tasks, featureFlagGeneration])
     const activeTasks = useMemo(() => visibleTasks.filter(isActiveTask), [visibleTasks])
     const taskBuckets = useMemo(
         () => ({

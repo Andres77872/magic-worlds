@@ -1,14 +1,26 @@
+import { setTestFeatureFlags, setAllTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
+import { novel,storyScene } from '@/test/fixtures/story'
 import { act, renderHook } from '@testing-library/react'
 import { createElement, type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { FRONTEND_FEATURE_ENV } from '@/shared/featureFlags'
 
 const addStoryCardRefs = vi.fn().mockResolvedValue(undefined)
 const updateStoryCardRef = vi.fn().mockResolvedValue(undefined)
 const deleteStoryCardRef = vi.fn().mockResolvedValue(undefined)
+const restoreStoryCardRef=vi.fn().mockResolvedValue(undefined)
 
+const changeStoryCodex=vi.fn(async(storyId,write)=>{
+    const operation=write.operation
+    if(operation.op==='add')await addStoryCardRefs(storyId,operation.refs)
+    if(operation.op==='update')await updateStoryCardRef(storyId,operation.id,operation.patch)
+    if(operation.op==='remove')await deleteStoryCardRef(storyId,operation.id)
+    if(operation.op==='restore')await restoreStoryCardRef(storyId,operation.id)
+    return {contextRevision:write.expectedContextRevision+1,refs:[]}
+})
+const refreshStory=vi.fn().mockResolvedValue(undefined)
 vi.mock('@/app/hooks', () => ({
-    useData: () => ({ addStoryCardRefs, updateStoryCardRef, deleteStoryCardRef }),
+    useData: () => ({changeStoryCodex,refreshStory}),
+    useAuth:()=>({userHash:'codex-author',isAuthenticated:true,openLoginModal:vi.fn()}),
 }))
 
 import type { Lorebook, Story, StoryCardRef, StoryCardSnapshot } from '@/shared'
@@ -38,7 +50,7 @@ function ref(overrides: Partial<StoryCardRef>): StoryCardRef {
     return {
         id: 'ref-x',
         storyId: 's1',
-        chapterId: null,
+        chapterId: null, sceneId: null, removedAt: null,
         kind: 'character',
         cardId: 'card-x',
         source: 'manual',
@@ -51,6 +63,7 @@ function ref(overrides: Partial<StoryCardRef>): StoryCardRef {
 
 function story(refs: StoryCardRef[]): Story {
     return {
+        ...novel({chapters:[]}),
         id: 's1',
         title: 'Glass War',
         description: null,
@@ -62,7 +75,7 @@ function story(refs: StoryCardRef[]): Story {
             includeLorebooks: true,
             includeRecentChapters: 2,
             tokenBudget: 6000,
-            styleSource: 'current_chapter',
+            styleSource: 'current_scene',
             customStyleInstruction: null,
         },
     }
@@ -119,16 +132,26 @@ const LOREBOOK = {
 } as Lorebook
 
 describe('useCodex', () => {
+    it('projects alias/source/version details and exact removed and overridden context identities', () => {
+        const root = ref({ id: 'root-pin', snapshot: snapshot({ alias: 'Beacon', source_card_id: 'original-card', source_card_version_id: 'version-three', source_card_version_number: 3 }) })
+        const local = ref({ id: 'local-pin', sceneId: 'scene-1', enabled: false })
+        const removed = ref({ id: 'retired-pin', cardId: 'retired-card', removedAt: '2026-10-16T12:00:00Z' })
+        const { result } = renderHook(() => useCodex({ story: story([root, local, removed]), scene: storyScene({ id: 'scene-1' }), workspace: WORKSPACE }))
+        expect(result.current.referenceEntries.find((entry) => entry.id === 'root-pin')).toMatchObject({ aliases: ['Beacon'], sourceId: 'original-card', sourceVersionNumber: 3, sourceVersionId: 'version-three', contextState: 'shadowed' })
+        expect(result.current.referenceEntries.find((entry) => entry.id === 'local-pin')).toMatchObject({ contextState: 'disabled', scope: 'scene' })
+        expect(result.current.referenceEntries.find((entry) => entry.id === 'retired-pin')).toMatchObject({ contextState: 'removed', removed: true })
+        expect(result.current.mentionEntries.map((entry) => entry.id)).toEqual(['local-pin'])
+    })
     afterEach(() => vi.unstubAllEnvs())
     beforeEach(() => {
-        vi.clearAllMocks()
-        for (const env of Object.values(FRONTEND_FEATURE_ENV)) vi.stubEnv(env, 'true')
+        vi.clearAllMocks();localStorage.clear()
+        setAllTestFeatureFlags(true)
         workspaceCurrent = true
     })
 
     it('hides persisted disabled references without changing data or their precedence', async () => {
-        vi.stubEnv(FRONTEND_FEATURE_ENV.lorebooks, 'false')
-        vi.stubEnv(FRONTEND_FEATURE_ENV.adventures, 'false')
+        setTestFeatureFlags({ lorebooks: false })
+        setTestFeatureFlags({ adventures: false })
         const refs = [
             ref({ id: 'visible', precedence: 0 }),
             ref({ id: 'hidden-adventure', kind: 'adventure_template', precedence: 8 }),
@@ -190,8 +213,8 @@ describe('useCodex', () => {
 
         expect(addStoryCardRefs).toHaveBeenCalledTimes(1)
         expect(addStoryCardRefs).toHaveBeenCalledWith('s1', [
-            { kind: 'world', cardId: 'w1', source: 'manual', enabled: true, precedence: 5, chapterId: null },
-            { kind: 'item', cardId: 'i1', source: 'manual', enabled: true, precedence: 6, chapterId: null },
+            { kind: 'world', cardId: 'w1', source: 'manual', enabled: true, precedence: 5, chapterId: null,sceneId:null },
+            { kind: 'item', cardId: 'i1', source: 'manual', enabled: true, precedence: 6, chapterId: null,sceneId:null },
         ])
     })
 
@@ -209,7 +232,7 @@ describe('useCodex', () => {
             source: 'manual',
             enabled: true,
             precedence: 0,
-            chapterId: null,
+            chapterId: null, sceneId: null,
         })
         expect(payloads[0].snapshot).toMatchObject({
             id: 'entry-1',
@@ -301,7 +324,7 @@ describe('useCodex', () => {
         expect(deleteStoryCardRef).toHaveBeenCalledWith('s1', 'a')
     })
 
-    it('detectionNames lists only enabled entity names (not lore or disabled)', () => {
+    it('detects effective entity names even when excluded, without enabling context', () => {
         const refs = [
             ref({ id: 'a', kind: 'character' }),
             ref({
@@ -327,7 +350,8 @@ describe('useCodex', () => {
         ]
         const { result } = renderHook(() => useCodex({ story: story(refs), workspace: WORKSPACE }))
 
-        expect(result.current.detectionNames).toEqual([{ id: 'a', label: 'Aria', kind: 'character' }])
+        expect(result.current.detectionNames).toEqual([{ id: 'a', label: 'Aria', kind: 'character' }, { id: 'b', label: 'Eldoria', kind: 'world' }])
+        expect(result.current.referenceEntries.find(entry=>entry.id==='b')?.contextState).toBe('disabled')
     })
 
     it('loreEntries reconstructs session lore from cloned snapshots with chat-matching defaults', () => {
@@ -385,14 +409,14 @@ describe('useCodex in an archived workspace', () => {
     const wrapper = ({ children }: { children: ReactNode }) => createElement(WorkspaceTestProvider, { state, children })
     const ARCHIVED_STORY = { workspaceId: OTHER_WORKSPACE_ID, isCurrent: () => true, detachedApi: () => null }
 
-    beforeEach(() => vi.clearAllMocks())
+    beforeEach(() => {vi.clearAllMocks();localStorage.clear()})
 
     it('keeps the entries readable and mentionable but sends no op', async () => {
         const refs = [ref({ id: 'a', enabled: true })]
         const { result } = renderHook(() => useCodex({ story: story(refs), workspace: ARCHIVED_STORY }), { wrapper })
 
         expect(result.current.readOnly).toBe(true)
-        expect(result.current.mentionEntries).toEqual([{ id: 'a', label: 'Aria', kind: 'character', enabled: true }])
+        expect(result.current.mentionEntries).toMatchObject([{ id: 'a', label: 'Aria', kind: 'character', enabled: true }])
         await act(async () => {
             await result.current.addCards([{ kind: 'world', cardId: 'w1' }])
             await result.current.toggleEntry(result.current.entries[0])
@@ -404,5 +428,28 @@ describe('useCodex in an archived workspace', () => {
         expect(updateStoryCardRef).not.toHaveBeenCalled()
         expect(deleteStoryCardRef).not.toHaveBeenCalled()
         expect(result.current.busy).toBe(false)
+    })
+})
+
+describe('scoped and historical Codex references',()=>{
+    beforeEach(()=>{vi.clearAllMocks();localStorage.clear();workspaceCurrent=true})
+    it('uses a disabled scene pin to override inherited context while retaining both readable identities',()=>{
+        const root=ref({id:'root',cardId:'card-x'})
+        const local=ref({id:'local',cardId:'card-x',sceneId:'scene-1',enabled:false})
+        const {result}=renderHook(()=>useCodex({story:story([root,local]),scene:storyScene(),workspace:WORKSPACE,scope:'scene'}))
+        expect(result.current.mentionEntries).toMatchObject([{id:'local',label:'Aria',kind:'character',enabled:false}])
+        expect(result.current.detectionNames).toEqual([{id:'local',label:'Aria',kind:'character'}])
+        expect(result.current.groups[0].entries.map((entry)=>entry.id)).toEqual(['local'])
+        expect(result.current.resolveEntry('root')?.id).toBe('root')
+    })
+    it('excludes removed context, retains its snapshot for links, and restores the same identity',async()=>{
+        const removed=ref({id:'removed',removedAt:'2026-10-16T00:00:00',enabled:false})
+        const {result}=renderHook(()=>useCodex({story:story([removed]),workspace:WORKSPACE}))
+        expect(result.current.entries).toEqual([])
+        expect(result.current.mentionEntries).toMatchObject([])
+        expect(result.current.resolveEntry('removed')?.label).toBe('Aria')
+        expect(result.current.removedEntries).toHaveLength(1)
+        await act(async()=>{await result.current.restoreEntry(result.current.removedEntries[0])})
+        expect(restoreStoryCardRef).toHaveBeenCalledWith('s1','removed')
     })
 })

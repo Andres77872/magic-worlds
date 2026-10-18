@@ -1,0 +1,28 @@
+export const novelReader={
+    en:{
+        title:'Read manuscript',savedOnly:'Read saved prose in manuscript order. Unsent drafts, AI previews and planning beats stay in Studio. Opening or changing the reading scope does not edit your writing.',
+        scopeUnavailable:'Your reading scope is kept for this session. Device storage is unavailable.',scope:'Reading scope',unit:'Read this item',scopes:{novel:'Whole novel',part:'Part',chapter:'Chapter',scene:'Scene'},
+        includeArchived:'Include archived sections',refresh:'Refresh saved manuscript',progress:'{{loaded}} of {{total}} scenes loaded',
+        windowProgress:'Scenes {{from}}–{{through}} of {{total}}',beginning:'Read from beginning',previous:'Load previous scenes',
+        positionStorageUnavailable:'This device could not keep your reading position. Reading remains available.',positionChanged:'This scene changed since your last reading. Choose where to continue; the previous reading position is retained until you do.',positionUnavailable:'Your saved scene is unavailable in this scope. Choose another scope or read from the beginning. The saved position is retained.',
+        changed:'The saved manuscript changed. Loaded pages remain visible. Refresh to read the new version; further pages cannot be mixed into this one.',
+        failed:'The next saved pages could not be loaded. Your writing is unchanged. Try again.',openBlocked:'Finish draft recovery or AI review before opening a scene. If the saved version changed, refresh this reader and try again.',
+        readOnlyOpen:'This workspace is read only. Continue reading here or reopen the workspace before opening its scenes in Studio.',empty:'There are no readable scenes in this scope. Archived sections can be included; sections in Trash stay excluded.',contents:'Saved manuscript',
+        openScene:'Open scene: {{title}}',archived:'Archived section · read only',loading:'Loading saved pages…',more:'Load next scenes',retry:'Try again',end:'End of this reading scope',
+        inspectReference:'Inspect saved reference: {{label}}',referenceTitle:'Saved reference',referenceLabel:'Manuscript label: {{label}}',version:'Source version {{number}}',localSnapshot:'Story-local snapshot',
+        removedReference:'This reference was removed from context. Its saved snapshot remains readable.',referenceUnavailable:'This exact reference snapshot is unavailable in the loaded Studio version. Open the scene or refresh the manuscript to inspect it. Equal names are not substituted.',
+    },
+    es:{
+        title:'Leer manuscrito',savedOnly:'Lee la prosa guardada en el orden del manuscrito. Los borradores sin enviar, las propuestas de IA y los planes siguen en Studio. Abrir el lector o cambiar su alcance no modifica lo escrito.',
+        scopeUnavailable:'El alcance de lectura se conserva durante esta sesión. El almacenamiento del dispositivo no está disponible.',scope:'Alcance de lectura',unit:'Leer este elemento',scopes:{novel:'Novela completa',part:'Parte',chapter:'Capítulo',scene:'Escena'},
+        includeArchived:'Incluir secciones archivadas',refresh:'Actualizar manuscrito guardado',progress:'{{loaded}} de {{total}} escenas cargadas',
+        windowProgress:'Escenas {{from}}–{{through}} de {{total}}',beginning:'Leer desde el principio',previous:'Cargar escenas anteriores',
+        positionStorageUnavailable:'No se pudo conservar la posición de lectura en este dispositivo. Puedes seguir leyendo.',positionChanged:'Esta escena cambió desde tu última lectura. Elige dónde continuar; la posición anterior se conserva hasta entonces.',positionUnavailable:'La escena guardada no está disponible en este alcance. Elige otro alcance o lee desde el principio. La posición guardada se conserva.',
+        changed:'El manuscrito guardado cambió. Las páginas cargadas siguen visibles. Actualiza para leer la nueva versión; no se mezclarán páginas de ambas.',
+        failed:'No se pudieron cargar las siguientes páginas guardadas. Tu texto sigue intacto. Vuelve a intentarlo.',openBlocked:'Termina la recuperación del borrador o la revisión de IA antes de abrir una escena. Si cambió la versión guardada, actualiza el lector e inténtalo de nuevo.',
+        readOnlyOpen:'Este espacio de trabajo es de solo lectura. Sigue leyendo aquí o vuelve a abrir el espacio antes de abrir sus escenas en Studio.',empty:'No hay escenas disponibles en este alcance. Puedes incluir las secciones archivadas; las de la Papelera quedan excluidas.',contents:'Manuscrito guardado',
+        openScene:'Abrir escena: {{title}}',archived:'Sección archivada · solo lectura',loading:'Cargando páginas guardadas…',more:'Cargar siguientes escenas',retry:'Volver a intentar',end:'Fin de este alcance de lectura',
+        inspectReference:'Inspeccionar referencia guardada: {{label}}',referenceTitle:'Referencia guardada',referenceLabel:'Nombre en el manuscrito: {{label}}',version:'Versión de origen {{number}}',localSnapshot:'Copia local de la historia',
+        removedReference:'Esta referencia se quitó del contexto. Su copia guardada sigue disponible para leer.',referenceUnavailable:'Esta copia exacta de la referencia no está disponible en la versión cargada de Studio. Abre la escena o actualiza el manuscrito para inspeccionarla. No se sustituye por nombres iguales.',
+    },
+}

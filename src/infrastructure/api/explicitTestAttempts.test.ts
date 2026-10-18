@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { apiService } from './index'
 import { authSession } from './authSession'
@@ -19,7 +22,7 @@ const selection = { mode: 'profile' as const, profile_id: PROFILE }
 const studioResult = { output_mode: 'markdown', graph_version: 'mw-story-writer-v3', text_output: 'OK', json_output: null,
     llm_execution: { execution_id: CHILD, profile_id: PROFILE, revision_id: REVISION, resolution_source: 'explicit', credential_mode: 'user_byok', replayed: false } }
 
-beforeEach(() => { fetchMock.mockReset(); llmIntents.clear(); authSession.authenticate('root-fixture', 'FAKE_APP_TOKEN'); vi.stubGlobal('fetch', fetchMock) })
+beforeEach(() => { fetchMock.mockReset(); llmIntents.clear(); authSession.authenticate('root-fixture', 'FAKE_APP_TOKEN'); grantFixtureFeatures(true); vi.stubGlobal('fetch', fetchMock) })
 afterEach(() => { clearPreparation?.(); clearPreparation = undefined; llmIntents.clear(); authSession.continueSignedOut(); vi.unstubAllGlobals() })
 
 it('confirms the owned Studio parent, then prepares a fresh key for a new linked request', async () => {

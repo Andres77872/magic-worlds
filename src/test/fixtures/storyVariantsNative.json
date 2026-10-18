@@ -1,0 +1,605 @@
+{
+  "projectDatabaseWrites": false,
+  "providerRequests": 0,
+  "schemaRevision": "2026_10_novel_variants",
+  "preview": {
+    "schemaVersion": 1,
+    "projection": "generation_variant",
+    "authorship": "author_edited",
+    "storyId": "972cb766-9ab3-5638-9042-28def0cbea19",
+    "id": "26e878a7-6d02-4bb0-9e62-90bb9fa64ec6",
+    "title": "The authored quieter version",
+    "parent": {
+      "schemaVersion": 1,
+      "parent": {
+        "id": "7219396f-109b-4556-9a09-02a63b8c70b1",
+        "storyId": "972cb766-9ab3-5638-9042-28def0cbea19",
+        "chapterId": "e4a213cb-1cfb-4b96-8fc0-21fc74df4051",
+        "sceneId": "8368fe3f-0616-4e9b-bea3-c526a35d258d",
+        "baseRevision": 2,
+        "command": "rewrite",
+        "range": null,
+        "output": "The model left the sealed letter beside a candle.",
+        "instruction": "Keep its seal intact.",
+        "parentGenerationId": null
+      },
+      "parentHash": "a19047c9b510d49bb37d666590bc0863f99c5b59599aae384cea5a1aae14ea9d"
+    },
+    "operation": {
+      "id": "b1a9ec0b-9820-4e88-aee6-a123ae8b125e",
+      "type": "replace_scene_snapshot",
+      "sceneId": "8368fe3f-0616-4e9b-bea3-c526a35d258d",
+      "expectedRevision": 2,
+      "expectedContentHash": "8e4d506465264d9d2b106120d9eaf7f0aade88084c15e9df45ff840d9b5b00e9",
+      "document": {
+        "content": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph",
+              "attrs": {
+                "nodeId": "owned-letter"
+              },
+              "content": [
+                {
+                  "text": "Authored: The letter remained sealed. 🌙",
+                  "type": "text",
+                  "marks": [
+                    {
+                      "type": "italic"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "schemaVersion": 1
+      },
+      "anchorEdits": [
+        {
+          "from": 0,
+          "to": 0,
+          "text": "Authored: "
+        }
+      ]
+    },
+    "baseDocument": {
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "attrs": {
+              "nodeId": "owned-letter"
+            },
+            "content": [
+              {
+                "text": "The letter remained sealed. 🌙",
+                "type": "text",
+                "marks": [
+                  {
+                    "type": "italic"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "schemaVersion": 1
+    },
+    "documentHash": "eab4b1040c4ba8fb74ff7172a1b834818bc2de2287feab4247a77e20c9acfcd8",
+    "variantHash": "64e697146fa4eef6b4f1f78588bc4328a8ccbbf86b035d0da286144593768a7d"
+  },
+  "records": [
+    {
+      "schemaVersion": 1,
+      "storyId": "972cb766-9ab3-5638-9042-28def0cbea19",
+      "variant": {
+        "schemaVersion": 1,
+        "projection": "generation_variant",
+        "authorship": "author_edited",
+        "storyId": "972cb766-9ab3-5638-9042-28def0cbea19",
+        "id": "759c7981-99a3-45b9-9c47-456bb8e83a21",
+        "title": "Retained authored alternative 3",
+        "parent": {
+          "schemaVersion": 1,
+          "parent": {
+            "id": "7219396f-109b-4556-9a09-02a63b8c70b1",
+            "storyId": "972cb766-9ab3-5638-9042-28def0cbea19",
+            "chapterId": "e4a213cb-1cfb-4b96-8fc0-21fc74df4051",
+            "sceneId": "8368fe3f-0616-4e9b-bea3-c526a35d258d",
+            "baseRevision": 2,
+            "command": "rewrite",
+            "range": null,
+            "output": "The model left the sealed letter beside a candle.",
+            "instruction": "Keep its seal intact.",
+            "parentGenerationId": null
+          },
+          "parentHash": "a19047c9b510d49bb37d666590bc0863f99c5b59599aae384cea5a1aae14ea9d"
+        },
+        "operation": {
+          "id": "6007d394-d9a9-42d5-9413-e6c1b7d49349",
+          "type": "replace_scene_snapshot",
+          "sceneId": "8368fe3f-0616-4e9b-bea3-c526a35d258d",
+          "expectedRevision": 2,
+          "expectedContentHash": "8e4d506465264d9d2b106120d9eaf7f0aade88084c15e9df45ff840d9b5b00e9",
+          "document": {
+            "content": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "nodeId": "owned-letter"
+                  },
+                  "content": [
+                    {
+                      "text": "Authored: The letter remained sealed. 🌙",
+                      "type": "text",
+                      "marks": [
+                        {
+                          "type": "italic"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "schemaVersion": 1
+          },
+          "anchorEdits": [
+            {
+              "from": 0,
+              "to": 0,
+              "text": "Authored: "
+            }
+          ]
+        },
+        "baseDocument": {
+          "content": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "attrs": {
+                  "nodeId": "owned-letter"
+                },
+                "content": [
+                  {
+                    "text": "The letter remained sealed. 🌙",
+                    "type": "text",
+                    "marks": [
+                      {
+                        "type": "italic"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "schemaVersion": 1
+        },
+        "documentHash": "eab4b1040c4ba8fb74ff7172a1b834818bc2de2287feab4247a77e20c9acfcd8",
+        "variantHash": "18d92cb6ba88bb9335c643625d69cfd12b8177e662c8f87e5ad4c1103ad8a796"
+      },
+      "status": "rejected",
+      "appliedRevision": null,
+      "createdAt": "2026-10-17T15:30:46",
+      "updatedAt": "2026-10-17T15:30:46"
+    },
+    {
+      "schemaVersion": 1,
+      "storyId": "972cb766-9ab3-5638-9042-28def0cbea19",
+      "variant": {
+        "schemaVersion": 1,
+        "projection": "generation_variant",
+        "authorship": "author_edited",
+        "storyId": "972cb766-9ab3-5638-9042-28def0cbea19",
+        "id": "50cace2b-c4c1-4f91-838b-1812e7fb9793",
+        "title": "Retained authored alternative 2",
+        "parent": {
+          "schemaVersion": 1,
+          "parent": {
+            "id": "7219396f-109b-4556-9a09-02a63b8c70b1",
+            "storyId": "972cb766-9ab3-5638-9042-28def0cbea19",
+            "chapterId": "e4a213cb-1cfb-4b96-8fc0-21fc74df4051",
+            "sceneId": "8368fe3f-0616-4e9b-bea3-c526a35d258d",
+            "baseRevision": 2,
+            "command": "rewrite",
+            "range": null,
+            "output": "The model left the sealed letter beside a candle.",
+            "instruction": "Keep its seal intact.",
+            "parentGenerationId": null
+          },
+          "parentHash": "a19047c9b510d49bb37d666590bc0863f99c5b59599aae384cea5a1aae14ea9d"
+        },
+        "operation": {
+          "id": "b3819113-ff61-4718-818b-0463a7e5f277",
+          "type": "replace_scene_snapshot",
+          "sceneId": "8368fe3f-0616-4e9b-bea3-c526a35d258d",
+          "expectedRevision": 2,
+          "expectedContentHash": "8e4d506465264d9d2b106120d9eaf7f0aade88084c15e9df45ff840d9b5b00e9",
+          "document": {
+            "content": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "nodeId": "owned-letter"
+                  },
+                  "content": [
+                    {
+                      "text": "Authored: The letter remained sealed. 🌙",
+                      "type": "text",
+                      "marks": [
+                        {
+                          "type": "italic"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "schemaVersion": 1
+          },
+          "anchorEdits": [
+            {
+              "from": 0,
+              "to": 0,
+              "text": "Authored: "
+            }
+          ]
+        },
+        "baseDocument": {
+          "content": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "attrs": {
+                  "nodeId": "owned-letter"
+                },
+                "content": [
+                  {
+                    "text": "The letter remained sealed. 🌙",
+                    "type": "text",
+                    "marks": [
+                      {
+                        "type": "italic"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "schemaVersion": 1
+        },
+        "documentHash": "eab4b1040c4ba8fb74ff7172a1b834818bc2de2287feab4247a77e20c9acfcd8",
+        "variantHash": "e565d5d1ba17c26fa2cb0ea6eb07435e9fd1b2cf872ec01493bbb86ba1babaa3"
+      },
+      "status": "stashed",
+      "appliedRevision": null,
+      "createdAt": "2026-10-17T15:30:46",
+      "updatedAt": "2026-10-17T15:30:46"
+    },
+    {
+      "schemaVersion": 1,
+      "storyId": "972cb766-9ab3-5638-9042-28def0cbea19",
+      "variant": {
+        "schemaVersion": 1,
+        "projection": "generation_variant",
+        "authorship": "author_edited",
+        "storyId": "972cb766-9ab3-5638-9042-28def0cbea19",
+        "id": "26e878a7-6d02-4bb0-9e62-90bb9fa64ec6",
+        "title": "The authored quieter version",
+        "parent": {
+          "schemaVersion": 1,
+          "parent": {
+            "id": "7219396f-109b-4556-9a09-02a63b8c70b1",
+            "storyId": "972cb766-9ab3-5638-9042-28def0cbea19",
+            "chapterId": "e4a213cb-1cfb-4b96-8fc0-21fc74df4051",
+            "sceneId": "8368fe3f-0616-4e9b-bea3-c526a35d258d",
+            "baseRevision": 2,
+            "command": "rewrite",
+            "range": null,
+            "output": "The model left the sealed letter beside a candle.",
+            "instruction": "Keep its seal intact.",
+            "parentGenerationId": null
+          },
+          "parentHash": "a19047c9b510d49bb37d666590bc0863f99c5b59599aae384cea5a1aae14ea9d"
+        },
+        "operation": {
+          "id": "b1a9ec0b-9820-4e88-aee6-a123ae8b125e",
+          "type": "replace_scene_snapshot",
+          "sceneId": "8368fe3f-0616-4e9b-bea3-c526a35d258d",
+          "expectedRevision": 2,
+          "expectedContentHash": "8e4d506465264d9d2b106120d9eaf7f0aade88084c15e9df45ff840d9b5b00e9",
+          "document": {
+            "content": {
+              "type": "doc",
+              "content": [
+                {
+                  "type": "paragraph",
+                  "attrs": {
+                    "nodeId": "owned-letter"
+                  },
+                  "content": [
+                    {
+                      "text": "Authored: The letter remained sealed. 🌙",
+                      "type": "text",
+                      "marks": [
+                        {
+                          "type": "italic"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "schemaVersion": 1
+          },
+          "anchorEdits": [
+            {
+              "from": 0,
+              "to": 0,
+              "text": "Authored: "
+            }
+          ]
+        },
+        "baseDocument": {
+          "content": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "attrs": {
+                  "nodeId": "owned-letter"
+                },
+                "content": [
+                  {
+                    "text": "The letter remained sealed. 🌙",
+                    "type": "text",
+                    "marks": [
+                      {
+                        "type": "italic"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "schemaVersion": 1
+        },
+        "documentHash": "eab4b1040c4ba8fb74ff7172a1b834818bc2de2287feab4247a77e20c9acfcd8",
+        "variantHash": "64e697146fa4eef6b4f1f78588bc4328a8ccbbf86b035d0da286144593768a7d"
+      },
+      "status": "accepted",
+      "appliedRevision": 3,
+      "createdAt": "2026-10-17T15:30:46",
+      "updatedAt": "2026-10-17T15:30:46"
+    }
+  ],
+  "page": {
+    "schemaVersion": 1,
+    "storyId": "972cb766-9ab3-5638-9042-28def0cbea19",
+    "generationId": null,
+    "before": null,
+    "items": [
+      {
+        "id": "759c7981-99a3-45b9-9c47-456bb8e83a21",
+        "storyId": "972cb766-9ab3-5638-9042-28def0cbea19",
+        "sceneId": "8368fe3f-0616-4e9b-bea3-c526a35d258d",
+        "generationId": "7219396f-109b-4556-9a09-02a63b8c70b1",
+        "variantHash": "18d92cb6ba88bb9335c643625d69cfd12b8177e662c8f87e5ad4c1103ad8a796",
+        "title": "Retained authored alternative 3",
+        "baseRevision": 2,
+        "status": "rejected",
+        "appliedRevision": null,
+        "createdAt": "2026-10-17T15:30:46",
+        "updatedAt": "2026-10-17T15:30:46"
+      },
+      {
+        "id": "50cace2b-c4c1-4f91-838b-1812e7fb9793",
+        "storyId": "972cb766-9ab3-5638-9042-28def0cbea19",
+        "sceneId": "8368fe3f-0616-4e9b-bea3-c526a35d258d",
+        "generationId": "7219396f-109b-4556-9a09-02a63b8c70b1",
+        "variantHash": "e565d5d1ba17c26fa2cb0ea6eb07435e9fd1b2cf872ec01493bbb86ba1babaa3",
+        "title": "Retained authored alternative 2",
+        "baseRevision": 2,
+        "status": "stashed",
+        "appliedRevision": null,
+        "createdAt": "2026-10-17T15:30:46",
+        "updatedAt": "2026-10-17T15:30:46"
+      },
+      {
+        "id": "26e878a7-6d02-4bb0-9e62-90bb9fa64ec6",
+        "storyId": "972cb766-9ab3-5638-9042-28def0cbea19",
+        "sceneId": "8368fe3f-0616-4e9b-bea3-c526a35d258d",
+        "generationId": "7219396f-109b-4556-9a09-02a63b8c70b1",
+        "variantHash": "64e697146fa4eef6b4f1f78588bc4328a8ccbbf86b035d0da286144593768a7d",
+        "title": "The authored quieter version",
+        "baseRevision": 2,
+        "status": "accepted",
+        "appliedRevision": 3,
+        "createdAt": "2026-10-17T15:30:46",
+        "updatedAt": "2026-10-17T15:30:46"
+      }
+    ],
+    "nextBefore": null
+  },
+  "creationReceipt": {
+    "status": "candidate",
+    "storyId": "972cb766-9ab3-5638-9042-28def0cbea19",
+    "variant": {
+      "id": "26e878a7-6d02-4bb0-9e62-90bb9fa64ec6",
+      "title": "The authored quieter version",
+      "parent": {
+        "parent": {
+          "id": "7219396f-109b-4556-9a09-02a63b8c70b1",
+          "range": null,
+          "output": "The model left the sealed letter beside a candle.",
+          "command": "rewrite",
+          "sceneId": "8368fe3f-0616-4e9b-bea3-c526a35d258d",
+          "storyId": "972cb766-9ab3-5638-9042-28def0cbea19",
+          "chapterId": "e4a213cb-1cfb-4b96-8fc0-21fc74df4051",
+          "instruction": "Keep its seal intact.",
+          "baseRevision": 2,
+          "parentGenerationId": null
+        },
+        "parentHash": "a19047c9b510d49bb37d666590bc0863f99c5b59599aae384cea5a1aae14ea9d",
+        "schemaVersion": 1
+      },
+      "storyId": "972cb766-9ab3-5638-9042-28def0cbea19",
+      "operation": {
+        "id": "b1a9ec0b-9820-4e88-aee6-a123ae8b125e",
+        "type": "replace_scene_snapshot",
+        "sceneId": "8368fe3f-0616-4e9b-bea3-c526a35d258d",
+        "document": {
+          "content": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "attrs": {
+                  "nodeId": "owned-letter"
+                },
+                "content": [
+                  {
+                    "text": "Authored: The letter remained sealed. 🌙",
+                    "type": "text",
+                    "marks": [
+                      {
+                        "type": "italic"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "schemaVersion": 1
+        },
+        "anchorEdits": [
+          {
+            "to": 0,
+            "from": 0,
+            "text": "Authored: "
+          }
+        ],
+        "expectedRevision": 2,
+        "expectedContentHash": "8e4d506465264d9d2b106120d9eaf7f0aade88084c15e9df45ff840d9b5b00e9"
+      },
+      "authorship": "author_edited",
+      "projection": "generation_variant",
+      "variantHash": "64e697146fa4eef6b4f1f78588bc4328a8ccbbf86b035d0da286144593768a7d",
+      "baseDocument": {
+        "content": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph",
+              "attrs": {
+                "nodeId": "owned-letter"
+              },
+              "content": [
+                {
+                  "text": "The letter remained sealed. 🌙",
+                  "type": "text",
+                  "marks": [
+                    {
+                      "type": "italic"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "schemaVersion": 1
+      },
+      "documentHash": "eab4b1040c4ba8fb74ff7172a1b834818bc2de2287feab4247a77e20c9acfcd8",
+      "schemaVersion": 1
+    },
+    "createdAt": "2026-10-17T15:30:46",
+    "updatedAt": "2026-10-17T15:30:46",
+    "schemaVersion": 1,
+    "appliedRevision": null
+  },
+  "sceneRevision": {
+    "storyId": "972cb766-9ab3-5638-9042-28def0cbea19",
+    "sceneId": "8368fe3f-0616-4e9b-bea3-c526a35d258d",
+    "revision": 3,
+    "parentRevision": 2,
+    "contentHash": "eab4b1040c4ba8fb74ff7172a1b834818bc2de2287feab4247a77e20c9acfcd8",
+    "source": "ai",
+    "actor": "author",
+    "generationId": "7219396f-109b-4556-9a09-02a63b8c70b1",
+    "restoredFrom": null,
+    "createdAt": "2026-10-17T15:30:46",
+    "schemaVersion": 1,
+    "variantId": "26e878a7-6d02-4bb0-9e62-90bb9fa64ec6",
+    "document": {
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "attrs": {
+              "nodeId": "owned-letter"
+            },
+            "content": [
+              {
+                "text": "Authored: The letter remained sealed. 🌙",
+                "type": "text",
+                "marks": [
+                  {
+                    "type": "italic"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "schemaVersion": 1
+    },
+    "body": "*Authored: The letter remained sealed. 🌙*",
+    "plainText": "Authored: The letter remained sealed. 🌙"
+  },
+  "erasurePreview": {
+    "schema": 1,
+    "kind": "novel_erase_preview",
+    "storyId": "972cb766-9ab3-5638-9042-28def0cbea19",
+    "title": "Author variant review fixture",
+    "sourceVersion": "258355d1e76edd33fa8e5fde7a0947a567847adbae2c06b1ad9c7e43d24d8fbf",
+    "trashedAt": "2026-10-17T15:30:47",
+    "counts": {
+      "parts": 0,
+      "chapters": 1,
+      "scenes": 1,
+      "structureRevisions": 0,
+      "cardRefs": 0,
+      "generations": 1,
+      "annotationEvents": 0,
+      "requestReceipts": 11,
+      "variants": 3,
+      "sceneRevisions": 3,
+      "conversations": 0,
+      "assistantMessages": 0,
+      "notes": 0,
+      "bookmarks": 0,
+      "executions": 0
+    },
+    "activeExecutions": 0,
+    "policy": "explicit-novel-erase-v1"
+  }
+}

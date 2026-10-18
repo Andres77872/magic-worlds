@@ -1,9 +1,11 @@
+import { novel } from '@/test/fixtures/story'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { Story } from '@/shared'
 import { NovelStudioHeader } from './NovelStudioHeader'
 
 const story: Story = {
+    ...novel({chapters:[]}),
     id: 's1',
     title: 'The Hollow Crown',
     description: 'A story.',
@@ -15,7 +17,7 @@ const story: Story = {
         includeLorebooks: true,
         includeRecentChapters: 1,
         tokenBudget: 1000,
-        styleSource: 'current_chapter',
+        styleSource: 'current_scene',
         customStyleInstruction: null,
     },
 }
@@ -26,11 +28,31 @@ function handlers() {
         onToggleCodex: vi.fn(),
         onToggleTypewriter: vi.fn(),
         onOpenHistory: vi.fn(),
+        onOpenSnapshots:vi.fn(),
         onOpenFind: vi.fn(),
         onBack: vi.fn(),
-        onSaveMeta: vi.fn(),
+        onEditDetails: vi.fn(),
     }
 }
+
+it('keeps reading preferences available in an archived novel and returns focus to the menu trigger', () => {
+    const open = vi.fn()
+    render(<NovelStudioHeader story={story} chapterTitle="Opening" focusMode={false} codexOpen={false} typewriter={false} {...handlers()} readOnly onOpenReading={open} />)
+    fireEvent.click(screen.getByTestId('novel-header-more'))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Reading preferences' }))
+    expect(open).toHaveBeenCalledOnce()
+    expect(screen.getByTestId('novel-header-more')).toHaveFocus()
+    expect(screen.queryByTestId('novel-header-menu')).not.toBeInTheDocument()
+})
+
+it('keeps personal notes available for archived reading and returns focus from its menu action',()=>{
+    const open=vi.fn()
+    render(<NovelStudioHeader story={story} chapterTitle="Opening" focusMode={false} codexOpen={false} typewriter={false} {...handlers()} readOnly onOpenAnnotations={open}/>)
+    fireEvent.click(screen.getByTestId('novel-header-more'))
+    fireEvent.click(screen.getByRole('menuitem',{name:'Personal notes'}))
+    expect(open).toHaveBeenCalledOnce()
+    expect(screen.queryByTestId('novel-header-menu')).not.toBeInTheDocument()
+})
 
 function renderHeader(overrides: { focusMode?: boolean; typewriter?: boolean } = {}) {
     const spies = handlers()
@@ -76,41 +98,25 @@ describe('NovelStudioHeader chrome', () => {
     })
 })
 
-describe('NovelStudioHeader title editing', () => {
-    it('commits the edited title on Enter', () => {
-        const spies = renderHeader()
-
-        fireEvent.click(screen.getByRole('button', { name: 'Novel title' }))
-        const input = screen.getByRole('textbox', { name: 'Novel title' })
-        fireEvent.change(input, { target: { value: 'The Drowned Court' } })
-        fireEvent.keyDown(input, { key: 'Enter' })
-
-        expect(spies.onSaveMeta).toHaveBeenCalledWith({ title: 'The Drowned Court' })
-    })
-
-    it('reverts on Escape without saving', () => {
-        const spies = renderHeader()
-
-        fireEvent.click(screen.getByRole('button', { name: 'Novel title' }))
-        const input = screen.getByRole('textbox', { name: 'Novel title' })
-        fireEvent.change(input, { target: { value: 'Discarded' } })
-        fireEvent.keyDown(input, { key: 'Escape' })
-
-        expect(spies.onSaveMeta).not.toHaveBeenCalled()
-        expect(screen.getByRole('button', { name: 'Novel title' })).toHaveTextContent('The Hollow Crown')
-    })
-
-    it('does not save a title that did not change', () => {
-        const spies = renderHeader()
-
-        fireEvent.click(screen.getByRole('button', { name: 'Novel title' }))
-        fireEvent.blur(screen.getByRole('textbox', { name: 'Novel title' }))
-
-        expect(spies.onSaveMeta).not.toHaveBeenCalled()
+describe('NovelStudioHeader details',()=>{
+    it('opens the recoverable details form from the title',()=>{
+        const spies=renderHeader()
+        const title=screen.getByRole('button',{name:'Novel title'})
+        expect(title).toHaveAttribute('aria-haspopup','dialog')
+        fireEvent.click(title)
+        expect(spies.onEditDetails).toHaveBeenCalledTimes(1)
+        expect(screen.queryByRole('textbox')).toBeNull()
     })
 })
 
 describe('NovelStudioHeader overflow menu', () => {
+    it('opens named manuscript snapshots from the same accessible overflow menu',()=>{
+        const spies=renderHeader()
+        fireEvent.click(screen.getByTestId('novel-header-more'))
+        fireEvent.click(screen.getByRole('menuitem',{name:'Manuscript snapshots'}))
+        expect(spies.onOpenSnapshots).toHaveBeenCalledOnce()
+        expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    })
     it('hides the rarely-used actions until More is opened', () => {
         const spies = renderHeader()
 
@@ -165,4 +171,12 @@ describe('NovelStudioHeader focus mode', () => {
         expect(screen.queryByRole('button', { name: 'Codex panel' })).toBeNull()
         expect(screen.getByRole('button', { name: 'Focus mode' })).toHaveAttribute('aria-pressed', 'true')
     })
+})
+
+it('keeps the writing assistant available for archived reading and restores menu focus',()=>{
+    const open=vi.fn()
+    render(<NovelStudioHeader story={story} chapterTitle="Opening" focusMode={false} codexOpen={false} typewriter={false} {...handlers()} readOnly onOpenAssistantContext={open}/>)
+    fireEvent.click(screen.getByTestId('novel-header-more'))
+    fireEvent.click(screen.getByRole('menuitem',{name:'Writing assistant'}))
+    expect(open).toHaveBeenCalledOnce();expect(screen.getByTestId('novel-header-more')).toHaveFocus()
 })

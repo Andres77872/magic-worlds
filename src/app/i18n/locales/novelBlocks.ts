@@ -1,0 +1,26 @@
+export const novelBlocks = {
+    en: {
+        title: 'Move manuscript blocks', open: 'Move blocks', help: 'Whole blocks containing either end of the selection move together. In a list, move whole items with their nested content. Text, formatting and reference identities stay with them.',
+        notes: 'Notes within unchanged blocks follow their identities. Notes spanning a changed block boundary may need reattachment; their text and saved quote are retained.',
+        selection: 'Moving {{count}} blocks', selection_one: 'Moving 1 block', selection_other: 'Moving {{count}} blocks', parent: { doc: 'Within this scene', blockquote: 'Within this quotation', bulletList: 'Within this list', orderedList: 'Within this list', listItem: 'Within this item' },
+        kind: { paragraph: 'Paragraph', heading: 'Heading', blockquote: 'Quotation', bulletList: 'Bullet list', orderedList: 'Numbered list', listItem: 'List item', horizontalRule: 'Scene break', aiBeat: 'Writing beat' },
+        option: '{{number}} · {{kind}} · {{text}}', empty: 'Empty block', destination: 'Destination block', placement: 'Placement', before: 'Before', after: 'After', apply: 'Move blocks',
+        up: 'Move up', down: 'Move down', shortcut: 'Alt+Shift+↑ / ↓', close: 'Close',
+        noTarget: 'Place the cursor in a paragraph or select complete blocks to move. The scene must have another block in the same container.',
+        stale: 'The document or selection changed. Close this dialog and select the blocks again. No blocks were moved.',
+        blocked: 'Finish the current AI review or recovery before moving blocks. Archived and read-only text can be inspected but cannot move.',
+        boundary: 'The blocks are already at that position.', invalid: 'These blocks cannot move to that position. Your manuscript is unchanged.', moved: 'Blocks moved. Undo restores their previous order.',
+    },
+    es: {
+        title: 'Mover bloques del manuscrito', open: 'Mover bloques', help: 'Se mueven juntos los bloques completos que contienen los extremos de la selección. En una lista, se mueven elementos completos con su contenido anidado. Conservan el texto, el formato y la identidad de sus referencias.',
+        notes: 'Las notas de bloques sin cambios siguen sus identidades. Las que abarcan un límite modificado pueden necesitar volver a vincularse; se conservan su texto y la cita guardada.',
+        selection: 'Mover {{count}} bloques', selection_one: 'Mover 1 bloque', selection_other: 'Mover {{count}} bloques', parent: { doc: 'Dentro de esta escena', blockquote: 'Dentro de esta cita', bulletList: 'Dentro de esta lista', orderedList: 'Dentro de esta lista', listItem: 'Dentro de este elemento' },
+        kind: { paragraph: 'Párrafo', heading: 'Encabezado', blockquote: 'Cita', bulletList: 'Lista con viñetas', orderedList: 'Lista numerada', listItem: 'Elemento de lista', horizontalRule: 'Separador de escena', aiBeat: 'Nota de escritura' },
+        option: '{{number}} · {{kind}} · {{text}}', empty: 'Bloque vacío', destination: 'Bloque de destino', placement: 'Posición', before: 'Antes', after: 'Después', apply: 'Mover bloques',
+        up: 'Subir', down: 'Bajar', shortcut: 'Alt+Mayús+↑ / ↓', close: 'Cerrar',
+        noTarget: 'Coloca el cursor en un párrafo o selecciona bloques completos. La escena debe tener otro bloque en el mismo contenedor.',
+        stale: 'El documento o la selección cambió. Cierra este diálogo y vuelve a seleccionar los bloques. No se movió ningún bloque.',
+        blocked: 'Termina la revisión de IA o la recuperación antes de mover bloques. El texto archivado o de solo lectura se conserva para inspección.',
+        boundary: 'Los bloques ya están en esa posición.', invalid: 'No se pueden mover estos bloques a esa posición. Tu manuscrito sigue intacto.', moved: 'Se movieron los bloques. Deshacer restaura el orden anterior.',
+    },
+}

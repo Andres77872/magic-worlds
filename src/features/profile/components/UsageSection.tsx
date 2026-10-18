@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * Profile usage monitor. Daily usage remains a quota view; monthly usage is an
  * accumulated, month-to-date activity view and intentionally has no limit bars.
@@ -30,6 +31,7 @@ interface UsageSectionProps {
 }
 
 export function UsageSection({ profile, llmUsage }: UsageSectionProps) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const { intlLocale } = useLanguage()
     const membership = profile.membership
@@ -69,6 +71,7 @@ function toMinutes(seconds: number) {
  * recipe previews. Each row shows only when the server reports it.
  */
 function VoiceUsagePanel({ usage, t, locale }: { usage: VoiceUsageView; t: TFunction; locale: string }) {
+    useFeatureFlags()
     const { narration, call, previewsLeft } = usage
     const minutesLeft = call ? toMinutes(call.remaining) : 0
     return (
@@ -136,6 +139,7 @@ function ByokUsagePanel({
     t: TFunction
     locale: string
 }) {
+    useFeatureFlags()
     const operations = state.usage?.operations.filter((operation) => operation.byok_enabled && isOperationFeatureEnabled(operation.operation)) ?? []
     const active = operations.filter((operation) => operation.month.user_byok > 0)
     const historical = state.usage?.operations.reduce((total, operation) => total + operation.month.unattributed, 0) ?? 0
@@ -187,6 +191,7 @@ function ByokOperationMeter({
     t: TFunction
     locale: string
 }) {
+    useFeatureFlags()
     const label = operationName(operation.operation, t)
     return (
         <UsageMeter
@@ -217,6 +222,7 @@ function DailyUsagePanel({
     t: TFunction
     locale: string
 }) {
+    useFeatureFlags()
     return (
         <div className="flex min-w-0 flex-col gap-5">
             <div className="flex flex-col gap-1">
@@ -272,6 +278,7 @@ function MonthlyUsagePanel({
     t: TFunction
     locale: string
 }) {
+    useFeatureFlags()
     return (
         <div className="flex min-w-0 flex-col gap-5">
             <div className="flex flex-col gap-1">
@@ -309,6 +316,7 @@ function MonthlyUsagePanel({
 }
 
 function MonthlyStat({ label, value, locale }: { label: string; value: number; locale: string }) {
+    useFeatureFlags()
     return (
         <div className="min-w-0">
             <Eyebrow tone="muted" className="block text-[11px]">
@@ -330,6 +338,7 @@ function MonthlyOperationRow({
     t: TFunction
     locale: string
 }) {
+    useFeatureFlags()
     return (
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-line-faint py-3 last:border-b-0">
             <div className="min-w-0">
@@ -365,6 +374,7 @@ interface UsageMeterProps {
 }
 
 function UsageMeter({ label, used, max, ariaLabel, valueLabel, prominent = false, t, locale }: UsageMeterProps) {
+    useFeatureFlags()
     const percent = max > 0 ? Math.min(100, Math.max(0, Math.round((used / max) * 100))) : 0
 
     return (

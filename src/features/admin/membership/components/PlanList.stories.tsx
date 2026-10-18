@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { PlanList } from './PlanList'
 import { plans } from '../membership.fixtures'
+import { ACTIVE_FEATURE_FLAGS, ACTIVE_FEATURE_KEYS } from '@/shared/featureFlagCatalog'
 
 const meta = {
     title: 'Admin/Membership/PlanList',
@@ -18,6 +19,7 @@ const meta = {
     decorators: [(Story) => <div className="w-[1100px] max-w-full"><Story /></div>],
     argTypes: { plans: { control: false } },
     args: {
+        flags: ACTIVE_FEATURE_KEYS.map(key => ({ key, requires: [...ACTIVE_FEATURE_FLAGS[key].requires] })),
         plans,
         loading: false,
         onCreate: () => undefined,

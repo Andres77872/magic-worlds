@@ -93,6 +93,18 @@ export interface CardIdentity {
     card_id: string
 }
 
+/** Read-only source metadata; unavailable does not imply confirmed deletion. */
+export interface CardSourceStatus extends CardIdentity {
+    available: boolean
+    latest_version_id: string | null
+    latest_version_number: number | null
+    has_draft: boolean | null
+}
+
+export interface CardSourceStatusList {
+    items: CardSourceStatus[]
+}
+
 /** 1–200 distinct identities in total; add and remove never overlap. */
 export interface MembershipCommand {
     add: CardIdentity[]

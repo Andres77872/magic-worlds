@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 import { isVoicesFeatureEnabled } from '@/shared/featureFlags'
 import { useCallback, useEffect, useState } from 'react'
 import type { ApiService } from '@/infrastructure/api'
@@ -27,6 +28,7 @@ export function useAutoNarrationPause(
     requestedActive: boolean,
     refreshKey: number,
 ): AutoNarrationPause {
+    useFeatureFlags()
     const active = requestedActive && isVoicesFeatureEnabled()
     const [capabilityPaused, setCapabilityPaused] = useState(false)
     const [heldUntil, setHeldUntil] = useState<number | null>(null)

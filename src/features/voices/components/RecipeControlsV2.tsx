@@ -1,28 +1,6 @@
-/**
- * The ElevenLabs recipe controls (R1-FE-02, D13): stability, similarity and,
- * where the tier supports it, speed. Ranges, steps and defaults come from the
- * capabilities `surface` only; a control the server does not mark
- * user-editable, or sends without a range, is not rendered. `style` and
- * `use_speaker_boost` are never shown.
- *
- * On a tier without speed (Expressive) the speed slider is hidden with a note,
- * and the stored speed value is kept in every change; on Expressive,
- * `onShowStandard` adds the 05 §5.1 "Show Standard controls" link that
- * switches the preview tier. On
- * Expressive the controls carry the `expressive_only` badge (03 §5.12, AC-P8).
- * A slider at its default shows the "Voice default" tag (05 §5.1); stability
- * and similarity carry their end labels, and speed reads "1.05×" (05 §5.1,
- * §9.3). "Use voice defaults" emits null. Without capabilities the recipe
- * shows as read-only chips with a retry.
- *
- * Every slider shows exactly what a save writes (05 §5.1): a stored value off
- * the 0.05 grid shows snapped, as the save stores it, with no flag.
- * AC-E2: a stored value outside the range a save clamps to (`writeControls`,
- * else the surface's own controls) is never adjusted silently. Its slider
- * shows the clamped value with a flag saying what the save will store; a
- * flagged value with no slider here (speed on Expressive, or the read-only
- * recipe) gets the same flag below. Nothing is written until the user saves or
- * moves that slider.
+/** Stability and similarity controls supported by v4 and v4 Turbo.
+ * Ranges, defaults and editability come from capabilities. Values shown by a
+ * slider match the quantized write; unsupported controls are never rendered.
  */
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
@@ -31,7 +9,6 @@ import type { VoiceControlKey, VoiceControlSpec, VoiceSettingsV2, VoiceSurfaceCa
 import { Badge, Button, Callout, Icon, cx } from '@/ui/primitives'
 import { formatControlValue, outOfRangeSettings, quantizeSetting, settingsChips, writtenSetting, type OutOfRangeSetting } from '../recipeV2'
 import { ControlSlider } from './ControlSlider'
-import { VoiceBadges } from './VoiceBadges'
 
 const LABEL_KEYS: Partial<Record<VoiceControlKey, string>> = {
     stability: 'voices.recipe.stability',
@@ -45,7 +22,7 @@ const END_KEYS: Partial<Record<VoiceControlKey, readonly [string, string]>> = {
     similarity_boost: ['voices.recipe.similarityLow', 'voices.recipe.similarityHigh'],
 }
 
-const SHOWN: ReadonlySet<VoiceControlKey> = new Set<VoiceControlKey>(['stability', 'similarity_boost', 'speed'])
+const SHOWN: ReadonlySet<VoiceControlKey> = new Set<VoiceControlKey>(['stability', 'similarity_boost'])
 
 /** The sliders a surface offers, in its order. */
 export function visibleControls(surface: VoiceSurfaceCapabilities | null | undefined): VoiceControlSpec[] {
@@ -110,7 +87,7 @@ interface RecipeControlsV2Props {
     className?: string
 }
 
-export function RecipeControlsV2({ surface, settings, onChange, disabled = false, onRetry, onShowStandard, writeControls, className }: RecipeControlsV2Props) {
+export function RecipeControlsV2({ surface, settings, onChange, disabled = false, onRetry, writeControls, className }: RecipeControlsV2Props) {
     const { t, i18n } = useTranslation()
     const written = writeControls ?? surface?.controls ?? []
     const flags = outOfRangeSettings(settings, written)
@@ -134,18 +111,16 @@ export function RecipeControlsV2({ surface, settings, onChange, disabled = false
     }
 
     const controls = visibleControls(surface)
-    const speedHidden = !surface.supports_speed && surface.controls.length > 0
     const flagOf = (key: VoiceControlKey) => flags.find((flag) => flag.key === key)
     const hiddenFlags = flags.filter((flag) => !controls.some((spec) => spec.key === flag.key))
     const change = (spec: VoiceControlSpec, raw: number) => {
         const value = quantizeSetting(raw, spec)
-        // Spread the current settings: a hidden value (speed on Expressive) is never dropped.
+        // Keep the other supported value when changing one control.
         onChange({ ...(settings ?? {}), [spec.key]: value })
     }
 
     return (
         <div className={cx('flex flex-col gap-4', className)} data-testid="recipe-controls-v2">
-            {surface.tier === 'expressive' && <VoiceBadges badges={['expressive_only']} className="self-start" />}
             {controls.map((spec) => {
                 const stored = settings?.[spec.key as keyof VoiceSettingsV2]
                 const fallback = spec.default as number
@@ -175,17 +150,6 @@ export function RecipeControlsV2({ surface, settings, onChange, disabled = false
                     />
                 )
             })}
-            {speedHidden && (
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                    <p className="font-ui text-caption text-fg-muted">{t('voices.recipe.speedExpressiveNote')}</p>
-                    {/* 05 §5.1: the link lives on Expressive; on any other surface it would switch to the tier already shown. */}
-                    {onShowStandard && surface.tier === 'expressive' && (
-                        <Button variant="ghost" size="sm" disabled={disabled} onClick={onShowStandard}>
-                            {t('voices.recipe.showStandardControls')}
-                        </Button>
-                    )}
-                </div>
-            )}
             {hiddenFlags.map((flag) => <OutOfRangeNotice key={flag.key} flag={flag} shown={false} t={t} />)}
             <Button variant="ghost" size="sm" className="self-start" disabled={disabled || settings === null} onClick={() => onChange(null)}>
                 {t('voices.recipe.useDefaults')}

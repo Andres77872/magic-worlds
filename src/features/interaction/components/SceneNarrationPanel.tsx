@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 import { useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AudioPlaylistContext } from '@/app/providers/audioPlaylistContext'
@@ -11,6 +12,7 @@ import { clipVolume } from '@/shared/voice/clipVolume'
 import { Button } from '@/ui/primitives'
 import { VoiceClipPlayer } from '@/ui/components/audio'
 import { isGeneratingClipStatus } from '../utils/chatTtsTurnState'
+import { isCallReply } from '../utils/callTurnMarkup'
 
 interface Props {
     api: ApiService
@@ -21,6 +23,7 @@ interface Props {
 }
 
 function SceneRecording({ api, value }: { api: ApiService; value: SceneNarrationResponse }) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const playlist = useContext(AudioPlaylistContext)
     const [media, setMedia] = useState<{ src?: string; error?: boolean }>({})
@@ -44,6 +47,7 @@ function SceneRecording({ api, value }: { api: ApiService; value: SceneNarration
 
 /** One explicit, paid alternative. Status recovery performs reads only. */
 export function SceneNarrationPanel({ api, basePath, sessionId, turn, readOnly = false }: Props) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const attestation = useAttestation()
     const [value, setValue] = useState<SceneNarrationResponse | null>(null)
@@ -162,8 +166,9 @@ export function SceneNarrationPanel({ api, basePath, sessionId, turn, readOnly =
 
 /** Keep the current alternative alongside cast controls; never enter the fragment queue. */
 export function SessionSceneNarration({ turns, revision, ...props }: Omit<Props, 'turn'> & { turns: TurnEntry[]; revision?: string }) {
+    useFeatureFlags()
     if (!isVoicesFeatureEnabled()) return null
-    const latest = [...turns].reverse().find(turn => turn.type === 'ai' && !turn.isStreaming && turn.assistantMessageId && turn.turnId)
+    const latest = [...turns].reverse().find(turn => turn.type === 'ai' && !turn.isStreaming && !isCallReply(turn) && turn.assistantMessageId && turn.turnId)
     if (!latest?.assistantMessageId || !latest.turnId) return null
     return <SceneNarrationPanel key={`${props.sessionId}:${latest.assistantMessageId}:${latest.turnId}:${revision}:${latest.content}:${JSON.stringify(latest.segments)}`}
         {...props} turn={{ assistant_message_id: latest.assistantMessageId, turn_id: latest.turnId }} />

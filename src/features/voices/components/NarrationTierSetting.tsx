@@ -45,7 +45,7 @@ export function NarrationTierSettingView({ tier, locked, saving = false, error =
 
 export function NarrationTierSetting() {
     const state = useNarrationTier()
-    if (!state.visible) return null
+    if (!state.visible || state.locked) return null
     return (
         <NarrationTierSettingView
             tier={state.tier}

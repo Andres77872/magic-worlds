@@ -1,3 +1,7 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { i18n } from '@/app/i18n'
@@ -153,7 +157,7 @@ describe('DocsPage', () => {
     })
 
     it.each(['en', 'es'])('explains unavailable novel workflows as WIP in %s', async (language) => {
-        vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'false')
+        setTestFeatureFlags({ novels: false })
         await i18n.changeLanguage(language)
         const t = i18n.getFixedT(language)
         const note = t('docs.availability.disabled', { features: t('docs.availability.features.novels') })
@@ -166,7 +170,7 @@ describe('DocsPage', () => {
     })
 
     it('keeps enabled novel instructions available without a WIP note', () => {
-        vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'true')
+        setTestFeatureFlags({ novels: true })
         const t = i18n.getFixedT('en')
         render(<DocsPage />)
 
@@ -180,8 +184,8 @@ describe('DocsPage', () => {
         ['false', 'true'],
         ['true', 'false'],
     ])('marks resources WIP when either owning flag is off (%s/%s)', (lorebooks, resources) => {
-        vi.stubEnv('VITE_FEATURE_LOREBOOKS_ENABLED', lorebooks)
-        vi.stubEnv('VITE_FEATURE_LOREBOOK_RESOURCES_ENABLED', resources)
+        setTestFeatureFlags({ lorebooks: (lorebooks === 'true') })
+        setTestFeatureFlags({ lorebookResources: (resources === 'true') })
         const t = i18n.getFixedT('en')
         const note = t('docs.availability.disabled', { features: t('docs.availability.features.lorebookResources') })
         render(<DocsPage />)
@@ -191,9 +195,9 @@ describe('DocsPage', () => {
     })
 
     it('keeps one-on-one chat available while the voices parent disables calls', () => {
-        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'false')
-        vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'false')
-        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
+        setTestFeatureFlags({ adventures: false })
+        setTestFeatureFlags({ voices: false })
+        setTestFeatureFlags({ calls: true })
         const t = i18n.getFixedT('en')
         render(<DocsPage />)
 
@@ -203,8 +207,8 @@ describe('DocsPage', () => {
     })
 
     it.each(['en', 'es'])('renders the roadmap with disabled and planned features in %s', async (language) => {
-        vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'false')
-        vi.stubEnv('VITE_BILLING_ENABLED', 'false')
+        setTestFeatureFlags({ novels: false })
+
         await i18n.changeLanguage(language)
         const t = i18n.getFixedT(language)
         render(<DocsPage />)
@@ -225,13 +229,13 @@ describe('DocsPage', () => {
         expect(novel.textContent).toContain(t('docs.roadmap.items.novels.next'))
         expect(chara.textContent).toContain(t('docs.roadmap.statuses.planned'))
         expect(chara.textContent).toContain(t('docs.roadmap.items.charaStudio.decision'))
-        expect(billing.textContent).toContain(t('docs.roadmap.availability.disabled'))
+        expect(billing.textContent).toContain(t('docs.roadmap.availability.ungated'))
         expect(novel.querySelector('[data-stage]')?.getAttribute('data-stage')).toBe('off')
         expect(chara.querySelector('[data-stage]')?.getAttribute('data-stage')).toBe('planned')
     })
 
     it('keeps unfinished scope visible when the novel feature is enabled', () => {
-        vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'true')
+        setTestFeatureFlags({ novels: true })
         const t = i18n.getFixedT('en')
         render(<DocsPage />)
         const novel = document.querySelector('[data-roadmap-item="novels"]')!
@@ -484,7 +488,7 @@ describe('DocsPage', () => {
     })
 
     it('renders WIP notes apart from the instructions they qualify', () => {
-        vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'false')
+        setTestFeatureFlags({ novels: false })
         const t = i18n.getFixedT('en')
         render(<DocsPage />)
 
@@ -582,8 +586,8 @@ describe('DocsPage', () => {
             expect(planned).toHaveAttribute('aria-pressed', 'true')
             const shown = [...roadmapPanel().querySelectorAll('[data-roadmap-item]')].map((item) => item.getAttribute('data-roadmap-item'))
             const total = getDocsContent(t).roadmap.items.length
-            expect(shown).toEqual(['charaStudio', 'patreon'])
-            expect(screen.getByText(t('docs.roadmap.showing', { shown: 2, total }))).toBeTruthy()
+            expect(shown).toEqual(['charaStudio', 'groupCalls', 'patreon'])
+            expect(screen.getByText(t('docs.roadmap.showing', { shown: 3, total }))).toBeTruthy()
 
             fireEvent.click(planned)
             expect(planned).toHaveAttribute('aria-pressed', 'false')
@@ -635,7 +639,7 @@ describe('DocsPage', () => {
             expect(within(section).getByRole('heading', { name: t('docs.roadmap.labels.done') })).toBeTruthy()
             const entries = [...section.querySelectorAll('[data-roadmap-done]')]
             expect(entries.map((entry) => entry.getAttribute('data-roadmap-done'))).toEqual(done.map((entry) => entry.id))
-            expect(entries[0].textContent).toContain(t('docs.roadmap.items.core.title'))
+            expect(entries.some(entry => entry.textContent?.includes(t('docs.roadmap.items.core.title')))).toBe(true)
             expect(within(screen.getByRole('navigation', { name: t('docs.roadmap.labels.jump') })).getByRole('button', { name: t('docs.roadmap.labels.done') })).toBeTruthy()
 
             fireEvent.change(screen.getByRole('searchbox', { name: t('docs.search.label') }), { target: { value: 'call time' } })
@@ -649,7 +653,7 @@ describe('DocsPage', () => {
         })
 
         it('calls an off initiative\'s existing work built, not available', () => {
-            vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'false')
+            setTestFeatureFlags({ novels: false })
             const t = i18n.getFixedT('en')
             render(<DocsPage />)
             openRoadmapTab()

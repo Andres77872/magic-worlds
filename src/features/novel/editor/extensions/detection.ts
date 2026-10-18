@@ -9,8 +9,9 @@
  * identical to chat. Decorations are VIEW-ONLY: they never touch the document, so
  * nothing leaks into `getMarkdown()`. The plugin dispatches zero transactions and
  * returns an empty set whenever a suggestion is alive (phase !== 'idle'), so it
- * can never fight the AI lifecycle. Ctrl/Cmd-click opens the entry (mirroring the
- * chat composer); a plain click is a no-op so caret placement is never hijacked.
+ * can never fight the AI lifecycle. Ctrl/Cmd-click inspects all matching identities; readers may use a plain
+ * click. Editable plain clicks retain ordinary caret placement. Overlap affects
+ * painting only: equally named and nested sources remain inspection choices.
  */
 
 import { Extension } from '@tiptap/core'
@@ -52,6 +53,8 @@ export interface DetectionConfig {
     getLabels: () => DetectionLabels
     onOpenLore: (match: TriggerMatch) => void
     onOpenCodex: (codexId: string) => void
+    onInspect?: (position: number) => void
+    getReadOnly?: () => boolean
 }
 
 interface DetectionHit {
@@ -136,22 +139,22 @@ function buildDecorations(doc: PMNode, matchers: DetectionMatchers, labels: Dete
         const overlaps = (start: number, end: number) => occupied.some(([s, e]) => start < e && end > s)
 
         // Lore wins on overlap with a codex name.
-        for (const match of scanText(text, loreMatcher)) {
-            if (overlaps(match.start, match.end)) continue
-            occupied.push([match.start, match.end])
+        for (const match of scanText(text, loreMatcher, { includeOverlaps: true })) {
             const from = blockStart + match.start
             const to = blockStart + match.end
             hits.push({ from, to, kind: 'lore', match })
+            if (overlaps(match.start, match.end)) continue
+            occupied.push([match.start, match.end])
             decorations.push(
                 Decoration.inline(from, to, { class: 'lore-trigger', 'data-lore-entry': match.entry.id, title: labels.lore(match.lorebookName) }),
             )
         }
-        for (const match of scanText(text, nameMatcher)) {
-            if (overlaps(match.start, match.end)) continue
-            occupied.push([match.start, match.end])
+        for (const match of scanText(text, nameMatcher, { includeOverlaps: true })) {
             const from = blockStart + match.start
             const to = blockStart + match.end
             hits.push({ from, to, kind: 'name', codexId: match.entry.id })
+            if (overlaps(match.start, match.end)) continue
+            occupied.push([match.start, match.end])
             decorations.push(
                 Decoration.inline(from, to, { class: 'codex-reference', 'data-codex-id': match.entry.id, title: labels.codex(match.keyword) }),
             )
@@ -189,9 +192,12 @@ export function createDetection(config: DetectionConfig) {
                     props: {
                         decorations: (state) => DETECTION_PLUGIN_KEY.getState(state)?.deco ?? null,
                         handleClick: (view, pos, event) => {
-                            if (!(event.ctrlKey || event.metaKey)) return false
-                            const hit = DETECTION_PLUGIN_KEY.getState(view.state)?.hits.find((h) => pos >= h.from && pos < h.to)
+                            if (!(event.ctrlKey || event.metaKey || config.getReadOnly?.())) return false
+                            const matching = DETECTION_PLUGIN_KEY.getState(view.state)?.hits.filter((h) => pos >= h.from && pos < h.to) ?? []
+                            const hit = matching[0]
                             if (!hit) return false
+                            if (config.onInspect) { event.preventDefault(); config.onInspect(pos); return true }
+                            if (matching.length !== 1) return false
                             if (hit.kind === 'lore' && hit.match) {
                                 event.preventDefault()
                                 config.onOpenLore(hit.match)

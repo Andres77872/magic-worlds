@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * useAssistantKnowledge — gathers what the assistant may read and remembers the
  * viewer's choices. Library lists come from DataProvider (already loaded for
@@ -97,6 +98,7 @@ export interface UseAssistantKnowledgeResult {
 }
 
 export function useAssistantKnowledge(originPage: PageType | null): UseAssistantKnowledgeResult {
+    const featureFlagGeneration = useFeatureFlags().generation
     const { t } = useTranslation()
     const { isAuthenticated, accountKey } = useAuth()
     const { characters, worlds, items, templateAdventures, lorebooks, stories } = useData()
@@ -167,7 +169,7 @@ export function useAssistantKnowledge(originPage: PageType | null): UseAssistant
         lorebooks: isAuthenticated && isLorebooksFeatureEnabled() ? lorebooks : [],
         resources: wantsResources && resources.owner === owner ? resources.items : [],
         stories: isAuthenticated && isNovelsFeatureEnabled() ? stories : [],
-    }), [isAuthenticated, characters, worlds, items, templateAdventures, lorebooks, stories, wantsResources, resources, owner])
+    }), [isAuthenticated, characters, worlds, items, templateAdventures, lorebooks, stories, wantsResources, resources, owner, featureFlagGeneration])
 
     const liveFocus = useMemo(() => focus.filter((ref) => findFocusRecord(library, ref)), [focus, library])
 
@@ -178,7 +180,7 @@ export function useAssistantKnowledge(originPage: PageType | null): UseAssistant
         focus: liveFocus,
         isPageVisible: isPageFeatureEnabled,
         originPage,
-    }), [t, library, enabled, liveFocus, originPage])
+    }), [t, library, enabled, liveFocus, originPage, featureFlagGeneration])
 
     const focusChips = useMemo<FocusChip[]>(() => liveFocus.map((ref) => ({ ...ref, name: findFocusRecord(library, ref)?.name ?? ref.id })), [liveFocus, library])
 

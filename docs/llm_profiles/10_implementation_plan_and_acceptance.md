@@ -9,7 +9,7 @@
 | Root/user profiles, revisiones, resolución y selección | Implementados en frontend/BFF | Ownership, compatibilidad y publicación/defaults por entorno |
 | Admisión, planes, reservas y pagador | Implementados en BFF | Replay/retry/fallo/cancelación/resultado tardío y conciliación de efectos/cuotas/cargos |
 | Memoria BYOK del navegador | Implementada; sin almacenamiento web persistente para la clave | Aislamiento y limpieza en cuenta/proyecto/target, recarga y credencial reingresada |
-| Copy de custodia BYOK en UI | Publicado; sobreafirma la no persistencia en servidores (F11) | Limitar a propiedades verificadas de memoria de pestaña hasta cerrar F04; prueba de regresión del copy EN/ES |
+| Copy de custodia BYOK en UI | Corregido EN/ES el 2026-10-17; F04 sigue abierto | Mantener la regresión de memoria de pestaña, HTTPS, almacenamiento del navegador y recarga; no anunciar custodia end-to-end sin evidencia |
 | Transporte protegido | **Brecha activa**: BFF usa graph materializado en completion original | Clave fuera de graph/snapshot/hash y cliente privado autorizado; canario end-to-end |
 | Runtime/nodos genéricos | **Hallazgos abiertos** | Cierre individual de F01–F11; helper aislado no protege los demás caminos |
 | Planner de chat | Corregido en fuente `2c2973d`; smoke fechado registrado en voz | Mantener regresión y aceptación del artefacto desplegado |

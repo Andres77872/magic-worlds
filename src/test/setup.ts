@@ -2,6 +2,7 @@ import '@testing-library/jest-dom/vitest'
 import { cleanup } from '@testing-library/react'
 import { afterEach, beforeEach } from 'vitest'
 import { i18n } from '@/app/i18n'
+import { featureFlagRuntime } from '@/shared/featureFlagRuntime'
 import { installMockBrowserMedia, resetMockBrowserMedia } from '../test-utils/mockMediaStream'
 
 // In production non-default locales are lazy-loaded as separate chunks; tests
@@ -31,10 +32,12 @@ globalThis.ResizeObserver ??= NoopObserver as unknown as typeof ResizeObserver
 Object.defineProperty(document, 'hasFocus', { configurable: true, value: () => true })
 
 beforeEach(() => {
+    featureFlagRuntime.setOwner(null, null)
     installMockBrowserMedia()
 })
 
 afterEach(() => {
     cleanup()
+    featureFlagRuntime.setOwner(null, null)
     resetMockBrowserMedia()
 })

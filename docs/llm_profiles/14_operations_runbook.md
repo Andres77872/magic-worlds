@@ -17,7 +17,7 @@ El transporte actual coloca la clave BYOK en `agt` antes de serializar. La ruta 
 
 Antes de declarar esa garantía, ejecutar un canario ficticio por la ruta completa BFF → admisión → runtime → snapshot, incluyendo éxito, fallo, cancelación y retry. El criterio es ausencia del valor y de derivados prohibidos en persistencia, historial, diagnósticos y telemetría. El diseño deseado permanece en [05](05_security_and_secrets.md); F04 y F05 permanecen abiertos en [seguridad](../security/README.md).
 
-Antes de habilitar BYOK en un entorno, corregir el copy de UI que afirma que la clave no se guarda en servidores ([`llmProfiles.ts`](../../src/app/i18n/locales/llmProfiles.ts) `key.explanation` y `byok.body`, EN/ES; F11).
+Antes de habilitar BYOK en un entorno, verificar que el copy de UI siga limitado a las propiedades locales comprobadas ([`llmProfiles.ts`](../../src/app/i18n/locales/llmProfiles.ts) `key.explanation` y `byok.body`, EN/ES; corrección F11 del 2026-10-17). La ausencia de persistencia en servidores exige cerrar F04 por separado.
 
 No usar `LLM_EXECUTION_ENABLED`, `/v1/llm-execution/capabilities` ni `LLM_EXECUTION_CREDENTIAL_CUSTODY` como prueba de que este BFF negocia el transporte protegido. Son controles de otro contrato; su adopción necesita implementación y aceptación explícitas.
 

@@ -12,22 +12,36 @@
  * says why; a blocked attempt repeats it).
  */
 
-import { useMemo, useState, type ReactNode } from 'react'
-import { BookOpenText, Loader2, Plus, Search, Trash2, X } from 'lucide-react'
+import { useMemo, useState,useRef,useLayoutEffect, type ReactNode } from 'react'
+import { BookOpenText, Copy, FileUp, Loader2, Plus, Search, Trash2, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuth, useData, useNavigation } from '@/app/hooks'
 import { useWorkspace } from '@/app/hooks/useWorkspace'
-import type { StoryCreateRequest } from '@/shared'
+import type { StoryCreateRequest,StoryLibraryFilters } from '@/shared'
+import { canonicalJson } from '@/utils/json'
 import { ARCHIVED_WORKSPACE_MESSAGE_KEY, useWorkspaceReadOnly } from '@/shared/hooks/useWorkspaceReadOnly'
 import { CardGrid, GalleryCard, GalleryCardSkeleton, type CardOption } from '@/ui/components'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
-import { Button, controlClass, Icon, IconButton, PageHeader, Toast } from '@/ui/primitives'
+import { Button, Callout, controlClass, Icon, IconButton, PageHeader, Toast,Select } from '@/ui/primitives'
 import { getNovelGalleryConfig, type NovelGalleryItem } from '../novelGalleryConfig'
 import { useCardGallery } from '@/features/gallery/hooks/useCardGallery'
 import { useGalleryView } from '@/features/gallery/hooks/useGalleryView'
 import { cardGridDensity, cardGridLayout, galleryCardView } from '@/features/gallery/galleryView'
 import { GalleryViewToggle } from '@/features/gallery/components/GalleryViewToggle'
-import { NovelCreateModal } from './NovelCreateModal'
+import { NovelCreateDialog as NovelCreateModal } from './NovelCreateDialog'
+import { NovelImportDialog } from './NovelImportDialog'
+import { NovelPendingLifecycle } from './NovelPendingLifecycle'
+import { NovelPendingCreations } from './NovelPendingCreations'
+import { NovelCopyModal } from './NovelCopyModal'
+import { NovelPendingCopies } from './NovelPendingCopies'
+import { useNovelCopies } from '../hooks/useNovelCopies'
+import { NovelLibraryFilters } from './NovelLibraryFilters'
+import { useNovelErases } from '../hooks/useNovelErases'
+import { NovelEraseModal } from './NovelEraseModal'
+import { NovelPendingErases } from './NovelPendingErases'
+import { useNovelLifecycleRetention } from '../hooks/useNovelLifecycleRetention'
+import { apiStorageOrigin } from '@/shared/workspaceStorage'
+import { API_BASE_URL } from '@/infrastructure/api/baseUrl'
 
 interface ActionNotice {
     tone: 'success' | 'error'
@@ -37,21 +51,47 @@ interface ActionNotice {
 
 export function NovelGalleryPage() {
     const { workspaceEpoch } = useWorkspace()
-    return <NovelGalleryView key={workspaceEpoch} />
+    return <NovelGalleryScope key={workspaceEpoch} />
 }
 
-function NovelGalleryView() {
+function NovelGalleryScope(){
+    const [trashed,setTrashed]=useState(false)
+    const [filters,setFilters]=useState<StoryLibraryFilters>({})
+    return <NovelGalleryView key={String(trashed)} trashed={trashed} setTrashed={setTrashed} filters={filters} setFilters={(next)=>setFilters((current)=>canonicalJson(current)===canonicalJson(next)?current:next)}/>
+}
+function NovelGalleryView({trashed,setTrashed,filters,setFilters}:{trashed:boolean;setTrashed:(value:boolean)=>void;filters:StoryLibraryFilters;setFilters:(value:StoryLibraryFilters)=>void}) {
     const { t } = useTranslation()
-    const { api, capture, isCurrent } = useWorkspace()
-    const galleryConfig = useMemo(() => getNovelGalleryConfig(t, api), [api, t])
+    const { api,capture,isCurrent:workspaceCurrent }=useWorkspace()
+    const mounted=useRef(true)
+    useLayoutEffect(()=>{mounted.current=true;return()=>{mounted.current=false}},[])
+    const isCurrent=(scope:Parameters<typeof workspaceCurrent>[0])=>mounted.current&&workspaceCurrent(scope)
+    const galleryConfig = useMemo(() => getNovelGalleryConfig(t, api,trashed,filters), [api, t,trashed,filters])
     const { setPage } = useNavigation()
-    const { isAuthenticated, openLoginModal } = useAuth()
-    const gallery = useCardGallery<NovelGalleryItem>(galleryConfig, undefined, { enabled: isAuthenticated && api !== null })
+    const auth = useAuth(), { isAuthenticated, openLoginModal } = auth
+    const gallery = useCardGallery<NovelGalleryItem>(galleryConfig, undefined, { enabled: isAuthenticated && api !== null,resetKey:canonicalJson(filters) })
+    const observedScope = capture(), observedStories = useMemo(() => gallery.items.map((item) => item.source), [gallery.items])
+    const retainedLifecycle = useNovelLifecycleRetention({
+        key: JSON.stringify([auth.accountKey, auth.authEpoch, observedScope]),
+        scope: isAuthenticated && auth.userHash && observedScope?.workspaceId ? { apiOrigin: apiStorageOrigin(API_BASE_URL), userHash: auth.userHash, workspaceId: observedScope.workspaceId } : null,
+        current: () => isCurrent(observedScope),
+    }, observedStories, null)
     const [layoutView, setLayoutView] = useGalleryView()
-    const { createStory, openStory, deleteStory } = useData()
+    const { createStory,openStory,deleteStory,storyLifecycle,novelCreations,forgetErasedStory,pendingStoryLifecycle }=useData()
     const readOnly = useWorkspaceReadOnly()
+    const copies=useNovelCopies(readOnly)
+    const [copySource,setCopySource]=useState<{id:string;title:string}|null>(null)
+    const [eraseSource,setEraseSource]=useState<{id:string;title:string}|null>(null)
+    const searchRef=useRef<HTMLInputElement>(null)
+    const erases=useNovelErases(readOnly,(id)=>{forgetErasedStory(id);gallery.removeItem(id)})
+    const eraseResolved=()=>{
+        const scope=capture(),trigger=document.activeElement
+        setEraseSource(null);gallery.refresh()
+        requestAnimationFrame(()=>{if(isCurrent(scope)&&(document.activeElement===trigger||document.activeElement===document.body))searchRef.current?.focus()})
+    }
+
 
     const [createOpen, setCreateOpen] = useState(false)
+    const [importOpen, setImportOpen] = useState(false)
     const [creating, setCreating] = useState(false)
     const [openingId, setOpeningId] = useState<string | null>(null)
     const [pendingDelete, setPendingDelete] = useState<NovelGalleryItem | null>(null)
@@ -75,12 +115,12 @@ function NovelGalleryView() {
         requireAuth(action)
     }
 
-    const openNovel = (item: NovelGalleryItem) => {
+    const openNovel = (item: Pick<NovelGalleryItem, 'id'>) => {
         requireAuth(() => {
             if (openingId) return
             const scope = capture()
             setOpeningId(item.id)
-            openStory(item.source)
+            openStory({ id: item.id })
                 .then(() => {
                     if (isCurrent(scope)) setPage('story')
                 })
@@ -108,6 +148,7 @@ function NovelGalleryView() {
             console.error('Failed to create novel:', error)
             if (!isCurrent(scope)) return
             setActionNotice({ tone: 'error', title: t('novelGallery.notice.createFailed'), message: t('novelGallery.notice.tryAgain') })
+            throw error
         } finally {
             if (isCurrent(scope)) setCreating(false)
         }
@@ -130,6 +171,14 @@ function NovelGalleryView() {
         }
     }
 
+    const restoreNovel=async(item:NovelGalleryItem)=>{
+        if(readOnly)return
+        const owner=capture()
+        setDeletingId(item.id)
+        try{await storyLifecycle(item.id,'restore');if(isCurrent(owner))gallery.removeItem(item.id)}
+        catch{if(isCurrent(owner))setActionNotice({tone:'error',title:t('novelEditor.structure.failed')})}
+        finally{if(isCurrent(owner))setDeletingId(null)}
+    }
     const optionsFor = (item: NovelGalleryItem): CardOption[] => [
         {
             type: 'custom',
@@ -138,22 +187,33 @@ function NovelGalleryView() {
             onClick: () => openNovel(item),
         },
         {
+            type:'custom',icon:<Icon icon={Copy} size={15}/>,label:t('novelEditor.copyNovel.title'),
+            onClick:()=>requireWritable(()=>setCopySource({id:item.id,title:item.title})),disabled:readOnly||copies.hasPending(item.id)||erases.hasPending(item.id),
+        },
+        {
             type: 'custom',
             icon: <Icon icon={Trash2} size={15} />,
-            label: t('novelGallery.actions.delete'),
-            onClick: () => requireWritable(() => setPendingDelete(item)),
-            disabled: readOnly,
-            danger: true,
+            label: trashed?t('novelEditor.structure.restore'):t('novelEditor.structure.trash'),
+            onClick: () => requireWritable(() => {if(trashed)void restoreNovel(item);else setPendingDelete(item)}),
+            disabled: readOnly||erases.hasPending(item.id),
+            danger: !trashed,
         },
+        ...(trashed?[{
+            type:'custom' as const,icon:<Icon icon={Trash2} size={15}/>,label:t('novelEditor.erasure.action'),danger:true,
+            onClick:()=>requireWritable(()=>setEraseSource({id:item.id,title:item.title})),
+            disabled:readOnly||!forgetErasedStory||erases.hasPending(item.id)||copies.hasPending(item.id)||Boolean(pendingStoryLifecycle?.some((record)=>record.storyId===item.id)),
+        }]:[]),
     ]
 
     const hasQuery = gallery.query.trim().length > 0
+    const hasFilters=Object.keys(filters).length>0
+    const searchLabel=filters.searchIn&&filters.searchIn!=='all'?t('novelEditor.library.search.'+filters.searchIn):galleryConfig.searchPlaceholder
 
-    const emptyAction: ReactNode = hasQuery ? (
-        <Button variant="secondary" size="sm" onClick={() => gallery.setQuery('')}>
-            {t('novelGallery.actions.clearSearch')}
+    const emptyAction: ReactNode = hasQuery||hasFilters ? (
+        <Button variant="secondary" size="sm" onClick={() => {gallery.setQuery('');setFilters({})}}>
+            {hasFilters?t('novelEditor.library.reset'):t('novelGallery.actions.clearSearch')}
         </Button>
-    ) : (
+    ) : trashed?null:(
         <Button
             variant="primary"
             size="sm"
@@ -172,20 +232,21 @@ function NovelGalleryView() {
                 title={galleryConfig.title}
                 size="lg"
                 actions={
-                    <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center md:w-auto md:justify-end">
+                    <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center md:w-auto md:justify-end">
                         <div className="relative flex w-full items-center sm:w-[320px]">
                             <span className="pointer-events-none absolute left-3 flex items-center text-parchment-400">
                                 <Icon icon={Search} size={16} />
                             </span>
                             <input
+                                ref={searchRef}
                                 type="search"
                                 value={gallery.query}
                                 onChange={(e) => gallery.setQuery(e.target.value)}
                                 onKeyDown={(e) => {
                                     if (e.key === 'Escape') gallery.setQuery('')
                                 }}
-                                placeholder={galleryConfig.searchPlaceholder}
-                                aria-label={galleryConfig.searchPlaceholder}
+                                placeholder={searchLabel}
+                                aria-label={searchLabel}
                                 className={`${controlClass} rounded-full pl-10 ${gallery.searching && hasQuery ? 'pr-16' : 'pr-12'}`}
                                 data-testid="gallery-search-input"
                             />
@@ -209,7 +270,20 @@ function NovelGalleryView() {
                                 </IconButton>
                             )}
                         </div>
+                        <Select aria-label={t('novelEditor.structure.libraryView')} value={trashed?'trash':'library'} onChange={(value)=>setTrashed(value==='trash')} options={[
+                            {value:'library',label:t('novelEditor.structure.library')},{value:'trash',label:t('novelEditor.library.trash')},
+                        ]}/>
                         <GalleryViewToggle value={layoutView} onChange={setLayoutView} className="shrink-0" />
+                        <NovelLibraryFilters value={filters} onChange={setFilters} disabled={!isAuthenticated||!api}/>
+                        <Button
+                            variant="secondary"
+                            iconLeft={<Icon icon={FileUp} size={16} />}
+                            onClick={() => requireWritable(() => setImportOpen(true))}
+                            disabled={readOnly}
+                            className="shrink-0"
+                        >
+                            {t('novelEditor.import.action')}
+                        </Button>
                         <Button
                             variant="primary"
                             iconLeft={<Icon icon={Plus} size={16} />}
@@ -223,6 +297,10 @@ function NovelGalleryView() {
                 }
             />
 
+            <NovelPendingLifecycle readOnly={readOnly} onResolved={gallery.refresh}/>
+            <NovelPendingCreations onResolved={gallery.refresh}/>
+            <NovelPendingCopies copies={copies} onResolved={gallery.refresh}/>
+            <NovelPendingErases key={erases.scopeKey} erases={erases} onResolved={eraseResolved}/>
             {gallery.error && (
                 <div
                     className="flex items-center justify-between gap-4 rounded-lg border border-blood-500/30 bg-blood-500/10 px-4 py-3 font-ui text-sm text-parchment-200"
@@ -244,8 +322,9 @@ function NovelGalleryView() {
                 onClose={() => setActionNotice(null)}
             />
 
+            {retainedLifecycle.failed && <Callout tone="warning" role="status">{t('novelEditor.deviceCache.lifecycleRetentionFailed')}</Callout>}
             {(!gallery.error || gallery.items.length > 0) && <CardGrid
-                items={gallery.items}
+                items={gallery.items.filter((item)=>!erases.isErased(item.id))}
                 layout={cardGridLayout(layoutView)}
                 density={cardGridDensity(layoutView)}
                 getItemKey={(item) => item.id}
@@ -259,8 +338,8 @@ function NovelGalleryView() {
                 hasMore={gallery.hasMore}
                 loadingMore={gallery.loadingMore}
                 onLoadMore={gallery.loadMore}
-                emptyStateTitle={hasQuery ? galleryConfig.noMatchTitle : galleryConfig.emptyTitle}
-                emptyStateDescription={hasQuery ? galleryConfig.noMatchDescription : galleryConfig.emptyDescription}
+                emptyStateTitle={hasQuery||hasFilters?galleryConfig.noMatchTitle:trashed?t('novelEditor.structure.emptyTrash'):galleryConfig.emptyTitle}
+                emptyStateDescription={hasQuery||hasFilters?galleryConfig.noMatchDescription:trashed?t('novelEditor.structure.trashHelp'):galleryConfig.emptyDescription}
                 emptyStateAction={emptyAction}
                 data-testid="gallery-grid-novel"
                 renderCard={(item) => (
@@ -281,9 +360,9 @@ function NovelGalleryView() {
 
             <ConfirmDialog
                 visible={pendingDelete !== null && !readOnly}
-                title={t('novelGallery.deleteDialog.title')}
-                message={pendingDelete ? t('novelGallery.deleteDialog.message', { title: pendingDelete.title.slice(0, 80) }) : ''}
-                confirmLabel={t('novelGallery.actions.delete')}
+                title={t('novelEditor.structure.trash')}
+                message={pendingDelete ? pendingDelete.title+' · '+t('novelEditor.structure.lifecycleHelp') : ''}
+                confirmLabel={t('novelEditor.structure.trash')}
                 variant="danger"
                 onConfirm={() => void confirmDelete()}
                 onCancel={() => setPendingDelete(null)}
@@ -293,8 +372,16 @@ function NovelGalleryView() {
                 open={createOpen && !readOnly}
                 creating={creating}
                 onClose={() => setCreateOpen(false)}
-                onCreate={(request) => void handleCreate(request)}
+                onCreate={handleCreate}
+                blocked={novelCreations?.items.some((item)=>!item.write.ack&&!item.write.rejected)}
+                recovery={<NovelPendingCreations onResolved={gallery.refresh}/>}
             />
+            {importOpen&&!readOnly&&<NovelImportDialog open onClose={()=>setImportOpen(false)} onImported={(id)=>{
+                setImportOpen(false);gallery.refresh()
+                openNovel({id})
+            }}/>}
+            {eraseSource&&<NovelEraseModal key={eraseSource.id} source={eraseSource} erases={erases} onClose={()=>setEraseSource(null)} onErased={eraseResolved}/>}
+            {copySource&&!readOnly&&<NovelCopyModal key={copySource.id} source={copySource} copies={copies} onClose={()=>setCopySource(null)} onCopied={gallery.refresh}/>}
         </div>
     )
 }

@@ -76,7 +76,7 @@ function renderBridge() {
 
 describe('WorkspaceNavigationBridge', () => {
     beforeEach(() => {
-        vi.stubEnv('VITE_FEATURE_WORKSPACES_ENABLED', 'true')
+
         vi.clearAllMocks()
         takeLibraryReturn(TEST_WORKSPACE_ID)
         window.history.replaceState(null, '', '#/world')

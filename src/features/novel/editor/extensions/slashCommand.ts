@@ -140,6 +140,7 @@ export interface SlashMenuController {
 }
 
 export interface SlashCommandConfig {
+    getAiDisabled?: () => boolean
     controllerRef: { current: SlashMenuController | null }
     getPhase: () => InlineAIPhase
     /** Resolve the slash item copy; read live so language changes take effect. */
@@ -148,7 +149,7 @@ export interface SlashCommandConfig {
     onSubmit: (item: SlashItem) => void
 }
 
-export function createSlashCommand({ controllerRef, getPhase, getT, onSubmit }: SlashCommandConfig) {
+export function createSlashCommand({ controllerRef, getPhase, getT, getAiDisabled, onSubmit }: SlashCommandConfig) {
     return Extension.create({
         name: 'novelSlashCommand',
 
@@ -161,8 +162,9 @@ export function createSlashCommand({ controllerRef, getPhase, getT, onSubmit }: 
                     allowSpaces: true,
                     decorationClass: 'slash-query',
                     allow: () => getPhase() === 'idle' || getPhase() === 'prompting',
-                    items: ({ query }) => buildSlashItems(query, getT()),
+                    items: ({ query }) => buildSlashItems(query, getT()).filter((item) => !getAiDisabled?.() || item.type === 'block'),
                     command: ({ editor, range, props }: { editor: Editor; range: Range; props: SlashItem }) => {
+                        if (getAiDisabled?.() && props.type !== 'block') return
                         editor.chain().focus().deleteRange(range).run()
                         onSubmit(props)
                     },

@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * TurnNarration — the speaker control in a Game Master turn's action row.
  *
@@ -78,16 +79,19 @@ interface TurnNarrationProps {
     refreshDisabled?: boolean
     /** Told when this turn's narration starts (true) and stops or unmounts (false); feeds the break nudge. */
     onPlayingChange?: (playing: boolean) => void
+    /** `call` mode replays a saved voice-call MP3 and never synthesizes new chat narration (D1). */
+    mode?: 'narration' | 'call'
 }
 
 export function TurnNarration(props: TurnNarrationProps) {
+    useFeatureFlags()
     if (!isVoicesFeatureEnabled()) return null
     if (props.segments && props.segments.length > 0) {
         return (
             <MultiClipNarration
                 segments={props.segments}
                 error={props.error}
-                canRequest={props.canRequest}
+                canRequest={props.mode === 'call' ? false : props.canRequest}
                 onRequest={props.onRequest}
                 onAttest={props.onAttest}
                 unavailable={props.unavailable}
@@ -95,14 +99,16 @@ export function TurnNarration(props: TurnNarrationProps) {
                 onEditNarratorVoice={props.onEditNarratorVoice}
                 refreshDisabled={props.refreshDisabled}
                 onPlayingChange={props.onPlayingChange}
+                mode={props.mode}
             />
         )
     }
-    return <SingleClipNarration {...props} />
+    return <SingleClipNarration {...props} canRequest={props.mode === 'call' ? false : props.canRequest} />
 }
 
 /** Reports a playing stretch to `onPlayingChange`: true when it starts, false when it stops or the player unmounts. */
 function useReportPlaying(playing: boolean, onPlayingChange?: (playing: boolean) => void) {
+    useFeatureFlags()
     const callbackRef = useRef(onPlayingChange)
     useEffect(() => {
         callbackRef.current = onPlayingChange
@@ -119,6 +125,7 @@ function useReportPlaying(playing: boolean, onPlayingChange?: (playing: boolean)
  * Outside an AudioPlaylistProvider (isolated renders) it is full volume.
  */
 function usePlaylistVolume(): number {
+    useFeatureFlags()
     const playlist = useContext(AudioPlaylistContext)
     if (!playlist) return 1
     return playlist.muted ? 0 : playlist.volume
@@ -147,6 +154,7 @@ function errorCopy(error: ChatTtsError | null | undefined, t: TFunction): string
 }
 
 function AiVoiceBadge() {
+    useFeatureFlags()
     const { t } = useTranslation()
     return (
         <Badge tone="arcane" icon={<Icon icon={Bot} size={12} />}>
@@ -156,6 +164,7 @@ function AiVoiceBadge() {
 }
 
 function AttestButton({ onAttest }: { onAttest?: () => void }) {
+    useFeatureFlags()
     const { t } = useTranslation()
     return (
         <IconButton label={t('interaction.narration.attestRequired')} size="sm" tone="danger" onClick={() => onAttest?.()}>
@@ -166,6 +175,7 @@ function AttestButton({ onAttest }: { onAttest?: () => void }) {
 
 /** The request control while narration is switched off: visible, disabled, labelled with why. */
 function UnavailableButton() {
+    useFeatureFlags()
     const { t } = useTranslation()
     return (
         <IconButton label={t('interaction.narration.unavailable')} size="sm" disabled data-testid="narration-unavailable-button">
@@ -204,6 +214,7 @@ function refusalHoldMs(error: ChatTtsError): number {
  * saying voice is still paused. A new refusal (a new error) restarts the clock.
  */
 function useRefusalHolds(refusal: ChatTtsError | undefined, holdMs: number): boolean {
+    useFeatureFlags()
     const [lapsed, setLapsed] = useState<ChatTtsError | null>(null)
     useEffect(() => {
         if (!refusal || !(holdMs <= MAX_TIMER_MS)) return undefined
@@ -215,6 +226,7 @@ function useRefusalHolds(refusal: ChatTtsError | undefined, holdMs: number): boo
 
 /** Shown instead of the retry for such a refusal: disabled, labelled with why. */
 function RefusedButton({ label }: { label: string }) {
+    useFeatureFlags()
     return (
         <IconButton label={label} size="sm" tone="danger" disabled data-testid="narration-refused-button">
             <VolumeX size={14} strokeWidth={1.75} />
@@ -224,6 +236,7 @@ function RefusedButton({ label }: { label: string }) {
 
 /** The plain request control: nothing failed that still applies. */
 function RequestButton({ onClick }: { onClick: () => void }) {
+    useFeatureFlags()
     const { t } = useTranslation()
     return (
         <IconButton label={t('interaction.narration.play')} size="sm" onClick={onClick}>
@@ -233,6 +246,7 @@ function RequestButton({ onClick }: { onClick: () => void }) {
 }
 
 function Spinner({ label }: { label: string }) {
+    useFeatureFlags()
     return (
         <IconButton label={label} size="sm" disabled>
             <Loader2 size={14} strokeWidth={1.75} className="animate-spin" />
@@ -240,7 +254,8 @@ function Spinner({ label }: { label: string }) {
     )
 }
 
-function SingleClipNarration({ status, url, error, canRequest, onRequest, onAttest, unavailable = false, onPlayingChange }: TurnNarrationProps) {
+function SingleClipNarration({ status, url, error, canRequest, onRequest, onAttest, unavailable = false, onPlayingChange, mode = 'narration' }: TurnNarrationProps) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const userVolume = usePlaylistVolume()
     const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -255,6 +270,7 @@ function SingleClipNarration({ status, url, error, canRequest, onRequest, onAtte
     useReportPlaying(isPlaying, onPlayingChange)
     const refusal = isRefusedForGood(error) ? error : undefined
     const refusalHolds = useRefusalHolds(refusal, refusal ? refusalHoldMs(refusal) : Infinity)
+    const playLabel = mode === 'call' ? t('interaction.narration.playCallAudio') : t('interaction.narration.play')
 
     // Release the audio element (and its fetched bytes) on unmount.
     useEffect(() => {
@@ -344,7 +360,7 @@ function SingleClipNarration({ status, url, error, canRequest, onRequest, onAtte
                     </IconButton>
                 ) : (
                     <IconButton
-                        label={isPlaying ? t('interaction.narration.pause') : t('interaction.narration.play')}
+                        label={isPlaying ? t('interaction.narration.pause') : playLabel}
                         size="sm"
                         tone={isPlaying ? 'active' : 'default'}
                         onClick={toggle}
@@ -357,7 +373,7 @@ function SingleClipNarration({ status, url, error, canRequest, onRequest, onAtte
         )
     }
 
-    if (!canRequest) return null
+    if (!canRequest || mode === 'call') return null
     if (unavailable) return <UnavailableButton />
     if (needsAttestation(error)) return <AttestButton onAttest={onAttest} />
     const failed = Boolean(error) || Boolean(status && status !== 'completed')
@@ -401,6 +417,7 @@ function MultiClipNarration({
     onEditNarratorVoice,
     refreshDisabled,
     onPlayingChange,
+    mode = 'narration',
 }: {
     segments: ChatTtsSegmentClip[]
     error?: ChatTtsError
@@ -412,12 +429,15 @@ function MultiClipNarration({
     onEditNarratorVoice?: () => void
     refreshDisabled?: boolean
     onPlayingChange?: (playing: boolean) => void
+    mode?: 'narration' | 'call'
 }) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const clips = useMemo(() => orderClips(segments), [segments])
     const userVolume = usePlaylistVolume()
     const [queue, dispatch] = useReducer(narrationQueueReducer, initialNarrationQueueState)
     useReportPlaying(queue.phase === 'playing', onPlayingChange)
+    const playLabel = mode === 'call' ? t('interaction.narration.playCallAudio') : t('interaction.narration.play')
 
     // Read by the element listeners and the load effect, which outlive a render.
     const clipsRef = useRef(clips)
@@ -538,6 +558,10 @@ function MultiClipNarration({
 
     const retry = () => {
         dispatch({ type: 'retry' })
+        if (mode === 'call') {
+            dispatch({ type: 'play', clips })
+            return
+        }
         onRequest()
     }
 
@@ -569,6 +593,17 @@ function MultiClipNarration({
     if (!anyReady && anyGenerating) return <Spinner label={t('interaction.narration.generating')} />
 
     if (!anyReady) {
+        if (mode === 'call') {
+            if (loadFailed.size === 0) return null
+            return (
+                <span className="inline-flex flex-wrap items-center gap-1.5">
+                    <IconButton label={t('interaction.narration.loadFailedRetry')} size="sm" tone="danger" onClick={retry}>
+                        <RotateCcw size={14} strokeWidth={1.75} />
+                    </IconButton>
+                    <AiVoiceBadge />
+                </span>
+            )
+        }
         const failedAll = skippedClips.some((clip) => clip.error) || retryCount > 0
         let control = null
         if (canRequest) {
@@ -619,7 +654,7 @@ function MultiClipNarration({
                 <Spinner label={t('interaction.narration.loading')} />
             ) : (
                 <IconButton
-                    label={showPause ? t('interaction.narration.pause') : t('interaction.narration.play')}
+                    label={showPause ? t('interaction.narration.pause') : playLabel}
                     size="sm"
                     tone={showPause ? 'active' : 'default'}
                     onClick={toggle}
@@ -634,7 +669,7 @@ function MultiClipNarration({
                 onEditNarratorVoice={onEditNarratorVoice}
                 refreshDisabled={refreshDisabled}
             />
-            {canRequest && !unavailable && !anyGenerating && (attest ? (
+            {canRequest && mode !== 'call' && !unavailable && !anyGenerating && (attest ? (
                 <AttestButton onAttest={onAttest} />
             ) : retryCount > 0 && (
                 <IconButton label={t('interaction.narration.retrySkipped', { count: retryCount })} size="sm" tone="danger" onClick={retry}>

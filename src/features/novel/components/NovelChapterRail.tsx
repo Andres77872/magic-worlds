@@ -1,136 +1,130 @@
-/**
- * NovelChapterRail — the chapter index. It is a list the writer scans, not a
- * gallery: 30px single-line rows, an ember left edge on the active one, and no
- * card chrome. Two-line bordered cards let ten chapters fill the viewport, which
- * is exactly when a manuscript needs the index most.
- *
- * Adding a chapter is a quiet row at the foot of the list rather than an icon in
- * the header — it is the one write action here, so it should read as the next
- * chapter rather than as a toolbar button. Selection stays delegated upward so
- * the studio can flush the draft before switching.
- *
- * `readOnly` (the story's workspace is archived) keeps the index navigable but
- * disables adding and deleting chapters.
- */
-
-import { useState } from 'react'
+/** The outline selects scenes without replacing their canonical documents. */
 import { useTranslation } from 'react-i18next'
-import { Plus, Trash2 } from 'lucide-react'
-import type { StoryChapter } from '@/shared'
-import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
-import { Icon, IconButton, cx } from '@/ui/primitives'
-import { wordCount } from '../utils/novelUtils'
+import { ChevronDown, ChevronRight, ListTree, Plus, Settings2 } from 'lucide-react'
+import { memo,useCallback,useId,useLayoutEffect,useMemo,useRef,useState,type DragEvent,type RefObject } from 'react'
+import type { StoryChapterOutline, StoryPart, StoryCardRef,StoryStructureOperation } from '@/shared'
+import { Badge, Button, Chip,Icon, IconButton, cx } from '@/ui/primitives'
+import { novelOutline,DEFAULT_OUTLINE_VIEW,type OutlineView,type OutlineChapter } from '../utils/novelOutline'
+import { NovelOutlineDetails } from './NovelOutlineDetails'
 
+export interface OutlineTarget {kind:'novel'|'part'|'chapter'|'scene';id:string}
 interface NovelChapterRailProps {
-    chapters: StoryChapter[]
-    activeChapterId: string | null
-    onSelect: (chapterId: string) => void
-    onAdd: () => void
-    onDelete: (chapterId: string) => void
-    /** The story's workspace is archived: navigation only. */
-    readOnly?: boolean
+    chapters:StoryChapterOutline[]
+    parts?:StoryPart[]
+    activeChapterId:string|null
+    activeSceneId?:string|null
+    onSelect:(id:string)=>void
+    onAdd:()=>void
+    /** Opens the outline import (S18); absent where the outline cannot change. */
+    onImportOutline?:()=>void
+    onManage?:(target:OutlineTarget)=>void
+    onMove?:(operation:StoryStructureOperation)=>void
+    readOnly?:boolean
+    references?:StoryCardRef[]
+    view?:OutlineView
+    onViewChange?:(view:OutlineView)=>void
+}
+const DRAG_TYPE='application/x-reverie-manuscript-item'
+/** Above this many scenes, chapters start with their scenes hidden except the open one, so the outline stays quick. */
+export const LARGE_OUTLINE_SCENES=200
+interface OutlineActions {onSelect:(id:string)=>void;onManage?:(target:OutlineTarget)=>void;onMove?:(operation:StoryStructureOperation)=>void}
+const NO_PARTS:StoryPart[]=[],NO_REFERENCES:StoryCardRef[]=[]
+
+export function NovelChapterRail({chapters,parts=NO_PARTS,references=NO_REFERENCES,activeChapterId,activeSceneId,onSelect,onAdd,onImportOutline,onManage,onMove,readOnly=false,view:controlledView,onViewChange}:NovelChapterRailProps) {
+    const {t}=useTranslation()
+    const [localView,setLocalView]=useState(DEFAULT_OUTLINE_VIEW),view=controlledView??localView
+    const outline=useMemo(()=>novelOutline(chapters,parts),[chapters,parts])
+    const changeView=(value:OutlineView)=>{setLocalView(value);onViewChange?.(value)}
+    const detailCopy=(key:string,values?:Record<string,unknown>)=>t('novelEditor.outline.'+key,values)
+    const collapsed=useMemo(()=>[...outline.ungrouped,...outline.parts.flatMap((part)=>part.chapters)]
+        .reduce((total,chapter)=>total+chapter.scenes.length,0)>LARGE_OUTLINE_SCENES,[outline])
+    // The author's own show/hide choices; every other chapter follows the novel's size.
+    const [toggled,setToggled]=useState<ReadonlyMap<string,boolean>>(()=>new Map())
+    const toggle=useCallback((id:string,expanded:boolean)=>setToggled((old)=>new Map(old).set(id,!expanded)),[])
+    // The Studio passes new handlers on every render. The tree reads the latest ones, so typing does not re-render it.
+    const actions=useRef<OutlineActions>({onSelect,onManage,onMove})
+    useLayoutEffect(()=>{actions.current={onSelect,onManage,onMove}})
+    return <aside aria-label={t('novelEditor.structure.title')} className="flex min-h-0 min-w-0 flex-col gap-3 border-r border-line bg-ink-900/35 p-3">
+        <div className="flex min-w-0 items-start justify-between gap-2"><h2 className="font-ui text-eyebrow text-parchment-400">{t('novelEditor.chapters.title')}</h2><span className="font-mono text-caption text-parchment-400" aria-label={detailCopy('activeWords',{count:outline.words})}>{outline.words?.toLocaleString()??'—'}</span></div>
+        <div className="flex flex-wrap gap-2" role="group" aria-label={detailCopy('view')}><Chip active={view.numbers} aria-pressed={view.numbers} onClick={()=>changeView({...view,numbers:!view.numbers})}>{detailCopy('numbers')}</Chip><Chip active={view.details} aria-pressed={view.details} onClick={()=>changeView({...view,details:!view.details})}>{detailCopy('details')}</Chip></div>
+        {view.numbers&&<p className="text-caption text-parchment-400">{detailCopy('numberHelp')}</p>}
+        {collapsed&&<p className="text-caption text-parchment-400">{detailCopy('collapsedHelp')}</p>}
+        <OutlineTree outline={outline} view={view} references={references} activeChapterId={activeChapterId} activeSceneId={activeSceneId??null} readOnly={readOnly}
+            canManage={Boolean(onManage)} canMove={Boolean(onMove)} collapsed={collapsed} toggled={toggled} onToggle={toggle} actions={actions}/>
+        <div className="flex flex-wrap gap-1">
+            <Button variant="ghost" size="sm" onClick={onAdd} disabled={readOnly} data-testid="novel-chapter-add"><Icon icon={Plus} size={14}/>{t('novelEditor.chapters.add')}</Button>
+            {onImportOutline&&<Button variant="ghost" size="sm" onClick={onImportOutline} disabled={readOnly} data-testid="novel-outline-import"><Icon icon={ListTree} size={14}/>{t('novelEditor.outlineImport.open')}</Button>}
+        </div>
+    </aside>
 }
 
-export function NovelChapterRail({ chapters, activeChapterId, onSelect, onAdd, onDelete, readOnly = false }: NovelChapterRailProps) {
-    const { t } = useTranslation()
-    const [pendingDelete, setPendingDelete] = useState<StoryChapter | null>(null)
-    // A delete confirmation left open when the story turns read-only goes with it.
-    if (readOnly && pendingDelete) setPendingDelete(null)
-
-    const deletable = chapters.length > 1
-    const totalWords = chapters.reduce((sum, chapter) => sum + wordCount(chapter.body), 0)
-
-    // The rail has no width of its own: it is a grid item and the studio owns
-    // the track, so a fixed `lg:w-*` here would only leave a dead strip whenever
-    // the two disagree.
-    return (
-        <aside className="flex min-h-0 w-full flex-col border-b border-parchment-50/10 bg-ink-900/35 lg:border-b-0 lg:border-r">
-            <div className="flex h-[34px] shrink-0 items-center justify-between gap-2 px-3">
-                <h2 className="m-0 font-ui text-[11px] font-semibold uppercase tracking-[0.14em] text-parchment-400">
-                    {t('novelEditor.chapters.title')}
-                </h2>
-                <span className="shrink-0 font-mono text-[10px] text-parchment-500">
-                    {t('novelEditor.header.words', { count: totalWords, formatted: totalWords.toLocaleString() })}
-                </span>
-            </div>
-
-            <div className="max-h-60 min-h-0 flex-1 overflow-y-auto lg:max-h-none">
-                {chapters.map((chapter, index) => {
-                    const active = chapter.id === activeChapterId
-                    const label = chapter.title || t('novelEditor.chapters.fallbackTitle', { number: index + 1 })
-                    return (
-                        <div key={chapter.id} className="group relative">
-                            <button
-                                type="button"
-                                onClick={() => onSelect(chapter.id)}
-                                aria-current={active ? 'page' : undefined}
-                                className={cx(
-                                    'flex min-h-8 w-full cursor-pointer items-center gap-2 border-l-2 pl-2.5 text-left transition-colors pointer-coarse:min-h-11',
-                                    deletable ? 'pr-8 pointer-coarse:pr-14' : 'pr-2.5',
-                                    active
-                                        ? 'border-ember-500 bg-ember-500/10'
-                                        : 'border-transparent hover:bg-parchment-50/[.04]',
-                                )}
-                                data-testid="novel-chapter-row"
-                            >
-                                <span className="w-[13px] shrink-0 font-mono text-[11px] text-parchment-500">{index + 1}</span>
-                                <span
-                                    className={cx(
-                                        'min-w-0 flex-1 truncate font-ui text-label',
-                                        active ? 'text-parchment-50' : 'text-parchment-100',
-                                    )}
-                                >
-                                    {label}
-                                </span>
-                                <span
-                                    className="shrink-0 font-mono text-[11px] text-parchment-500"
-                                    aria-label={t('novelEditor.chapters.words', { count: wordCount(chapter.body) })}
-                                >
-                                    {wordCount(chapter.body).toLocaleString()}
-                                </span>
-                            </button>
-                            {deletable && (
-                                <IconButton
-                                    label={t('novelEditor.chapters.deleteLabel', { title: label })}
-                                    size="sm"
-                                    tone="danger"
-                                    disabled={readOnly}
-                                    onClick={() => setPendingDelete(chapter)}
-                                    className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100"
-                                >
-                                    <Icon icon={Trash2} size={14} />
-                                </IconButton>
-                            )}
-                        </div>
-                    )
-                })}
-            </div>
-
-            <button
-                type="button"
-                onClick={onAdd}
-                disabled={readOnly}
-                className="flex min-h-8 w-full shrink-0 cursor-pointer items-center gap-2 border-l-2 border-transparent pl-2.5 pr-2.5 text-left font-ui text-label text-parchment-400 transition-colors hover:bg-parchment-50/[.04] hover:text-parchment-100 disabled:pointer-events-none disabled:opacity-50 pointer-coarse:min-h-11"
-                data-testid="novel-chapter-add"
-            >
-                <span className="flex w-[13px] shrink-0 items-center justify-center">
-                    <Icon icon={Plus} size={14} />
-                </span>
-                <span className="truncate">{t('novelEditor.chapters.add')}</span>
-            </button>
-
-            <ConfirmDialog
-                visible={pendingDelete !== null}
-                title={t('novelEditor.chapters.deleteTitle')}
-                message={pendingDelete ? t('novelEditor.chapters.deleteMessage', { title: pendingDelete.title }) : ''}
-                confirmLabel={t('novelEditor.chapters.deleteConfirm')}
-                variant="danger"
-                onConfirm={() => {
-                    if (pendingDelete && !readOnly) onDelete(pendingDelete.id)
-                    setPendingDelete(null)
-                }}
-                onCancel={() => setPendingDelete(null)}
-            />
-        </aside>
-    )
+interface OutlineTreeProps {
+    outline:ReturnType<typeof novelOutline>
+    view:OutlineView
+    references:StoryCardRef[]
+    activeChapterId:string|null
+    activeSceneId:string|null
+    readOnly:boolean
+    canManage:boolean
+    canMove:boolean
+    collapsed:boolean
+    toggled:ReadonlyMap<string,boolean>
+    onToggle:(id:string,expanded:boolean)=>void
+    actions:RefObject<OutlineActions>
 }
+const OutlineTree=memo(function OutlineTree({outline,view,references,activeChapterId,activeSceneId,readOnly,canManage,canMove,collapsed,toggled,onToggle,actions}:OutlineTreeProps) {
+    const {t}=useTranslation()
+    const numberId=useId()
+    const copy=(key:string,options?:Record<string,unknown>)=>t('novelEditor.structure.'+key,options)
+    const detailCopy=(key:string,values?:Record<string,unknown>)=>t('novelEditor.outline.'+key,values)
+    const ordinalId=(kind:string,id:string)=>numberId+'-'+kind+'-'+encodeURIComponent(id)
+    function drop(event:DragEvent,kind:'part'|'chapter'|'scene',parentId:string|null,beforeId?:string) {
+        if (readOnly||!canMove||!event.dataTransfer.types.includes(DRAG_TYPE)) return
+        event.preventDefault()
+        try {
+            const item=JSON.parse(event.dataTransfer.getData(DRAG_TYPE))
+            if (item.kind!==kind||typeof item.id!=='string'||item.id===beforeId) return
+            actions.current.onMove?.({op:'move',kind,id:item.id,parentId,beforeId})
+        } catch { /* Only this outline's explicit item payload is accepted. */ }
+    }
+    function drag(event:DragEvent,kind:string,id:string) {event.dataTransfer.effectAllowed='move';event.dataTransfer.setData(DRAG_TYPE,JSON.stringify({kind,id}))}
+    function allow(event:DragEvent) {if(!readOnly&&canMove&&event.dataTransfer.types.includes(DRAG_TYPE))event.preventDefault()}
+    const settings=(kind:OutlineTarget['kind'],id:string,title:string)=>canManage&&<IconButton label={copy('settings',{title})} size="sm" onClick={()=>actions.current.onManage?.({kind,id})}><Icon icon={Settings2} size={14}/></IconButton>
+    const rows=(items:OutlineChapter[])=>items.map(({unit:chapter,number,words,archived,scenes})=>{
+        const active=chapter.id===activeChapterId
+        const expanded=toggled.get(chapter.id)??(!collapsed||active)
+        const listId=ordinalId('scenes',chapter.id)
+        return <li key={chapter.id} className="min-w-0" onDragOver={allow} onDrop={(event)=>{event.stopPropagation();drop(event,'chapter',chapter.partId,chapter.id)}}>
+            <div className="flex min-w-0 items-center gap-1">
+                {scenes.length>0&&<IconButton size="sm" aria-expanded={expanded} aria-controls={expanded?listId:undefined} onClick={()=>onToggle(chapter.id,expanded)}
+                    label={expanded?detailCopy('hideScenes',{title:chapter.title}):detailCopy('showScenes',{count:scenes.length,title:chapter.title})}><Icon icon={expanded?ChevronDown:ChevronRight} size={14}/></IconButton>}
+                <Button variant="ghost" size="sm" className={cx('min-w-0 flex-1 justify-start truncate',active&&'text-ember-300')} onClick={()=>actions.current.onSelect(chapter.id)} aria-label={chapter.title} aria-describedby={view.numbers&&number!==null?ordinalId('chapter',chapter.id):undefined}
+                    draggable={!readOnly&&!archived&&!chapter.inheritance?.readOnly} onDragStart={(event)=>drag(event,'chapter',chapter.id)} data-testid="novel-chapter-row">
+                    {view.numbers&&number!==null&&<><span className="sr-only" id={ordinalId('chapter',chapter.id)}>{detailCopy('chapterNumber',{number})}</span><span className="font-mono text-caption text-parchment-400" aria-hidden="true">{number}.</span></>}<span className="truncate">{chapter.title}</span>
+                </Button>{settings('chapter',chapter.id,chapter.title)}
+                {!view.details&&archived&&<Badge>{copy('statuses.archived')}</Badge>}
+            </div>
+            {view.details&&<NovelOutlineDetails unit={chapter} words={words} archived={archived} references={references.length?references:('activeCardRefs' in chapter?chapter.activeCardRefs as StoryCardRef[]:[])} chapterId={chapter.id}/>}
+            {expanded&&<ol id={listId} className="space-y-1 border-l border-line pl-3">
+                {scenes.map(({unit:scene,number,words,archived})=><li key={scene.id} className="min-w-0" onDragOver={allow} onDrop={(event)=>{event.stopPropagation();drop(event,'scene',chapter.id,scene.id)}}>
+                    <div className="flex min-w-0 items-center gap-1">
+                    <Button variant="ghost" size="sm" className={cx('min-w-0 flex-1 justify-start',scene.id===activeSceneId&&'bg-ember-500/10 text-ember-300')}
+                        aria-current={scene.id===activeSceneId?'page':undefined} aria-label={scene.title} aria-describedby={view.numbers&&number!==null?ordinalId('scene',scene.id):undefined} onClick={()=>actions.current.onSelect(scene.id)} draggable={!readOnly&&!archived&&!scene.inheritance?.readOnly} onDragStart={(event)=>drag(event,'scene',scene.id)}>
+                        {view.numbers&&number!==null&&<><span className="sr-only" id={ordinalId('scene',scene.id)}>{detailCopy('sceneNumber',{number})}</span><span className="font-mono text-caption text-parchment-400" aria-hidden="true">{number}</span></>}<span className="min-w-0 flex-1 truncate text-left">{scene.title}</span>
+                        <span className="font-mono text-caption text-parchment-400"><span aria-label={words===null?t('novelEditor.loading.wordsUnavailable'):undefined}>{words?.toLocaleString()??'—'}</span></span>
+                    </Button>{settings('scene',scene.id,scene.title)}
+                    {!view.details&&archived&&<Badge>{copy('statuses.archived')}</Badge>}</div>
+                    {view.details&&<NovelOutlineDetails unit={scene} words={words} archived={archived} references={references.length?references:('activeCardRefs' in scene?scene.activeCardRefs as StoryCardRef[]:[])} chapterId={chapter.id} sceneId={scene.id}/>}
+                </li>)}
+            </ol>}
+        </li>
+    })
+    return <nav aria-label={copy('title')} className="min-h-0 flex-1 overflow-y-auto">
+        <ol className="space-y-3" onDragOver={allow} onDrop={(event)=>drop(event,'chapter',null)}>{rows(outline.ungrouped)}</ol>
+        {outline.parts.map(({unit:part,number,words,archived,chapters})=><section key={part.id} className="mt-4 min-w-0" onDragOver={allow} onDrop={(event)=>{event.stopPropagation();drop(event,'chapter',part.id)}}>
+            <div className="flex items-center gap-1"><h3 className="min-w-0 flex-1 truncate font-ui text-eyebrow text-parchment-400">{view.numbers&&number!==null&&<span aria-label={detailCopy('partNumber',{number})}>{number}. </span>}{part.title}</h3>{settings('part',part.id,part.title)}{!view.details&&archived&&<Badge>{copy('statuses.archived')}</Badge>}</div>
+            {view.details&&<NovelOutlineDetails unit={part} words={words} archived={archived} references={references}/>}
+            <ol className="space-y-3">{rows(chapters)}</ol>
+        </section>)}
+    </nav>
+})

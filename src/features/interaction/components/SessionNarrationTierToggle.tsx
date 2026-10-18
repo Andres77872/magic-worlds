@@ -135,7 +135,7 @@ export function SessionNarrationTierView({ settings, accountTier, readOnly = fal
 
 export function SessionNarrationTierToggle({ api, basePath, sessionId, readOnly = false }: SessionNarrationTierToggleProps) {
     const state = useSessionNarrationTier(api, basePath, sessionId)
-    if (!state.settings) return null
+    if (!state.settings || !state.capabilities?.tiers_allowed.includes('expressive')) return null
     return (
         <SessionNarrationTierView
             settings={state.settings}

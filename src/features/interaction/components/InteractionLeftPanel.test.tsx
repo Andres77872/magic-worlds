@@ -1,3 +1,4 @@
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { act, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Adventure, AdventureSnapshot, EffectiveVoice } from '@/shared'
@@ -46,7 +47,7 @@ const ADVENTURE: Adventure = {
 
 describe('InteractionLeftPanel lorebooks', () => {
     beforeEach(() => {
-        vi.stubEnv('VITE_FEATURE_LOREBOOKS_ENABLED', 'true')
+        setTestFeatureFlags({ lorebooks: true })
     })
 
     afterEach(() => {
@@ -74,7 +75,7 @@ describe('InteractionLeftPanel lorebooks', () => {
 
 describe('InteractionLeftPanel narration (Workspace R1)', () => {
     beforeEach(() => {
-        vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'true')
+        setTestFeatureFlags({ voices: true })
     })
 
     afterEach(() => {
@@ -122,7 +123,7 @@ describe('InteractionLeftPanel effective voices (R1-FE-03)', () => {
     }
 
     beforeEach(() => {
-        vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'true')
+        setTestFeatureFlags({ voices: true })
         picker.props = null
     })
 

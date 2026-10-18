@@ -1,13 +1,5 @@
-/**
- * createCodexMention — a Mention variant bound to the novel's codex.
- *
- * Markdown round-trip: a mention serializes as plain `@Name` (clean for the
- * stored body, the LLM prompt, and copy/paste), and parses back into a chip
- * via a marked tokenizer that longest-prefix-matches codex labels at parse
- * time (closure over getEntries keeps the list live without rebuilding the
- * editor). A renamed or removed codex entry degrades gracefully: its old
- * `@Name` simply stays plain text.
- */
+/** Canonical mentions persist their reference IDs in scene JSON. Markdown is
+ * an explicit import/projection boundary; ambiguous labels stay plain text. */
 
 import type { MarkdownParseHelpers, MarkdownToken } from '@tiptap/core'
 import Mention from '@tiptap/extension-mention'
@@ -24,16 +16,18 @@ type CodexMentionToken = MarkdownToken & {
 /** Longest case-insensitive label match at the head of `text` (after '@'). */
 function matchEntry(text: string, entries: EditorCodexEntry[]): { entry: EditorCodexEntry; matched: string } | null {
     let best: { entry: EditorCodexEntry; matched: string } | null = null
+    let ambiguous=false
     for (const entry of entries) {
         const label = entry.label.trim()
         if (!label) continue
         const candidate = text.slice(0, label.length)
         if (candidate.toLowerCase() !== label.toLowerCase()) continue
         const after = text.charAt(label.length)
-        if (after && /[\w@]/.test(after)) continue
-        if (!best || label.length > best.entry.label.trim().length) best = { entry, matched: candidate }
+        if (after && /[\p{L}\p{N}_@]/u.test(after)) continue
+        if (!best || label.length > best.entry.label.trim().length){best={entry,matched:candidate};ambiguous=false}
+        else if(label.length===best.entry.label.trim().length&&entry.id!==best.entry.id)ambiguous=true
     }
-    return best
+    return ambiguous?null:best
 }
 
 export function createCodexMention(getEntries: () => EditorCodexEntry[]) {

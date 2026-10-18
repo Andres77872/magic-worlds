@@ -21,6 +21,7 @@ import {
 } from '../fixtures'
 import { AuthContext } from '@/app/providers/AuthProvider'
 import { resetPreviewCreditConfirmation } from '../usePreviewCreditConfirm'
+import { paidPreviewResponse } from '@/test-utils/previewBilling'
 import { clearPreviewTextsCache } from '../usePreviewTexts'
 import { voiceFromPreset } from '../voiceFromPreset'
 import { VoicePickerDialog } from './VoicePickerDialog'
@@ -208,6 +209,7 @@ describe('VoicePickerDialog (R1-FE-01)', () => {
             text_id: 'narration',
             language: 'en',
             tier: 'standard',
+            max_credit_cost: 0,
         })
     })
 
@@ -238,7 +240,7 @@ describe('VoicePickerDialog (R1-FE-01)', () => {
 
         it('past the free renders a tuned preset reads "Preview · 1 credit" and the first paid render asks once', async () => {
             api.getUserProfile.mockResolvedValue(proWith(12))
-            api.previewVoice.mockResolvedValue(paidAnswer)
+            api.previewVoice.mockImplementation(paidPreviewResponse(paidAnswer, 12))
             render(
                 <AuthContext.Provider value={{ userHash: 'user-a' } as never}>
                     <VoicePickerDialog open onSelect={vi.fn()} onClose={vi.fn()} />
@@ -254,19 +256,19 @@ describe('VoicePickerDialog (R1-FE-01)', () => {
             let dialog = await screen.findByRole('dialog', { name: 'Preview with credits?' })
             expect(dialog).toHaveTextContent('Previews now cost 1 credit each. Continue?')
             fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
-            expect(api.previewVoice).not.toHaveBeenCalled()
+            expect(api.previewVoice.mock.calls.map(([body]) => body.max_credit_cost)).toEqual([0])
             // Cancelling closes the dialog alone: the picker stays open.
             expect(screen.getByTestId('voice-picker-elevenlabs')).toBeInTheDocument()
 
             fireEvent.click(within(rowOf('Harbour master')).getByRole('button', { name: HARBOUR_PAID }))
             dialog = await screen.findByRole('dialog', { name: 'Preview with credits?' })
             fireEvent.click(within(dialog).getByRole('button', { name: 'Continue' }))
-            await waitFor(() => expect(api.previewVoice).toHaveBeenCalledTimes(1))
+            await waitFor(() => expect(api.previewVoice).toHaveBeenCalledTimes(3))
             expect(await screen.findByText('11 previews left today')).toBeInTheDocument()
 
             // Confirmed once for the session: the next paid render goes straight through.
             fireEvent.click(await within(rowOf('Harbour master')).findByRole('button', { name: HARBOUR_PAID }))
-            await waitFor(() => expect(api.previewVoice).toHaveBeenCalledTimes(2))
+            await waitFor(() => expect(api.previewVoice).toHaveBeenCalledTimes(4))
             expect(screen.queryByRole('dialog', { name: 'Preview with credits?' })).not.toBeInTheDocument()
         })
 
@@ -290,7 +292,8 @@ describe('VoicePickerDialog (R1-FE-01)', () => {
             await waitFor(() => expect(button).toHaveAccessibleDescription('Free: voice sample'))
             expect(button).toBeEnabled()
             // A tuned preset renders: disabled at the hard limit.
-            expect(within(rowOf('Harbour master')).getByRole('button', { name: HARBOUR_PREVIEW })).toBeDisabled()
+            // The server can still serve an existing cached render at the hard limit.
+            expect(within(rowOf('Harbour master')).getByRole('button', { name: HARBOUR_PREVIEW })).toBeEnabled()
             expect(within(rowOf('Harbour master')).queryByText('Free: voice sample')).not.toBeInTheDocument()
 
             fireEvent.click(button)
@@ -320,9 +323,10 @@ describe('VoicePickerDialog (R1-FE-01)', () => {
             await waitFor(() => expect(api.previewVoice).toHaveBeenCalledTimes(1))
             expect(api.previewVoice.mock.calls[0][0]).toEqual(expect.objectContaining({ voice_key: VOICE_KEY_MAREN }))
             // The session's one confirmation (shared with the Studio) is still due on the first paid render.
+            api.previewVoice.mockImplementation(paidPreviewResponse(paidAnswer, 12))
             fireEvent.click(await within(rowOf('Harbour master')).findByRole('button', { name: HARBOUR_PAID }))
             expect(await screen.findByRole('dialog', { name: 'Preview with credits?' })).toBeInTheDocument()
-            expect(api.previewVoice).toHaveBeenCalledTimes(1)
+            expect(api.previewVoice).toHaveBeenCalledTimes(2)
         })
 
         it('on the Expressive tier an untuned preset whose only sample is the Expressive one is free', async () => {
@@ -415,6 +419,7 @@ describe('VoicePickerDialog (R1-FE-01)', () => {
 
         it('closing the picker while the credit confirmation is open dismisses it and runs nothing', async () => {
             api.getUserProfile.mockResolvedValue(proWith(12))
+            api.previewVoice.mockImplementation(paidPreviewResponse(paidAnswer, 12))
             const handlers = { onSelect: vi.fn(), onClose: vi.fn() }
             const picker = (open: boolean) => (
                 <AuthContext.Provider value={{ userHash: 'user-a' } as never}>
@@ -431,7 +436,7 @@ describe('VoicePickerDialog (R1-FE-01)', () => {
             rerender(picker(true))
             await screen.findByText('Harbour master')
             expect(screen.queryByRole('dialog', { name: 'Preview with credits?' })).not.toBeInTheDocument()
-            expect(api.previewVoice).not.toHaveBeenCalled()
+            expect(api.previewVoice.mock.calls.map(([body]) => body.max_credit_cost)).toEqual([0])
         })
     })
 

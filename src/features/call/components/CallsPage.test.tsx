@@ -1,3 +1,7 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { act, fireEvent, render as baseRender, screen, waitFor } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -73,7 +77,7 @@ vi.mock('@/infrastructure/api', () => ({
 }))
 
 beforeEach(() => {
-    vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
+    setTestFeatureFlags({ calls: true })
     // Call history and transcripts are private reads of the committed workspace.
     workspace = createWorkspaceTestState({ api: apiService })
     authed = true
@@ -193,20 +197,18 @@ describe('CallsPage', () => {
         expect(setPage).toHaveBeenCalledWith('character-chat')
     })
 
-    it('says why a Fish-voiced character cannot be called while Fish calls are off', async () => {
+    it('opens the call of a Fish-voiced character while Fish calls are off, so the call setup can offer another voice', async () => {
         characters = [GABRIEL, PERSONA]
         getVoiceCapabilities.mockResolvedValue(fishCapabilities(false))
+        startCharacterChat.mockResolvedValue({ id: 'chat-2', character: GABRIEL } as CharacterChatSession)
         render(<CallsPage />)
         await waitFor(() => expect(getVoiceCapabilities).toHaveBeenCalled())
         await act(async () => {})
 
         fireEvent.click(screen.getByRole('button', { name: 'Call Gabriel' }))
 
-        const toast = await screen.findByRole('alert')
-        expect(toast).toHaveTextContent('Call not started')
-        expect(toast).toHaveTextContent('Fish Audio voices support narration and previews.')
-        expect(startCharacterChat).not.toHaveBeenCalled()
-        fireEvent.click(screen.getByRole('button', { name: 'Dismiss notice' }))
+        await waitFor(() => expect(startCharacterChat).toHaveBeenCalledWith(GABRIEL, PERSONA))
+        await waitFor(() => expect(resumeCharacterChat).toHaveBeenCalledWith({ id: 'chat-2', character: GABRIEL }, { mode: 'voice' }))
         expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     })
 

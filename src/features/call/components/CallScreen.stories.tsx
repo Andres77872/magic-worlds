@@ -1,7 +1,11 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { EFFECTIVE_BY_REASON, effectiveVoice } from '@/features/voices/fixtures'
+import { V2_VOICE } from '@/features/voices/fixtures'
+import { Badge } from '@/ui/primitives'
 import { callVoiceNote } from '../callVoiceNote'
+import type { LiveTranscriptLine } from '../liveTranscript'
 import { CallScreenView } from './CallScreen'
+import { CallSetup } from './CallSetup'
 
 const noop = () => {}
 
@@ -56,6 +60,41 @@ type Story = StoryObj<typeof meta>
 export const ConsentGate: Story = {
     name: 'Consent gate (entry)',
     args: { state: 'idle', consentOpen: true, elapsedSeconds: 0, inputLevel: 0 },
+}
+
+/** The call setup as the live container passes it (a stand-in replaces the callbot model control). */
+function setupFor(options: { voiceUnavailable?: boolean; model?: 'set' | 'missing' } = {}) {
+    return (
+        <CallSetup
+            name="Lyra Emberwick"
+            characterVoice={V2_VOICE}
+            pick={null}
+            onPick={noop}
+            voiceUnavailable={options.voiceUnavailable}
+            model={options.model === 'missing' ? <Badge tone="danger">Not set up</Badge> : <Badge tone="arcane">Claude Haiku 5.5</Badge>}
+        />
+    )
+}
+
+export const ConsentWithSetup: Story = {
+    name: 'Start dialog with the call setup',
+    args: { state: 'idle', consentOpen: true, elapsedSeconds: 0, inputLevel: 0, setup: setupFor() },
+}
+
+export const SetupBlocksStart: Story = {
+    name: 'Start waits for the setup (voice cannot call)',
+    args: { state: 'idle', consentOpen: true, elapsedSeconds: 0, inputLevel: 0, setup: setupFor({ voiceUnavailable: true }), setupBlocked: true },
+}
+
+export const EndedNoCallModel: Story = {
+    name: 'Ended (no conversation model: call settings lead)',
+    args: {
+        state: 'error',
+        inputLevel: 0,
+        error: { category: 'provider_submission', code: 'call_model_unavailable', message: 'No conversation model is set up for voice calls.', fatal: true },
+        setup: setupFor({ model: 'missing' }),
+        onOpenSetup: noop,
+    },
 }
 
 export const FishDevelopmentConsent: Story = {
@@ -122,6 +161,31 @@ export const FatalError: Story = {
         inputLevel: 0,
         error: { category: 'internal', code: 'VOICE_CONNECTION_LOST', message: 'The voice connection was lost.', fatal: true },
     },
+}
+
+const TRANSCRIPT: LiveTranscriptLine[] = [
+    { id: 'user:t1', turnId: 't1', role: 'user', text: 'Did you find the letter in the archive?', streaming: false, interrupted: false },
+    { id: 'assistant:t1', turnId: 't1', role: 'assistant', text: 'I did. It was folded inside the map case, sealed with green wax.', streaming: false, interrupted: false },
+    { id: 'user:t2', turnId: 't2', role: 'user', text: 'What does it say?', streaming: false, interrupted: false },
+    { id: 'assistant:t2', turnId: 't2', role: 'assistant', text: 'Only a few lines. Someone wanted us to reach the bell tower before', streaming: false, interrupted: true },
+    { id: 'user:t3', turnId: 't3', role: 'user', text: 'Wait, before what?', streaming: false, interrupted: false },
+    { id: 'assistant:t3', turnId: 't3', role: 'assistant', text: 'Before the last light fades. That part is underlined twice', streaming: true, interrupted: false },
+]
+
+export const TranscriptOpen: Story = {
+    name: 'Live transcript (open)',
+    args: {
+        state: 'assistant_speaking',
+        transcriptLines: TRANSCRIPT,
+        defaultTranscriptOpen: true,
+        transcript: 'Wait, before what?',
+        assistantText: 'Before the last light fades. That part is underlined twice',
+    },
+}
+
+export const EndedWithTranscript: Story = {
+    name: 'Ended (transcript available)',
+    args: { state: 'ended', endReason: 'user', inputLevel: 0, transcriptLines: TRANSCRIPT.slice(0, 4), setup: setupFor(), onOpenSetup: noop },
 }
 
 export const Reconnecting: Story = { args: { state: 'reconnecting', inputLevel: 0 } }

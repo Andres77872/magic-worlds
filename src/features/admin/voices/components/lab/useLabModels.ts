@@ -90,7 +90,7 @@ function mergeRow(row: unknown): LabModelOption | null {
         breaks: flag(row.breaks, base?.breaks ?? false),
         inlineIpa: flag(row.inline_ipa, base?.inlineIpa ?? false),
         label: typeof row.label === 'string' && row.label.trim() ? row.label.trim() : null,
-        available: alias === 'fish_drama_3' ? row.available === true : row.available !== false,
+        available: ['fish_drama_3', 'fish_s2_1_pro'].includes(alias) ? row.available === true : row.available !== false,
         unavailableReason: typeof row.unavailable_reason === 'string' && row.unavailable_reason ? row.unavailable_reason : null,
         maxChars,
         outputFormats: formats.length > 0 ? [...new Set(formats)] : [...LAB_OUTPUT_FORMATS],

@@ -9,6 +9,7 @@ const SCOPES: Record<AssistantKind, Partial<AssistantConversation>> = {
     card: { card_type: 'world', card_id: null },
     lorebook: { lorebook_id: null },
     app: {},
+    novel:{story_id:'story-1'},
 }
 
 /** An idle conversation of one kind, with that kind's scope fields. */
@@ -35,7 +36,7 @@ export function assistantTurnFixture<K extends AssistantKind>(
         conversation,
         user_message: user,
     }
-    if (kind === 'app') {
+    if (kind === 'app' || kind === 'novel') {
         const assistant: AssistantChatMessage = overrides.assistant_message
             ?? { ...base, message_id: 21, sequence_no: 2, role: 'assistant', content: 'Done.', metadata: { request_id: requestId, usage: null } }
         return { ...core, assistant_message: assistant, messages: [user, assistant], ...overrides } as AssistantTurnResponse<K>

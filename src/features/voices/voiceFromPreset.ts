@@ -15,7 +15,7 @@ export function voiceFromPreset(preset: VoicePreset): StoredCharacterVoice {
         preset_name: preset.name,
     }
     return preset.provider === 'fish_audio'
-        ? { ...common, schema_version: 3, provider: 'fish_audio', settings: preset.settings ?? null,
+        ? { ...common, schema_version: 3, provider: 'fish_audio', model_id: preset.model_id ?? 'drama-3', settings: preset.settings ?? null,
             ...(preset.performance ? { performance: preset.performance } : {}) }
         : { ...common, schema_version: 2, provider: 'elevenlabs', settings: preset.settings ?? null }
 }

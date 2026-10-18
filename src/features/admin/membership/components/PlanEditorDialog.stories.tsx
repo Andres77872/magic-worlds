@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite'
 import { Button } from '@/ui/primitives'
 import { PlanEditorDialog } from './PlanEditorDialog'
 import { MEMBERSHIP_OPERATIONS, plans, proPlan, sponsorPlan } from '../membership.fixtures'
+import { ACTIVE_FEATURE_FLAGS, ACTIVE_FEATURE_KEYS } from '@/shared/featureFlagCatalog'
 
 const meta = {
     title: 'Admin/Membership/PlanEditorDialog',
@@ -26,6 +27,8 @@ const meta = {
         onClose: { action: 'close' },
     },
     args: {
+        flags: ACTIVE_FEATURE_KEYS.map(key => ({ key, requires: [...ACTIVE_FEATURE_FLAGS[key].requires] })),
+        catalogRevision: '1',
         open: true,
         mode: 'create',
         plan: null,

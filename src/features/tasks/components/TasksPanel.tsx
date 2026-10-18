@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * Shared body for the background-tasks UI. Rendered in two hosts: the desktop
  * `SidebarTasksMenu` popover (rises from the rail) and the mobile `TasksDrawer`
@@ -7,7 +8,7 @@
  */
 import { isTaskFeatureEnabled, isPageFeatureEnabled } from '@/shared/featureFlags'
 import { useMemo, useRef, useState } from 'react'
-import { AlertCircle, ArrowUpRight, BookOpen, CalendarClock, CheckCircle2, ChevronDown, Clock3, FileAudio, ListTodo, Loader2, Music2, RefreshCw, Trash2, XCircle } from 'lucide-react'
+import { AlertCircle, ArrowUpRight, BookOpen, CalendarClock, CheckCircle2, ChevronDown, Clock3, FileAudio, ListTodo, Loader2, MessageSquare, Music2, RefreshCw, Trash2, XCircle } from 'lucide-react'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import { useBackgroundTasks, useData } from '@/app/hooks'
@@ -220,6 +221,7 @@ function nonCardTarget(target: BackgroundTaskPublic['target']): { page: PageType
 }
 
 export function TasksPanel({ dense = false }: { dense?: boolean }) {
+    const featureFlagGeneration = useFeatureFlags().generation
     const { t } = useTranslation()
     const {
         taskBuckets,
@@ -230,7 +232,7 @@ export function TasksPanel({ dense = false }: { dense?: boolean }) {
         loadMoreTerminalTasks,
         closeDrawer,
     } = useBackgroundTasks()
-    const { characters, worlds, items, templateAdventures } = useData()
+    const { characters, worlds, items, templateAdventures, characterChats, inProgressAdventures, resumeCharacterChat, editInProgress } = useData()
     const { selectedWorkspaceId, workspaceEpoch, capture, isCurrent } = useWorkspace()
     const { navigateToOrigin } = useOriginNavigation()
     const [activeTab, setActiveTab] = useState<TaskTab>('active')
@@ -267,7 +269,7 @@ export function TasksPanel({ dense = false }: { dense?: boolean }) {
             completed: taskBuckets.completed.filter(isTaskFeatureEnabled).length,
             failed: taskBuckets.failed.filter(isTaskFeatureEnabled).length,
         }),
-        [taskBuckets],
+        [taskBuckets, featureFlagGeneration],
     )
 
     /** The library lists hold the selected workspace only; another workspace's card is read there. */
@@ -354,13 +356,41 @@ export function TasksPanel({ dense = false }: { dense?: boolean }) {
      * Opens a resource/lorebook task's result in the task's own workspace (the
      * coordinator guards a switch); an unavailable workspace is reported here.
      */
-    const openTaskPage = async (task: BackgroundTaskPublic, target: { page: PageType; hash: string }) => {
+    const openTaskPage = async (task: BackgroundTaskPublic, target: { page: PageType; hash?: string }) => {
         if (!isTaskFeatureEnabled(task) || !isPageFeatureEnabled(target.page)) return
         setTargetError(null)
         const scope = capture()
         const outcome = await navigateToOrigin({ workspaceId: taskOrigin(task) ?? selectedWorkspaceId, ...target })
         if (outcome === 'navigated') closeDrawer()
         else if (outcome === 'unavailable' && isCurrent(scope)) setTargetError(t('workspaceActivity.tasks.targetUnavailable'))
+    }
+
+    /**
+     * Opens the chat a scene image or narration belongs to. The chat lists hold
+     * the selected workspace only: a chat found there reopens directly; any
+     * other (another workspace, not loaded yet) opens on its chat list.
+     */
+    const openTaskChat = (task: BackgroundTaskPublic) => {
+        const origin = task.origin
+        if (origin?.kind !== 'chat') return
+        const sessionId = String(origin.session_id)
+        if (origin.session_kind === 'adventure') {
+            const adventure = isLocalTask(task) ? (inProgressAdventures ?? []).find((item) => item.id === sessionId) : undefined
+            if (adventure && isPageFeatureEnabled('interaction')) {
+                editInProgress(adventure)
+                void openTaskPage(task, { page: 'interaction' })
+                return
+            }
+            void openTaskPage(task, { page: 'active-adventures' })
+            return
+        }
+        const chat = isLocalTask(task) ? (characterChats ?? []).find((item) => item.id === sessionId) : undefined
+        if (chat && isPageFeatureEnabled('character-chat')) {
+            resumeCharacterChat(chat)
+            void openTaskPage(task, { page: 'character-chat' })
+            return
+        }
+        void openTaskPage(task, { page: 'chatroom' })
     }
 
     /** Opens the card's editor in its own workspace (the coordinator guards a switch). */
@@ -494,6 +524,7 @@ export function TasksPanel({ dense = false }: { dense?: boolean }) {
                                     onToggle={() => setExpandedKey((current) => (current === key ? null : key))}
                                     onCancel={() => void cancelTask(task.operation, task.task_id)}
                                     onOpenCard={() => void openAttachedCard(task)}
+                                    onOpenChat={() => openTaskChat(task)}
                                 />
                             )
                         })}
@@ -532,6 +563,7 @@ function TaskRow({
     onToggle,
     onCancel,
     onOpenCard,
+    onOpenChat,
 }: {
     task: BackgroundTaskPublic
     attachedCard?: AttachedCardPreview | null
@@ -539,7 +571,9 @@ function TaskRow({
     onToggle: () => void
     onCancel: () => void
     onOpenCard: () => void
+    onOpenChat: () => void
 }) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const IconCmp = statusIcon(task.status)
     const audioAsset = task.operation === 'text_to_speech' ? task.result?.tts_assets?.[0] : task.result?.assets?.[0]
@@ -631,6 +665,15 @@ function TaskRow({
                             <span className="truncate">{cardLabel}</span>
                         </button>}
 
+                        {task.origin?.kind === 'chat' && <button
+                            type="button"
+                            className="inline-flex max-w-full items-center gap-1 self-start rounded-sm font-ui text-[11px] text-parchment-400 underline-offset-2 hover:text-parchment-50 hover:underline"
+                            onClick={onOpenChat}
+                        >
+                            <Icon icon={MessageSquare} size={12} />
+                            <span className="truncate">{t('workspaceActivity.tasks.openChat')}</span>
+                        </button>}
+
                         {task.status === 'completed' && task.result?.image_assets?.[0] && (
                             <AuthenticatedImage src={task.result.image_assets[0].url} alt={title} className="w-full rounded-md" />
                         )}
@@ -684,6 +727,7 @@ function AttachedCardModal({
     opening?: boolean
     openError?: string | null
 }) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const isOpen = Boolean(task)
     const fallbackTitle = task ? attachedCardLabel(task, t) : t('tasksDrawer.attached.title')
@@ -750,6 +794,7 @@ function AttachedCardModal({
 }
 
 function CardMetadata({ card }: { card: AttachedCardPreview }) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const createdAt = formatDateTime(card.createdAt)
     const updatedAt = formatDateTime(card.updatedAt)

@@ -1,3 +1,7 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { I18nextProvider } from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -133,7 +137,7 @@ function fromWorkspace(item: BackgroundTaskPublic, workspaceId: string): Backgro
 
 describe('TasksDrawer', () => {
     it('hides stored narration jobs and their audio controls while voices are off', () => {
-        vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'false')
+        setTestFeatureFlags({ voices: false })
         try {
             const narration: BackgroundTaskPublic = { ...task('completed', 'hidden-voice'), operation: 'text_to_speech',
                 title: 'Hidden narration', target: { type: 'media', id: 'voice' },
@@ -432,6 +436,64 @@ describe('TasksDrawer', () => {
             }))
             await waitFor(() => expect(mocks.closeDrawer).toHaveBeenCalled())
             expect(apiService.withWorkspace).not.toHaveBeenCalled()
+        })
+
+        function chatImageTask(workspaceId: string, sessionKind: 'adventure' | 'character'): BackgroundTaskPublic {
+            return fromWorkspace({ ...task('completed', 'chat-img-1'), operation: 'image_generation', title: 'Image generation',
+                target: { type: 'media', id: 'chat-img-1' }, cancel_url: null, result: null,
+                origin: { kind: 'chat', session_kind: sessionKind, session_id: 17, assistant_message_id: 101, turn_id: 'turn-1' } }, workspaceId)
+        }
+
+        function renderChatTask(item: BackgroundTaskPublic) {
+            const chats = { resumeCharacterChat: vi.fn(), editInProgress: vi.fn() }
+            mockDrawerState({ active: [], completed: [item], failed: [] })
+            mocks.useData.mockReturnValue({
+                characters: [character], worlds: [], items: [], templateAdventures: [],
+                characterChats: [{ id: '17', kind: 'character' }], inProgressAdventures: [{ id: '17' }], ...chats,
+            })
+            render(<WorkspaceTestProvider state={createWorkspaceTestState({ api: apiService })}><TasksDrawer /></WorkspaceTestProvider>)
+            return chats
+        }
+
+        it('reopens the character chat a scene image belongs to', async () => {
+            mocks.navigateToOrigin.mockResolvedValue('navigated')
+            const chats = renderChatTask(chatImageTask(TEST_WORKSPACE_ID, 'character'))
+
+            fireEvent.click(await screen.findByRole('button', { name: /completed\s*1/i }))
+            fireEvent.click(screen.getByRole('button', { name: 'Open chat' }))
+
+            expect(chats.resumeCharacterChat).toHaveBeenCalledWith({ id: '17', kind: 'character' })
+            await waitFor(() => expect(mocks.navigateToOrigin).toHaveBeenCalledWith({ workspaceId: TEST_WORKSPACE_ID, page: 'character-chat' }))
+            await waitFor(() => expect(mocks.closeDrawer).toHaveBeenCalled())
+        })
+
+        it('reopens the adventure a scene image belongs to', async () => {
+            mocks.navigateToOrigin.mockResolvedValue('navigated')
+            const chats = renderChatTask(chatImageTask(TEST_WORKSPACE_ID, 'adventure'))
+
+            fireEvent.click(await screen.findByRole('button', { name: /completed\s*1/i }))
+            fireEvent.click(screen.getByRole('button', { name: 'Open chat' }))
+
+            expect(chats.editInProgress).toHaveBeenCalledWith({ id: '17' })
+            await waitFor(() => expect(mocks.navigateToOrigin).toHaveBeenCalledWith({ workspaceId: TEST_WORKSPACE_ID, page: 'interaction' }))
+        })
+
+        it('opens the chat list of another workspace for its chat image', async () => {
+            mocks.navigateToOrigin.mockResolvedValue('navigated')
+            const chats = renderChatTask(chatImageTask(OTHER_WORKSPACE_ID, 'character'))
+
+            fireEvent.click(await screen.findByRole('button', { name: /completed\s*1/i }))
+            fireEvent.click(screen.getByRole('button', { name: 'Open chat' }))
+
+            // The loaded chat list belongs to the selected workspace: never resume from it.
+            expect(chats.resumeCharacterChat).not.toHaveBeenCalled()
+            await waitFor(() => expect(mocks.navigateToOrigin).toHaveBeenCalledWith({ workspaceId: OTHER_WORKSPACE_ID, page: 'chatroom' }))
+        })
+
+        it('offers no chat link for media without a chat', async () => {
+            renderChatTask({ ...chatImageTask(TEST_WORKSPACE_ID, 'character'), origin: null })
+            fireEvent.click(await screen.findByRole('button', { name: /completed\s*1/i }))
+            expect(screen.queryByRole('button', { name: 'Open chat' })).toBeNull()
         })
 
         it('explains when a resource task’s workspace is unavailable', async () => {

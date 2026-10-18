@@ -25,6 +25,16 @@ export interface BackgroundTaskResult {
     tts_assets?: ChatTtsAsset[]
 }
 
+/** The chat turn a media task (scene image, narration) belongs to, so Tasks can open it. */
+export interface BackgroundTaskChatOrigin {
+    kind: 'chat'
+    /** `adventure` opens an adventure session; `character` a 1:1 or group character chat. */
+    session_kind: 'adventure' | 'character'
+    session_id: number
+    assistant_message_id: number
+    turn_id: string
+}
+
 export interface BackgroundTaskPublic {
     task_id: string
     operation: BackgroundTaskOperation
@@ -42,6 +52,8 @@ export interface BackgroundTaskPublic {
     error?: ThemeSongErrorPublic | null
     /** Workspace R1: the job's durable origin (server-owned). */
     organization?: RootOrganization
+    /** Chat media only; null for other tasks and once the chat is deleted. */
+    origin?: BackgroundTaskChatOrigin | null
     created_at: string
     updated_at: string
 }

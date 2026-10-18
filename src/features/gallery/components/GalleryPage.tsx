@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * GalleryPage — full-page, server-searched library for one card type. A dense
  * image-forward grid (GalleryCard) with a masthead search bar (name + triggers,
@@ -66,6 +67,7 @@ function scrollToGalleryCard(id: string): void {
 }
 
 export function GalleryPage({ type }: GalleryPageProps) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const { api, capture, isCurrent, workspaceEpoch, selectedWorkspace } = useWorkspace()
     const readOnly = Boolean(selectedWorkspace?.archived_at)

@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 import { useEffect, useMemo, useState } from 'react'
 import { BookOpenText, Link2, Loader2, Search, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -58,6 +59,7 @@ function lorebookMatches(lorebook: Lorebook, query: string, includeResources: bo
 const NO_LOREBOOKS: Lorebook[] = []
 
 export function SessionLorebookPanel({ targetKind, targetId, label, className, framed = true, workspaceId }: SessionLorebookPanelProps) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const data = useData()
     const { openWindow } = useFloatingWindows()

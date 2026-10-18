@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 import { isLlmFeatureEnabled } from '@/shared/featureFlags'
 import { useId } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -19,6 +20,7 @@ const KNOWN_REASONS = new Set(['PROFILE_INCOMPATIBLE', 'MODEL_CONTEXT_INSUFFICIE
  * works; blood names the role that blocks a feature.
  */
 export function LlmProfileCompatibilityPanel({ state }: { state: LlmCompatibilityState }) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const id = useId()
     const reason = (issue: LlmCompatibilityIssue) => {

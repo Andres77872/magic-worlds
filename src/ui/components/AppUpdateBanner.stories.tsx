@@ -27,6 +27,7 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const Available: Story = {}
+export const OfflineCopy: Story = { args: { offlineControlled: true } }
 
 export const Hidden: Story = {
     args: {

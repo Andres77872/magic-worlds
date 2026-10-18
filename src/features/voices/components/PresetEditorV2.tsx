@@ -54,6 +54,7 @@ import type {
     VoicePresetV2Write,
     VoiceSettingsV2,
     VoicePerformance,
+    FishSpeechModel,
 } from '@/shared'
 import { surfaceCapabilitiesFor } from '@/shared/voice'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
@@ -84,7 +85,6 @@ import { normalizeSettingsForWrite } from '../recipeV2'
 import { useCatalogSample } from '../useCatalogSample'
 import { usePreviewLanguage, usePreviewTexts } from '../usePreviewTexts'
 import { clipTranscript, useRecipePreview } from '../useRecipePreview'
-import { usePreviewCreditConfirm } from '../usePreviewCreditConfirm'
 import { voiceFieldErrorKey } from '../voiceFieldError'
 import { voiceWriteErrorMessage } from '../voiceWriteError'
 import { CatalogVoicePicker } from './CatalogVoicePicker'
@@ -93,7 +93,6 @@ import { PreviewCreditDialog } from './PreviewCreditDialog'
 import { PreviewTextChooser } from './PreviewTextChooser'
 import { PreviewTranscript, RecipePreviewPlayer } from './RecipePreviewPlayer'
 import { RecipeControlsV2 } from './RecipeControlsV2'
-import { TierToggle, defaultPreviewTier } from './TierToggle'
 import { VoiceBadges, languageLabel } from './VoiceBadges'
 import { VoiceOwnerPrompts, type VoiceReplacement } from './VoiceOwnerPrompts'
 import { VoicePerformancePanel } from './VoicePerformancePanel'
@@ -147,7 +146,8 @@ export function PresetEditorV2({ open, mode, source, initialVoice, capabilities,
     const providerDrafts = useRef<Partial<Record<'elevenlabs' | 'fish_audio', VoiceSettingsV2 | null>>>({})
     const [emotion, setEmotion] = useState<VoiceEmotion | null>(null)
     const [performance, setPerformance] = useState<VoicePerformance | null>(null)
-    const [tier, setTier] = useState<NarrationTier>(() => defaultPreviewTier(capabilities))
+    const [modelId, setModelId] = useState<FishSpeechModel>('drama-3')
+    const [tier, setTier] = useState<NarrationTier>('standard')
     const [textId, setTextId] = useState<PreviewTextId>('narration')
     /** A preview language chip the user chose; null follows the default (05 §5.5). */
     const [chosenLanguage, setChosenLanguage] = useState<string | null>(null)
@@ -162,8 +162,8 @@ export function PresetEditorV2({ open, mode, source, initialVoice, capabilities,
     const [seed, setSeed] = useState<PresetEditorSeed>(EMPTY_SEED)
     const [confirmDiscard, setConfirmDiscard] = useState(false)
 
-    const preview = useRecipePreview({ enabled: open })
-    const credit = usePreviewCreditConfirm(userHash)
+    const preview = useRecipePreview({ enabled: open, userHash })
+    const credit = preview.credit
     const sample = useCatalogSample()
     const resetPreview = preview.reset
     const stopSample = sample.stop
@@ -188,8 +188,9 @@ export function PresetEditorV2({ open, mode, source, initialVoice, capabilities,
         setSettings(next.settings)
         setEmotion(next.emotion)
         setPerformance(source?.provider === 'fish_audio' ? source.performance ?? null : null)
+        setModelId(source?.provider === 'fish_audio' ? source.model_id ?? 'drama-3' : selected?.provider === 'fish_audio' && !selected.languages.some(entry => entry.model_ids?.includes('drama-3')) ? 's2.1-pro' : 'drama-3')
         setPickerOpen(!next.voiceKey || pickVoiceOnOpen)
-        setTier(defaultPreviewTier(capabilities))
+        setTier('standard')
         setTextId('narration')
         setChosenLanguage(null)
         setError(null)
@@ -204,21 +205,24 @@ export function PresetEditorV2({ open, mode, source, initialVoice, capabilities,
     const item = voiceKey ? (picked?.voice_key === voiceKey ? picked : lookup.get(voiceKey) ?? null) : null
 
     const provider = item ? (item.provider ?? 'elevenlabs') : source?.provider ?? 'elevenlabs'
+    const models = (capabilities?.providers?.find(entry => entry.provider === provider)?.models ?? [])
+        .filter(entry => provider !== 'fish_audio' || !item || item.languages.some(language => language.model_ids?.includes(entry.model_id)))
+    const model = models.find(entry => entry.model_id === (provider === 'fish_audio' ? modelId : 'eleven_v4'))
     const surface = surfaceCapabilitiesFor(capabilities, 'preview', tier, provider)
     const controls = provider === 'fish_audio' ? [] : writeControls(capabilities, tier)
-    const recipeAvailable = provider === 'elevenlabs' || (surface?.healthy === true && (!settings || Object.keys(settings).length === 0))
+    const recipeAvailable = provider === 'elevenlabs' || (Boolean(model) && surface?.healthy === true && (!settings || Object.keys(settings).length === 0))
     const emotionVisible = provider === 'fish_audio' ? surface?.healthy === true && surface.supports_emotion : surface ? surface.supports_emotion : true
 
     const preferred = usePreferredLanguage(open)
     const appLanguage = usePreviewLanguage()
     // Chips offer the voice's accepted languages only; the default follows D17 (05 §5.5).
-    const previewLanguages = previewableLanguages(item)
+    const previewLanguages = previewableLanguages(item).filter(language => provider !== 'fish_audio' || item?.languages.some(entry => entry.language === language && entry.model_ids?.includes(modelId)))
     const defaultLanguage = studioPreviewLanguage(item, {
         languageCode: source?.language_code ?? null,
         preferredLanguage: preferred.language,
         fallback: appLanguage,
     })
-    const language = chosenLanguage && previewLanguages.includes(chosenLanguage) ? chosenLanguage : defaultLanguage
+    const language = chosenLanguage && previewLanguages.includes(chosenLanguage) ? chosenLanguage : previewLanguages.includes(defaultLanguage) ? defaultLanguage : previewLanguages[0] ?? defaultLanguage
     const checkedLanguage = source ? presetLanguage(source, preferred.language) : language
     const previewTexts = usePreviewTexts(language, open)
     const fixedText = previewTexts.texts[textId]
@@ -226,13 +230,13 @@ export function PresetEditorV2({ open, mode, source, initialVoice, capabilities,
     // D18, EP-6: an untuned voice auditions the sample the BFF's default-settings shortcut
     // would serve (`isFreeSamplePreview`, the rule the Studio card shares); else a metered render.
     const sampleUrl = previewSampleUrl(item, language, tier)
-    const useSample = !(provider === 'fish_audio' && performance) && isDefaultRecipe(settings, emotion) && sampleUrl !== null
+    const useSample = !(provider === 'fish_audio' && (performance || modelId !== 'drama-3')) && isDefaultRecipe(settings, emotion) && sampleUrl !== null
     const playing = useSample ? sample.loading : preview.loading
 
     const nameOverLimit = name.trim().length > PRESET_NAME_LIMIT
     const descriptionOverLimit = description.length > PRESET_DESCRIPTION_LIMIT
     const canSave = name.trim().length > 0 && Boolean(voiceKey) && !nameOverLimit && !descriptionOverLimit && !saving && recipeAvailable
-    const dirty = draftChanged(seed, { name, description, voiceKey, settings, emotion }) || JSON.stringify(performance) !== JSON.stringify(source?.provider === 'fish_audio' ? source.performance ?? null : null)
+    const dirty = draftChanged(seed, { name, description, voiceKey, settings, emotion }) || modelId !== (source?.provider === 'fish_audio' ? source.model_id ?? 'drama-3' : 'drama-3') || JSON.stringify(performance) !== JSON.stringify(source?.provider === 'fish_audio' ? source.performance ?? null : null)
     // AC-P5: a metered render past the free ones costs 1 credit (a free sample never does).
     const costsCredit = !useSample && preview.nextCostsCredit
 
@@ -257,6 +261,9 @@ export function PresetEditorV2({ open, mode, source, initialVoice, capabilities,
     }
 
     const chooseVoice = (next: CatalogVoice) => {
+        if (next.provider === 'fish_audio' && !next.languages.some(entry => entry.model_ids?.includes(modelId))) {
+            setModelId(next.languages.some(entry => entry.model_ids?.includes('drama-3')) ? 'drama-3' : 's2.1-pro')
+        }
         if ((next.provider ?? 'elevenlabs') !== provider) {
             providerDrafts.current[provider] = settings
             setSettings(providerDrafts.current[next.provider ?? 'elevenlabs'] ?? null)
@@ -296,11 +303,6 @@ export function PresetEditorV2({ open, mode, source, initialVoice, capabilities,
         dropClips()
     }
 
-    const changeTier = (next: NarrationTier) => {
-        setTier(next)
-        dropClips()
-    }
-
     const chooseText = (next: PreviewTextId) => {
         setTextId(next)
         dropClips()
@@ -321,9 +323,9 @@ export function PresetEditorV2({ open, mode, source, initialVoice, capabilities,
             preview.stop()
             return
         }
-        if (preview.limitReached) return
         const input = {
             provider,
+            ...(provider === 'fish_audio' ? { modelId } : {}),
             ...(provider === 'fish_audio' && performance ? { performance } : {}),
             voiceKey,
             settings: provider === 'fish_audio' ? null : normalizeSettingsForWrite(settings, controls),
@@ -332,11 +334,8 @@ export function PresetEditorV2({ open, mode, source, initialVoice, capabilities,
             language: previewTexts.language,
             tier,
         }
-        // The first paid render of the session is confirmed once (05 §6.3).
-        credit.guard(costsCredit, () => {
-            sample.stop()
-            void preview.run(input)
-        })
+        sample.stop()
+        void preview.run(input)
     }
 
     const handleSave = async () => {
@@ -346,6 +345,7 @@ export function PresetEditorV2({ open, mode, source, initialVoice, capabilities,
         setVoiceFieldError(null)
         const write: VoicePresetV2Write = {
             ...(provider === 'fish_audio' ? { schema_version: 3 as const, provider: 'fish_audio' as const } : {}),
+            ...(provider === 'fish_audio' ? { model_id: modelId } : {}),
             ...(provider === 'fish_audio' && (performance || (source?.provider === 'fish_audio' && source.performance)) ? { performance } : {}),
             name: name.trim(),
             description: description.trim() || null,
@@ -523,23 +523,26 @@ export function PresetEditorV2({ open, mode, source, initialVoice, capabilities,
 
                 <div className="flex flex-col gap-4 border-t border-line-faint pt-5">
                     <SectionHeader as="h3" icon={SlidersHorizontal} title={t('voices.studio.v2.sections.delivery')} />
-                    {provider === 'elevenlabs' && <TierToggle capabilities={capabilities} value={tier} onChange={changeTier} showUpsell />}
+                    {provider === 'fish_audio' && <Field label={t('voices.recipe.model')}>
+                        <Select value={modelId} options={models.filter(entry => entry.surfaces.includes('preview')).map(entry => ({ value: entry.model_id, label: entry.label }))}
+                            onChange={value => { setModelId(value as FishSpeechModel); dropClips() }} />
+                    </Field>}
+                    {provider === 'elevenlabs' && <p className="font-ui text-caption text-fg-muted">{t('voices.recipe.elevenModel')}</p>}
                     <RecipeControlsV2
                         surface={provider === 'fish_audio' && !recipeAvailable ? null : surface}
                         settings={settings}
                         onChange={changeSettings}
                         onRetry={onRetryCapabilities}
-                        onShowStandard={provider === 'fish_audio' ? undefined : () => changeTier('standard')}
                         // AC-E2: the controls flag every value the save below clamps, hidden ones included.
                         writeControls={controls}
                     />
-                    {emotionVisible && (
-                        <Field label={t('voices.recipe.emotion')} helper={provider === 'fish_audio' ? t('voices.providers.emotionHint') : tier === 'standard' ? t('voices.recipe.emotionStandardHint') : undefined}>
+                    {emotionVisible && (model?.supports_emotion ?? true) && (
+                        <Field label={t('voices.recipe.emotion')} helper={provider === 'fish_audio' ? t('voices.providers.emotionHint') : undefined}>
                             <Select options={emotionOptions} value={emotion ?? EMOTION_NONE} onChange={changeEmotion} />
                         </Field>
                     )}
                     <p className="font-ui text-caption text-fg-muted" data-testid="thought-note">
-                        {t(provider === 'fish_audio' ? 'voices.providers.thoughtHint' : tier === 'expressive' ? 'voices.recipe.thoughtNoteExpressive' : 'voices.recipe.thoughtNoteStandard')}
+                        {t(provider === 'fish_audio' ? 'voices.providers.thoughtHint' : 'voices.recipe.thoughtNoteExpressive')}
                     </p>
                 </div>
 
@@ -561,12 +564,12 @@ export function PresetEditorV2({ open, mode, source, initialVoice, capabilities,
                         )}
                         <PreviewTextChooser value={textId} onChange={chooseText} />
                     </div>
-                    {provider === 'fish_audio' && voiceKey && <VoicePerformancePanel voiceKey={voiceKey} language={language} emotion={emotion} value={performance} onChange={next => { setPerformance(next); dropClips() }} userHash={userHash} />}
+                    {provider === 'fish_audio' && voiceKey && model?.supports_direction && <VoicePerformancePanel key={modelId} modelId={modelId} scopedDelivery={model.supports_scoped_delivery} voiceKey={voiceKey} language={language} emotion={emotion} value={performance} onChange={next => { setPerformance(next); dropClips() }} userHash={userHash} />}
                     <div className="flex flex-wrap items-center gap-3">
                         <Button
                             variant="secondary"
                             size="sm"
-                            disabled={!voiceKey || !recipeAvailable || (!useSample && preview.limitReached && !preview.loading)}
+                            disabled={!voiceKey || !recipeAvailable}
                             iconLeft={<Icon icon={playing ? Square : Play} size={14} />}
                             onClick={handlePreview}
                         >

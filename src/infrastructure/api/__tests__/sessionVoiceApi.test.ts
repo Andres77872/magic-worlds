@@ -1,3 +1,7 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SessionVoiceSettings } from '@/shared/types/sessionVoice.types'
 import { apiService } from '../index'
@@ -39,7 +43,7 @@ const SETTINGS: SessionVoiceSettings = {
 
 describe('session voice API (EP-1, EP-2)', () => {
     beforeEach(() => {
-        vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'true')
+        setTestFeatureFlags({ voices: true })
         localStorage.clear()
         localStorage.setItem('magic_worlds:token', 'user-token')
         fetchMock.mockReset()
@@ -121,7 +125,7 @@ describe('session voice API (EP-1, EP-2)', () => {
     })
 
     it('sends nothing while voices are disabled', async () => {
-        vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'false')
+        setTestFeatureFlags({ voices: false })
         await expect(apiService.withWorkspace(WS_A).getSessionVoiceSettings('character-chats', 4)).rejects.toThrow()
         expect(fetchMock).not.toHaveBeenCalled()
     })

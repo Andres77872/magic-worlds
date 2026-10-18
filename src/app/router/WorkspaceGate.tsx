@@ -4,7 +4,7 @@
  * unsaved content stays until the user chooses Reload.
  */
 import { useState } from 'react'
-import { CloudOff, Info, RefreshCw } from 'lucide-react'
+import { CloudOff, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button, Card, Icon, Modal } from '@/ui/primitives'
 
@@ -112,19 +112,5 @@ export function WorkspaceStaleDialog({ open, onReload, onDismiss }: WorkspaceSta
         >
             <p className="font-ui text-body leading-relaxed text-parchment-200">{t('workspaces.stale.body')}</p>
         </Modal>
-    )
-}
-
-/** Flag `false` with more than one active workspace (document 08): persistent, not dismissible. */
-export function HiddenWorkspacesNotice() {
-    const { t } = useTranslation()
-    return (
-        <div
-            role="status"
-            className="flex shrink-0 items-center gap-3 border-b border-parchment-50/10 bg-ink-700/60 px-4 py-2.5 text-sm font-medium text-parchment-200"
-        >
-            <Icon icon={Info} size={18} className="shrink-0 text-parchment-300" />
-            <span>{t('workspaces.hidden.message')}</span>
-        </div>
     )
 }

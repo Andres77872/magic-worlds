@@ -18,6 +18,12 @@ function renderStrip(overrides: { saveState?: NovelSaveState; goal?: number | nu
 }
 
 describe('StudioStatusStrip', () => {
+    it('distinguishes an offline device draft from a server revision check', () => {
+        const view = render(<StudioStatusStrip words={12} goal={null} saveState="offline" lastSavedAt={null} onSetGoal={vi.fn()} onRetrySave={vi.fn()} />)
+        expect(screen.getByTestId('novel-save-state')).toHaveTextContent('Offline · pending sync')
+        view.rerender(<StudioStatusStrip words={12} goal={null} saveState="checking" lastSavedAt={null} onSetGoal={vi.fn()} onRetrySave={vi.fn()} />)
+        expect(screen.getByTestId('novel-save-state')).toHaveTextContent('Checking the account version')
+    })
     it('is the one place the save state is reported', () => {
         renderStrip({ saveState: 'saved' })
 

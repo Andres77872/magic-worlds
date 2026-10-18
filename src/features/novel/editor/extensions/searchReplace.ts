@@ -50,7 +50,10 @@ declare module '@tiptap/core' {
 
 function findMatches(doc: PMNode, query: string, caseSensitive: boolean): SearchMatch[] {
     if (!query) return []
-    const needle = caseSensitive ? query : query.toLowerCase()
+    // RegExp indexes refer to the original UTF-16 string. Lowercasing the
+    // manuscript first changes offsets for characters such as U+0130 (İ).
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const pattern = new RegExp(escaped, caseSensitive ? 'gu' : 'giu')
     const matches: SearchMatch[] = []
     doc.descendants((node, pos) => {
         if (!node.isTextblock) return true
@@ -59,11 +62,9 @@ function findMatches(doc: PMNode, query: string, caseSensitive: boolean): Search
         node.forEach((child) => {
             text += child.isText ? child.text ?? '' : ATOM_PLACEHOLDER.repeat(child.nodeSize)
         })
-        const haystack = caseSensitive ? text : text.toLowerCase()
-        let idx = haystack.indexOf(needle)
-        while (idx !== -1) {
-            matches.push({ from: blockStart + idx, to: blockStart + idx + query.length })
-            idx = haystack.indexOf(needle, idx + Math.max(1, query.length))
+        pattern.lastIndex = 0
+        for (const match of text.matchAll(pattern)) {
+            matches.push({ from: blockStart + match.index, to: blockStart + match.index + match[0].length })
         }
         return false
     })

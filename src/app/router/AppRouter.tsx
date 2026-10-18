@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * Application routing logic
  */
@@ -22,6 +23,7 @@ import { PlaylistDock } from '../../ui/components/audio/PlaylistDock'
 import { GlowBackdrop, cx } from '../../ui/primitives'
 import { ErrorBoundary } from '../ErrorBoundary'
 import { isPageFeatureEnabled } from '../../shared/featureFlags'
+import { FeatureAccessGate } from '@/features/errorPages/components/FeatureAccessGate'
 import { WorkspaceNavigationBridge } from '../../features/workspaces/WorkspaceNavigationBridge'
 import {
     ArchivedWorkspaceBanner,
@@ -32,7 +34,6 @@ import { StoryReauthenticationGate } from './StoryReauthenticationGate'
 import { LinkedEditorGate } from './LinkedEditorGate'
 import { pageNeedsWorkspace } from './pageAccess'
 import {
-    HiddenWorkspacesNotice,
     WorkspaceStaleDialog,
     WorkspaceStaleNotice,
     WorkspaceUnavailableGate,
@@ -63,6 +64,7 @@ const LorebookResourcesGalleryPage = lazy(() => import('../../features/lorebook/
 const LorebookStudio = lazy(() => import('../../features/lorebook/components/LorebookStudio').then(m => ({ default: m.LorebookStudio })))
 const NovelGalleryPage = lazy(() => import('../../features/novel/components/NovelGalleryPage').then(m => ({ default: m.NovelGalleryPage })))
 const NovelStudio = lazy(() => import('../../features/novel/components/NovelStudio').then(m => ({ default: m.NovelStudio })))
+const NovelDeviceLibrary = lazy(() => import('../../features/novel/components/NovelDeviceLibrary').then(m => ({ default: m.NovelDeviceLibrary })))
 const ProfilePage = lazy(() => import('../../features/profile/components/ProfilePage').then(m => ({ default: m.ProfilePage })))
 const LlmProfilesPage = lazy(() => import('../../features/llmProfiles/LlmProfilesPage').then(m => ({ default: m.LlmProfilesPage })))
 const AdminLlmProfilesPage = lazy(() => import('../../features/llmProfiles/LlmProfilesPage').then(m => ({ default: m.AdminLlmProfilesPage })))
@@ -82,6 +84,7 @@ const AdminMembershipPage = lazy(() => import('../../features/admin/membership/c
 const NotFoundPage = lazy(() => import('../../features/errorPages/components/NotFoundPage').then(m => ({ default: m.NotFoundPage })))
 
 export function AppRouter() {
+    useFeatureFlags()
     const { currentPage, setPage } = useNavigation()
     const { loadingState } = useData()
     const {
@@ -162,7 +165,6 @@ export function AppRouter() {
                 <AppUpdateBanner updateAvailable={workspaceStale ? true : undefined} />
                 {/* Blocking workspace states replace the data-load banner (document 08). */}
                 {!workspaceBlocked && <DataLoadErrorBanner />}
-                {workspace.hasHiddenWorkspaces && <HiddenWorkspacesNotice />}
                 {switchFailure && coordinator && (
                     <WorkspaceSwitchFailureNotice
                         failure={switchFailure}
@@ -171,13 +173,16 @@ export function AppRouter() {
                     />
                 )}
                 {needsWorkspace && workspaceGate === null && routeStatus === 'ready' && <ArchivedWorkspaceBanner />}
+                {isAuthenticated && isPageFeatureEnabled('story') && ['library', 'gallery-stories', 'story'].includes(currentPage) && <Suspense fallback={null}>
+                    <NovelDeviceLibrary key={accountKey} showEntry={currentPage !== 'story' || workspaceGate !== null} />
+                </Suspense>}
                 {workspaceGate === 'unavailable' ? (
                     <WorkspaceUnavailableGate onRetry={workspace.refreshWorkspaces} />
                 ) : workspaceGate === 'stale' ? (
                     <WorkspaceStaleNotice onReload={reloadPage} />
                 ) : routeStatus === 'unavailable' ? (
                     <WorkspaceUnavailableTarget
-                        showLibrary={isPageFeatureEnabled('library')}
+                        showLibrary
                         onLibrary={() => setPage('library')}
                         onHome={() => setPage('landing')}
                     />
@@ -191,7 +196,7 @@ export function AppRouter() {
                     <ErrorBoundary scope="page" inline key={pageKey}>
                         <Suspense fallback={<div className="flex min-h-full flex-1 items-center justify-center"><LoadingSpinner /></div>}>
                             {!pageEnabled ? (
-                                <NotFoundPage />
+                                <FeatureAccessGate />
                             ) : (
                                 <>
                                     {currentPage === 'landing' && <LandingPage />}

@@ -1,3 +1,7 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Character, CharacterChatSession } from '@/shared'
@@ -189,7 +193,7 @@ async function startVoiceCallThroughConsent() {
 
 describe('Voice call integration proof', () => {
     beforeEach(() => {
-        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'true')
+        setTestFeatureFlags({ calls: true })
         localStorage.clear()
         integration.isAuthenticated = true
         integration.characterChats = CHATS
@@ -311,7 +315,7 @@ describe('Voice call integration proof', () => {
     })
 
     it('keeps chatroom voice-call affordances hidden while the frontend flag is off', async () => {
-        vi.stubEnv('VITE_FEATURE_CALLS_ENABLED', 'false')
+        setTestFeatureFlags({ calls: false })
 
         render(<ChatroomPage />)
         fireEvent.click(screen.getByRole('button', { name: 'Actions for Lyra' }))

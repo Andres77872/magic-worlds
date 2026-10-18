@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
 /**
  * The MiniMax grep gate (voice refactor 15 §6.2), narrowed by the native
  * cutover (`2026_10_voice_native`): MiniMax is no longer a voice provider and

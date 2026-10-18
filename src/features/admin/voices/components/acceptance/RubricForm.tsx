@@ -91,8 +91,8 @@ export function RubricForm({ modelId, modelLabel, stored, measuredLufs, locale, 
                 {SCORE_KEYS.map((key) => (
                     <fieldset key={key} className="flex flex-col gap-1.5">
                         <legend className="mb-1 font-ui text-label font-semibold text-fg">
-                            {t('admin.voices.acceptance.rubric.scoreLegend', { label: t(modelId === 'drama-3' && key === 'consistency_vs_v4'
-                                ? 'admin.voices.fish.reviewConsistency' : modelId === 'drama-3' && key === 'emotion_tags'
+                            {t('admin.voices.acceptance.rubric.scoreLegend', { label: t(['drama-3', 's2.1-pro'].includes(modelId) && key === 'consistency_vs_v4'
+                                ? 'admin.voices.fish.reviewConsistency' : ['drama-3', 's2.1-pro'].includes(modelId) && key === 'emotion_tags'
                                   ? 'admin.voices.fish.reviewEmotion' : `admin.voices.acceptance.rubric.${key}`) })}
                         </legend>
                         <div className="flex gap-1.5">
@@ -206,7 +206,7 @@ export function RubricForm({ modelId, modelLabel, stored, measuredLufs, locale, 
                     ? callEligible
                         ? t('admin.voices.acceptance.callEligible.yes')
                         : t('admin.voices.acceptance.callEligible.no')
-                    : t(modelId === 'drama-3' ? 'admin.voices.fish.narrationOnly' : 'admin.voices.acceptance.callEligible.notApplicable')}
+                    : t(['drama-3', 's2.1-pro'].includes(modelId) ? 'admin.voices.fish.narrationOnly' : 'admin.voices.acceptance.callEligible.notApplicable')}
             </p>
 
             {attempted && !complete && (

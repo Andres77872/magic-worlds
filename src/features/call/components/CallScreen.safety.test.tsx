@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
 /**
  * R2-BE-01 on the call screen (09 §4.7; 13 §2.7):
  * - a `voice_safety_pause` shows the crisis-resources panel (the approved generic

@@ -1,7 +1,7 @@
-import { render, screen } from '@testing-library/react'
+import { setTestFeatureFlags, setAllTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
+import { act, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { NavigationCoordinatorValue, SwitchFailure } from '../providers/NavigationProvider'
-import { FRONTEND_FEATURE_ENV } from '@/shared/featureFlags'
 
 const mocks = vi.hoisted(() => ({
     page: 'library' as string,
@@ -34,6 +34,8 @@ vi.mock('../hooks', () => ({
 vi.mock('../../features/library/components/LibraryPage', () => ({ LibraryPage: () => <h1>Library page</h1> }))
 vi.mock('../../features/gallery/components/GalleryPage', () => ({ GalleryPage: () => <h1>Character gallery</h1> }))
 vi.mock('../../features/errorPages/components/NotFoundPage', () => ({ NotFoundPage: () => <h1>Not found</h1> }))
+vi.mock('../../features/novel/components/NovelStudio', () => ({ NovelStudio: () => <h1>Novel workspace</h1> }))
+vi.mock('../../features/novel/components/NovelGalleryPage', () => ({ NovelGalleryPage: () => <h1>Novel library</h1> }))
 vi.mock('../../ui/components/Sidebar', () => ({ Sidebar: () => null }))
 vi.mock('../../ui/components/MobileTopBar', () => ({ MobileTopBar: () => null }))
 vi.mock('../../ui/components/SidebarNavDrawer', () => ({ SidebarNavDrawer: () => null }))
@@ -84,43 +86,54 @@ describe('AppRouter Library and workspace routing', () => {
         vi.unstubAllEnvs()
     })
 
-    it.each(['community', 'shared-card', 'voice-studio', 'admin-voices', 'calls', 'gallery-lorebooks', 'lorebook',
-        'gallery-resources', 'gallery-stories', 'story', 'gallery-adventures', 'adventure', 'active-adventures', 'interaction', 'assistant', 'library'])(
-        'renders the actual unavailable route for %s with all product flags off', async (page) => {
-            for (const env of Object.values(FRONTEND_FEATURE_ENV)) vi.stubEnv(env, 'false')
+    it.each(['community', 'shared-card', 'voice-studio', 'calls', 'gallery-lorebooks', 'lorebook',
+        'gallery-resources', 'gallery-stories', 'story', 'gallery-adventures', 'adventure', 'active-adventures', 'interaction', 'assistant'])(
+        'blocks %s with all product permissions off', async (page) => {
+            setAllTestFeatureFlags(false)
             mocks.page = page
             renderRouter(coordinator())
-            expect(await screen.findByRole('heading', { name: 'Not found' })).toBeInTheDocument()
+            expect(await screen.findByText('This feature is not available on your current plan.')).toBeInTheDocument()
         },
     )
 
     it.each([
         ['calls', 'voices', 'calls'], ['gallery-resources', 'lorebooks', 'lorebookResources'],
     ] as const)('keeps %s unavailable when its parent is off and child is on', async (page, parent, child) => {
-        for (const env of Object.values(FRONTEND_FEATURE_ENV)) vi.stubEnv(env, 'true')
-        vi.stubEnv(FRONTEND_FEATURE_ENV[parent], 'false')
-        vi.stubEnv(FRONTEND_FEATURE_ENV[child], 'true')
+        setAllTestFeatureFlags(true)
+        setTestFeatureFlags({ [parent]: false })
+        setTestFeatureFlags({ [child]: true })
         mocks.page = page
         renderRouter(coordinator())
-        expect(await screen.findByRole('heading', { name: 'Not found' })).toBeInTheDocument()
+        expect(await screen.findByText('This feature is not available on your current plan.')).toBeInTheDocument()
     })
 
-    it('renders the Library with the R1 UI on, and not found with it off', async () => {
-        vi.stubEnv('VITE_FEATURE_WORKSPACES_ENABLED', 'true')
+    it('renders the globally released Library with every temporary permission off', async () => {
+        setAllTestFeatureFlags(false)
         const view = renderRouter(coordinator())
         expect(await screen.findByRole('heading', { name: 'Library page' })).toBeInTheDocument()
 
-        vi.stubEnv('VITE_FEATURE_WORKSPACES_ENABLED', 'false')
         view.rerender(
             <NavigationCoordinatorContext.Provider value={coordinator()}>
                 <AppRouter />
             </NavigationCoordinatorContext.Provider>,
         )
-        expect(await screen.findByRole('heading', { name: 'Not found' })).toBeInTheDocument()
+        expect(await screen.findByRole('heading', { name: 'Library page' })).toBeInTheDocument()
+    })
+
+    it('opens the novel route after a grant and removes it as soon as access is revoked', async () => {
+        setAllTestFeatureFlags(false)
+        mocks.page = 'story'
+        renderRouter(coordinator())
+        expect(await screen.findByText('This feature is not available on your current plan.')).toBeInTheDocument()
+        act(() => setTestFeatureFlags({ novels: true }))
+        expect(await screen.findByRole('heading', { name: 'Novel workspace' })).toBeInTheDocument()
+        act(() => setTestFeatureFlags({ novels: null }))
+        expect(screen.queryByRole('heading', { name: 'Novel workspace' })).not.toBeInTheDocument()
+        expect(screen.getByText('This feature is not available on your current plan.')).toBeInTheDocument()
     })
 
     it('holds content while a URL is verified and shows the unavailable target instead of this workspace', async () => {
-        vi.stubEnv('VITE_FEATURE_WORKSPACES_ENABLED', 'true')
+
         const view = renderRouter(coordinator({ routeStatus: 'resolving' }))
         expect(screen.queryByRole('heading', { name: 'Library page' })).not.toBeInTheDocument()
 
@@ -136,7 +149,7 @@ describe('AppRouter Library and workspace routing', () => {
     })
 
     it('reports a failed switch while the source workspace stays open', async () => {
-        vi.stubEnv('VITE_FEATURE_WORKSPACES_ENABLED', 'true')
+
         const retry = vi.fn()
         const failure: SwitchFailure = { reason: 'call', workspaceId: '1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d', retry }
         renderRouter(coordinator({ switchFailure: failure }))

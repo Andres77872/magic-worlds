@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * The adventure side of D36 (R1-FE-04; 05 §7.8, 09 §4.4): which cast members
  * play another voice than their library card plays now, and the targeted
@@ -47,6 +48,7 @@ interface UseCastVoiceRefreshOptions {
 }
 
 export function useCastVoiceRefresh({ adventure, cast, editable, readOnly }: UseCastVoiceRefreshOptions): CastVoiceRefresh {
+    useFeatureFlags()
     const data = useData()
     const session = useSessionClient(organizationWorkspaceId(adventure))
     const refresh = useVoiceRefresh()

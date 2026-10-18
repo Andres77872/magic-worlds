@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
 /**
  * R2-BE-01 in the chat (13 §2.7): the break nudge counts narration play time
  * reported by the turns, with the interval from
@@ -30,7 +33,7 @@ vi.mock('../../../app/hooks', () => ({
 
 vi.mock('../hooks/useAdventureChatSocket', () => ({ useAdventureChatSocket: mocks.useAdventureChatSocket }))
 
-vi.mock('@/app/hooks/usePageFocus', () => ({ usePageFocus: () => true, isPageFocused: () => true }))
+vi.mock('@/app/hooks/usePageFocus', () => ({ usePageFocus: () => true, isPageFocused: () => true, usePageVisible: () => true, isPageVisible: () => true }))
 
 // The turn reports its narration playing stretches exactly as TurnNarration does,
 // and holds a media element as TurnNarration's player does.

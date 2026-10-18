@@ -67,6 +67,29 @@ Use ember for author actions and committed/active states; arcane for AI proposal
 
 Use the component source as the prop/API authority; skill examples and the standalone HTML can drift. Match the app's focus ring, spacing density, motion, and z-index conventions. Register any new reading-size/spacing token in the theme and token inventory. Preserve reading preferences when changing views, test font-loading fallbacks, and avoid adding an AI-colored surface around ordinary author prose.
 
+**Implemented reading appearance, 2026-10-16:** Studio's More menu opens the
+shared reading drawer, including in archived readers. Literary, Close reading
+and Spacious presets can be customized by prose font, size, line/paragraph
+spacing, column width and prose contrast. Choices apply immediately, reset
+independently of writing, and persist by API/account/workspace/novel on this
+device. Blocked storage keeps controls usable while the room is open and
+explains that choices could not be retained for reopening. Values are bounded
+enums; sizes/spacing/widths are registered theme tokens. Appearance changes keep
+the editor/document/selection/manual undo history, and width changes recompute
+rail docking without a viewport resize. Keyboard preset selection and local
+draft preservation were inspected on desktop. Full font-loading, small-device,
+zoom, contrast and author/assistive-technology acceptance remain open. See the
+[checkpoint](14_status_and_roadmap.md#d2-reading-appearance--2026-10-16).
+
+**Implemented view resume, 2026-10-16:** the same device scope now retains the
+selected unit and focus/typewriter/Codex/narrow-panel/context view. Stable scene
+points and scroll flush on close/page hide; storage failures stay visible.
+Range recovery requires a matching canonical document fingerprint, otherwise
+it becomes a cursor. Later user input wins over asynchronous verification.
+Controlled desktop close/reopen, keyboard range recovery and scoped regressions
+pass. Full app-shell, real-device and assistive-technology gates remain open;
+see the [resume checkpoint](14_status_and_roadmap.md#d2-view-and-position-resume--2026-10-16).
+
 ## Essential author journeys
 
 ### Start or import a novel
@@ -171,3 +194,21 @@ Run moderated tasks with a discovery writer, an outline-first writer, an editor,
 Include English and Spanish labels/manuscripts, longer translations, and a phone session with its actual on-screen keyboard. Ask participants to explain where a change will land, what the assistant can see, and whether the displayed text is saved on device or to the account. Retain observed assistance, accidental commits, recovery mistakes, and lost drafts/caret/composer input; any observed lost writing or unintended commit blocks that workflow's release. Set usefulness and efficiency thresholds after the pilot rather than inventing success rates from the demo.
 
 Implementation sequence and accountable areas are in [11](11_refactor_and_migration_plan.md#uiux-delivery-workstream); UX-01–UX-12 have explicit acceptance tasks in [12](12_validation_and_acceptance.md#uiux-acceptance-matrix). A production change needs both its relevant UI evidence and the underlying document/AI contract evidence. Screenshot approval, a static HTML example, and an application build do not complete these gates.
+
+
+## Installed highlight and invisible-character controls
+
+Select prose and use the highlight toggle or Ctrl/Cmd+Shift+H. Its checked state
+tracks the actual selection; manual undo removes only that formatting action.
+Read-only and AI-review ownership block changes. Saved reader views retain the
+same semantic highlight with the existing author-accent tokens.
+
+The typing drawer separates text replacements from a labelled Display section.
+Show invisible characters is a device/novel choice available while reading an
+archived manuscript as well as writing. Spaces, tabs, paragraph/line ends and
+supported zero-width controls receive presentation markers. Existing writing,
+caret, editor identity and undo remain intact; turning the option off removes the
+markers. Labels/help and unavailable-storage feedback exist in English/Spanish.
+Keyboard/desktop/DOM-text checks are local evidence, not completed phone/IME or
+screen-reader acceptance. [12](12_validation_and_acceptance.md#highlight-and-invisible-character-acceptance)
+retains those wider gates.

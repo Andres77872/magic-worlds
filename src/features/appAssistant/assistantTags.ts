@@ -7,10 +7,10 @@ import { BookOpen, Compass, Gem, Globe, Swords, Users } from 'lucide-react'
 import { conversationTargetId } from '@/features/creation/common/components/assistant/assistantModel'
 import type { AssistantCardType, AssistantConversation } from '@/shared/types/assistant.types'
 
-export type AssistantTag = 'app' | AssistantCardType | 'lorebook'
+export type AssistantTag = 'app' | AssistantCardType | 'lorebook' | 'novel'
 
 /** Filter order on the page: the guide first, then the editors. */
-export const ASSISTANT_TAGS: readonly AssistantTag[] = ['app', 'character', 'world', 'item', 'adventure_template', 'lorebook']
+export const ASSISTANT_TAGS: readonly AssistantTag[] = ['app', 'character', 'world', 'item', 'adventure_template', 'lorebook','novel']
 
 export const ASSISTANT_TAG_ICONS: Record<AssistantTag, LucideIcon> = {
     app: Compass,
@@ -19,6 +19,7 @@ export const ASSISTANT_TAG_ICONS: Record<AssistantTag, LucideIcon> = {
     item: Gem,
     adventure_template: Swords,
     lorebook: BookOpen,
+    novel: BookOpen,
 }
 
 export function assistantTag(conversation: AssistantConversation): AssistantTag {

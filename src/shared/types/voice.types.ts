@@ -9,6 +9,7 @@
  */
 
 import type { EffectiveVoice, VoiceSubstitutionReason } from './voiceCatalog.types'
+import type { StoredCharacterVoice } from './voicePreset.types'
 
 export type VoiceAudioEncoding = 'audio/wav;codec=pcm_s16le'
 
@@ -114,6 +115,8 @@ export type VoiceSocketClientFrame =
         client_call_id: string
         audio: VoiceAudioPreferences
         capabilities: VoiceClientCapabilities
+        /** The voice picked for this call only (a stored catalog voice); absent: the chat's voice. */
+        voice?: StoredCharacterVoice
     }
     | { type: 'voice_resume'; voice_session_id: string; last_segment_seq: number }
     | {
@@ -311,6 +314,9 @@ export interface CallTranscriptSegment {
     /** Protected `/tts/assets/{id}.mp3` URL for the character's saved TTS (assistant only). */
     audio_url?: string | null
     created_at?: string | null
+    turn_id?: string | null
+    user_message_id?: number | null
+    assistant_message_id?: number | null
 }
 
 export interface VoiceCallListResponse {

@@ -9,11 +9,15 @@ import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import { Check, Copy, Crown, LogOut, ShieldCheck, User as UserIcon } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import type { UserProfile } from '@/shared'
+import type { AvatarVariantId, UserProfile } from '@/shared'
+import { apiService } from '@/infrastructure/api'
+import { avatarVariantUrl } from '@/infrastructure/api/mediaUrl'
 import { effectiveName } from '@/utils/displayName'
-import { Avatar, Badge, Button, Icon, IconButton, type BadgeTone } from '@/ui/primitives'
+import { Avatar, Badge, Button, cx, Icon, IconButton, Tooltip, type BadgeTone } from '@/ui/primitives'
 import { DisplayNameEditor } from './DisplayNameEditor'
 import { ProfileStats } from './ProfileStats'
+
+const ALL_AVATAR_VARIANTS: readonly AvatarVariantId[] = ['A', 'B', 'C', 'D']
 
 interface RoleMeta {
     label: string
@@ -37,23 +41,116 @@ function capitalize(value: string): string {
     return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
+function variantLabel(variant: AvatarVariantId, t: TFunction): string {
+    switch (variant) {
+        case 'A':
+            return t('profile.identity.avatarVariantA')
+        case 'B':
+            return t('profile.identity.avatarVariantB')
+        case 'C':
+            return t('profile.identity.avatarVariantC')
+        case 'D':
+            return t('profile.identity.avatarVariantD')
+    }
+}
+
 interface ProfileIdentityCardProps {
     profile: UserProfile
     /** Called with the saved display name (null when cleared) after a successful edit. */
     onDisplayNameUpdated?: (displayName: string | null) => void
+    /** Called with the updated UserProfile after switching the active avatar variant. */
+    onAvatarVariantUpdated?: (updatedProfile: UserProfile) => void
     /** Opens the log-out confirmation. Omitted in isolation (Storybook) hides the action. */
     onRequestLogout?: () => void
 }
 
-export function ProfileIdentityCard({ profile, onDisplayNameUpdated, onRequestLogout }: ProfileIdentityCardProps) {
+export function ProfileIdentityCard({
+    profile,
+    onDisplayNameUpdated,
+    onAvatarVariantUpdated,
+    onRequestLogout,
+}: ProfileIdentityCardProps) {
     const { t } = useTranslation()
     const role = roleMeta(profile.user_type, t)
+    const [pendingVariant, setPendingVariant] = useState<AvatarVariantId | null>(null)
+    const [avatarError, setAvatarError] = useState<string | null>(null)
+
+    const availableVariants = profile.available_avatar_variants ?? []
+    const activeVariant = profile.active_avatar_variant ?? (availableVariants[0] ?? null)
+    const displayLabel = effectiveName(profile)
+
+    const handleSelectVariant = async (variant: AvatarVariantId) => {
+        if (pendingVariant || variant === activeVariant || !availableVariants.includes(variant)) return
+        setPendingVariant(variant)
+        setAvatarError(null)
+        try {
+            const updated = await apiService.updateAvatarVariant(variant)
+            onAvatarVariantUpdated?.(updated)
+        } catch {
+            setAvatarError(t('profile.identity.avatarError'))
+        } finally {
+            setPendingVariant(null)
+        }
+    }
 
     return (
         <div className="flex flex-col gap-5">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:items-center sm:text-left">
-                    <Avatar name={effectiveName(profile)} size={72} ring="ember" />
+                    <div className="flex flex-col items-center gap-2.5">
+                        <Avatar
+                            name={displayLabel}
+                            src={profile.avatar_url}
+                            size={72}
+                            ring="ember"
+                        />
+                        {availableVariants.length > 1 && (
+                            <div
+                                role="radiogroup"
+                                aria-label={t('profile.identity.avatarEmblemLabel')}
+                                className="inline-flex items-center gap-1.5 rounded-full border border-parchment-50/[.08] bg-ink-700 px-2 py-1"
+                            >
+                                {ALL_AVATAR_VARIANTS.map((variant) => {
+                                    const isAvailable = availableVariants.includes(variant)
+                                    if (!isAvailable) return null
+                                    const isSelected = activeVariant === variant
+                                    const isSaving = pendingVariant === variant
+                                    const label = variantLabel(variant, t)
+                                    return (
+                                        <Tooltip key={variant} label={label}>
+                                            <button
+                                                type="button"
+                                                role="radio"
+                                                aria-checked={isSelected}
+                                                aria-label={label}
+                                                disabled={Boolean(pendingVariant)}
+                                                onClick={() => void handleSelectVariant(variant)}
+                                                className={cx(
+                                                    'relative inline-flex h-7 w-7 items-center justify-center rounded-full transition-all',
+                                                    isSelected
+                                                        ? 'ring-2 ring-ember-500 ring-offset-2 ring-offset-ink-800 shadow-glow-ember'
+                                                        : 'opacity-70 hover:opacity-100',
+                                                    isSaving && 'animate-pulse',
+                                                )}
+                                            >
+                                                <Avatar
+                                                    name={displayLabel}
+                                                    src={avatarVariantUrl(variant, 128)}
+                                                    size={28}
+                                                    ring="none"
+                                                />
+                                            </button>
+                                        </Tooltip>
+                                    )
+                                })}
+                            </div>
+                        )}
+                        {avatarError && (
+                            <p role="alert" className="font-ui text-caption text-blood-500">
+                                {avatarError}
+                            </p>
+                        )}
+                    </div>
 
                     <div className="flex min-w-0 flex-col items-center gap-1.5 sm:items-start">
                         <DisplayNameEditor

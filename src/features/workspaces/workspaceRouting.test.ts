@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { setTestFeatureFlags, setAllTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OTHER_WORKSPACE_ID, TEST_WORKSPACE_ID, testWorkspace } from '@/shared/hooks/testing/workspaceTestUtils'
 import {
     normalizeRoute,
@@ -13,27 +14,27 @@ import {
 const other = testWorkspace(OTHER_WORKSPACE_ID, 'Novel A', { preferred_use: 'writing' })
 
 describe('workspace routing helpers', () => {
+    beforeEach(() => setAllTestFeatureFlags(true))
     afterEach(() => vi.unstubAllEnvs())
 
-    it('leaves legacy gallery routes alone while the R1 UI is off', () => {
-        vi.stubEnv('VITE_FEATURE_WORKSPACES_ENABLED', 'false')
+    it('maps baseline legacy galleries without any workspace flag', () => {
+        setAllTestFeatureFlags(false)
         expect(normalizeRoute('gallery-characters', '#/gallery/characters?card=abc')).toEqual({
-            page: 'gallery-characters',
-            hash: '#/gallery/characters?card=abc',
+            page: 'library', hash: '#/library?card_type=character&character_role=character&reveal=character%3Aabc',
         })
-        expect(stampWorkspaceHash('gallery-characters', '#/gallery/characters', TEST_WORKSPACE_ID)).toBe('#/gallery/characters')
+        expect(stampWorkspaceHash('gallery-characters', '#/gallery/characters', TEST_WORKSPACE_ID)).toContain('workspace=')
     })
 
     it('does not normalize a disabled adventure route into the enabled Library', () => {
-        vi.stubEnv('VITE_FEATURE_WORKSPACES_ENABLED', 'true')
-        vi.stubEnv('VITE_FEATURE_ADVENTURES_ENABLED', 'false')
+
+        setTestFeatureFlags({ adventures: false })
         expect(normalizeRoute('gallery-adventures', '#/gallery/adventures?card=tpl_1')).toEqual({
             page: 'gallery-adventures', hash: '#/gallery/adventures?card=tpl_1',
         })
     })
 
     it('maps owned type galleries to the Library with the type filter and a reveal', () => {
-        vi.stubEnv('VITE_FEATURE_WORKSPACES_ENABLED', 'true')
+
         expect(normalizeRoute('gallery-worlds', '#/gallery/worlds')).toEqual({ page: 'library', hash: '#/library?card_type=world' })
         expect(normalizeRoute('gallery-personas', `#/gallery/personas?workspace=${OTHER_WORKSPACE_ID}`)).toEqual({
             page: 'library',
@@ -47,7 +48,7 @@ describe('workspace routing helpers', () => {
     })
 
     it('stamps the workspace on content pages only, never over an existing one', () => {
-        vi.stubEnv('VITE_FEATURE_WORKSPACES_ENABLED', 'true')
+
         expect(stampWorkspaceHash('library', '#/library?q=elf', TEST_WORKSPACE_ID)).toBe(`#/library?workspace=${TEST_WORKSPACE_ID}&q=elf`)
         expect(stampWorkspaceHash('library', `#/library?workspace=${OTHER_WORKSPACE_ID}`, TEST_WORKSPACE_ID))
             .toBe(`#/library?workspace=${OTHER_WORKSPACE_ID}`)
@@ -55,8 +56,8 @@ describe('workspace routing helpers', () => {
     })
 
     it('lands a switch on list pages in place, records on the preferred page, account pages stay', () => {
-        vi.stubEnv('VITE_FEATURE_WORKSPACES_ENABLED', 'true')
-        vi.stubEnv('VITE_FEATURE_NOVELS_ENABLED', 'true')
+
+        setTestFeatureFlags({ novels: true })
         expect(switchDestination('library', other)).toEqual({ page: 'library', hash: `#/library?workspace=${OTHER_WORKSPACE_ID}` })
         expect(switchDestination('character', other)?.page).toBe(preferredLandingPage(other))
         expect(switchDestination('profile', other)).toBeNull()

@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/app/hooks'
@@ -27,6 +28,7 @@ interface LoadedSharing {
 }
 
 export function useProfileSharedCards(): ProfileSharedCardsState {
+    useFeatureFlags()
     const { t } = useTranslation()
     const { isAuthenticated } = useAuth()
     // The profile is an account page (not gated on the handshake), so wait for a committed workspace.

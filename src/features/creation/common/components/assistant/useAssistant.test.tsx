@@ -62,8 +62,8 @@ import type { AssistantAdapter, AssistantBindings } from './assistantModel'
 import { cardAssistantAdapter } from './cardAssistantAdapter'
 import { useAssistant } from './useAssistant'
 
-type Kind = AssistantKind
-type Target = AssistantTargetOf<AssistantKind>
+type Kind = Exclude<AssistantKind,'novel'>
+type Target = AssistantTargetOf<Kind>
 
 const KINDS = ['card', 'lorebook', 'app'] as const
 const DOCUMENT_KINDS = ['card', 'lorebook'] as const

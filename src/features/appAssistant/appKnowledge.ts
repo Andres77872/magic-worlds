@@ -315,7 +315,7 @@ export function buildResourceSection(resources: LorebookResource[], t: TFunction
 export function buildNovelSection(stories: Story[], t: TFunction): KnowledgeSection {
     const lines = stories.map((story) => {
         const chapters = [...(story.chapters ?? [])].sort((a, b) => a.order - b.order)
-        const head = cardLine('novel', story.id, story.title, [t('appAssistant.knowledge.chapterCount', { count: chapters.length })], story.description)
+        const head = cardLine('novel', story.id, story.title, [t('appAssistant.knowledge.chapterCount', { count: story.chapterCount??chapters.length })], story.description)
         const titles = chapters.slice(0, 10).map((chapter) => `  - ${clip(chapter.title, 70)} (${chapter.status})`)
         return [head, ...titles].join('\n')
     })

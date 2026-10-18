@@ -1,3 +1,48 @@
+import { novelAssistant } from './novelAssistant'
+import { novelVariants } from './novelVariants'
+import { novelAssistantContext } from './novelAssistantContext'
+import { novelAssistantActions } from './novelAssistantActions'
+import { novelExport } from './novelExport'
+import { novelImport } from './novelImport'
+import { novelPackage } from './novelPackage'
+import { novelWritingProgress } from './novelWritingProgress'
+import { novelDeviceCache } from './novelDeviceCache'
+import { novelErasure } from './novelErasure'
+import { novelOffline } from './novelOffline'
+import { novelOfflineApp } from './novelOfflineApp'
+import { novelWritingMarks } from './novelWritingMarks'
+import { novelLoading } from './novelLoading'
+import { novelReader } from './novelReader'
+import { novelReplacements } from './novelReplacements'
+import { novelPlanning } from './novelPlanning'
+import { novelStyleSheet } from './novelStyleSheet'
+import { novelAssistantPreferences } from './novelAssistantPreferences'
+import { novelAssistantPresets } from './novelAssistantPresets'
+import { novelAssistantSummaries } from './novelAssistantSummaries'
+import { novelOutlineImport } from './novelOutlineImport'
+import { novelPlanningViews } from './novelPlanningViews'
+import { novelReview } from './novelReview'
+import { novelStructure } from './novelStructure'
+import { novelOutline } from './novelOutline'
+import { novelLibrary } from './novelLibrary'
+import { novelCovers } from './novelCovers'
+import { novelReading } from './novelReading'
+import { novelSearch } from './novelSearch'
+import { novelLinks } from './novelLinks'
+import { novelCodexLibrary } from './novelCodexLibrary'
+import { novelReferences } from './novelReferences'
+import { novelBlocks } from './novelBlocks'
+import { novelTyping } from './novelTyping'
+import { novelCopy } from './novelCopy'
+import { novelCreation } from './novelCreation'
+import { novelTemplates } from './novelTemplates'
+import { novelCreationSources } from './novelCreationSources'
+import { novelUnitCopy } from './novelUnitCopy'
+import { novelHistory } from './novelHistory'
+import { novelSnapshots } from './novelSnapshots'
+import { novelRevisions } from './novelRevisions'
+import { novelAnnotations } from './novelAnnotations'
+import { novelBookmarks } from './novelBookmarks'
 import { voicePerformanceEn } from './voicePerformance'
 import { voiceSceneEn } from './voiceScene'
 import { llmProfilesEn } from './llmProfiles'
@@ -6,6 +51,7 @@ import { adminVoicesEn } from './adminVoices'
 import { workspacesEn } from './workspaces'
 import { libraryEn, workspaceUiEn } from './library'
 import { workspaceActivityEn } from './workspaceActivity'
+import { chatImagesEn } from './chatImages'
 import { workspaceContentEn } from './workspaceContent'
 import { attestationEn, termsPageEn, voiceErrorsEn, voiceUsageEn } from './voiceAccess'
 import { voicePreviewEn } from './voicePreview'
@@ -16,6 +62,13 @@ import { voiceCallNoteEn, voiceRefreshEn, voiceSessionTierEn } from './voiceNarr
 import { voiceSafetyEn } from './voiceSafety'
 import { minorReportsEn } from './minorReports'
 export const en = {
+    featureFlags: {
+        labels: { communityCards: 'Community card sharing', lorebooks: 'Lorebooks', lorebookResources: 'Lorebook resources',
+            voices: 'Voices', calls: 'Voice calls', novels: 'Story Studio', groupChats: 'Group chats', adventures: 'Adventures', appAssistant: 'App assistant' },
+        loading: 'Checking feature access…', denied: 'This feature is not available on your current plan.',
+        unavailable: 'Feature access is temporarily unavailable. Please try again.', reload: 'Update the app to continue with this feature.',
+        retry: 'Try again', reloadAction: 'Reload app',
+    },
     attestation: attestationEn,
     workspaceContent: workspaceContentEn,
     llmProfiles: llmProfilesEn,
@@ -24,6 +77,7 @@ export const en = {
     library: libraryEn,
     workspaceUi: workspaceUiEn,
     workspaceActivity: workspaceActivityEn,
+    chatImages: chatImagesEn,
     imageGeneration: {
         stages: {
             starting: 'Starting image generation…',
@@ -1123,8 +1177,10 @@ export const en = {
                     item: 'Item',
                     adventure_template: 'Adventure',
                     lorebook: 'Lorebook',
+                    novel: 'Novel',
                 },
                 handoff: {
+                    novel: 'Continue this conversation in Story Studio to inspect its sources and review any writing proposals.',
                     title: '{{kind}} assistant',
                     bound: 'This conversation edits “{{name}}”. Continue it in the editor, where the assistant can apply its changes.',
                     draft: 'This conversation started on an unsaved draft. Continue it in a new draft, where the assistant can apply its changes.',
@@ -1547,9 +1603,15 @@ export const en = {
                         },
                         calls: {
                             title: 'Voice calls',
-                            current: 'Live voice calls with characters from one-on-one conversations are implemented, with consent and saved transcripts.',
-                            next: 'Test on real phones and browsers, check interruptions and call endings, turn on full safety checks, and measure how quickly replies start.',
-                            decision: 'TBD: supported browsers and devices, and response-time targets.',
+                            current: 'Live voice calls with characters from one-on-one conversations are implemented, with consent and saved transcripts. Completed call replies replay their saved call audio directly inside the conversation and cannot be edited or re-narrated, while deleting or clearing messages removes their saved call lines and audio. Before calling you can choose a voice for calls with that character and see which conversation model answers; a live transcript follows the call.',
+                            next: 'Keep and trim heard partial audio when you barge in on a call reply mid-sentence so both chat and call transcripts can replay what was spoken before the interruption; test on real phones and browsers, turn on full safety checks, and measure how quickly replies start.',
+                            decision: 'TBD: supported browsers and devices, response-time targets, and exact barge-in audio trimming rules.',
+                        },
+                        groupCalls: {
+                            title: 'Group voice calls',
+                            current: 'Calls are one-on-one today: a group chat continues in text and offers no call button.',
+                            next: 'Let several characters share one call, each with its own voice, taking turns without talking over each other or over you.',
+                            decision: 'TBD: how speakers take turns, how many characters a call can hold, and how call time is counted.',
                         },
                         appAssistant: {
                             title: 'App assistant',
@@ -1577,6 +1639,10 @@ export const en = {
                         },
                     },
                     done: {
+                        callChatReplay: {
+                            title: 'Replay voice call replies directly in chat',
+                            body: 'Completed voice call turns now replay their recorded call audio in the conversation view, link back and forth with the call transcript, lock call lines from editing or re-narration, and clean up saved call audio when messages are deleted or cleared.',
+                        },
                         chatStream: {
                             title: 'Chat replies no longer stall',
                             body: 'A fix stops behind-the-scenes card lookups from interrupting a character\'s reply before narration begins.',
@@ -2961,6 +3027,12 @@ export const en = {
                     saved: 'Display name updated.',
                     saveError: "Couldn't update your display name. Please try again.",
                     tooLong: 'Keep it to {{max}} characters or fewer.',
+                    avatarEmblemLabel: 'Medallion emblem',
+                    avatarVariantA: 'Smoked obsidian & arcane ember',
+                    avatarVariantB: 'Celestial astrolabe crest',
+                    avatarVariantC: 'Arcane eclipse disc',
+                    avatarVariantD: 'Alchemical bronze & verdigris',
+                    avatarError: "Couldn't switch your medallion emblem. Please try again.",
                 },
                 stats: {
                     characters: 'Characters',
@@ -4883,6 +4955,26 @@ export const en = {
                     emptyTitle: 'No Codex cards',
                     emptyDescription: 'Add cards to keep their context available in future replies.',
                     inCodex: 'In Codex',
+                    alreadyInContext: 'Already in chat context',
+                    participantConflict: 'Chat participants and your persona are already included in the context and cannot be added to Codex.',
+                    participantWarning: 'These enabled Codex entries are also chat participants or your persona: {{names}}. Replies may fail. Disable or remove those Codex entries to continue.',
+                    updateFailed: 'Could not update this chat’s Codex. Try again.',
+                    sourceStatus: {
+                        using: 'Using v{{number}}',
+                        latest: 'Latest saved version',
+                        latestNumber: 'Latest saved version v{{number}}',
+                        libraryName: 'Library name: {{name}}',
+                        older: 'Older version',
+                        unavailable: 'Source unavailable',
+                        unversioned: 'No saved version',
+                        unversionedCopy: 'Using an unversioned copy',
+                        untracked: 'Version not tracked',
+                        unchecked: 'Source not checked',
+                        checking: 'Checking source',
+                        failed: 'Source check failed. Saved copies are still available.',
+                        unknown: 'Saved version could not be verified',
+                        draft: 'Unpublished changes',
+                    },
                     pickerTitle: 'Add cards to chat Codex',
                     pickerHint: 'Picked cards are cloned into this chat and stay available until removed or disabled.',
                     searchPlaceholder: 'Search your cards...',
@@ -5019,7 +5111,8 @@ export const en = {
                     turnFailed: 'The character could not answer that. Try saying it again.',
                     unsupported: 'This browser cannot capture audio for calls. Try a recent Chrome, Edge, Firefox or Safari.',
                     uploadFailed: 'Your audio could not be sent. Check your connection.',
-                    voiceUnavailable: 'This character’s voice isn’t available right now. Try calling again in a moment.',
+                    voiceUnavailable: 'This voice can’t take calls right now. Choose another voice in call settings and call again.',
+                    callModelUnavailable: 'No conversation model is set up for calls yet. An admin can choose one in call settings.',
                     moderationUnavailable: 'Voice is briefly unavailable. Try again in a moment.',
                 },
                 callState: {
@@ -5111,7 +5204,7 @@ export const en = {
                     replyStopped: 'You stopped this reply',
                     narrationUnavailable: 'Narration is unavailable right now.',
                     reconnecting: 'Connection lost — reconnecting…',
-                    resetBody: 'This removes the visible message history for this conversation.',
+                    resetBody: 'This removes the visible message history and any saved call transcripts and call audio for this conversation.',
                     resetCancel: 'Keep messages',
                     resetTitle: 'Clear messages',
                     retry: 'Retry',
@@ -5120,6 +5213,8 @@ export const en = {
                     versionFailed: "Couldn't switch to that version. Please try again.",
                 },
                 chat: {
+                    callBadge: 'Voice call',
+                    callDivider: 'Voice call',
                     fallbackCharacter: 'Character',
                     fallbackNarrator: 'Narrator',
                     fallbackSomeone: 'Someone',
@@ -5131,6 +5226,7 @@ export const en = {
                     speakerThinks: '{{name}} thinks',
                     speaking: '{{name}} is speaking…',
                     thinking: '{{name}} is thinking…',
+                    viewCallTranscript: 'View call transcript',
                     writing: '{{name}} is writing…',
                 },
                 composer: {
@@ -5159,6 +5255,26 @@ export const en = {
                     failed: 'Image generation failed.',
                     loadFailed: 'The image could not be loaded. Refresh the page to try again.',
                     viewFullSize: 'View scene full size',
+                    actions: 'Scene image actions',
+                    fullSize: 'Full size',
+                    details: 'Image details',
+                    generate: 'Generate image',
+                    regenerate: 'Regenerate image',
+                    regenerateCost_one: 'Regenerate image ({{count}} credit)',
+                    regenerateCost_other: 'Regenerate image ({{count}} credits)',
+                    retry: 'Retry',
+                    notStarted: "The scene image didn't start.",
+                    deleted: 'This image is no longer available.',
+                    quota: 'You have reached your image limit for now.',
+                    keyNeeded: 'This image model runs on your own key. Add it to generate.',
+                    addKeyAndGenerate: 'Add key & generate',
+                    unavailable: 'Scene images are unavailable right now.',
+                    pager: {
+                        group: 'Scene images',
+                        previous: 'Previous image',
+                        next: 'Next image',
+                        position: 'Image {{index}} of {{count}}',
+                    },
                 },
                 leftPanel: {
                     addCharacter: 'Add character',
@@ -5182,9 +5298,11 @@ export const en = {
                     generating: 'Generating narration…',
                     loading: 'Loading narration…',
                     play: 'Play narration',
+                    playCallAudio: 'Play call audio',
                     pause: 'Pause narration',
                     failedRetry: 'Narration failed — tap to retry',
                     failedRetryDetail: 'Narration failed — tap to retry: {{detail}}',
+                    callReplyReplayOnly: 'Call replies replay their recorded call audio and cannot be re-narrated.',
                     clipNarration: 'Narration',
                     clipNarrator: 'Narrator',
                     clipSpeaker: 'Speaker',
@@ -5306,6 +5424,9 @@ export const en = {
                         members_one: '{{count}} member',
                         members_other: '{{count}} members',
                         limitsSummary: 'Daily limits',
+                        featuresSummary: 'Feature permissions · {{count}}/{{total}} enabled',
+                        featureOn: 'Enabled',
+                        featureOff: 'Off',
                         limitRow: '{{limit}}/day · {{inFlight}} in flight · {{cost}} cr',
                         limitRowProfilePriced: '{{limit}}/day · {{inFlight}} in flight · per profile',
                         edit: 'Edit',
@@ -5332,7 +5453,12 @@ export const en = {
                         copyFromLabel: 'Start from',
                         copyFromPlaceholder: 'Copy limits from a plan',
                         limitsTitle: 'Per-operation limits',
+                        featuresTitle: 'Preview features',
+                        featuresDescription: 'Members inherit these temporary permissions. Unselected or missing permissions are off. Root accounts bypass these restrictions. Workspaces is available to everyone.',
+                        featureRequires: 'Requires {{features}} first.',
                         limitsDescription: 'Every operation needs a daily request limit, a concurrency cap, and a credit cost.',
+                        showAllOperations: 'Configure all operations',
+                        showAllOperationsDescription: 'Include limits for features currently hidden in this app so you can prepare custom testing plans.',
                         columns: {
                             operation: 'Operation',
                             dailyLimit: 'Daily limit',
@@ -5658,7 +5784,55 @@ export const en = {
                 voices: adminVoicesEn,
             },
             novelEditor: {
+                copyNovel:novelCopy.en,
+                creationRecovery:novelCreation.en,
+                templates:novelTemplates.en,
+                sources:novelCreationSources.en,
+                unitCopy:novelUnitCopy.en,
+                structureHistory:novelHistory.en,
+                assistant:novelAssistant.en,
+                variants:novelVariants.en,
+                assistantContext:novelAssistantContext.en,
+                assistantActions:novelAssistantActions.en,
+                export:novelExport.en,
+                import:novelImport.en,
+                package:novelPackage.en,
+                writingProgress:novelWritingProgress.en,
+                snapshots:novelSnapshots.en,
+                outline:novelOutline.en,
+                library:novelLibrary.en,
+                covers:novelCovers.en,
+                reading:novelReading.en,
+                search:novelSearch.en,
+                replacements:novelReplacements.en,
+                links:novelLinks.en,
+                codexLibrary:novelCodexLibrary.en,
+                references:novelReferences.en,
+                blocks:novelBlocks.en,
+                planning:novelPlanning.en,
+                styleSheet:novelStyleSheet.en,
+                assistantPreferences:novelAssistantPreferences.en,
+                assistantPresets:novelAssistantPresets.en,
+                assistantSummaries:novelAssistantSummaries.en,
+                outlineImport:novelOutlineImport.en,
+                planningViews:novelPlanningViews.en,
+                review:novelReview.en,
+                reader:novelReader.en,
+                typing:novelTyping.en,
+                structure:novelStructure.en,
+                revisions:novelRevisions.en,
+                annotations:novelAnnotations.en,
+                offlineApp:novelOfflineApp.en,deviceCache:novelDeviceCache.en,offline:novelOffline.en,erasure:novelErasure.en,writingMarks:novelWritingMarks.en,loading:novelLoading.en,bookmarks:novelBookmarks.en,
+        recovery: {
+            found: 'An unsynced draft is saved on this device. Choose which version to open.',
+            resume: 'Resume device draft', copy: 'Copy device draft', server: 'Use account version',
+            device: 'Saved on this device · waiting to sync', storageFailed: 'Device storage is unavailable or full. Keep this tab open and copy your writing before leaving.',
+            compare: 'Compare versions', compareHelp: 'Both versions stay available until you choose. Saving the device draft creates a new revision and preserves the account version in history.',
+            keepLocal: 'Save device draft as a new revision', local: 'Device draft', account: 'Account version',
+            title_blank: 'Enter a chapter title. Your prose can still be saved.', title_tooLong: 'Keep the chapter title within 255 characters.',
+        },
                 save: {
+            conflict: 'The account version changed. Your draft is retained; compare before saving.',
                     saving: 'Saving…',
                     saved: 'Saved',
                     savedAt: 'Saved at {{time}}',
@@ -5733,13 +5907,14 @@ export const en = {
                 },
                 editor: {
                     placeholder: 'Begin your chapter… Press "/" for commands, "@" to mention your codex.',
-                    bodyLabel: 'Chapter body',
+                    bodyLabel: 'Scene manuscript',
                     generationFailedTitle: 'Generation failed',
                     emptyGeneration: 'The model returned nothing — try rephrasing the instruction.',
                     generationFailed: 'Generation failed — try again.',
                     flushFailed: 'Your latest changes could not be saved, so nothing was generated. Check your connection and try again.',
                 },
                 studio: {
+                    sceneTitleLabel:'Scene title',sceneTitlePlaceholder:'Untitled scene',
                     chapterTitleLabel: 'Chapter title',
                     chapterTitlePlaceholder: 'Untitled chapter',
                     loginRequired: 'Sign in to generate text.',
@@ -5801,6 +5976,8 @@ export const en = {
                     wordsReplaced_other: 'Replaced {{previous}} of your words with {{count}}',
                     announce_one: '{{count}} word generated in your chapter. Accept, regenerate or decline it.',
                     announce_other: '{{count}} words generated in your chapter. Accept, regenerate or decline it.',
+                    announceSaved_one: '{{count}} word proposed for this scene. Accept or decline it.',
+                    announceSaved_other: '{{count}} words proposed for this scene. Accept or decline them.',
                 },
                 beat: {
                     title: 'Beat',
@@ -5859,6 +6036,7 @@ export const en = {
                         title: 'Sent to the AI',
                         count: '{{enabled}}/{{total}}',
                         tokens: '~{{tokens}} tokens',
+                        scenes_one:'{{count}} scene',scenes_other:'{{count}} scenes',
                         chapters_one: '{{count}} chapter',
                         chapters_other: '{{count}} chapters',
                         hint: 'Disabled entries are never sent.',
@@ -5942,6 +6120,9 @@ export const en = {
                     calling: 'Calling {{name}}…',
                     switchToText: 'Switch to text',
                     youLabel: 'You:',
+                    youName: 'You',
+                    firstTurnHint: '{{name}} is listening. Say hello whenever you are ready.',
+                    muteShortcut: 'shortcut: M',
                     headphonesHint: 'Echo cancellation is off, so interrupting by voice is disabled. Use headphones or the Interrupt button.',
                     mute: 'Mute microphone',
                     unmute: 'Unmute microphone',
@@ -5964,24 +6145,60 @@ export const en = {
                         serverShutdown: 'The voice service restarted. Please call again.',
                     },
                 },
+                live: {
+                    title: 'Call transcript',
+                    show: 'Show transcript',
+                    hide: 'Hide transcript',
+                    empty: 'What you and the character say will appear here.',
+                    thinking: 'Thinking…',
+                    interrupted: '(interrupted)',
+                    jumpToLatest: 'Jump to latest',
+                },
+                setup: {
+                    title: 'Call setup',
+                    open: 'Call settings',
+                    voice: 'Voice',
+                    model: 'Conversation model',
+                    defaultVoice: 'Default call voice',
+                    forCalls: 'Calls only',
+                    change: 'Change voice',
+                    useCharacterVoice: 'Use the character’s voice',
+                    pickHint: 'Used for your calls with {{name}}. The character card stays as it is.',
+                    voiceUnavailable: 'This character’s voice can’t take calls right now. Choose another voice to call.',
+                },
                 waveform: {
                     label: 'Live audio waveform',
                 },
                 history: {
                     callAgain: 'Call again',
+                    openChat: 'Open chat',
                     transcript: 'Transcript',
                 },
                 transcript: {
                     eyebrow: 'Call transcript',
                     title: 'Call with {{name}}',
                     backToCalls: 'Back to calls',
+                    openChat: 'Open chat',
                     youSaid: 'You said',
                     voiceClip: '{{speaker}}’s voice',
                     loadingAudio: 'Loading audio…',
+                    audioLoadFailed: 'Could not load audio.',
                     loadError: 'Failed to load this transcript.',
+                    unavailableNotice: 'This call transcript is no longer available.',
                     emptyMessage: 'No transcript for this call',
                     emptyHelper: 'This call has no saved transcript lines.',
                     privacyNote: 'Character audio is saved; your microphone audio is never stored.',
+                    endReason: {
+                        user: 'Ended by you',
+                        idle_timeout: 'Idle timeout',
+                        max_duration: 'Max duration reached',
+                        quota: 'Voice limit reached',
+                        disconnected: 'Connection lost',
+                        superseded: 'Continued elsewhere',
+                        server_shutdown: 'Service restarted',
+                        safety_pause: 'Safety pause',
+                        voice_restricted: 'Voice restricted',
+                    },
                 },
                 transforms: {
                     unknownCharacter: 'Unknown character',
@@ -5999,9 +6216,9 @@ export const en = {
                 providers: {
                     processing: 'Narration and preview text is sent to Fish Audio under its own retention policy.',
                     callsUnavailable: 'Fish Audio voices support narration and previews. Choose a call-eligible voice to make a call.',
-                    emotionHint: 'Moods use curated Drama 3 performance cues.', thoughtHint: 'Thoughts use a soft, private delivery.',
+                    emotionHint: 'Moods use curated performance cues for the selected Fish model.', thoughtHint: 'Thoughts use a soft, private delivery.',
                     filter: 'Voice provider', all: 'All providers',
-                    fishInfo: 'Fish Audio · Drama 3 · Narration only',
+                    fishInfo: 'Fish Audio · Available for supported speech models',
                     unavailable: 'This voice can’t be used right now. Try again later or choose another voice.',
                     changed: 'Changing provider uses a compatible recipe. Your saved preset changes only when you save.',
                 },

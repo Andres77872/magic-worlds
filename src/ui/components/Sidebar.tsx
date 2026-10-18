@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * App sidebar — Reverie. A slim, full-height rail (replaces the top header):
  * brand at the top (fixed), primary nav + collapsible groups in the middle (the
@@ -22,8 +23,6 @@ import {
     Compass,
     FileText,
     Flame,
-    Gem,
-    Globe,
     Images,
     Library,
     ListChecks,
@@ -31,12 +30,10 @@ import {
     MessagesSquare,
     Phone,
     Sparkles,
-    Swords,
-    Users,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { PageType } from '../../shared'
-import { isPageFeatureEnabled, isWorkspacesFeatureEnabled } from '../../shared/featureFlags'
+import { isPageFeatureEnabled } from '../../shared/featureFlags'
 import { useNavigation, useAuth, useBackgroundTasks, useApiStatus } from '../../app/hooks'
 import { WorkspaceSwitcher } from '../../features/workspaces/components/WorkspaceSwitcher'
 import { Eyebrow, Icon, Tooltip, cx } from '../primitives'
@@ -57,7 +54,7 @@ interface NavGroup {
 }
 
 // Always-visible top anchors: discovery entry points with no group header.
-// `library` (Workspace R1) is page-flagged: it only shows with workspaces on.
+// Library is globally available; product previews have their own active guards.
 const NAV_PRIMARY: RailItem[] = [
     { page: 'landing', labelKey: 'sidebar.nav.landing', icon: Compass },
     { page: 'library', labelKey: 'library.nav', icon: Library },
@@ -80,16 +77,6 @@ const NAV_GROUPS: NavGroup[] = [
         ],
     },
     {
-        id: 'library',
-        labelKey: 'sidebar.group.library',
-        items: [
-            { page: 'gallery-characters', labelKey: 'sidebar.nav.characters', icon: Users },
-            { page: 'gallery-worlds', labelKey: 'sidebar.nav.worlds', icon: Globe },
-            { page: 'gallery-items', labelKey: 'sidebar.nav.items', icon: Gem },
-            { page: 'gallery-adventures', labelKey: 'sidebar.nav.adventures', icon: Swords },
-        ],
-    },
-    {
         id: 'assets',
         labelKey: 'sidebar.group.assets',
         items: [
@@ -106,14 +93,6 @@ function isItemVisible(item: RailItem): boolean {
     return isPageFeatureEnabled(item.page)
 }
 
-/**
- * With Workspace R1 on, the single Library entry replaces the four per-type
- * galleries (document 08 "Information architecture"); with it off, today's
- * groups are unchanged.
- */
-function visibleGroups(): NavGroup[] {
-    return isWorkspacesFeatureEnabled() ? NAV_GROUPS.filter((group) => group.id !== 'library') : NAV_GROUPS
-}
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'magic-worlds-sidebar-collapsed'
 const SIDEBAR_GROUPS_STORAGE_KEY = 'magic-worlds-sidebar-groups'
@@ -164,6 +143,7 @@ function RailButton({
     children: ReactNode
     className?: string
 }) {
+    useFeatureFlags()
     return (
         <button
             type="button"
@@ -203,6 +183,7 @@ function NavItemButton({
     tooltipOnDesktop: boolean
     onClick: () => void
 }) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const label = t(item.labelKey)
     return (
@@ -255,6 +236,7 @@ export function SidebarShell({
     onNavigate,
     renderTasks,
 }: SidebarShellProps) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const { currentPage, setPage } = useNavigation()
     const { isAuthenticated } = useAuth()
@@ -375,7 +357,7 @@ export function SidebarShell({
                     />
                 ))}
 
-                {visibleGroups().map((group) => {
+                {NAV_GROUPS.map((group) => {
                     const items = group.items.filter(isItemVisible)
                     if (items.length === 0) return null
                     const groupCollapsed = Boolean(collapsedGroups[group.id])
@@ -488,6 +470,7 @@ export function Sidebar({
     className?: string
     renderTasks?: SidebarShellProps['renderTasks']
 }) {
+    useFeatureFlags()
     const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
         if (typeof window === 'undefined') return false
         return window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === 'true'

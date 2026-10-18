@@ -21,7 +21,9 @@ import {
 import { authSession } from '@/infrastructure/api/authSession'
 import { API_BASE_URL } from '@/infrastructure/api/baseUrl'
 import { classifyWorkspaceCapabilities, isWorkspaceUuid, verifyWorkspace } from '@/infrastructure/api/workspaceContract'
-import { isWorkspacesFeatureEnabled } from '@/shared/featureFlags'
+import { isNovelsFeatureEnabled } from '@/shared/featureFlags'
+import { preferWorkspaceState } from '@/shared/workspaceLifecycle'
+import { rememberDeviceWorkspaces } from '@/features/novel/persistence/deviceWorkspaceStorage'
 import type { Workspace, WorkspaceList } from '@/shared/types'
 import {
     accountStorageKey,
@@ -54,6 +56,16 @@ interface WorkspaceState {
 }
 
 const EMPTY_WORKSPACES: readonly Workspace[] = Object.freeze([])
+
+function newestWorkspace(previous: Workspace | undefined, incoming: Workspace): Workspace {
+    return !previous || preferWorkspaceState({ rowVersion: previous.row_version, archived: previous.archived_at !== null },
+        { rowVersion: incoming.row_version, archived: incoming.archived_at !== null }) ? Object.freeze({ ...incoming }) : previous
+}
+function newestWorkspaceList(previous: readonly Workspace[], incoming: readonly Workspace[]): readonly Workspace[] {
+    const known = new Map(previous.map((item) => [item.id, item]))
+    const next = incoming.map((item) => newestWorkspace(known.get(item.id), item))
+    return next.length === previous.length && next.every((item, index) => item === previous[index]) ? previous : Object.freeze(next)
+}
 
 const INITIAL_STATE: WorkspaceState = {
     ownerAccountKey: null,
@@ -93,9 +105,9 @@ function writeLastUsedWorkspace(userHash: string, workspaceId: string): void {
     }
 }
 
-/** Flag off: always the protected default. Flag on: a valid, active last-used workspace, else the default. */
+/** Restore a valid last-used workspace, otherwise use the protected default. */
 function initialSelection(list: WorkspaceList, userHash: string | null): string {
-    if (!isWorkspacesFeatureEnabled() || !userHash) return list.default_workspace_id
+    if (!userHash) return list.default_workspace_id
     const lastUsed = readLastUsedWorkspace(userHash)
     const candidate = lastUsed ? list.items.find((workspace) => workspace.id === lastUsed) : undefined
     return candidate && candidate.archived_at === null ? candidate.id : list.default_workspace_id
@@ -127,7 +139,6 @@ export function WorkspaceProvider({ children, retryIntervalMs = API_STATUS_POLL_
     const { isAuthenticated, sessionPhase, authEpoch, accountKey } = useAuth()
     const { status: apiStatus } = useApiStatus()
     const pageFocused = usePageFocus()
-    const featureEnabled = isWorkspacesFeatureEnabled()
     const signedIn = isAuthenticated && sessionPhase === 'authenticated'
 
     // `liveRef` is the source of truth (read synchronously by capture/isCurrent
@@ -137,6 +148,15 @@ export function WorkspaceProvider({ children, retryIntervalMs = API_STATUS_POLL_
     const apply = useCallback((next: WorkspaceState) => {
         liveRef.current = next
         setState(next)
+        const snapshot = authSession.getSnapshot()
+        if (isNovelsFeatureEnabled() && next.status === 'ready' && snapshot.sessionPhase === 'authenticated'
+            && snapshot.userHash && next.ownerAccountKey === snapshot.accountKey) {
+            const owner = { accountKey: snapshot.accountKey, authEpoch: snapshot.authEpoch, userHash: snapshot.userHash }
+            void rememberDeviceWorkspaces({ apiOrigin: storageOrigin(), userHash: snapshot.userHash }, next.workspaces.map((workspace) => ({
+                id: workspace.id, name: workspace.name, isDefault: workspace.is_default, archived: workspace.archived_at !== null, rowVersion: workspace.row_version,
+            })), () => authSession.isCurrent(owner) && authSession.getSnapshot().sessionPhase === 'authenticated'
+                && liveRef.current.ownerAccountKey === owner.accountKey)
+        }
     }, [])
 
     const handshakeRef = useRef<{ generation: number; owner: HandshakeOwner | null; controller: AbortController | null }>({
@@ -225,14 +245,13 @@ export function WorkspaceProvider({ children, retryIntervalMs = API_STATUS_POLL_
             const current = liveRef.current
             const keep = current.ownerAccountKey === owner.accountKey && current.selectedWorkspaceId
                 && list.items.some((workspace) => workspace.id === current.selectedWorkspaceId)
-                && (isWorkspacesFeatureEnabled() || current.selectedWorkspaceId === list.default_workspace_id)
             const selectedWorkspaceId = keep ? current.selectedWorkspaceId! : initialSelection(list, owner.userHash)
             apply({
                 ownerAccountKey: owner.accountKey,
                 status: 'ready',
                 unavailableReason: null,
                 staleReason: null,
-                workspaces: Object.freeze([...list.items]),
+                workspaces: newestWorkspaceList(current.ownerAccountKey === owner.accountKey ? current.workspaces : [], list.items),
                 defaultWorkspaceId: list.default_workspace_id,
                 selectedWorkspaceId,
                 workspaceEpoch: current.workspaceEpoch + (selectedWorkspaceId === current.selectedWorkspaceId ? 0 : 1),
@@ -315,12 +334,11 @@ export function WorkspaceProvider({ children, retryIntervalMs = API_STATUS_POLL_
             if (!verifyWorkspace(target)) return false
             id = target.id
             const index = workspaces.findIndex((workspace) => workspace.id === id)
-            workspaces = Object.freeze(index === -1
-                ? [...workspaces, target]
-                : workspaces.map((workspace, position) => position === index ? target : workspace))
+            const retained = newestWorkspace(index === -1 ? undefined : workspaces[index], target)
+            if (index === -1) workspaces = Object.freeze([...workspaces, retained])
+            else if (retained !== workspaces[index]) workspaces = Object.freeze(workspaces.map((workspace, position) => position === index ? retained : workspace))
         }
         if (!isWorkspaceUuid(id)) return false
-        if (!isWorkspacesFeatureEnabled() && id !== current.defaultWorkspaceId) return false
         if (id === current.selectedWorkspaceId && workspaces === current.workspaces) return true
         apply({
             ...current,
@@ -328,7 +346,7 @@ export function WorkspaceProvider({ children, retryIntervalMs = API_STATUS_POLL_
             selectedWorkspaceId: id,
             workspaceEpoch: current.workspaceEpoch + (id === current.selectedWorkspaceId ? 0 : 1),
         })
-        if (isWorkspacesFeatureEnabled() && snapshot.userHash) writeLastUsedWorkspace(snapshot.userHash, id)
+        if (snapshot.userHash) writeLastUsedWorkspace(snapshot.userHash, id)
         return true
     }, [apply])
 
@@ -348,12 +366,12 @@ export function WorkspaceProvider({ children, retryIntervalMs = API_STATUS_POLL_
         // Another tab may have archived the selection: keep it (read-only) while it exists.
         const stillListed = latest.selectedWorkspaceId !== null
             && list.items.some((workspace) => workspace.id === latest.selectedWorkspaceId)
-        const selectedWorkspaceId = stillListed && (isWorkspacesFeatureEnabled() || latest.selectedWorkspaceId === list.default_workspace_id)
+        const selectedWorkspaceId = stillListed
             ? latest.selectedWorkspaceId!
             : list.default_workspace_id
         apply({
             ...latest,
-            workspaces: Object.freeze([...list.items]),
+            workspaces: newestWorkspaceList(latest.workspaces, list.items),
             defaultWorkspaceId: list.default_workspace_id,
             selectedWorkspaceId,
             workspaceEpoch: latest.workspaceEpoch + (selectedWorkspaceId === latest.selectedWorkspaceId ? 0 : 1),
@@ -404,21 +422,19 @@ export function WorkspaceProvider({ children, retryIntervalMs = API_STATUS_POLL_
             status,
             unavailableReason: status === 'unavailable' ? state.unavailableReason : null,
             staleReason: status === 'stale' ? state.staleReason : null,
-            featureEnabled,
             workspaces,
             activeWorkspaces,
             defaultWorkspaceId,
             selectedWorkspaceId,
             selectedWorkspace: workspaces.find((workspace) => workspace.id === selectedWorkspaceId) ?? null,
             workspaceEpoch,
-            hasHiddenWorkspaces: !featureEnabled && activeWorkspaces.length > 1,
             api,
             commitWorkspace,
             refreshWorkspaces,
             capture,
             isCurrent,
         }
-    }, [api, capture, commitWorkspace, defaultWorkspaceId, featureEnabled, isCurrent, refreshWorkspaces, selectedWorkspaceId,
+    }, [api, capture, commitWorkspace, defaultWorkspaceId, isCurrent, refreshWorkspaces, selectedWorkspaceId,
         state.staleReason, state.unavailableReason, status, workspaceEpoch, workspaces])
 
     return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>

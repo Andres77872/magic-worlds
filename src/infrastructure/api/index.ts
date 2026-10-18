@@ -1,6 +1,67 @@
+import type { NovelAssistantTurnPreview,NovelRefinementContext } from '@/shared/types/storyAssistant.types'
+import type { StoryVariantCreate,StoryVariantDecision,StoryVariantIntent,StoryVariantPage,StoryVariantQuery,StoryVariantRecord,StoryVariantSnapshot } from '@/shared/types/storyVariant.types'
+import { isStoryVariantCreate,isStoryVariantDecision,isStoryVariantIntent,isStoryVariantQuery,isStoryVariantReference,verifyStoryVariantCreation,verifyStoryVariantDecision,verifyStoryVariantPage,verifyStoryVariantRecord,verifyStoryVariantSnapshot } from './storyVariantContract'
+import { verifyNovelRefinement } from './novelRefinementContract'
+import { verifyNovelAssistantPreview } from './novelAssistantContract'
+import { isAssistantContextRequest,verifyAssistantContext } from './storyAssistantContextContract'
+import { isStoryExportRequest,sha256Hex,storyExportQuery,verifyStoryExportJob,verifyStoryExportManifest } from './storyExportContract'
+import type { StoryExportJob,StoryExportManifest,StoryExportRequest } from '@/shared/types/storyExport.types'
+import { isStoryImportOptions,isStoryImportWrite,verifyStoryImportAcknowledgement,verifyStoryImportManifest,verifyStoryImportRecord } from './storyImportContract'
+import { STORY_OUTLINE_MAX_TEXT,verifyStoryOutlinePreview } from './storyOutlineContract'
+import { STORY_PROGRESS_MAX_DAYS,verifyStoryWritingProgress } from './storyProgressContract'
+import type { StoryWritingProgress } from '@/shared/types/storyProgress.types'
+import type { StoryImportAcknowledgement,StoryImportManifest,StoryImportOptions,StoryImportRecord,StoryImportWrite } from '@/shared/types/storyImport.types'
+import { isStoryPackageOptions,isStoryPackageWrite,storyPackageQuery,verifyStoryPackageAcknowledgement,verifyStoryPackageManifest,verifyStoryPackagePreview } from './storyPackageContract'
+import type { StoryPackageAcknowledgement,StoryPackageManifest,StoryPackageOptions,StoryPackagePreview,StoryPackageWrite } from '@/shared/types/storyPackage.types'
+import type { StoryOutlinePreview } from '@/shared/types/storyOutline.types'
+import type { StoryAssistantContext,StoryAssistantContextRequest,StoryAssistantPreferences,StoryAssistantPreferencesState,StoryAssistantPreset,StoryAssistantPresetDefinition,StoryAssistantPresetList } from '@/shared/types/storyAssistant.types'
+import { isAssistantPreferences,isAssistantPreferencesState } from '@/shared/storyAssistantPreferences'
+import { isPresetDefinition,isStoryAssistantPreset,isStoryAssistantPresetList } from './storyAssistantPresetContract'
+import type { StoryStudioDocument } from '@/shared/types/storyStudio.types'
+import { verifyStoryStudioDocument } from './storyContract'
+import { verifyGenerationHistoryPage,verifyGenerationDetail } from './storyGenerationHistoryContract'
+import type { StoryGenerationHistoryPage,StoryGenerationDetail } from '@/shared/types/storyStudio.types'
+import { studioExcerptsRequest,verifyStudioExcerpts } from './storyStudioExcerptsContract'
+import type { StoryOutline,StorySceneOutline,StoryStudioExcerpts } from '@/shared/types/storyStudio.types'
+import { canonicalJson } from '@/utils/json'
+import type { StorySceneHeader,StoryStudioIndex,StoryStudioSource,StoryStudioScene } from '@/shared/types/storyStudio.types'
+import { verifyStoryStudioIndex,verifyStoryStudioSource,storyStudioSceneRequest,verifyStoryStudioScene } from './storyStudioContract'
+import type { StoryReadingPage,StoryReadingRequest } from '@/shared/types/storyReading.types'
+import { verifyReadingPage } from './storyReadingContract'
+import type { StoryReplacementAck,StoryReplacementPreview,StoryReplacementRequest,StoryReplacementReverseRequest,StoryReplacementWrite } from '@/shared/types/storyReplacement.types'
+import { verifyReplacementPreview,verifyReplacementAck } from './storyReplacementContract'
+import { verifyStory, verifyStoryScene, verifyStoryMetadata, verifyStoryCodexAcknowledgement, verifyStoryCodexLibraryVersions, verifyStoryCodexLibraryReview, verifyStoryCodexLibraryDraft, verifyStoryCodexLibraryEntry, verifyStoryStructureAcknowledgement, verifyStoryLifecycleAcknowledgement, matchesStoryWrite } from './storyContract'
+import type { StorySearchPage,StorySearchRequest,StorySearchResolve,StorySearchResult } from '@/shared/types/storySearch.types'
+import { verifySearchPage,verifySearchResult } from './storySearchContract'
+import { verifyStoryCopyPreview,verifyStoryCopyAcknowledgement,verifyStoryCopyProvenance } from './storyCopyContract'
+import { verifyStoryErasePreview,verifyStoryEraseAcknowledgement } from './storyEraseContract'
+import type { StoryErasePreview,StoryEraseWrite,StoryEraseAcknowledgement } from '@/shared/types/story.types'
+import { isStoryCreateWrite,verifyStoryCreationAcknowledgement } from './storyCreationContract'
+import { isCreationSourcesSelection,verifyCreationSourcesPreview,verifyCreationSources } from './storyCreationSourcesContract'
+import { isStoryLibraryFilters,storyLibraryParams } from '@/shared/storyLibrary'
+import type { StoryLibraryFilters } from '@/shared/types/storyLibrary.types'
+import type { StoryCreationSources,StoryCreationSourcesPreview,StoryCreationSourcesSelection } from '@/shared'
+import type { StoryCopyWrite,StoryCopyPreview,StoryCopyAcknowledgement,StoryCopyProvenance } from '@/shared/types/story.types'
+import type { StoryCardRef, StoryCodexLibraryDraft, StoryCodexLibraryEntry, StoryCodexLibraryReview, StoryCodexLibraryNotices, StoryCodexWrite, StoryCodexAcknowledgement, StoryScene, StorySceneWrite, StoryUnitMetadata, StoryStructureWrite, StoryStructureAcknowledgement, StoryStructureRevision, StoryStructureHistoryPage, StoryStructureHistoryQuery } from '@/shared/types/story.types'
+import { verifyStoryStructureHistory,verifyStoryStructureRevision } from './storyHistoryContract'
+import type { StorySnapshotPreview,StorySnapshotPage,StorySnapshotDetail,StorySnapshotComparison,StorySnapshotSceneView,StorySnapshotScene,StorySnapshotRestorePreview,StorySnapshotRestoreOptions } from '@/shared/types/story.types'
+import { verifySnapshotPreview,verifySnapshotPage,verifySnapshotDetail,verifySnapshotComparison,verifySnapshotScene,verifySnapshotRestorePreview } from './storySnapshotContract'
+import { verifySceneRevisionPage,verifySceneRevision,verifySceneRestoreAck } from './storyRevisionContract'
+import { verifyGenerationChangeset,verifyGenerationChangesetUndo } from './storyGenerationChangesetContract'
+import { verifyAnnotation,verifyAnnotationPage,verifyAnnotationAck,verifyAnnotationCopyPreview } from './storyAnnotationContract'
+import { verifyPlanAck,verifyPlanPage } from './storyPlanningContract'
+import type { StoryPlanAcknowledgement,StoryPlanKind,StoryPlanPage,StoryPlanQuery,StoryPlanWrite } from '@/shared/types/storyPlanning.types'
+import { verifySnapshotAnnotationPage,verifySnapshotAnnotationDetail } from './storySnapshotAnnotationContract'
+import type { StorySnapshotAnnotationQuery,StorySnapshotAnnotationIndex,StorySnapshotAnnotationPage,StorySnapshotAnnotationDetail } from '@/shared/types/storyAnnotation.types'
+import type { StoryAnnotation,StoryAnnotationPage,StoryAnnotationQuery,StoryAnnotationWrite,StoryAnnotationAcknowledgement,StoryAnnotationCopyPreview } from '@/shared/types/storyAnnotation.types'
+import type { StorySceneRevisionQuery,StorySceneRevisionPage,StorySceneRestoreWrite,StorySceneRestoreAcknowledgement } from '@/shared/types/story.types'
 import { AvailableLibraryPages } from './availableLibraryPage'
+import { isCardSourceStatusList } from './cardSourceStatusContract'
+import type { CardIdentity, CardSourceStatusList } from '@/shared/types/workspace.types'
 import { assertFeatureEnabled, assertContentTypeFeatureEnabled, assertLlmFeatureEnabled, isLlmFeatureEnabled, isContentTypeFeatureEnabled, isTaskFeatureEnabled, isOperationFeatureEnabled } from '@/shared/featureFlags'
 import { verifyAssistantTurn } from './assistantContract'
+import { verifyNovelAssistantTurnState } from './novelAssistantControlContract'
+import type { NovelAssistantTurnState } from '@/shared/types/novelAssistantControl.types'
 import { trackResourceTaskRequest } from './resourceTaskEvents'
 import { assertPublicLlmData, assertEffectiveLlmProfile, assertLlmCapacityUsage, assertLlmProfileCompatibility, assertLlmProviderUsage } from './llmProfileContract'
 import { prepareLlmRequest, prepareRetainedLlmRequest } from './llmPreparation'
@@ -149,6 +210,7 @@ import type {
     AgentVersionsResponse,
 } from '../../shared/types/agent.types'
 import type {
+    AvatarVariantId,
     BrowserAuthResponse,
     ChangePasswordResponse,
     EmailListResponse,
@@ -203,11 +265,13 @@ import type {
 } from '../../shared/types/patreon.types'
 import { API_BASE_URL } from './baseUrl'
 import { getProtectedMediaPath } from './mediaUrl'
-import { isPatreonFeatureEnabled } from '../../shared/patreonFeatureFlag'
+import { ACTIVE_FEATURE_KEYS } from '@/shared/featureFlagCatalog'
+import { featureFlagRuntime, type FeatureFlagSnapshot } from '@/shared/featureFlagRuntime'
+import { parseFeatureFlagSnapshot } from './featureFlagContract'
 import {
     isAppAssistantFeatureEnabled,
-    isTextStreamingFeatureEnabled,
     isLorebooksFeatureEnabled,
+    isNovelsFeatureEnabled,
 } from '../../shared/featureFlags'
 import { makeRequestId } from '../../utils/uuid'
 import { configureChatSocketAuthRefresh } from './chatSocket'
@@ -221,7 +285,7 @@ import {
     serializeLorebookEntry,
     serializeLorebookResource,
 } from './lorebookWire'
-import type { StoredConversationMessage, ChatTurnReconciliation, ChatImageAsset, ChatImageError, ChatTtsAsset, ChatTtsError, ImageLifecycleStatus, TtsLifecycleStatus } from '../../shared/types/interaction.types'
+import type { StoredConversationMessage, ChatTurnReconciliation, ChatImageAsset, ChatImageError, ChatImageGenerateBody, ChatImageGeneration, ChatTtsAsset, ChatTtsError, ImageLifecycleStatus, TtsLifecycleStatus } from '../../shared/types/interaction.types'
 import type { VoiceCallLimits, VoiceCallListResponse, VoiceCallTranscriptResponse, VoiceSegmentUploadRequest, VoiceSegmentUploadResponse } from '../../shared/types/voice.types'
 import type { AdventureSnapshot } from '../../shared/types/adventure.types'
 import type {
@@ -299,10 +363,15 @@ import type {
 } from '../../shared/types/notification.types'
 import type {
     Story,
-    StoryCardRef,
-    StoryChapter,
+    StoryChapterWrite,
+    StoryGenerationCommit,
+    StoryGenerationChangeset,
+    StoryGenerationChangesetUndo,
+    StoryGenerationChangesetWrite,
+    StoryDocumentRevision,
     StoryContextTrace,
-    StoryCreateRequest,
+    StoryCreateWrite,
+    StoryCreationAcknowledgement,
     StoryGenerateRequest,
     StoryGenerateResponse,
 } from '../../shared/types/story.types'
@@ -637,6 +706,40 @@ type AuthRequestOwner = Pick<AuthSessionSnapshot, 'authEpoch' | 'accountKey' | '
     token: string
 }
 
+/** Session kinds whose assistant messages carry chat images. */
+export type ChatImageBasePath = 'adventure-sessions' | 'character-chats'
+
+/**
+ * The chat image endpoints do not exist on this server (it predates them): a
+ * plain 404/405 from the router rather than a coded error. Callers hide
+ * regenerate instead of reporting a failure.
+ */
+export class ChatImagesUnsupportedError extends ApiError {
+    constructor(status: number) {
+        super(status, 'Chat images are not available on this server.', { code: 'CHAT_IMAGES_UNSUPPORTED' })
+        this.name = 'ChatImagesUnsupportedError'
+    }
+}
+
+function chatMessageImagesPath(basePath: ChatImageBasePath, sessionId: number, messageId: number): string {
+    return `/${basePath}/${sessionId}/messages/${messageId}/images`
+}
+
+async function chatImagesRequest<T>(run: () => Promise<T>): Promise<T> {
+    try {
+        return await run()
+    } catch (error) {
+        if (error instanceof ApiError && !error.code && (error.status === 404 || error.status === 405)) throw new ChatImagesUnsupportedError(error.status)
+        throw error
+    }
+}
+
+function isChatImageGenerationWire(value: unknown): value is ChatImageGeneration {
+    if (!value || typeof value !== 'object') return false
+    const row = value as Record<string, unknown>
+    return typeof row.job_id === 'string' && row.job_id.length > 0 && typeof row.status === 'string'
+}
+
 class ApiService {
     private baseUrl: string
     private readonly libraryPages = new AvailableLibraryPages()
@@ -688,6 +791,10 @@ class ApiService {
 
     /** One error shape for every transport; a stale build is announced once per response. */
     private responseError(status: number, parsed: ParsedApiError): ApiError {
+        if (parsed.code?.startsWith('FEATURE_FLAG_')) {
+            featureFlagRuntime.invalidate()
+            window.dispatchEvent(new Event('feature-flags:invalidate'))
+        }
         if (parsed.code === 'WORKSPACE_REQUIRED' && typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent(WORKSPACE_REQUIRED_EVENT))
         }
@@ -899,12 +1006,14 @@ class ApiService {
     private assistantKindEnabled(kind: AssistantKind): boolean {
         if (kind === 'lorebook') return isLorebooksFeatureEnabled()
         if (kind === 'app') return isAppAssistantFeatureEnabled()
+        if (kind === 'novel') return isNovelsFeatureEnabled()
         return true
     }
 
     private assertAssistantKindEnabled(kind: AssistantKind) {
         if (kind === 'lorebook') this.assertLorebooksEnabled()
         if (kind === 'app') assertFeatureEnabled('appAssistant')
+        if (kind === 'novel') this.assertNovelsEnabled()
     }
 
     private assertLorebooksEnabled() {
@@ -979,7 +1088,7 @@ class ApiService {
         const headers: HeaderRecord = {
             ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
             'Accept': 'application/json',
-            'X-MW-Voice-Contract': '4',
+            'X-MW-Voice-Contract': '5',
             ...this.toHeaderRecord(fetchOptions.headers),
             ...(omitWorkspaceScope ? {} : this.workspaceHeaders()),
         }
@@ -1596,7 +1705,7 @@ class ApiService {
         return this.withLlmIntent('card_generation', requestOptions.requestId, options.llm, options.signal, async (llm) => {
             try {
                 const body = { description: description.trim(), llm }
-                if (options.onEvent && isTextStreamingFeatureEnabled()) {
+                if (options.onEvent) {
                     return await this.streamGeneratedResult<AiCardGeneratedResult<T>>(`${endpoint}/stream`, body, 'card', requestOptions)
                 }
                 const result = await this.authenticatedRequest<AiCardGeneratedResult<T>>(`${endpoint}/`, this.getStoredToken(), {
@@ -1877,7 +1986,6 @@ class ApiService {
     }
 
     async createWorkspace(body: WorkspaceCreate): Promise<Workspace> {
-        assertFeatureEnabled('workspaces')
         const value = await this.workspaceRequest<unknown>('/workspaces', { method: 'POST', body })
         this.assertWorkspaceContract(verifyWorkspace(value), 'workspace')
         return value as Workspace
@@ -1885,7 +1993,6 @@ class ApiService {
 
     /** `version` is the workspace's current `row_version` (sent as `If-Match`); a stale one is `WORKSPACE_VERSION_CONFLICT`. */
     async updateWorkspace(workspaceId: string, version: number, patch: WorkspaceUpdate): Promise<Workspace> {
-        assertFeatureEnabled('workspaces')
         const value = await this.workspaceRequest<unknown>(this.workspacePath(workspaceId), { method: 'PATCH', body: patch, version })
         this.assertWorkspaceContract(verifyWorkspace(value) && value.id === workspaceId, 'workspace')
         return value as Workspace
@@ -1893,42 +2000,36 @@ class ApiService {
 
     /** The default is `WORKSPACE_DEFAULT_PROTECTED`; a live call is `WORKSPACE_ACTIVE_CALL`. Replaying with the current version is a no-op. */
     async archiveWorkspace(workspaceId: string, version: number): Promise<Workspace> {
-        assertFeatureEnabled('workspaces')
         const value = await this.workspaceRequest<unknown>(this.workspacePath(workspaceId, '/archive'), { method: 'POST', body: {}, version })
         this.assertWorkspaceContract(verifyWorkspace(value) && value.id === workspaceId, 'workspace')
         return value as Workspace
     }
 
     async restoreWorkspace(workspaceId: string, version: number): Promise<Workspace> {
-        assertFeatureEnabled('workspaces')
         const value = await this.workspaceRequest<unknown>(this.workspacePath(workspaceId, '/restore'), { method: 'POST', body: {}, version })
         this.assertWorkspaceContract(verifyWorkspace(value) && value.id === workspaceId, 'workspace')
         return value as Workspace
     }
 
     async listCollections(workspaceId: string): Promise<CollectionList> {
-        assertFeatureEnabled('workspaces')
         const value = await this.workspaceRequest<unknown>(this.workspacePath(workspaceId, '/collections'))
         this.assertWorkspaceContract(verifyCollectionList(value, workspaceId), 'collection list')
         return value as CollectionList
     }
 
     async getCollection(workspaceId: string, collectionId: string): Promise<Collection> {
-        assertFeatureEnabled('workspaces')
         const value = await this.workspaceRequest<unknown>(this.collectionPath(workspaceId, collectionId))
         this.assertWorkspaceContract(verifyCollection(value, workspaceId) && value.id === collectionId, 'collection')
         return value as Collection
     }
 
     async createCollection(workspaceId: string, body: CollectionCreate): Promise<Collection> {
-        assertFeatureEnabled('workspaces')
         const value = await this.workspaceRequest<unknown>(this.workspacePath(workspaceId, '/collections'), { method: 'POST', body })
         this.assertWorkspaceContract(verifyCollection(value, workspaceId), 'collection')
         return value as Collection
     }
 
     async updateCollection(workspaceId: string, collectionId: string, version: number, patch: CollectionUpdate): Promise<Collection> {
-        assertFeatureEnabled('workspaces')
         const value = await this.workspaceRequest<unknown>(this.collectionPath(workspaceId, collectionId), { method: 'PATCH', body: patch, version })
         this.assertWorkspaceContract(verifyCollection(value, workspaceId) && value.id === collectionId, 'collection')
         return value as Collection
@@ -1936,13 +2037,11 @@ class ApiService {
 
     /** Deleting a collection keeps its cards (204). */
     async deleteCollection(workspaceId: string, collectionId: string, version: number): Promise<void> {
-        assertFeatureEnabled('workspaces')
         await this.workspaceRequest<void>(this.collectionPath(workspaceId, collectionId), { method: 'DELETE', version })
     }
 
     /** A set operation: already present/absent memberships count as `unchanged`. */
     async setCollectionMembers(workspaceId: string, collectionId: string, command: MembershipCommand): Promise<MembershipResult> {
-        assertFeatureEnabled('workspaces')
         const value = await this.workspaceRequest<unknown>(this.collectionPath(workspaceId, collectionId, '/members'), {
             method: 'PUT', body: { add: command.add ?? [], remove: command.remove ?? [] },
         })
@@ -1975,6 +2074,14 @@ class ApiService {
         return value as LibraryPage
     }
 
+    async getCardSourceStatuses(workspaceId: string, cards: readonly CardIdentity[], signal?: AbortSignal): Promise<CardSourceStatusList> {
+        const value = await this.workspaceRequest<unknown>(this.workspacePath(workspaceId, '/cards/source-status'), {
+            method: 'POST', body: { cards }, signal,
+        })
+        if (!isCardSourceStatusList(value, cards)) throw new Error('Invalid card source status response')
+        return value
+    }
+
     async listWorkspaceMedia(workspaceId: string, query: WorkspaceMediaQuery = {}, options: { signal?: AbortSignal } = {}): Promise<WorkspaceMediaPage> {
         const mediaKind = query.media_kind ?? 'image'
         const params = new URLSearchParams({ media_kind: mediaKind })
@@ -1993,7 +2100,6 @@ class ApiService {
      * Copy again or any change of cards, destination or collections.
      */
     async copyCardsToWorkspace(destinationId: string, command: CopyCommand): Promise<CopyOutcome> {
-        assertFeatureEnabled('workspaces')
         const cardKeys = command.cards.map((card) => `${card.card_type}:${card.card_id}`)
         if (!isCopyRequestId(command.request_id)) throw new Error('Copy request IDs match [A-Za-z0-9._:-]{1,64}.')
         if (!isWorkspaceUuid(command.source_workspace_id)) throw new Error('The copy source must be a workspace UUID.')
@@ -2051,6 +2157,19 @@ class ApiService {
         return this.authenticatedRequest<UserProfile>('/user/me', token, {
             method: 'PATCH',
             body: { display_name: displayName } as unknown as BodyInit,
+        })
+    }
+
+    /**
+     * Select one of the user's pre-generated avatar variants (`PUT /user/me/avatar`).
+     * Returns the refreshed `UserProfile` with updated `avatar_url` and `active_avatar_variant`.
+     */
+    async updateAvatarVariant(variant: AvatarVariantId): Promise<UserProfile> {
+        const token = this.getStoredToken()
+        return this.authenticatedRequest<UserProfile>('/user/me/avatar', token, {
+            method: 'PUT',
+            omitWorkspaceScope: true,
+            body: { variant } as unknown as BodyInit,
         })
     }
 
@@ -2626,6 +2745,32 @@ class ApiService {
 
     // --- Membership plans & members (root console) --------------------------
 
+    async getFeatureFlagSnapshot(): Promise<FeatureFlagSnapshot> {
+        const query = new URLSearchParams()
+        for (const key of ACTIVE_FEATURE_KEYS) query.append('expected_flags', key)
+        const value = await this.authenticatedRequest<unknown>(
+            `/user/me/features?${query}`, this.getStoredToken(), { method: 'GET', cache: 'no-store' },
+        )
+        return parseFeatureFlagSnapshot(value)
+    }
+
+    async watchFeatureFlagInvalidations(onInvalidate: () => void, signal: AbortSignal): Promise<void> {
+        const owner = authSession.getSnapshot()
+        const request = (token: string) => fetch(`${this.baseUrl}/user/me/features/events`, {
+            headers: { Authorization: `Bearer ${token}`, Accept: 'text/event-stream' },
+            credentials: 'include', cache: 'no-store', signal,
+        })
+        let response = await request(this.getStoredToken())
+        this.assertCurrentOwner(owner)
+        if (response.status === 401) {
+            const token = await this.refreshAccessToken(this.getStoredToken())
+            this.assertCurrentOwner(owner)
+            response = await request(token)
+        }
+        if (!response.ok) throw this.responseError(response.status, await this.extractError(response))
+        await readEventStream(response, onInvalidate, { signal, assertOwner: () => this.assertCurrentOwner(owner) })
+    }
+
     /** Every plan (default + custom) with limits and member counts. Root only. */
     async listMembershipPlans(): Promise<MembershipPlanListResponse> {
         const token = this.getStoredToken()
@@ -2643,20 +2788,35 @@ class ApiService {
 
     /** Create a custom plan. The body must carry a limit row for every operation. */
     async createMembershipPlan(body: MembershipPlanCreateRequest): Promise<MembershipPlan> {
-        const token = this.getStoredToken()
-        return this.authenticatedRequest<MembershipPlan>('/admin/billing/plans', token, {
-            method: 'POST',
-            body: body as unknown as BodyInit,
-        })
+        return this.saveMembershipPlan('/admin/billing/plans', 'POST', body)
     }
 
     async updateMembershipPlan(planCode: string, body: MembershipPlanUpdateRequest): Promise<MembershipPlan> {
+        return this.saveMembershipPlan(`/admin/billing/plans/${encodeURIComponent(planCode)}`, 'PATCH', body)
+    }
+
+    private async saveMembershipPlan(path: string, method: 'POST' | 'PATCH', body: MembershipPlanCreateRequest | MembershipPlanUpdateRequest): Promise<MembershipPlan> {
         const token = this.getStoredToken()
-        return this.authenticatedRequest<MembershipPlan>(
-            `/admin/billing/plans/${encodeURIComponent(planCode)}`,
-            token,
-            { method: 'PATCH', body: body as unknown as BodyInit },
-        )
+        const owner = authSession.getSnapshot()
+        try {
+            return await this.authenticatedRequest<MembershipPlan>(path, token, { method, body: body as unknown as BodyInit })
+        } catch (error) {
+            if (!(error instanceof ApiError) || error.code !== 'FEATURE_FLAG_UPDATING' || error.details?.committed !== true
+                || typeof error.details.mutation_id !== 'string') throw error
+            // The SQL mutation already committed. Poll its publication; never
+            // send a second write to recover an uncertain cache acknowledgement.
+            for (let attempt = 0; attempt < 20; attempt++) {
+                await new Promise(resolve => setTimeout(resolve, 250))
+                this.assertCurrentOwner(owner)
+                const result = await this.authenticatedRequest<{ status: string; entity_kind: string; entity_key: string }>(
+                    `/admin/billing/feature-mutations/${encodeURIComponent(error.details.mutation_id)}`, this.getStoredToken(), { method: 'GET' })
+                if (result.status === 'published' && result.entity_kind === 'plan') {
+                    this.assertCurrentOwner(owner)
+                    return this.getMembershipPlan(result.entity_key)
+                }
+            }
+            throw error
+        }
     }
 
     /** Paginated accounts with plan, usage, and PAYG balances. Root only. */
@@ -2743,7 +2903,6 @@ class ApiService {
 
     /** Start the Patreon email-loop proof for the signed-in user. */
     async requestPatreonLink(body: PatreonLinkRequest): Promise<PatreonProofRequestResponse> {
-        if (!isPatreonFeatureEnabled()) throw new Error('Patreon integration is disabled.')
         const token = this.getStoredToken()
         return this.authenticatedRequest<PatreonProofRequestResponse>('/patreon/link/request', token, {
             method: 'POST',
@@ -2753,7 +2912,6 @@ class ApiService {
 
     /** Consume a Patreon proof token/parts for the signed-in user. */
     async confirmPatreonLink(body: PatreonProofConfirmRequest): Promise<PatreonLinkStatusResponse> {
-        if (!isPatreonFeatureEnabled()) throw new Error('Patreon integration is disabled.')
         const token = this.getStoredToken()
         return this.authenticatedRequest<PatreonLinkStatusResponse>('/patreon/link/confirm', token, {
             method: 'POST',
@@ -2763,7 +2921,6 @@ class ApiService {
 
     /** Read the signed-in user's safe Patreon link and entitlement projection. */
     async getPatreonLinkStatus(): Promise<PatreonLinkStatusResponse> {
-        if (!isPatreonFeatureEnabled()) throw new Error('Patreon integration is disabled.')
         const token = this.getStoredToken()
         return this.authenticatedRequest<PatreonLinkStatusResponse>('/patreon/link/status', token, {
             method: 'GET',
@@ -2772,7 +2929,6 @@ class ApiService {
 
     /** Soft-unlink Patreon entitlement state for the signed-in user. */
     async unlinkPatreon(body?: PatreonUnlinkRequest): Promise<PatreonUnlinkResponse> {
-        if (!isPatreonFeatureEnabled()) throw new Error('Patreon integration is disabled.')
         const token = this.getStoredToken()
         return this.authenticatedRequest<PatreonUnlinkResponse>('/patreon/link', token, {
             method: 'DELETE',
@@ -2786,8 +2942,14 @@ class ApiService {
     async listVoicePresets(q?: string): Promise<VoicePreset[]> {
         this.assertVoicesEnabled()
         const token = this.getStoredToken()
-        const query = q && q.trim() ? `?q=${encodeURIComponent(q.trim())}` : ''
-        return this.authenticatedRequest<VoicePreset[]>(`/voice-presets${query}`, token, { method: 'GET' })
+        const rows: VoicePreset[] = []
+        for (let skip = 0; ; skip += 100) {
+            const params = new URLSearchParams({ skip: String(skip), limit: '100' })
+            if (q?.trim()) params.set('q', q.trim())
+            const page = await this.authenticatedRequest<VoicePreset[]>(`/voice-presets?${params}`, token, { method: 'GET' })
+            rows.push(...page)
+            if (page.length < 100) return [...new Map(rows.map(row => [row.preset_id, row])).values()]
+        }
     }
 
     /** EP-3: a V2 body. */
@@ -3082,7 +3244,6 @@ class ApiService {
     }
 
     async revokeSharedCardLink(shareToken: string): Promise<void> {
-        this.assertCommunityCardsEnabled()
         const token = this.getStoredToken()
         await this.authenticatedRequest(`/cards/shared/${encodeURIComponent(shareToken)}`, token, {
             method: 'DELETE',
@@ -3101,8 +3262,6 @@ class ApiService {
     }
 
     async unpublishCard(cardType: CardShareType, cardId: string): Promise<SharedCardResource> {
-        if (cardType) assertContentTypeFeatureEnabled(cardType)
-        this.assertCommunityCardsEnabled()
         const token = this.getStoredToken()
         return this.authenticatedRequest<SharedCardResource>(
             `/cards/${cardType}/${encodeURIComponent(cardId)}/public`,
@@ -3763,104 +3922,655 @@ class ApiService {
         })
     }
 
-    async getStories(skip: number = 0, limit: number = 100, q?: string): Promise<Story[]> {
+    async getStories(skip=0,limit=100,q?:string,trashed=false,filters:StoryLibraryFilters={}): Promise<Story[]> {
         this.assertNovelsEnabled()
-        const token = this.getStoredToken()
-        return this.authenticatedRequest<Story[]>(`/stories${this.listQuery(skip, limit, q)}`, token, {
-            method: 'GET',
-        })
+        if(!isStoryLibraryFilters(filters))throw new ApiError(422,'Invalid novel library filters.',{code:'story_contract',retryable:false})
+        const query=this.listQuery(skip,limit,q)
+        const extra=storyLibraryParams(filters)
+        if(trashed)extra.set('trashed','true')
+        const value=await this.authenticatedRequest<unknown>(`/stories${query}${extra.size?(query?'&':'?')+extra.toString():''}`,this.getStoredToken())
+        if (!Array.isArray(value) || !value.every((story)=>verifyStory(story,undefined,true))) throw new ApiError(502,'Invalid novel summaries.',{code:'story_contract',retryable:false})
+        return value
+    }
+    async getStoryStudioIndex(storyId:string,options?:{signal?:AbortSignal}):Promise<StoryStudioIndex> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/studio-index`,this.getStoredToken(),{signal:options?.signal})
+        if(!verifyStoryStudioIndex(value,storyId))throw new ApiError(502,'Invalid novel outline. Your saved content has not been changed.',{code:'story_studio_contract',retryable:false})
+        return value
+    }
+    async getStoryStudioScene(index:StoryStudioSource,scene:StorySceneHeader,options?:{signal?:AbortSignal}):Promise<StoryStudioScene> {
+        this.assertNovelsEnabled()
+        const request=verifyStoryStudioSource(index,index.id)?storyStudioSceneRequest(index,scene):null
+        if(!request)throw new ApiError(409,'The saved outline changed. Refresh it before opening this scene.',{code:'STORY_STUDIO_SOURCE_CHANGED',retryable:false})
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(index.id)}/studio-scenes/${encodeURIComponent(scene.id)}`,this.getStoredToken(),
+            {method:'POST',headers:{'Content-Type':'application/json'},body:request as unknown as BodyInit,signal:options?.signal})
+        if(!verifyStoryStudioScene(value,index,scene))throw new ApiError(502,'The scene does not match this saved outline. Refresh it before writing.',{code:'story_studio_contract',retryable:false})
+        return value
+    }
+    async updateStoryStudio(storyId:string,patch:Partial<Story>|Record<string,unknown>):Promise<StoryStudioIndex> {
+        this.assertNovelsEnabled()
+        const write=patch as Record<string,unknown>
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/studio-index`,this.getStoredToken(),
+            {method:'PUT',headers:{'Content-Type':'application/json'},body:patch as unknown as BodyInit})
+        if(!value||typeof value!=='object'||!('acknowledgement' in value)||!('index' in value)||!('write' in value)
+            ||canonicalJson(value.write)!==canonicalJson(write)||!verifyStoryLifecycleAcknowledgement(value.acknowledgement,storyId,Number(write.expectedMetadataRevision))||!verifyStoryStudioIndex(value.index,storyId)
+            ||value.index.metadataRevision<Number(write.expectedMetadataRevision)+1
+            ||value.index.metadataRevision===Number(write.expectedMetadataRevision)+1&&!matchesStoryWrite(value.index,write))throw new ApiError(502,'Invalid novel metadata acknowledgement. Your request is retained.',{code:'story_studio_contract',retryable:false})
+        return value.index
+    }
+    async getStoryStudioExcerpts(source:StoryOutline,scenes:StorySceneOutline[],options?:{signal?:AbortSignal}):Promise<StoryStudioExcerpts> {
+        this.assertNovelsEnabled()
+        const request=verifyStoryStudioSource(source)?studioExcerptsRequest(source,scenes):null
+        if(!request)throw new ApiError(409,'The saved scene preview changed.',{code:'STORY_STUDIO_SOURCE_CHANGED',retryable:false})
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(source.id)}/studio-excerpts`,this.getStoredToken(),
+            {method:'POST',headers:{'Content-Type':'application/json'},body:request as unknown as BodyInit,signal:options?.signal})
+        if(!verifyStudioExcerpts(value,source.id,request))throw new ApiError(502,'The saved scene preview could not be verified.',{code:'story_studio_contract',retryable:false})
+        return value
+    }
+    async getStoryGenerationHistory(storyId:string,before:string|null=null,options?:{signal?:AbortSignal}):Promise<StoryGenerationHistoryPage> {
+        this.assertNovelsEnabled()
+        const query=before?'?before='+encodeURIComponent(before):''
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/generation-history${query}`,this.getStoredToken(),{signal:options?.signal})
+        if(!verifyGenerationHistoryPage(value,storyId,before))throw new ApiError(502,'Saved generation history could not be verified.',{code:'story_studio_contract',retryable:false})
+        return value
+    }
+    async getStoryGenerationHistoryDetail(storyId:string,id:string,options?:{signal?:AbortSignal}):Promise<StoryGenerationDetail> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/generation-history/${encodeURIComponent(id)}`,this.getStoredToken(),{signal:options?.signal})
+        if(!verifyGenerationDetail(value,storyId,id))throw new ApiError(502,'The saved generation could not be verified.',{code:'story_studio_contract',retryable:false})
+        return value
+    }
+    async getStoryRefinementParent(storyId:string,id:string,options?:{signal?:AbortSignal}):Promise<NovelRefinementContext> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/generation-history/${encodeURIComponent(id)}/refinement-parent`,this.getStoredToken(),{signal:options?.signal})
+        if(!verifyNovelRefinement(value,storyId)||value.parent.id!==id)throw new ApiError(502,'The retained proposal could not be verified.',{code:'novel_refinement_contract',retryable:false})
+        return value
+    }
+    async previewStoryVariant(storyId:string,intent:StoryVariantIntent,options?:{signal?:AbortSignal}):Promise<StoryVariantSnapshot> {
+        this.assertNovelsEnabled()
+        if(!isStoryVariantIntent(intent))throw new ApiError(422,'Invalid authored version.',{code:'story_variant_contract',retryable:false})
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/generation-variants/preview`,this.getStoredToken(),
+            {method:'POST',headers:{'Content-Type':'application/json'},body:intent as unknown as BodyInit,signal:options?.signal})
+        if(!verifyStoryVariantSnapshot(value,storyId,intent))throw new ApiError(502,'The authored version review could not be verified.',{code:'story_variant_contract',retryable:false})
+        return value
+    }
+    async createStoryVariant(storyId:string,write:StoryVariantCreate,options?:{signal?:AbortSignal}):Promise<StoryVariantRecord> {
+        this.assertNovelsEnabled()
+        if(!isStoryVariantCreate(write))throw new ApiError(422,'Invalid authored version request.',{code:'story_variant_contract',retryable:false})
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/generation-variants`,this.getStoredToken(),
+            {method:'POST',headers:{'Content-Type':'application/json'},body:write as unknown as BodyInit,signal:options?.signal})
+        if(!verifyStoryVariantCreation(value,storyId,write))throw new ApiError(502,'The saved authored version could not be verified. Its request is retained.',{code:'story_variant_contract',retryable:false})
+        return value
+    }
+    async getStoryVariant(storyId:string,id:string,options?:{signal?:AbortSignal}):Promise<StoryVariantRecord> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/generation-variants/${encodeURIComponent(id)}`,this.getStoredToken(),{signal:options?.signal})
+        if(!verifyStoryVariantRecord(value,storyId)||value.variant.id!==id)throw new ApiError(502,'The saved authored version could not be verified.',{code:'story_variant_contract',retryable:false})
+        return value
+    }
+    async getStoryVariants(storyId:string,query:StoryVariantQuery={},options?:{signal?:AbortSignal}):Promise<StoryVariantPage> {
+        this.assertNovelsEnabled()
+        if(!isStoryVariantQuery(query))throw new ApiError(422,'Invalid authored version history request.',{code:'story_variant_contract',retryable:false})
+        const params=new URLSearchParams()
+        if(query.generationId!==undefined)params.set('generation_id',query.generationId)
+        if(query.before!==undefined)params.set('before',query.before)
+        if(query.limit!==undefined)params.set('limit',String(query.limit))
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/generation-variants${params.size?'?'+params.toString():''}`,this.getStoredToken(),{signal:options?.signal})
+        if(!verifyStoryVariantPage(value,storyId,query))throw new ApiError(502,'Authored version history could not be verified.',{code:'story_variant_contract',retryable:false})
+        return value
+    }
+    async decideStoryVariant(storyId:string,write:StoryVariantDecision,options?:{signal?:AbortSignal}):Promise<StoryVariantRecord> {
+        this.assertNovelsEnabled()
+        if(!isStoryVariantDecision(write))throw new ApiError(422,'Invalid authored version decision.',{code:'story_variant_contract',retryable:false})
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/generation-variants/${encodeURIComponent(write.reference.id)}/decision`,this.getStoredToken(),
+            {method:'POST',headers:{'Content-Type':'application/json'},body:write as unknown as BodyInit,signal:options?.signal})
+        if(!verifyStoryVariantDecision(value,storyId,write))throw new ApiError(502,'The authored version decision could not be verified. Its request is retained.',{code:'story_variant_contract',retryable:false})
+        return value
+    }
+    async getStoryVariantResult(storyId:string,write:StoryVariantCreate|StoryVariantDecision,options?:{signal?:AbortSignal}):Promise<StoryVariantRecord|null> {
+        this.assertNovelsEnabled()
+        const creating=isStoryVariantCreate(write)
+        if(!creating&&!isStoryVariantDecision(write))throw new ApiError(422,'Invalid authored version recovery request.',{code:'story_variant_contract',retryable:false})
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/generation-variant-requests/${encodeURIComponent(write.requestId)}`,this.getStoredToken(),{signal:options?.signal})
+        if(value===null)return null
+        if(creating){
+            if(!verifyStoryVariantCreation(value,storyId,write as StoryVariantCreate))throw new ApiError(502,'The original authored version receipt could not be verified.',{code:'story_variant_contract',retryable:false})
+            return value
+        }
+        if(!verifyStoryVariantDecision(value,storyId,write as StoryVariantDecision))throw new ApiError(502,'The original authored version receipt could not be verified.',{code:'story_variant_contract',retryable:false})
+        return value
+    }
+    async getStorySceneDocument(storyId:string,sceneId:string):Promise<StoryStudioDocument> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/scenes/${encodeURIComponent(sceneId)}?projection=document`,this.getStoredToken())
+        if(!verifyStoryStudioDocument(value,storyId,sceneId))throw new ApiError(502,'The saved scene could not be verified.',{code:'story_studio_contract',retryable:false})
+        return value
+    }
+    async getStory(storyId:string): Promise<Story> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}`,this.getStoredToken())
+        if (!verifyStory(value,storyId)) throw new ApiError(502,'Unsupported novel document. Your saved content has not been changed.',{code:'story_contract',retryable:false})
+        return value
+    }
+    async createStory(write:StoryCreateWrite): Promise<StoryCreationAcknowledgement> {
+        this.assertNovelsEnabled()
+        if(!isStoryCreateWrite(write))throw new ApiError(422,'Invalid novel creation request.',{code:'story_contract',retryable:false})
+        const value=await this.authenticatedRequest<unknown>('/stories',this.getStoredToken(),{method:'POST',headers:{'Content-Type':'application/json'},body:write as unknown as BodyInit})
+        if(!verifyStoryCreationAcknowledgement(value,write))throw new ApiError(502,'Invalid novel creation receipt. Your request is retained.',{code:'story_contract',retryable:false})
+        return value
+    }
+    async getStoryCreationResult(write:StoryCreateWrite):Promise<StoryCreationAcknowledgement|null> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/creation-requests/${encodeURIComponent(write.requestId)}`,this.getStoredToken())
+        if(value===null)return null
+        if(!verifyStoryCreationAcknowledgement(value,write))throw new ApiError(502,'Invalid novel creation recovery receipt.',{code:'story_contract',retryable:false})
+        return value
+    }
+    async previewStoryCreationSources(selection:StoryCreationSourcesSelection):Promise<StoryCreationSourcesPreview> {
+        this.assertNovelsEnabled()
+        if(!isCreationSourcesSelection(selection))throw new ApiError(422,'Invalid novel source selection.',{code:'story_contract',retryable:false})
+        const value=await this.authenticatedRequest<unknown>('/stories/creation-source-preview',this.getStoredToken(),{method:'POST',headers:{'Content-Type':'application/json'},body:selection as unknown as BodyInit})
+        if(!verifyCreationSourcesPreview(value,selection))throw new ApiError(502,'Invalid novel source review.',{code:'story_contract',retryable:false})
+        return value
+    }
+    async getStoryCreationSources(storyId:string):Promise<StoryCreationSources|null> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/creation-sources`,this.getStoredToken())
+        if(value===null)return null
+        if(!verifyCreationSources(value,storyId))throw new ApiError(502,'Invalid novel source provenance.',{code:'story_contract',retryable:false})
+        return value
+    }
+    /** What importing this file would create and what the conversion cannot keep; nothing is saved. The preview must be of these very bytes. */
+    async previewStoryImport(file:File,options:StoryImportOptions,request?:{signal?:AbortSignal}):Promise<StoryImportManifest> {
+        this.assertNovelsEnabled()
+        if(!isStoryImportOptions(options))throw new ApiError(422,'Choose valid import options.',{code:'story_import_request',retryable:false})
+        const body=new FormData();body.append('file',file,file.name);body.append('options',JSON.stringify(options))
+        const [value,sha256]=await Promise.all([this.authenticatedRequest<unknown>('/stories/import-preview',this.getStoredToken(),{method:'POST',body,signal:request?.signal}),sha256Hex(file)])
+        if(!verifyStoryImportManifest(value,{size:file.size,sha256},options))throw new ApiError(502,'The import preview does not match this file.',{code:'story_import_contract',retryable:false})
+        return value
+    }
+    /** The parts, chapters, scenes and planned beats an outline describes (S18); nothing is saved. */
+    async previewStoryOutline(text:string,chapterLevel:number|null,request?:{signal?:AbortSignal}):Promise<StoryOutlinePreview> {
+        this.assertNovelsEnabled()
+        if(!text.trim()||[...text].length>STORY_OUTLINE_MAX_TEXT||chapterLevel!==null&&!(Number.isInteger(chapterLevel)&&chapterLevel>=1&&chapterLevel<=6))
+            throw new ApiError(422,'Paste an outline of at most 500,000 characters.',{code:'story_outline_request',retryable:false})
+        const value=await this.authenticatedRequest<unknown>('/stories/outline-preview',this.getStoredToken(),{method:'POST',headers:{'Content-Type':'application/json'},body:{text,chapterLevel} as unknown as BodyInit,signal:request?.signal})
+        if(!verifyStoryOutlinePreview(value,chapterLevel))throw new ApiError(502,'Unsupported outline preview.',{code:'story_outline_contract',retryable:false})
+        return value
+    }
+    /** Create a new novel from the reviewed preview of the same file; the server keeps the original file with the novel. */
+    async importStory(file:File,write:StoryImportWrite):Promise<StoryImportAcknowledgement> {
+        this.assertNovelsEnabled()
+        if(!isStoryImportWrite(write))throw new ApiError(422,'Invalid novel import request.',{code:'story_import_request',retryable:false})
+        const body=new FormData();body.append('file',file,file.name);body.append('write',JSON.stringify(write))
+        const value=await this.authenticatedRequest<unknown>('/stories/import',this.getStoredToken(),{method:'POST',body})
+        if(!verifyStoryImportAcknowledgement(value,write))throw new ApiError(502,'Invalid novel import receipt. Check your library before importing again.',{code:'story_import_contract',retryable:false})
+        return value
+    }
+    /** The receipt of an import whose response was lost, or null when it never committed. */
+    async getStoryImportResult(write:StoryImportWrite):Promise<StoryImportAcknowledgement|null> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/import-requests/${encodeURIComponent(write.requestId)}`,this.getStoredToken())
+        if(value===null)return null
+        if(!verifyStoryImportAcknowledgement(value,write))throw new ApiError(502,'Invalid novel import recovery receipt.',{code:'story_import_contract',retryable:false})
+        return value
+    }
+    /** The novel's goals, saved words and writing log, with days grouped in an IANA time zone. */
+    async getStoryWritingProgress(storyId:string,request:{timeZone:string;days:number},options?:{signal?:AbortSignal}):Promise<StoryWritingProgress> {
+        this.assertNovelsEnabled()
+        if(!request.timeZone||[...request.timeZone].length>64||!Number.isSafeInteger(request.days)||request.days<1||request.days>STORY_PROGRESS_MAX_DAYS)
+            throw new ApiError(422,'Choose a valid time zone and number of days.',{code:'story_progress_request',retryable:false})
+        const query=new URLSearchParams({timeZone:request.timeZone,days:String(request.days)})
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/writing-progress?${query}`,this.getStoredToken(),{signal:options?.signal})
+        if(!verifyStoryWritingProgress(value,storyId,request))throw new ApiError(502,'Invalid writing progress.',{code:'story_progress_contract',retryable:false})
+        return value
+    }
+    async getStoryImportRecord(storyId:string):Promise<StoryImportRecord|null> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/import-record`,this.getStoredToken())
+        if(value===null)return null
+        if(!verifyStoryImportRecord(value,storyId))throw new ApiError(502,'Invalid novel import record.',{code:'story_import_contract',retryable:false})
+        return value
+    }
+    /** The original imported file; accepted only when its size and SHA-256 match the import record. */
+    async downloadStoryImportSource(record:StoryImportRecord):Promise<Blob> {
+        this.assertNovelsEnabled()
+        const types:Record<StoryImportRecord['format'],string>={markdown:'text/markdown',text:'text/plain',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            epub:'application/epub+zip',odt:'application/vnd.oasis.opendocument.text',rtf:'application/rtf'}
+        const blob=await this.authenticatedBlob(`/stories/${encodeURIComponent(record.storyId)}/import-source`,'The original file could not be read.',types[record.format])
+        if(blob.size!==record.bytes||await sha256Hex(blob)!==record.sourceHash)throw new ApiError(502,'The original file does not match its import record.',{code:'story_import_contract',retryable:false})
+        return blob
+    }
+    async previewStoryErase(storyId:string):Promise<StoryErasePreview> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/erase-preview`,this.getStoredToken())
+        if(!verifyStoryErasePreview(value,storyId))throw new ApiError(502,'Invalid novel erasure preview.',{code:'story_contract',retryable:false})
+        return value
+    }
+    async permanentlyEraseStory(storyId:string,write:StoryEraseWrite):Promise<StoryEraseAcknowledgement> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/erase`,this.getStoredToken(),{method:'POST',headers:{'Content-Type':'application/json'},body:write as unknown as BodyInit})
+        if(!verifyStoryEraseAcknowledgement(value,storyId,write))throw new ApiError(502,'Invalid novel erasure acknowledgement. Your request is retained.',{code:'story_contract',retryable:false})
+        return value
+    }
+    async getStoryEraseResult(storyId:string,write:StoryEraseWrite):Promise<StoryEraseAcknowledgement|null> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/erase-requests/${encodeURIComponent(write.requestId)}`,this.getStoredToken())
+        if(value===null)return null
+        if(!verifyStoryEraseAcknowledgement(value,storyId,write))throw new ApiError(502,'Invalid novel erasure recovery receipt. Your request is retained.',{code:'story_contract',retryable:false})
+        return value
+    }
+    async previewStoryCopy(storyId:string,bookmarks=false):Promise<StoryCopyPreview> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/copy-preview?comments=true${bookmarks?'&bookmarks=true':''}`,this.getStoredToken())
+        if(!verifyStoryCopyPreview(value,storyId)||bookmarks&&value.variants.some((variant)=>variant.bookmarks===undefined))throw new ApiError(502,'Invalid novel copy preview.',{code:'story_contract',retryable:false})
+        return value
+    }
+    async copyStory(storyId:string,write:StoryCopyWrite):Promise<StoryCopyAcknowledgement> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/copy`,this.getStoredToken(),{method:'POST',headers:{'Content-Type':'application/json'},body:write as unknown as BodyInit})
+        if(!verifyStoryCopyAcknowledgement(value,storyId,write))throw new ApiError(502,'Invalid novel copy acknowledgement. Your request is retained.',{code:'story_contract',retryable:false})
+        return value
+    }
+    async getStoryCopyResult(storyId:string,write:StoryCopyWrite):Promise<StoryCopyAcknowledgement|null> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/copy-requests/${encodeURIComponent(write.requestId)}`,this.getStoredToken())
+        if(value===null)return null
+        if(!verifyStoryCopyAcknowledgement(value,storyId,write))throw new ApiError(502,'Invalid novel copy recovery acknowledgement.',{code:'story_contract',retryable:false})
+        return value
+    }
+    async getStoryCopyProvenance(storyId:string):Promise<StoryCopyProvenance|null> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/copy-provenance`,this.getStoredToken())
+        if(value===null)return null
+        if(!verifyStoryCopyProvenance(value,storyId))throw new ApiError(502,'Invalid novel copy provenance.',{code:'story_contract',retryable:false})
+        return value
+    }
+    async updateStory(storyId:string,story:Partial<Story>|Record<string,unknown>): Promise<Story> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}`,this.getStoredToken(),{method:'PUT',headers:{'Content-Type':'application/json'},body:stripOrganization(story) as unknown as BodyInit})
+        if (!verifyStory(value,storyId)||!matchesStoryWrite(value,story)) throw new ApiError(502,'Invalid novel acknowledgement.',{code:'story_contract',retryable:false})
+        return value
+    }
+    async storyLifecycle(storyId:string,write:{requestId:string;expectedMetadataRevision:number;action:'archive'|'trash'|'restore'}): Promise<void> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/lifecycle`,this.getStoredToken(),{method:'POST',headers:{'Content-Type':'application/json'},body:write as unknown as BodyInit})
+        if(!verifyStoryLifecycleAcknowledgement(value,storyId,write.expectedMetadataRevision))throw new ApiError(502,'Unsupported novel lifecycle acknowledgement. Your request is retained.',{code:'story_contract',retryable:false})
+    }
+    async updateStoryChapter(storyId:string,chapterId:string,write:StoryChapterWrite): Promise<StoryUnitMetadata> {
+        return this.updateStoryGroup(storyId,'chapters',chapterId,write)
+    }
+    async updateStoryPart(storyId:string,partId:string,write:StoryChapterWrite): Promise<StoryUnitMetadata> {
+        return this.updateStoryGroup(storyId,'parts',partId,write)
+    }
+    private async updateStoryGroup(storyId:string,kind:'chapters'|'parts',id:string,write:StoryChapterWrite): Promise<StoryUnitMetadata> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/${kind}/${encodeURIComponent(id)}`,this.getStoredToken(),{method:'PUT',headers:{'Content-Type':'application/json'},body:write as unknown as BodyInit})
+        if(!verifyStoryMetadata(value,storyId,id)||!matchesStoryWrite(value,write))throw new ApiError(502,'Unsupported writing details acknowledgement. Your draft is retained.',{code:'story_contract',retryable:false})
+        return value
+    }
+    async getStoryScene(storyId:string,sceneId:string): Promise<StoryScene> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/scenes/${encodeURIComponent(sceneId)}`,this.getStoredToken())
+        return this.storySceneAcknowledgement(value,storyId,sceneId)
+    }
+    async previewStoryReplacement(storyId:string,query:StoryReplacementRequest):Promise<StoryReplacementPreview> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/manuscript-replacements/preview`,this.getStoredToken(),{method:'POST',headers:{'Content-Type':'application/json'},body:query as unknown as BodyInit})
+        if(!verifyReplacementPreview(value,storyId,query))throw new ApiError(502,'Unsupported replacement preview.',{code:'story_replacement_contract',retryable:false})
+        return value
+    }
+    async previewStoryReplacementReverse(storyId:string,query:StoryReplacementReverseRequest):Promise<StoryReplacementPreview> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/manuscript-replacements/reverse-preview`,this.getStoredToken(),{method:'POST',headers:{'Content-Type':'application/json'},body:query as unknown as BodyInit})
+        if(!verifyReplacementPreview(value,storyId,query))throw new ApiError(502,'Unsupported replacement reversal preview.',{code:'story_replacement_contract',retryable:false})
+        return value
+    }
+    async replaceStoryManuscript(storyId:string,write:StoryReplacementWrite):Promise<StoryReplacementAck> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/manuscript-replacements`,this.getStoredToken(),{method:'POST',headers:{'Content-Type':'application/json'},body:write as unknown as BodyInit})
+        if(!verifyReplacementAck(value,storyId,write))throw new ApiError(502,'Unsupported replacement acknowledgement. The request is retained.',{code:'story_replacement_contract',retryable:false})
+        return value
+    }
+    async getStoryReplacementResult(storyId:string,write:StoryReplacementWrite):Promise<StoryReplacementAck|null> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/manuscript-replacements/requests/${encodeURIComponent(write.requestId)}`,this.getStoredToken(),{method:'POST',headers:{'Content-Type':'application/json'},body:write as unknown as BodyInit})
+        if(value===null)return null
+        if(!verifyReplacementAck(value,storyId,write))throw new ApiError(502,'Unsupported replacement recovery acknowledgement. The request is retained.',{code:'story_replacement_contract',retryable:false})
+        return value
+    }
+    async previewStoryAssistantContext(index:StoryStudioIndex,request:StoryAssistantContextRequest,options?:{signal?:AbortSignal}):Promise<StoryAssistantContext> {
+        this.assertNovelsEnabled()
+        if(!verifyStoryStudioIndex(index,index.id)||!isAssistantContextRequest(request)||request.sourceVersion!==index.sourceVersion)throw new ApiError(409,'Refresh the saved novel before preparing sources.',{code:'STORY_ASSISTANT_SOURCE_CHANGED',retryable:false})
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(index.id)}/assistant-context`,this.getStoredToken(),{method:'POST',headers:{'Content-Type':'application/json'},body:request as unknown as BodyInit,signal:options?.signal})
+        if(!verifyAssistantContext(value,index,request))throw new ApiError(502,'The assistant source packet does not match this saved novel.',{code:'story_assistant_context_contract',retryable:false})
+        return value
+    }
+    /** The account's assistant reply preferences (A25), in every workspace; version 0 means none are saved. */
+    async getStoryAssistantPreferences(options?:{signal?:AbortSignal}):Promise<StoryAssistantPreferencesState> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>('/stories/assistant-preferences',this.getStoredToken(),{signal:options?.signal})
+        if(!isAssistantPreferencesState(value))throw new ApiError(502,'The assistant preferences could not be read.',{code:'story_assistant_preferences_contract',retryable:false})
+        return value
+    }
+    /** Saves the preferences at the version last read; another tab's save first is a 409 STORY_ASSISTANT_PREFERENCES_CHANGED. */
+    async saveStoryAssistantPreferences(preferences:StoryAssistantPreferences,expectedVersion:number):Promise<StoryAssistantPreferencesState> {
+        this.assertNovelsEnabled()
+        if(!isAssistantPreferences(preferences)||!Number.isSafeInteger(expectedVersion)||expectedVersion<0)throw new ApiError(422,'Choose valid reply preferences.',{code:'story_assistant_preferences_request',retryable:false})
+        const value=await this.authenticatedRequest<unknown>('/stories/assistant-preferences',this.getStoredToken(),{method:'PUT',headers:{'Content-Type':'application/json'},body:{preferences,expectedVersion} as unknown as BodyInit})
+        if(!isAssistantPreferencesState(value)||canonicalJson(value.preferences)!==canonicalJson(preferences)||value.version<=expectedVersion)
+            throw new ApiError(502,'The saved assistant preferences do not match.',{code:'story_assistant_preferences_contract',retryable:false})
+        return value
+    }
+    /** Clears the saved preferences at the version last read, so the assistant answers as it does by default. */
+    async clearStoryAssistantPreferences(expectedVersion:number):Promise<StoryAssistantPreferencesState> {
+        this.assertNovelsEnabled()
+        if(!Number.isSafeInteger(expectedVersion)||expectedVersion<1)throw new ApiError(422,'There are no saved reply preferences to clear.',{code:'story_assistant_preferences_request',retryable:false})
+        const value=await this.authenticatedRequest<unknown>('/stories/assistant-preferences?expectedVersion='+expectedVersion,this.getStoredToken(),{method:'DELETE'})
+        if(!isAssistantPreferencesState(value)||value.preferences!==null)throw new ApiError(502,'The assistant preferences were not cleared.',{code:'story_assistant_preferences_contract',retryable:false})
+        return value
+    }
+    /** The account's prompt presets (A19), in use and in Trash, in every workspace. */
+    async listStoryAssistantPresets(options?:{signal?:AbortSignal}):Promise<StoryAssistantPresetList> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>('/stories/assistant-presets',this.getStoredToken(),{signal:options?.signal})
+        if(!isStoryAssistantPresetList(value))throw new ApiError(502,'The prompt presets could not be read.',{code:'story_assistant_presets_contract',retryable:false})
+        return value
+    }
+    private checkedPreset(value:unknown,expected:(preset:StoryAssistantPreset)=>boolean):StoryAssistantPreset {
+        if(!isStoryAssistantPreset(value)||!expected(value))throw new ApiError(502,'The saved prompt preset does not match.',{code:'story_assistant_presets_contract',retryable:false})
+        return value
+    }
+    /** Saves a new preset under the client's own id, so a retried save returns the same preset instead of a second one. */
+    async createStoryAssistantPreset(presetId:string,name:string,definition:StoryAssistantPresetDefinition):Promise<StoryAssistantPreset> {
+        this.assertNovelsEnabled()
+        if(!isPresetDefinition(definition))throw new ApiError(422,'Write a valid prompt preset.',{code:'story_assistant_presets_request',retryable:false})
+        const value=await this.authenticatedRequest<unknown>('/stories/assistant-presets',this.getStoredToken(),{method:'POST',headers:{'Content-Type':'application/json'},body:{presetId,name,definition} as unknown as BodyInit})
+        return this.checkedPreset(value,(preset)=>preset.id===presetId&&preset.revision===1&&preset.name===name&&canonicalJson(preset.definition)===canonicalJson(definition))
+    }
+    /** Saves the next revision at the revision last read; another tab's save first is a 409 STORY_ASSISTANT_PRESET_CHANGED. */
+    async updateStoryAssistantPreset(presetId:string,name:string,definition:StoryAssistantPresetDefinition,expectedRevision:number):Promise<StoryAssistantPreset> {
+        this.assertNovelsEnabled()
+        if(!isPresetDefinition(definition))throw new ApiError(422,'Write a valid prompt preset.',{code:'story_assistant_presets_request',retryable:false})
+        const value=await this.authenticatedRequest<unknown>('/stories/assistant-presets/'+encodeURIComponent(presetId),this.getStoredToken(),{method:'PUT',headers:{'Content-Type':'application/json'},body:{name,definition,expectedRevision} as unknown as BodyInit})
+        return this.checkedPreset(value,(preset)=>preset.id===presetId&&preset.revision===expectedRevision+1&&preset.name===name&&canonicalJson(preset.definition)===canonicalJson(definition))
+    }
+    /** Moves a preset to Trash, or back, at the revision last read; replies sent from it keep their frozen copy either way. */
+    async setStoryAssistantPresetTrashed(presetId:string,trashed:boolean,expectedRevision:number):Promise<StoryAssistantPreset> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>('/stories/assistant-presets/'+encodeURIComponent(presetId)+(trashed?'/trash':'/restore'),this.getStoredToken(),{method:'POST',headers:{'Content-Type':'application/json'},body:{expectedRevision} as unknown as BodyInit})
+        return this.checkedPreset(value,(preset)=>preset.id===presetId&&preset.revision===expectedRevision&&(preset.trashedAt!==null)===trashed)
+    }
+    /** Deletes a preset that is already in Trash. */
+    async deleteStoryAssistantPreset(presetId:string,expectedRevision:number):Promise<void> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>('/stories/assistant-presets/'+encodeURIComponent(presetId)+'?expectedRevision='+expectedRevision,this.getStoredToken(),{method:'DELETE'})
+        if(canonicalJson(value)!==canonicalJson({deleted:true,id:presetId}))throw new ApiError(502,'The prompt preset was not deleted.',{code:'story_assistant_presets_contract',retryable:false})
+    }
+    /** The manifest of a whole-manuscript export at its source version: scenes in and out, notes, size and SHA-256. */
+    async previewStoryExport(storyId:string,request:StoryExportRequest,options?:{signal?:AbortSignal}):Promise<StoryExportManifest> {
+        this.assertNovelsEnabled()
+        if(!isStoryExportRequest(request))throw new ApiError(422,'Choose valid export options.',{code:'story_export_request',retryable:false})
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/export-preview`,this.getStoredToken(),{method:'POST',headers:{'Content-Type':'application/json'},body:request as unknown as BodyInit,signal:options?.signal})
+        if(!verifyStoryExportManifest(value,storyId,request))throw new ApiError(502,'The export summary does not match this novel or these choices.',{code:'story_export_contract',retryable:false})
+        return value
+    }
+    /** The file a preview described; it is accepted only when its size and SHA-256 match that preview. */
+    async downloadStoryExport(manifest:StoryExportManifest):Promise<Blob> {
+        this.assertNovelsEnabled()
+        const blob=await this.authenticatedBlob(`/stories/${encodeURIComponent(manifest.storyId)}/export?${storyExportQuery(manifest.request)}`,'The manuscript could not be exported.',manifest.contentType)
+        if(blob.size!==manifest.bytes||await sha256Hex(blob)!==manifest.sha256)throw new ApiError(409,'The exported file does not match its preview.',{code:'STORY_EXPORT_SOURCE_CHANGED',retryable:false})
+        return blob
+    }
+    private storyExportJob(value:unknown,storyId:string):StoryExportJob {
+        if(!verifyStoryExportJob(value,storyId))throw new ApiError(502,'The export job does not match this novel.',{code:'story_export_job_contract',retryable:false})
+        return value
+    }
+    /** Builds the file of a reviewed export in the background, at the source version that review saw; a replayed id returns the same job. */
+    async createStoryExportJob(storyId:string,request:StoryExportRequest,requestId:string):Promise<StoryExportJob> {
+        this.assertNovelsEnabled()
+        if(!isStoryExportRequest(request))throw new ApiError(422,'Choose valid export options.',{code:'story_export_request',retryable:false})
+        const job=this.storyExportJob(await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/export-jobs`,this.getStoredToken(),{method:'POST',headers:{'Content-Type':'application/json'},body:{requestId,request} as unknown as BodyInit}),storyId)
+        if(job.requestId!==requestId||canonicalJson(job.request)!==canonicalJson(request))throw new ApiError(502,'The export job does not match this request.',{code:'story_export_job_contract',retryable:false})
+        return job
+    }
+    /** The novel's newest export jobs, newest first, each with its stage, log and file. */
+    async listStoryExportJobs(storyId:string,options?:{signal?:AbortSignal}):Promise<StoryExportJob[]> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/export-jobs`,this.getStoredToken(),{signal:options?.signal})
+        const jobs=value&&typeof value==='object'&&Object.keys(value).length===1?(value as {jobs?:unknown}).jobs:null
+        if(!Array.isArray(jobs))throw new ApiError(502,'The export jobs could not be read.',{code:'story_export_job_contract',retryable:false})
+        return jobs.map((job)=>this.storyExportJob(job,storyId))
+    }
+    /** Stops a queued or running job; it keeps no file. */
+    async cancelStoryExportJob(storyId:string,jobId:string):Promise<StoryExportJob> {
+        this.assertNovelsEnabled()
+        const job=this.storyExportJob(await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/export-jobs/${encodeURIComponent(jobId)}/cancel`,this.getStoredToken(),{method:'POST'}),storyId)
+        if(job.id!==jobId)throw new ApiError(502,'The export job does not match this request.',{code:'story_export_job_contract',retryable:false})
+        return job
+    }
+    /** A new attempt of a failed or canceled job with its same request; refused when the novel changed since. */
+    async retryStoryExportJob(previous:StoryExportJob,requestId:string):Promise<StoryExportJob> {
+        this.assertNovelsEnabled()
+        const job=this.storyExportJob(await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(previous.storyId)}/export-jobs/${encodeURIComponent(previous.id)}/retry`,this.getStoredToken(),{method:'POST',headers:{'Content-Type':'application/json'},body:{requestId} as unknown as BodyInit}),previous.storyId)
+        if(job.retryOf!==previous.id||job.requestId!==requestId||canonicalJson(job.request)!==canonicalJson(previous.request))throw new ApiError(502,'The export job does not match this request.',{code:'story_export_job_contract',retryable:false})
+        return job
+    }
+    /** A completed job's file; accepted only when its size and SHA-256 match the job's file. */
+    async downloadStoryExportJob(job:StoryExportJob):Promise<Blob> {
+        this.assertNovelsEnabled()
+        if(!job.file||job.file.removed)throw new ApiError(410,'This file is no longer kept.',{code:'STORY_EXPORT_FILE_REMOVED',retryable:false})
+        const blob=await this.authenticatedBlob(`/stories/${encodeURIComponent(job.storyId)}/export-jobs/${encodeURIComponent(job.id)}/file`,'The file could not be downloaded.',job.file.contentType)
+        if(blob.size!==job.file.bytes||await sha256Hex(blob)!==job.file.sha256)throw new ApiError(502,'The downloaded file does not match its job.',{code:'STORY_EXPORT_FILE_MISMATCH',retryable:true})
+        return blob
+    }
+    /** What a project package of the novel holds with these choices, and the size and SHA-256 of the file they download. */
+    async previewStoryPackage(storyId:string,options:StoryPackageOptions,request?:{signal?:AbortSignal}):Promise<StoryPackageManifest> {
+        this.assertNovelsEnabled()
+        if(!isStoryPackageOptions(options))throw new ApiError(422,'Choose valid backup options.',{code:'story_package_request',retryable:false})
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/package-preview`,this.getStoredToken(),{method:'POST',headers:{'Content-Type':'application/json'},body:{options} as unknown as BodyInit,signal:request?.signal})
+        if(!verifyStoryPackageManifest(value,storyId,options))throw new ApiError(502,'The backup summary does not match this novel or these choices.',{code:'story_package_contract',retryable:false})
+        return value
+    }
+    /** The package a summary described; accepted only when its size and SHA-256 match that summary. */
+    async downloadStoryPackage(manifest:StoryPackageManifest):Promise<Blob> {
+        this.assertNovelsEnabled()
+        const blob=await this.authenticatedBlob(`/stories/${encodeURIComponent(manifest.storyId)}/package?${storyPackageQuery(manifest)}`,'The novel could not be backed up.',manifest.contentType)
+        if(blob.size!==manifest.bytes||await sha256Hex(blob)!==manifest.sha256)throw new ApiError(409,'The backup does not match its summary.',{code:'STORY_PACKAGE_SOURCE_CHANGED',retryable:false})
+        return blob
+    }
+    /** What restoring this package file would create; nothing is saved. The preview must be of these very bytes. */
+    async previewStoryPackageRestore(file:File,request?:{signal?:AbortSignal}):Promise<StoryPackagePreview> {
+        this.assertNovelsEnabled()
+        const body=new FormData();body.append('file',file,file.name)
+        const [value,sha256]=await Promise.all([this.authenticatedRequest<unknown>('/stories/package-preview',this.getStoredToken(),{method:'POST',body,signal:request?.signal}),sha256Hex(file)])
+        if(!verifyStoryPackagePreview(value,{size:file.size,sha256}))throw new ApiError(502,'The restore preview does not match this file.',{code:'story_package_contract',retryable:false})
+        return value
+    }
+    /** Restore the reviewed package as a new novel with new identities. */
+    async restoreStoryPackage(file:File,write:StoryPackageWrite):Promise<StoryPackageAcknowledgement> {
+        this.assertNovelsEnabled()
+        if(!isStoryPackageWrite(write))throw new ApiError(422,'Invalid novel restore request.',{code:'story_package_request',retryable:false})
+        const body=new FormData();body.append('file',file,file.name);body.append('write',JSON.stringify(write))
+        const value=await this.authenticatedRequest<unknown>('/stories/package-import',this.getStoredToken(),{method:'POST',body})
+        if(!verifyStoryPackageAcknowledgement(value,write))throw new ApiError(502,'Invalid novel restore receipt. Check your library before restoring again.',{code:'story_package_contract',retryable:false})
+        return value
+    }
+    /** The receipt of a restore whose response was lost, or null when it never committed. */
+    async getStoryPackageRestoreResult(write:StoryPackageWrite):Promise<StoryPackageAcknowledgement|null> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/package-imports/${encodeURIComponent(write.requestId)}`,this.getStoredToken())
+        if(value===null)return null
+        if(!verifyStoryPackageAcknowledgement(value,write))throw new ApiError(502,'Invalid novel restore recovery receipt.',{code:'story_package_contract',retryable:false})
+        return value
+    }
+    async readStoryManuscript(storyId:string,query:StoryReadingRequest):Promise<StoryReadingPage> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/manuscript-reader`,this.getStoredToken(),{method:'POST',headers:{'Content-Type':'application/json'},body:query as unknown as BodyInit})
+        if(!verifyReadingPage(value,storyId,query))throw new ApiError(502,'Unsupported saved manuscript page.',{code:'story_reading_contract',retryable:false})
+        return value
+    }
+    async searchStoryManuscript(storyId:string,query:StorySearchRequest):Promise<StorySearchPage> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/manuscript-search`,this.getStoredToken(),{method:'POST',headers:{'Content-Type':'application/json'},body:query as unknown as BodyInit})
+        if(!verifySearchPage(value,storyId,query))throw new ApiError(502,'Unsupported manuscript search results.',{code:'story_search_contract',retryable:false})
+        return value
+    }
+    async resolveStoryManuscriptSearch(storyId:string,query:StorySearchResolve):Promise<StorySearchResult> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/manuscript-search/resolve`,this.getStoredToken(),{method:'POST',headers:{'Content-Type':'application/json'},body:query as unknown as BodyInit})
+        if(!verifySearchResult(value,storyId,query))throw new ApiError(502,'Unsupported manuscript search target.',{code:'story_search_contract',retryable:false})
+        return value
+    }
+    async updateStoryScene(storyId:string,sceneId:string,write:StorySceneWrite): Promise<StoryScene> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/scenes/${encodeURIComponent(sceneId)}`,this.getStoredToken(),{method:'PUT',headers:{'Content-Type':'application/json'},body:write as unknown as BodyInit})
+        if(!matchesStoryWrite(value,write))throw new ApiError(502,'The scene acknowledgement does not match this request. Your draft is retained.',{code:'story_contract',retryable:false})
+        return this.storySceneAcknowledgement(value,storyId,sceneId)
+    }
+    private storySceneAcknowledgement(value:unknown,storyId:string,sceneId:string): StoryScene {
+        if (!verifyStoryScene(value,storyId,sceneId)) throw new ApiError(502,'Unsupported scene acknowledgement. Your device draft is retained.',{code:'story_contract',retryable:false})
+        return value
+    }
+    async changeStoryStructure(storyId:string,write:StoryStructureWrite): Promise<StoryStructureAcknowledgement> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/structure`,this.getStoredToken(),{method:'POST',headers:{'Content-Type':'application/json'},body:write as unknown as BodyInit})
+        if(!verifyStoryStructureAcknowledgement(value,write.expectedStructureRevision,{storyId,write}))throw new ApiError(502,'Unsupported outline acknowledgement. Your request is retained.',{code:'story_contract',retryable:false})
+        return value
+    }
+    async getStoryStructureResult(storyId:string,write:StoryStructureWrite):Promise<StoryStructureAcknowledgement|null> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/structure-requests/${encodeURIComponent(write.requestId)}`,this.getStoredToken())
+        if(value===null)return null
+        if(!verifyStoryStructureAcknowledgement(value,write.expectedStructureRevision,{storyId,write}))throw new ApiError(502,'Unsupported outline recovery acknowledgement.',{code:'story_contract',retryable:false})
+        return value
+    }
+    async getStoryStructureRevisions(storyId:string,query:StoryStructureHistoryQuery={}): Promise<StoryStructureHistoryPage> {
+        this.assertNovelsEnabled()
+        const params=new URLSearchParams()
+        if(query.before!==undefined)params.set('before',String(query.before))
+        if(query.action)params.set('action',query.action)
+        if(query.fromDate)params.set('from_date',query.fromDate)
+        if(query.throughDate)params.set('through_date',query.throughDate)
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/structure/revisions${params.size?'?'+params.toString():''}`,this.getStoredToken())
+        if(!verifyStoryStructureHistory(value,storyId,query.before))throw new ApiError(502,'Unsupported organization history.',{code:'story_contract',retryable:false})
+        return value
+    }
+    async getStoryStructureRevision(storyId:string,revision:number):Promise<StoryStructureRevision> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/structure/revisions/${revision}`,this.getStoredToken())
+        if(!verifyStoryStructureRevision(value,storyId,revision))throw new ApiError(502,'Unsupported organization checkpoint.',{code:'story_contract',retryable:false})
+        return value
+    }
+    async getStorySnapshotPreview(storyId:string):Promise<StorySnapshotPreview> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/snapshots/preview?annotations=true`,this.getStoredToken())
+        if(!verifySnapshotPreview(value,storyId))throw new ApiError(502,'Unsupported manuscript snapshot preview.',{code:'story_contract',retryable:false})
+        return value
+    }
+    async getStorySnapshots(storyId:string,before?:number):Promise<StorySnapshotPage> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/snapshots${before?'?before='+before:''}`,this.getStoredToken())
+        if(!verifySnapshotPage(value,storyId,before))throw new ApiError(502,'Unsupported manuscript snapshot list.',{code:'story_contract',retryable:false})
+        return value
+    }
+    async getStorySnapshot(storyId:string,id:number):Promise<StorySnapshotDetail> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/snapshots/${id}`,this.getStoredToken())
+        if(!verifySnapshotDetail(value,storyId,id))throw new ApiError(502,'Unsupported manuscript snapshot.',{code:'story_contract',retryable:false})
+        return value
+    }
+    async compareStorySnapshot(storyId:string,id:number):Promise<StorySnapshotComparison> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/snapshots/${id}/comparison`,this.getStoredToken())
+        if(!verifySnapshotComparison(value,storyId,id))throw new ApiError(502,'Unsupported manuscript snapshot comparison.',{code:'story_contract',retryable:false})
+        return value
+    }
+    async getStorySnapshotScene(storyId:string,id:number,scene:StorySnapshotScene,manifestHash:string):Promise<StorySnapshotSceneView> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/snapshots/${id}/scenes/${encodeURIComponent(scene.id)}`,this.getStoredToken())
+        if(!verifySnapshotScene(value,storyId,id,scene,manifestHash))throw new ApiError(502,'Unsupported saved snapshot scene.',{code:'story_contract',retryable:false})
+        return value
     }
 
-    async getStory(storyId: string): Promise<Story> {
+    async previewStorySnapshotRestore(storyId:string,id:number,options:StorySnapshotRestoreOptions):Promise<StorySnapshotRestorePreview> {
         this.assertNovelsEnabled()
-        const token = this.getStoredToken()
-        return this.authenticatedRequest<Story>(`/stories/${encodeURIComponent(storyId)}`, token, {
-            method: 'GET',
-        })
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/snapshots/${id}/restore-preview`,this.getStoredToken(),{method:'POST',headers:{'Content-Type':'application/json'},body:options as unknown as BodyInit})
+        if(!verifySnapshotRestorePreview(value,storyId,id,options))throw new ApiError(502,'Unsupported manuscript restore review.',{code:'story_contract',retryable:false})
+        return value
     }
 
-    async createStory(story: StoryCreateRequest | Record<string, unknown>): Promise<Story> {
+    async getStorySnapshotAnnotations(snapshot:StorySnapshotDetail,query:StorySnapshotAnnotationQuery={}):Promise<StorySnapshotAnnotationPage> {
         this.assertNovelsEnabled()
-        const token = this.getStoredToken()
-        return this.authenticatedRequest<Story>('/stories', token, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: stripOrganization(story) as unknown as BodyInit,
-        })
+        const params=new URLSearchParams()
+        if(query.after)params.set('after',query.after)
+        if(query.sceneId)params.set('scene_id',query.sceneId)
+        if(query.state)params.set('state',query.state)
+        if(query.anchorState)params.set('anchor_state',query.anchorState)
+        if(query.kind)params.set('kind',query.kind)
+        const suffix=params.size?'?'+params.toString():''
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(snapshot.storyId)}/snapshots/${snapshot.id}/annotations${suffix}`,this.getStoredToken())
+        if(!verifySnapshotAnnotationPage(value,snapshot,query))throw new ApiError(502,'Unsupported captured personal notes.',{code:'story_contract',retryable:false})
+        return value
+    }
+    async getStorySnapshotAnnotation(snapshot:StorySnapshotDetail,index:StorySnapshotAnnotationIndex):Promise<StorySnapshotAnnotationDetail> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(snapshot.storyId)}/snapshots/${snapshot.id}/annotations/${encodeURIComponent(index.id)}`,this.getStoredToken())
+        if(!verifySnapshotAnnotationDetail(value,snapshot,index))throw new ApiError(502,'Unsupported captured personal note.',{code:'story_contract',retryable:false})
+        return value
     }
 
-    async updateStory(storyId: string, story: Partial<Story> | Record<string, unknown>): Promise<Story> {
+    async changeStoryCodex(storyId:string,write:StoryCodexWrite):Promise<StoryCodexAcknowledgement> {
         this.assertNovelsEnabled()
-        const token = this.getStoredToken()
-        return this.authenticatedRequest<Story>(`/stories/${encodeURIComponent(storyId)}`, token, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: stripOrganization(story) as unknown as BodyInit,
-        })
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/codex`,this.getStoredToken(),{method:'POST',headers:{'Content-Type':'application/json'},body:write as unknown as BodyInit})
+        if(!verifyStoryCodexAcknowledgement(value,storyId,write))throw new ApiError(502,'Unsupported Codex acknowledgement. Your request is retained.',{code:'story_contract',retryable:false})
+        return value
     }
-
-    async deleteStory(storyId: string): Promise<void> {
+    /** Codex copies whose library card has a saved version newer than the one they name, and templates or lorebook entries whose library details changed. */
+    async getStoryCodexLibraryVersions(storyId:string):Promise<StoryCodexLibraryNotices> {
         this.assertNovelsEnabled()
-        const token = this.getStoredToken()
-        await this.authenticatedRequest(`/stories/${encodeURIComponent(storyId)}`, token, {
-            method: 'DELETE',
-        })
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/codex/library-versions`,this.getStoredToken())
+        if(!verifyStoryCodexLibraryVersions(value))throw new ApiError(502,'Unsupported library versions.',{code:'story_contract',retryable:false})
+        return value
     }
-
-    async createStoryChapter(storyId: string, chapter: Partial<StoryChapter> | Record<string, unknown>): Promise<StoryChapter> {
+    /** The library card's current version and the version this Codex copy was taken from, for a field-by-field review. */
+    async getStoryCodexLibrary(ref:StoryCardRef):Promise<StoryCodexLibraryReview> {
         this.assertNovelsEnabled()
-        const token = this.getStoredToken()
-        return this.authenticatedRequest<StoryChapter>(`/stories/${encodeURIComponent(storyId)}/chapters`, token, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: chapter as unknown as BodyInit,
-        })
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(ref.storyId)}/codex/${encodeURIComponent(ref.id)}/library`,this.getStoredToken())
+        if(!verifyStoryCodexLibraryReview(value,ref))throw new ApiError(502,'Unsupported library card.',{code:'story_contract',retryable:false})
+        return value
     }
-
-    async updateStoryChapter(storyId: string, chapterId: string, chapter: Partial<StoryChapter> | Record<string, unknown>): Promise<StoryChapter> {
+    /** The description a stage into this Codex entry's library card starts from (its draft, else its published body). */
+    async getStoryCodexLibraryDraft(ref:StoryCardRef):Promise<StoryCodexLibraryDraft> {
         this.assertNovelsEnabled()
-        const token = this.getStoredToken()
-        return this.authenticatedRequest<StoryChapter>(`/stories/${encodeURIComponent(storyId)}/chapters/${encodeURIComponent(chapterId)}`, token, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: chapter as unknown as BodyInit,
-        })
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(ref.storyId)}/codex/${encodeURIComponent(ref.id)}/library-draft`,this.getStoredToken())
+        if(!verifyStoryCodexLibraryDraft(value,ref.id))throw new ApiError(502,'Unsupported library draft.',{code:'story_contract',retryable:false})
+        return value
     }
-
-    async deleteStoryChapter(storyId: string, chapterId: string): Promise<void> {
+    /** Saves a reviewed description into the library card's private draft; publishing stays in the card editor. */
+    async stageStoryCodexLibraryDraft(ref:StoryCardRef,description:string,expectedStamp:string):Promise<StoryCodexLibraryDraft> {
         this.assertNovelsEnabled()
-        const token = this.getStoredToken()
-        await this.authenticatedRequest(`/stories/${encodeURIComponent(storyId)}/chapters/${encodeURIComponent(chapterId)}`, token, {
-            method: 'DELETE',
-        })
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(ref.storyId)}/codex/${encodeURIComponent(ref.id)}/library-draft`,this.getStoredToken(),
+            {method:'POST',headers:{'Content-Type':'application/json'},body:{description,expectedStamp} as unknown as BodyInit})
+        if(!verifyStoryCodexLibraryDraft(value,ref.id)||value.basis!=='draft')throw new ApiError(502,'Unsupported library draft acknowledgement.',{code:'story_contract',retryable:false})
+        return value
     }
-
-    async addStoryCardRef(storyId: string, ref: Partial<StoryCardRef> | Record<string, unknown>): Promise<StoryCardRef> {
+    /** The library lorebook entry this Codex entry was copied from, as stored. */
+    async getStoryCodexLibraryEntry(ref:StoryCardRef):Promise<StoryCodexLibraryEntry> {
         this.assertNovelsEnabled()
-        const token = this.getStoredToken()
-        return this.authenticatedRequest<StoryCardRef>(`/stories/${encodeURIComponent(storyId)}/card-refs`, token, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: ref as unknown as BodyInit,
-        })
+        this.assertLorebooksEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(ref.storyId)}/codex/${encodeURIComponent(ref.id)}/library-entry`,this.getStoredToken())
+        if(!verifyStoryCodexLibraryEntry(value,ref))throw new ApiError(502,'Unsupported library lorebook entry.',{code:'story_contract',retryable:false})
+        return value
     }
-
-    async updateStoryCardRef(storyId: string, refId: string, ref: Partial<StoryCardRef> | Record<string, unknown>): Promise<StoryCardRef> {
+    /** Writes reviewed text into the library lorebook entry itself; it has no draft, so it applies at once. */
+    async writeStoryCodexLibraryEntry(ref:StoryCardRef,content:string,expectedStamp:string):Promise<StoryCodexLibraryEntry> {
         this.assertNovelsEnabled()
-        const token = this.getStoredToken()
-        return this.authenticatedRequest<StoryCardRef>(`/stories/${encodeURIComponent(storyId)}/card-refs/${encodeURIComponent(refId)}`, token, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: ref as unknown as BodyInit,
-        })
-    }
-
-    async deleteStoryCardRef(storyId: string, refId: string): Promise<void> {
-        this.assertNovelsEnabled()
-        const token = this.getStoredToken()
-        await this.authenticatedRequest(`/stories/${encodeURIComponent(storyId)}/card-refs/${encodeURIComponent(refId)}`, token, {
-            method: 'DELETE',
-        })
+        this.assertLorebooksEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(ref.storyId)}/codex/${encodeURIComponent(ref.id)}/library-entry`,this.getStoredToken(),
+            {method:'POST',headers:{'Content-Type':'application/json'},body:{content,expectedStamp} as unknown as BodyInit})
+        if(!verifyStoryCodexLibraryEntry(value,ref)||value.content!==content)throw new ApiError(502,'Unsupported library lorebook entry acknowledgement.',{code:'story_contract',retryable:false})
+        return value
     }
 
     async previewStoryContext(storyId: string, request: StoryGenerateRequest): Promise<StoryContextTrace> {
@@ -3870,7 +4580,7 @@ class ApiService {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: {
-                chapterId: request.chapterId, command: request.command, selection: request.selection,
+                sceneId: request.sceneId, baseRevision:request.baseRevision,cursorOffset:request.cursorOffset,command: request.command, selection: request.selection,
                 instruction: request.instruction, contextSettings: request.contextSettings,
             } as unknown as BodyInit,
         })
@@ -3882,17 +4592,10 @@ class ApiService {
         return this.withLlmIntent('novel', requestId, request.llm, options.signal, async (llm) => {
             const payload = { ...request, llm }
             const owner = authSession.getSnapshot()
-            if (!isTextStreamingFeatureEnabled()) {
-                const result = await this.authenticatedRequest<StoryGenerateResponse>(`/stories/${encodeURIComponent(storyId)}/generate`, this.getStoredToken(), {
-                    method: 'POST', body: payload as unknown as BodyInit,
-                    headers: { 'Content-Type': 'application/json', 'X-Request-Id': requestId }, signal: options.signal, timeoutMs: options.timeoutMs,
-                })
-                this.assertStoryExecutionResult(result, request.chapterId, requestId)
-                return result
-            }
+
             try {
                 const result = await this.streamGeneratedResult<StoryGenerateResponse>(`/stories/${encodeURIComponent(storyId)}/generate/stream`, payload, null, { ...options, requestId })
-                this.assertStoryExecutionResult(result, request.chapterId, requestId)
+                this.assertStoryExecutionResult(result, request.sceneId, requestId)
                 return result
             } catch (error) {
                 this.assertCurrentOwner(owner)
@@ -3906,7 +4609,7 @@ class ApiService {
                     this.assertCurrentOwner(owner)
                     options.signal?.throwIfAborted()
                     if (saved) {
-                        this.assertStoryExecutionResult(saved, request.chapterId, requestId)
+                        this.assertStoryExecutionResult(saved, request.sceneId, requestId)
                         return saved
                     }
                     console.warn('text_stream_recovery_failed', { requestId, surface: 'story' })
@@ -3916,7 +4619,7 @@ class ApiService {
         })
     }
 
-    private assertStoryExecutionResult(result: StoryGenerateResponse, chapterId: string, requestId: string): void {
+    private assertStoryExecutionResult(result: StoryGenerateResponse, sceneId: string, requestId: string): void {
         const plan = result?.llm_execution
         const generation = result?.generation
         const keys = ['execution_id', 'profile_id', 'revision_id', 'resolution_source', 'credential_mode', 'replayed']
@@ -3926,7 +4629,7 @@ class ApiService {
             || !['user_feature', 'user_default', 'system_feature', 'system_default', 'explicit'].includes(plan.resolution_source)
             || !['platform', 'user_byok'].includes(plan.credential_mode) || typeof plan.replayed !== 'boolean'
             || generation?.id !== plan.execution_id || generation.requestId !== requestId
-            || generation.chapterId !== chapterId || result.chapter?.id !== chapterId
+            || generation.sceneId !== sceneId || result.scene?.id !== sceneId
             || typeof generation.output !== 'string' || !generation.output.trim()) {
             throw new ApiError(502, 'Story generation returned an invalid execution result.', {
                 code: 'story_execution_contract', category: 'upstream_contract', retryable: false,
@@ -3948,7 +4651,13 @@ class ApiService {
                         throw new StreamContractError('The stream returned an invalid saved result.')
                     }
                     if (resultKey) this.assertAiCardSynchronousContract(candidate, options.requestId)
-                    result = (resultKey ? candidate : event) as T
+                    if (resultKey) result = candidate as T
+                    else {
+                        const saved: Record<string, unknown> = { ...event }
+                        delete saved.type
+                        delete saved.request_id
+                        result = saved as T
+                    }
                 }
                 else if (event.type === 'error') {
                     const detail = (event.error || (event.detail && typeof event.detail === 'object' ? event.detail : undefined)) as Record<string, unknown> | undefined
@@ -3996,12 +4705,67 @@ class ApiService {
         return result
     }
 
-    async acceptStoryGeneration(storyId: string, generationId: string): Promise<Story> {
+    async acceptStoryGeneration(storyId:string,generationId:string,commit:StoryGenerationCommit): Promise<StoryScene> {
         this.assertNovelsEnabled()
-        const token = this.getStoredToken()
-        return this.authenticatedRequest<Story>(`/stories/${encodeURIComponent(storyId)}/generations/${encodeURIComponent(generationId)}/accept`, token, {
-            method: 'POST',
-        })
+        if('variant'in commit&&(!isStoryVariantReference(commit.variant)||commit.variant.id===generationId
+            ||[commit.variant.id,generationId].includes(commit.requestId)))throw new ApiError(422,'Invalid authored version application.',{code:'story_variant_contract',retryable:false})
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/generations/${encodeURIComponent(generationId)}/accept`,this.getStoredToken(),{method:'POST',headers:{'Content-Type':'application/json'},body:commit as unknown as BodyInit})
+        if(!matchesStoryWrite(value,commit))throw new ApiError(502,'The accepted scene acknowledgement does not match this request.',{code:'story_contract',retryable:false})
+        return this.storySceneAcknowledgement(value,storyId,commit.sceneId)
+    }
+    /** Accepts 2–12 reviewed suggestions in distinct scenes as one manuscript changeset (R14): all scenes are written or none. */
+    async acceptStoryGenerationsTogether(storyId:string,write:StoryGenerationChangesetWrite):Promise<StoryGenerationChangeset> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/generations/accept-together`,this.getStoredToken(),{method:'POST',headers:{'Content-Type':'application/json'},body:write as unknown as BodyInit})
+        if(!verifyGenerationChangeset(value,storyId,write))throw new ApiError(502,'The changeset acknowledgement does not match this request.',{code:'story_contract',retryable:false})
+        return value
+    }
+    /** The saved acknowledgement of a changeset request, so a lost response is recovered instead of sent again; null when it was never written. */
+    async getStoryGenerationChangeset(storyId:string,write:StoryGenerationChangesetWrite):Promise<StoryGenerationChangeset|null> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/generation-changesets/${encodeURIComponent(write.requestId)}`,this.getStoredToken())
+        if(value===null)return null
+        if(!verifyGenerationChangeset(value,storyId,write))throw new ApiError(502,'Unsupported changeset recovery receipt.',{code:'story_contract',retryable:false})
+        return value
+    }
+    /** Puts back the writing from before the changeset in every scene that still holds it; later writing is kept and reported. */
+    async undoStoryGenerationChangeset(changeset:StoryGenerationChangeset,requestId:string):Promise<StoryGenerationChangesetUndo> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(changeset.storyId)}/generation-changesets/${encodeURIComponent(changeset.requestId)}/undo`,this.getStoredToken(),{method:'POST',headers:{'Content-Type':'application/json'},body:{requestId} as unknown as BodyInit})
+        if(!verifyGenerationChangesetUndo(value,changeset))throw new ApiError(502,'The changeset undo acknowledgement does not match this request.',{code:'story_contract',retryable:false})
+        return value
+    }
+    async getStoryRevisions(storyId:string,sceneId:string,query:StorySceneRevisionQuery={}): Promise<StorySceneRevisionPage> {
+        this.assertNovelsEnabled()
+        const params=new URLSearchParams()
+        if(query.before!==undefined)params.set('before',String(query.before))
+        if(query.source)params.set('source',query.source)
+        if(query.actor)params.set('actor',query.actor)
+        if(query.fromDate)params.set('from_date',query.fromDate)
+        if(query.throughDate)params.set('through_date',query.throughDate)
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/scenes/${encodeURIComponent(sceneId)}/revisions${params.size?'?'+params.toString():''}`,this.getStoredToken())
+        if(!verifySceneRevisionPage(value,storyId,sceneId,query))throw new ApiError(502,'Unsupported scene history summary.',{code:'story_contract',retryable:false})
+        return value
+    }
+    async getStoryRevision(storyId:string,sceneId:string,revision:number,expectedHash?:string,options:{signal?:AbortSignal}={}):Promise<StoryDocumentRevision> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/scenes/${encodeURIComponent(sceneId)}/revisions/${revision}`,this.getStoredToken(),{signal:options.signal})
+        if(!verifySceneRevision(value,storyId,sceneId,revision,expectedHash))throw new ApiError(502,'Unsupported scene checkpoint.',{code:'story_contract',retryable:false})
+        return value
+    }
+    async restoreStoryRevision(storyId:string,sceneId:string,revision:number,write:StorySceneRestoreWrite): Promise<StorySceneRestoreAcknowledgement> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/scenes/${encodeURIComponent(sceneId)}/revisions/${revision}/restore`,this.getStoredToken(),{method:'POST',headers:{'Content-Type':'application/json'},body:write as unknown as BodyInit})
+        if(!verifySceneRestoreAck(value,storyId,sceneId,revision,write))throw new ApiError(502,'The scene restore acknowledgement does not match this request.',{code:'story_contract',retryable:false})
+        return value
+    }
+    async getStoryRevisionRestoreResult(storyId:string,sceneId:string,revision:number,write:StorySceneRestoreWrite):Promise<StorySceneRestoreAcknowledgement|null> {
+        this.assertNovelsEnabled()
+        const query=new URLSearchParams({expectedRevision:String(write.expectedRevision),expectedContentHash:write.expectedContentHash,sourceContentHash:write.sourceContentHash})
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/scenes/${encodeURIComponent(sceneId)}/revisions/${revision}/restore-requests/${encodeURIComponent(write.requestId)}?${query}`,this.getStoredToken())
+        if(value===null)return null
+        if(!verifySceneRestoreAck(value,storyId,sceneId,revision,write))throw new ApiError(502,'Unsupported scene restore recovery receipt.',{code:'story_contract',retryable:false})
+        return value
     }
 
     async stashStoryGeneration(storyId: string, generationId: string): Promise<unknown> {
@@ -4010,6 +4774,70 @@ class ApiService {
         return this.authenticatedRequest(`/stories/${encodeURIComponent(storyId)}/generations/${encodeURIComponent(generationId)}/stash`, token, {
             method: 'POST',
         })
+    }
+
+    async getStoryAnnotations(storyId:string,query:StoryAnnotationQuery={}):Promise<StoryAnnotationPage> {
+        this.assertNovelsEnabled()
+        const params=new URLSearchParams()
+        if(query.sceneId)params.set('scene_id',query.sceneId)
+        if(query.state)params.set('state',query.state)
+        if(query.anchorState)params.set('anchor_state',query.anchorState)
+        if(query.kind)params.set('kind',query.kind)
+        if(query.before)params.set('before',query.before)
+        if(query.q)params.set('q',query.q)
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/annotations${params.size?'?'+params.toString():''}`,this.getStoredToken())
+        if(!verifyAnnotationPage(value,storyId,query))throw new ApiError(502,'Unsupported annotation summary.',{code:'story_contract',retryable:false})
+        return value
+    }
+    async getStoryAnnotationCopyPreview(storyId:string,kind:'note'|'bookmark'='note'):Promise<StoryAnnotationCopyPreview> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/annotation-copy-preview${kind==='bookmark'?'?kind=bookmark':''}`,this.getStoredToken())
+        if(!verifyAnnotationCopyPreview(value,storyId,kind))throw new ApiError(502,'Unsupported personal-note copy summary.',{code:'story_contract',retryable:false})
+        return value
+    }
+    async getStoryAnnotation(storyId:string,annotationId:string):Promise<StoryAnnotation> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/annotations/${encodeURIComponent(annotationId)}`,this.getStoredToken())
+        if(!verifyAnnotation(value,storyId,annotationId))throw new ApiError(502,'Unsupported personal note.',{code:'story_contract',retryable:false})
+        return value
+    }
+    async changeStoryAnnotation(storyId:string,write:StoryAnnotationWrite):Promise<StoryAnnotationAcknowledgement> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/annotations`,this.getStoredToken(),{method:'POST',headers:{'Content-Type':'application/json'},body:write as unknown as BodyInit})
+        if(!verifyAnnotationAck(value,storyId,write))throw new ApiError(502,'The personal-note acknowledgement does not match this request.',{code:'story_contract',retryable:false})
+        return value
+    }
+    async getStoryAnnotationResult(storyId:string,write:StoryAnnotationWrite):Promise<StoryAnnotationAcknowledgement|null> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/annotation-requests/${encodeURIComponent(write.requestId)}`,this.getStoredToken())
+        if(value===null)return null
+        if(!verifyAnnotationAck(value,storyId,write))throw new ApiError(502,'Unsupported personal-note recovery receipt.',{code:'story_contract',retryable:false})
+        return value
+    }
+
+    async listStoryPlanItems<K extends StoryPlanKind>(storyId:string,kind:K,query:StoryPlanQuery={}):Promise<StoryPlanPage<K>> {
+        this.assertNovelsEnabled()
+        const params=new URLSearchParams({kind})
+        if(query.state)params.set('state',query.state)
+        if(query.sceneId)params.set('scene_id',query.sceneId)
+        if(query.q)params.set('q',query.q)
+        if(query.includeTrashed)params.set('include_trashed','true')
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/plan-items?${params.toString()}`,this.getStoredToken())
+        if(!verifyPlanPage(value,storyId,kind))throw new ApiError(502,'Unsupported planning items.',{code:'story_contract',retryable:false})
+        return value
+    }
+    async changeStoryPlanItem<K extends StoryPlanKind>(storyId:string,write:StoryPlanWrite<K>):Promise<StoryPlanAcknowledgement<K>> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/plan-items`,this.getStoredToken(),{method:'POST',headers:{'Content-Type':'application/json'},body:write as unknown as BodyInit})
+        if(!verifyPlanAck(value,storyId,write))throw new ApiError(502,'The planning acknowledgement does not match this request.',{code:'story_contract',retryable:false})
+        return value
+    }
+    async getStoryPlanItemResult<K extends StoryPlanKind>(storyId:string,write:StoryPlanWrite<K>):Promise<StoryPlanAcknowledgement<K>|null> {
+        this.assertNovelsEnabled()
+        const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(storyId)}/plan-item-requests/${encodeURIComponent(write.requestId)}`,this.getStoredToken())
+        if(value===null)return null
+        if(!verifyPlanAck(value,storyId,write))throw new ApiError(502,'Unsupported planning recovery receipt.',{code:'story_contract',retryable:false})
+        return value
     }
 
     async discardStoryGeneration(storyId: string, generationId: string): Promise<unknown> {
@@ -4105,6 +4933,7 @@ class ApiService {
             if (scope.card_id) params.set('card_id', scope.card_id)
         }
         if (scope.kind === 'lorebook' && scope.lorebook_id) params.set('lorebook_id', scope.lorebook_id)
+        if (scope.kind === 'novel') params.set('story_id',scope.story_id)
         return this.authenticatedRequest<AssistantConversationListResponse>(`/assistant/conversations?${params.toString()}`, this.getStoredToken(), {
             method: 'GET',
             ...this.assistantRequestOptions(options),
@@ -4124,6 +4953,17 @@ class ApiService {
     }
 
     /** Delete an assistant conversation and its messages. 409 while a turn is in flight. */
+    /** Read-only published-profile preview; this never sends a provider credential. */
+    async previewNovelAssistantTurn(conversationId:number,index:StoryStudioIndex,body:Pick<AssistantTurnRequest<'novel'>,'message'|'source'|'expected_packet_hash'|'refinement'|'preset'>,options:AssistantRequestOptions={}):Promise<NovelAssistantTurnPreview> {
+        this.assertAssistantKindEnabled('novel')
+        if(options.llm?.credentials || options.llm?.retry_of_execution_id)throw new ApiError(422,'A turn preview does not take credentials or dispatch a retry.',{code:'novel_assistant_preview_input',retryable:false})
+        const value=await this.authenticatedRequest<unknown>(`/assistant/conversations/${conversationId}/novel-preview`,this.getStoredToken(),{
+            method:'POST',body:{...body,kind:'novel',llm:options.llm??{}} as unknown as BodyInit,...this.assistantRequestOptions(options),
+        })
+        if(!verifyNovelAssistantPreview(value,conversationId,index,body.source,body.refinement??null,body.preset??null))throw new ApiError(502,'Invalid novel assistant turn preview.',{code:'novel_assistant_preview_contract',retryable:false})
+        return value
+    }
+
     async deleteAssistantConversation(kind: AssistantKind, conversationId: number, options: AssistantRequestOptions = {}): Promise<void> {
         this.assertAssistantKindEnabled(kind)
         await this.authenticatedRequest<void>(`/assistant/conversations/${conversationId}`, this.getStoredToken(), {
@@ -4203,6 +5043,38 @@ class ApiService {
         if (result.status !== 'completed') return null
         this.assertAssistantTurn(result.turn, kind, conversationId, requestId)
         return result.turn!
+    }
+
+    /** A novel control read keeps terminal uncertainty visible instead of returning null. */
+    async getNovelAssistantTurnState(storyId: string, conversationId: number, requestId: string,
+        options: AssistantRequestOptions = {}): Promise<NovelAssistantTurnState> {
+        return this.novelAssistantTurnControl('GET', storyId, conversationId, requestId, options)
+    }
+
+    /** Explicit Stop takes the retained identity only; it never resolves a profile or requests a key. */
+    async stopNovelAssistantTurn(storyId: string, conversationId: number, requestId: string,
+        options: AssistantRequestOptions = {}): Promise<NovelAssistantTurnState> {
+        return this.novelAssistantTurnControl('POST', storyId, conversationId, requestId, options)
+    }
+
+    private async novelAssistantTurnControl(method: 'GET' | 'POST', storyId: string, conversationId: number,
+        requestId: string, options: AssistantRequestOptions): Promise<NovelAssistantTurnState> {
+        this.assertAssistantKindEnabled('novel')
+        const owner = authSession.getSnapshot()
+        const detail = await this.getAssistantConversation('novel', conversationId, { signal: options.signal, timeoutMs: options.timeoutMs })
+        this.assertCurrentOwner(owner)
+        options.signal?.throwIfAborted()
+        if (detail.conversation.story_id !== storyId) throw new ApiError(409, 'The assistant belongs to another novel.', { code: 'ASSISTANT_SCOPE_CHANGED' })
+        const result = await this.authenticatedRequest<unknown>(
+            `/assistant/conversations/${conversationId}/turns/${encodeURIComponent(requestId)}${method === 'POST' ? '/stop' : ''}`,
+            this.getStoredToken(), { method, signal: options.signal, timeoutMs: options.timeoutMs,
+                ...(method === 'POST' ? { body: '{}', headers: { 'Content-Type': 'application/json' } } : {}) })
+        this.assertCurrentOwner(owner)
+        options.signal?.throwIfAborted()
+        if (!verifyNovelAssistantTurnState(result, storyId, conversationId, requestId)) {
+            throw new ApiError(502, 'The assistant returned an invalid request state.', { code: 'assistant_control_contract', retryable: false })
+        }
+        return result
     }
 
     private async withAssistantRetry<T>(conversationId: number, requestId: string,
@@ -4477,6 +5349,37 @@ class ApiService {
         return this.authenticatedRequest(`/images/jobs/${encodeURIComponent(jobId)}/result`, token, {
             method: 'GET'
         })
+    }
+
+    /**
+     * Start another image for a completed assistant message (regenerate, or an
+     * edited prompt). Answers 202 once the job exists, before it finishes; the
+     * socket frames and job polling carry it from there. `null` means the job
+     * was slow to create: frames and the listing still deliver it. Throws
+     * `ChatImagesUnsupportedError` on a server that has no such endpoint.
+     * `credentials` (a personal profile's key) only ever travels over HTTPS.
+     */
+    async generateChatMessageImage(basePath: ChatImageBasePath, sessionId: number, messageId: number, body: ChatImageGenerateBody = {}): Promise<ChatImageGeneration | null> {
+        if (body.credentials && !API_BASE_URL.startsWith('https://')) throw new Error('IMAGE_CREDENTIAL_HTTPS_REQUIRED')
+        const value = await chatImagesRequest(() => trackResourceTaskRequest(() => this.authenticatedRequest<unknown>(
+            chatMessageImagesPath(basePath, sessionId, messageId), this.getStoredToken(), {
+                method: 'POST',
+                cache: 'no-store',
+                body: body as unknown as BodyInit,
+            }), this.workspaceScope?.workspaceId ?? null))
+        const generation = value && typeof value === 'object' ? (value as { generation?: unknown }).generation : undefined
+        if (generation === null) return null
+        if (!isChatImageGenerationWire(generation)) throw new ApiError(502, 'The image response was not recognised.', { code: 'chat_image_contract' })
+        return generation
+    }
+
+    /** The image jobs of one assistant message, newest first, as the server keeps them. Throws `ChatImagesUnsupportedError` on an older server. */
+    async listChatMessageImages(basePath: ChatImageBasePath, sessionId: number, messageId: number, signal?: AbortSignal): Promise<ChatImageGeneration[]> {
+        const value = await chatImagesRequest(() => this.authenticatedRequest<unknown>(
+            chatMessageImagesPath(basePath, sessionId, messageId), this.getStoredToken(), { method: 'GET', cache: 'no-store', signal }))
+        const list = Array.isArray(value) ? value : (value as { items?: unknown } | null)?.items
+        if (!Array.isArray(list)) throw new ApiError(502, 'The image list was not recognised.', { code: 'chat_image_contract' })
+        return list.filter(isChatImageGenerationWire)
     }
 
     /* ------------------------------ voice call ------------------------------ */

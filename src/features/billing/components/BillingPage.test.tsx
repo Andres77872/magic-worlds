@@ -1,3 +1,6 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
 import { render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { BillingPage } from './BillingPage'
@@ -41,21 +44,17 @@ afterEach(() => {
 })
 
 describe('BillingPage', () => {
-    it('shows a not-available state and never fetches when the frontend flag is off', async () => {
-        // VITE_BILLING_ENABLED is unset (default off): even a server-enabled
-        // catalog must not surface a purchase flow, and no catalog call fires.
+    it('loads the server-enabled catalog without a frontend environment switch', async () => {
         apiMocks.getBillingPlans.mockResolvedValue(enabledCatalog)
 
         render(<BillingPage />)
 
-        await waitFor(() => expect(screen.getByText(/aren't available/i)).toBeInTheDocument())
-        expect(apiMocks.getBillingPlans).not.toHaveBeenCalled()
-        expect(screen.queryByRole('heading', { name: 'Plus' })).not.toBeInTheDocument()
-        expect(screen.queryByRole('button', { name: /Upgrade|Switch|Buy/i })).not.toBeInTheDocument()
+        await waitFor(() => expect(apiMocks.getBillingPlans).toHaveBeenCalledOnce())
+        expect(await screen.findByRole('heading', { name: 'Plus' })).toBeInTheDocument()
     })
 
     it('shows a not-available state when billing is disabled server-side', async () => {
-        vi.stubEnv('VITE_BILLING_ENABLED', 'true')
+
         apiMocks.getBillingPlans.mockResolvedValue({ ...enabledCatalog, enabled: false })
 
         render(<BillingPage />)
@@ -67,7 +66,7 @@ describe('BillingPage', () => {
     })
 
     it('renders purchasable plans and credit packs when the flag and server are both on', async () => {
-        vi.stubEnv('VITE_BILLING_ENABLED', 'true')
+
         apiMocks.getBillingPlans.mockResolvedValue(enabledCatalog)
 
         render(<BillingPage />)

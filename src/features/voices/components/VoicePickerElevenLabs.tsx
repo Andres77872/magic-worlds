@@ -52,7 +52,6 @@ import { useCatalogLookup } from '../hooks/useCatalogLookup'
 import { leavingVoiceKey } from '../hooks/useLeavingVoice'
 import { isFreeSamplePreview, presetRowBadges, presetVoiceKeys, previewSampleUrl, v2PreviewLanguage } from '../presetRowsV2'
 import { useCatalogSample } from '../useCatalogSample'
-import { usePreviewCreditConfirm } from '../usePreviewCreditConfirm'
 import { usePreviewLanguage, usePreviewTextSets } from '../usePreviewTexts'
 import { clipTranscript, useRecipePreview } from '../useRecipePreview'
 import { voiceFromCatalog } from '../voiceFromCatalog'
@@ -93,6 +92,8 @@ export interface VoicePickerElevenLabsProps {
     capabilities: VoiceCapabilities | null
     onSelect: (voice: StoredCharacterVoice | null) => void
     onClose: () => void
+    /** The catalog lists only voices that can speak on a call (call setup). */
+    worksInCalls?: boolean
 }
 
 export function VoicePickerElevenLabs({
@@ -104,6 +105,7 @@ export function VoicePickerElevenLabs({
     capabilities,
     onSelect,
     onClose,
+    worksInCalls = false,
 }: VoicePickerElevenLabsProps) {
     const { t, i18n } = useTranslation()
     // Optional: without an account the paid-preview confirmation asks every time.
@@ -142,14 +144,14 @@ export function VoicePickerElevenLabs({
     const appLanguage = usePreviewLanguage()
     const languageOf = (preset: VoicePreset) => v2PreviewLanguage(lookup.get(preset.voice_key), language || appLanguage, preset.language_code)
     const previewTexts = usePreviewTextSets(rows.map(languageOf), open)
-    const recipePreview = useRecipePreview({ enabled: open })
+    const recipePreview = useRecipePreview({ enabled: open, userHash })
     const resetPreview = recipePreview.reset
     const previewTier = defaultPreviewTier(capabilities)
-    const credit = usePreviewCreditConfirm(userHash)
+    const credit = recipePreview.credit
     const cancelCredit = credit.cancel
     /** The row audition is the voice's own catalog sample (free, unmetered; AC-P2), not a render. */
     const isFreeSample = (preset: VoicePreset) =>
-        !(preset.provider === 'fish_audio' && preset.performance) && isFreeSamplePreview(preset.settings, preset.emotion, lookup.get(preset.voice_key), previewTexts(languageOf(preset)).language, previewTier)
+        !(preset.provider === 'fish_audio' && (preset.performance || preset.model_id === 's2.1-pro')) && isFreeSamplePreview(preset.settings, preset.emotion, lookup.get(preset.voice_key), previewTexts(languageOf(preset)).language, previewTier)
     /** The language a row's preview is heard in: its catalog sample's (it may fall back to the primary language), else its text's. */
     const heardLanguageOf = (preset: VoicePreset, freeSample: boolean) => {
         const textLanguage = previewTexts(languageOf(preset)).language
@@ -207,7 +209,7 @@ export function VoicePickerElevenLabs({
         onClose()
     }
 
-    const previewPreset = (preset: VoicePreset, costsCredit: boolean) => {
+    const previewPreset = (preset: VoicePreset) => {
         if (previewId === preset.preset_id && recipePreview.loading) {
             recipePreview.stop()
             return
@@ -216,6 +218,7 @@ export function VoicePickerElevenLabs({
             voiceKey: preset.voice_key,
             // Without it a Fish preset is sent as an ElevenLabs body and answers 409 voice_unavailable.
             provider: preset.provider,
+            ...(preset.provider === 'fish_audio' ? { modelId: preset.model_id ?? 'drama-3' } : {}),
             settings: preset.settings ?? null,
             emotion: preset.emotion ?? null,
             ...(preset.provider === 'fish_audio' && preset.performance ? { performance: preset.performance } : {}),
@@ -224,11 +227,8 @@ export function VoicePickerElevenLabs({
             tier: previewTier,
             key: preset.preset_id,
         }
-        // The first paid render of the session is confirmed once (AC-P5, 05 §6.3).
-        credit.guard(costsCredit, () => {
-            setPreviewId(preset.preset_id)
-            void recipePreview.run(input)
-        })
+        setPreviewId(preset.preset_id)
+        void recipePreview.run(input)
     }
 
     const chooseVoice = () => {
@@ -427,11 +427,10 @@ export function VoicePickerElevenLabs({
                                                             variant="secondary"
                                                             size="sm"
                                                             // The free sample is unmetered: the daily limit never gates it (05 §6.3).
-                                                            disabled={recipePreview.limitReached && !previewing && !freeSample}
                                                             aria-label={previewName}
                                                             aria-describedby={showFreeHint ? freeHintId : undefined}
                                                             iconLeft={<Icon icon={previewing ? Square : Play} size={14} />}
-                                                            onClick={() => previewPreset(preset, costsCredit)}
+                                                    onClick={() => previewPreset(preset)}
                                                         >
                                                             {previewing
                                                                 ? t('voices.preview.stop')
@@ -499,6 +498,7 @@ export function VoicePickerElevenLabs({
                         searchRef={searchRef}
                         onPick={(item) => pick(voiceFromCatalog(item))}
                         sample={catalogSample}
+                        worksInCalls={worksInCalls}
                     />
                 </div>
             </div>

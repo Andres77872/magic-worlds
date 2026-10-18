@@ -1,0 +1,65 @@
+{
+ "text": "Notes first.\n\n# Part One: Fog\n\nThe fog part.\n\n## Chapter 1: The Letter\nMara finds the letter.\n\n- **Scene 1: The letter.** Mara finds it under the board.\n  - She reads it at the window\n  - Lists the coat, matches and key\n- The bells — She counts bells in the fog 🌒.\n\n# Part Two: Clear\n## Chapter 2: The Key\n",
+ "chapterLevel": null,
+ "preview": {
+  "schemaVersion": 1,
+  "outline": {
+   "parts": [
+    {
+     "title": "Part One: Fog",
+     "synopsis": "The fog part."
+    },
+    {
+     "title": "Part Two: Clear",
+     "synopsis": null
+    }
+   ],
+   "chapters": [
+    {
+     "part": 0,
+     "title": "Chapter 1: The Letter",
+     "synopsis": "Mara finds the letter.",
+     "scenes": [
+      {
+       "title": "The letter",
+       "synopsis": "Mara finds it under the board.",
+       "beats": [
+        "She reads it at the window",
+        "Lists the coat, matches and key"
+       ]
+      },
+      {
+       "title": "The bells",
+       "synopsis": "She counts bells in the fog 🌒.",
+       "beats": []
+      }
+     ]
+    },
+    {
+     "part": 1,
+     "title": "Chapter 2: The Key",
+     "synopsis": null,
+     "scenes": [
+      {
+       "title": "Scene 1",
+       "synopsis": null,
+       "beats": []
+      }
+     ]
+    }
+   ]
+  },
+  "chapterLevel": 2,
+  "detectedLevel": 2,
+  "counts": {
+   "parts": 2,
+   "chapters": 2,
+   "scenes": 3,
+   "beats": 2
+  },
+  "notes": {
+   "defaultScenes": 1,
+   "ignored": 1
+  }
+ }
+}

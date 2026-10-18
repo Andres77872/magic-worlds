@@ -1,3 +1,7 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, apiService } from '../index'
 
@@ -38,7 +42,7 @@ describe('minor report API (EP-10)', () => {
         localStorage.clear()
         localStorage.setItem('magic_worlds:token', 'token-1')
         vi.stubGlobal('fetch', fetchMock)
-        vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'true')
+        setTestFeatureFlags({ voices: true })
         vi.spyOn(console, 'error').mockImplementation(() => undefined)
         vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     })
@@ -124,7 +128,7 @@ describe('minor report API (EP-10)', () => {
     })
 
     it('sends nothing while voices are disabled', async () => {
-        vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'false')
+        setTestFeatureFlags({ voices: false })
         await expect(apiService.getMinorReportStatus()).rejects.toThrow('Voices are disabled.')
         await expect(apiService.submitMinorReport({ subject_kind: 'username', subject_ref: 'x', reason: 'other' })).rejects.toThrow('Voices are disabled.')
         await expect(apiService.adminListMinorReports()).rejects.toThrow('Voices are disabled.')

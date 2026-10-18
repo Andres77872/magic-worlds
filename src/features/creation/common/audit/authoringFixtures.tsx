@@ -1,3 +1,5 @@
+import { decorateStory } from '@/shared/storyCache'
+import { novel, storyChapter, storyScene, storyTrace } from '@/test/fixtures/story'
 /** In-memory Storybook fixtures. No authenticated API operation leaves these stories. */
 import { useMemo, type ComponentProps, type ReactNode } from 'react'
 import { AuthContext } from '@/app/providers/AuthProvider'
@@ -21,9 +23,17 @@ export const auditItem: Item = { id: 'item-fixture', name: 'The compass of lost 
 export const auditEntry = { ...blankEntryDraft(0), id: 'entry-fixture', lorebookId: 'lore-fixture', title: 'The moonwell', entryType: 'place' as const, content: 'At the heart of Silverwood, the moonwell reflects stars that disappeared centuries ago. The keeper trades a safe passage for a true memory.', keys: ['moonwell', 'Silverwood'], secondaryKeys: ['keeper'] }
 export const auditLorebook = normalizeLorebook({ id: 'lore-fixture', name: 'The Silverwood chronicles', description: 'People, places, and secrets beneath the silver trees.', enabled: true, tags: ['forest', 'mystery'], entries: [auditEntry, { ...auditEntry, id: 'secret-fixture', title: 'The keeper’s bargain', entryType: 'secret', isSecret: true, keys: ['bargain'], content: 'The keeper is the last witness to the vanished queen.', revealCondition: 'The traveler offers a memory of the queen.' }], attachments: [], settings: { scanDepth: 4, tokenBudget: 4000, matchWholeWords: true, caseSensitive: false, recursiveScanning: false } })
 export const auditResource = normalizeLorebookResource({ id: 'resource-fixture', title: 'Field notes from Silverwood', fileName: 'silverwood.md', fileType: 'md', content: '# Silverwood\n\nThe moonwell lies beyond the old watchtower.\n\n## The keeper\n\nBring a memory to trade for safe passage.', description: 'A traveler’s guide to the forest and its guardian.', triggers: ['Silverwood', 'moonwell'], extractionStatus: 'completed', extraction: { short_summary: 'A guide to Silverwood, the moonwell, and its keeper.', keywords: ['moonwell', 'keeper'], snippets: [] }, createdAt: '2026-09-19T12:00:00Z' })!
-export const auditRef: StoryCardRef = { id: 'ref-fixture', storyId: 'story-fixture', chapterId: null, kind: 'character', cardId: characters[0].id!, source: 'manual', enabled: true, precedence: 10, snapshot: { id: characters[0].id!, name: characters[0].name, description: characters[0].description ?? '', race: characters[0].race, story_card_kind: 'character' } }
-export const auditGeneration: StoryGeneration = { id: 'generation-fixture', storyId: 'story-fixture', chapterId: 'chapter-fixture', command: 'continue', inputRange: null, promptSummary: 'Let the keeper recognize the traveler.', contextTrace: { cards: [], loreEntries: [], chapters: [], totalEstimatedTokens: 420 }, output: 'The keeper raised her lantern. “You carry a familiar memory,” she said.', status: 'accepted', createdAt: '2026-09-19T12:00:00Z' }
-export const auditStory: Story = { id: 'story-fixture', title: 'The last light of Silverwood', description: 'A traveler follows the last map into a forest that remembers everyone.', source: { kind: 'blank', id: null, title: null }, activeCardRefs: [auditRef], activeContext: { includeSelectedCards: true, includeLorebooks: true, includeRecentChapters: 2, tokenBudget: 6000, styleSource: 'current_chapter', customStyleInstruction: null }, chapters: Array.from({ length: 5 }, (_, index) => ({ id: index === 0 ? 'chapter-fixture' : `chapter-${index}`, storyId: 'story-fixture', title: ['The gate held', 'A memory for the keeper', 'The vanished stars', 'Under the silver branches', 'The road home'][index], body: index === 0 ? 'The gate held. Beyond its iron bars, the forest whispered Lyra’s name.\n\nShe unfolded the map one last time. The ink had changed overnight: a silver path now ran straight to the moonwell.\n\n“Someone has been expecting you,” said the keeper.' : '', order: index, status: 'draft', povCardId: null, locationCardId: null, activeCardRefs: [], generationHistory: index === 0 ? [auditGeneration] : [], wordGoal: 1200 })), createdAt: '2026-09-19T12:00:00Z', updatedAt: '2026-09-19T12:00:00Z' }
+export const auditRef: StoryCardRef = { id: 'ref-fixture', storyId: 'story-fixture', chapterId: null, sceneId:null,removedAt:null,kind: 'character', cardId: characters[0].id!, source: 'manual', enabled: true, precedence: 10, snapshot: { id: characters[0].id!, name: characters[0].name, description: characters[0].description ?? '', race: characters[0].race, story_card_kind: 'character' } }
+export const auditGeneration: StoryGeneration = { id: 'generation-fixture', storyId: 'story-fixture', chapterId: 'chapter-fixture', sceneId:'scene-fixture',baseRevision:1,command: 'continue', inputRange: null, promptSummary: 'Let the keeper recognize the traveler.', contextTrace: storyTrace({totalEstimatedTokens:420}), output: 'The keeper raised her lantern. “You carry a familiar memory,” she said.', status: 'accepted', createdAt: '2026-09-19T12:00:00Z' }
+export const auditStory: Story = decorateStory(novel({id:'story-fixture',title:'The last light of Silverwood',
+    description:'A traveler follows the last map into a forest that remembers everyone.',activeCardRefs:[auditRef],
+    chapters:Array.from({length:5},(_,index)=>{
+        const id=index===0?'chapter-fixture':`chapter-${index}`
+        const scene=storyScene({id:index===0?'scene-fixture':`scene-${index}`,storyId:'story-fixture',chapterId:id,
+            body:index===0?'The gate held. Beyond its iron bars, the forest whispered Lyra’s name.\n\nShe unfolded the map one last time. The ink had changed overnight: a silver path now ran straight to the moonwell.\n\n“Someone has been expecting you,” said the keeper.':'',
+            generationHistory:index===0?[auditGeneration]:[]})
+        return storyChapter({id,storyId:'story-fixture',title:['The gate held','A memory for the keeper','The vanished stars','Under the silver branches','The road home'][index],order:index,wordGoal:1200,scenes:[scene],generationHistory:scene.generationHistory})
+    }),createdAt:'2026-09-19T12:00:00Z',updatedAt:'2026-09-19T12:00:00Z'}))
 
 /** Storybook beforeEach installs mocks before child effects run; cleanup restores every method. */
 export function installAuthoringApi(state: AuditState = 'populated') {
@@ -78,8 +88,8 @@ export function AuthoringProviders({ children, route = 'character', state = 'pop
             editingItem: editing && route === 'item' ? auditItem : null,
             editingTemplate: editing && route === 'adventure' ? templates[0] : null,
             editingLorebook: editing && route === 'lorebook' ? (state === 'empty' ? { ...auditLorebook, entries: [] } : auditLorebook) : null,
-            activeStory: state === 'empty' ? { ...auditStory, chapters: [{ ...auditStory.chapters[0], body: '' }], activeCardRefs: [] } : auditStory,
-            loadingState: { status: 'loaded' }, isLoading: false,
+            activeStory: state === 'empty' ? { ...auditStory, chapters: [storyChapter({id:'empty-chapter',storyId:auditStory.id,scenes:[storyScene({id:'empty-scene',storyId:auditStory.id,chapterId:'empty-chapter'})]})], activeCardRefs: [] } : auditStory,
+            loadingState: { status: 'loaded' }, isLoading: false, pendingStoryLifecycle: [],
         }
         return new Proxy(data, { get: (target, key) => key in target ? Reflect.get(target, key) : done }) as unknown as DataValue
     }, [editing, route, state])

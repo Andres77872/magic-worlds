@@ -1,3 +1,7 @@
+import { beforeEach as beforeEachGrantedFeatures } from 'vitest'
+import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/testing/featureFlagTestUtils'
+beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('../baseUrl', () => ({ API_BASE_URL: 'https://api.test.invalid' }))
@@ -28,10 +32,10 @@ describe('profile extraction transport', () => {
     })
     beforeEach(() => {
         vi.clearAllMocks()
-        vi.stubEnv('VITE_FEATURE_LOREBOOKS_ENABLED', 'true')
-        vi.stubEnv('VITE_FEATURE_LOREBOOK_RESOURCES_ENABLED', 'true')
+        setTestFeatureFlags({ lorebooks: true })
+        setTestFeatureFlags({ lorebookResources: true })
         localStorage.clear()
-        authSession.authenticate('alice', 'token')
+        authSession.authenticate('alice', 'token'); grantFixtureFeatures(true)
         vi.stubGlobal('fetch', fetchMock)
     })
     afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); authSession.continueSignedOut() })

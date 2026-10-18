@@ -9,7 +9,7 @@
  * nothing here may be captured at extension-construction time.
  */
 
-import { useEffect, useRef, useState, type RefObject } from 'react'
+import { useEffect, useId, useRef, useState, type RefObject } from 'react'
 import type { SuggestionProps } from '@tiptap/suggestion'
 
 export interface MenuAnchor {
@@ -40,6 +40,8 @@ interface UseSuggestionMenuOptions<TItem, TCommand> {
     onEscape?: (state: SuggestionMenuState<TItem>) => void
     /** Fired when the menu opens and closes — the slash menu drives the AI phase with it. */
     onOpenChange?: (open: boolean) => void
+    /** Preview the selected source with Alt+Enter without accepting it. */
+    onInspect?: (item: TItem) => void
 }
 
 /**
@@ -70,13 +72,20 @@ export function useSuggestionMenu<TItem, TCommand = TItem>({
     toCommand,
     onEscape,
     onOpenChange,
+    onInspect,
 }: UseSuggestionMenuOptions<TItem, TCommand>) {
+    const menuId = useId()
     const [menu, setMenu] = useState<SuggestionMenuState<TItem> | null>(null)
-    const [index, setIndex] = useState(0)
+    const [index, setRenderedIndex] = useState(0)
+    const indexRef = useRef(0)
+    const setIndex = (next: number) => {
+        indexRef.current = next
+        setRenderedIndex(next)
+    }
 
     // The controller is rebuilt on every render and the plugin reads it through
-    // the ref at event time, so these handlers already close over the current
-    // menu and index — no mirror ref needed.
+    // the ref at event time. Keep the selected row synchronous: another key can
+    // arrive before React publishes the render requested by an arrow key.
     const controllerRef = useRef<SuggestionMenuController<TItem, TCommand> | null>(null)
 
     const stateFrom = (props: SuggestionProps<TItem, TCommand>): SuggestionMenuState<TItem> | null => {
@@ -97,7 +106,7 @@ export function useSuggestionMenu<TItem, TCommand = TItem>({
             const next = stateFrom(props)
             if (!next) return
             setMenu(next)
-            setIndex((current) => Math.min(current, Math.max(props.items.length - 1, 0)))
+            setIndex(Math.min(indexRef.current, Math.max(props.items.length - 1, 0)))
         },
         onExit: () => {
             setMenu(null)
@@ -107,15 +116,19 @@ export function useSuggestionMenu<TItem, TCommand = TItem>({
             if (!menu) return false
             const count = menu.items.length
             if (event.key === 'ArrowDown') {
-                setIndex(count ? (index + 1) % count : 0)
+                setIndex(count ? (indexRef.current + 1) % count : 0)
                 return true
             }
             if (event.key === 'ArrowUp') {
-                setIndex(count ? (index - 1 + count) % count : 0)
+                setIndex(count ? (indexRef.current - 1 + count) % count : 0)
                 return true
             }
             if (event.key === 'Enter') {
-                const item = menu.items[index]
+                const item = menu.items[indexRef.current]
+                if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+                    if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && item && onInspect) { onInspect(item); return true }
+                    return false
+                }
                 if (item) menu.command(item)
                 return true
             }
@@ -133,5 +146,5 @@ export function useSuggestionMenu<TItem, TCommand = TItem>({
         controllerRef.current = controller
     })
 
-    return { menu, index, setIndex, controllerRef }
+    return { menu, index, setIndex, controllerRef, menuId }
 }

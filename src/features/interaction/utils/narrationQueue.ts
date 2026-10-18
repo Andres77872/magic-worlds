@@ -30,6 +30,7 @@ export type ClipSkipReason = 'failed' | 'daily_limit' | 'not_narrated'
  */
 const NON_RETRYABLE_CODES = new Set([
     'attestation_required',
+    'call_reply_not_narratable',
     'content_blocked',
     'daily_limit_reached',
     'invalid_request',
@@ -110,6 +111,8 @@ export function narrationErrorKey(error: ChatTtsError | null | undefined): strin
             return 'interaction.narration.dailyLimit'
         case 'not_narrated':
             return 'interaction.narration.notNarrated'
+        case 'call_reply_not_narratable':
+            return 'interaction.narration.callReplyReplayOnly'
         // Voice gates (09 §2.2): token bucket, Free prerequisites, kill switch or spent budget.
         case 'rate_limited':
             return 'voices.errors.rateLimited'

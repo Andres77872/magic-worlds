@@ -4,7 +4,6 @@
  * Bars are proportional to the largest value in their column so the busiest
  * plan / operation reads at a glance.
  */
-import { isOperationFeatureEnabled } from '@/shared/featureFlags'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Activity, Gauge } from 'lucide-react'
@@ -30,9 +29,9 @@ export function UsageBreakdown({ overview }: UsageBreakdownProps) {
     }
 
     const maxMonth = Math.max(0, ...overview.plans.map((plan) => plan.credits_used_month))
-    const maxOperation = Math.max(0, ...overview.operations_month.filter(operation => isOperationFeatureEnabled(operation.operation)).map((operation) => operation.credits_used))
+    const maxOperation = Math.max(0, ...overview.operations_month.map((operation) => operation.credits_used))
     const monthLabel = formatMonth(overview.month, intlLocale)
-    const capacityRows = overview.capacity_month.filter((row) => isOperationFeatureEnabled(row.operation) && (payerFilter === 'all' || row.payer_mode === payerFilter))
+    const capacityRows = overview.capacity_month.filter((row) => (payerFilter === 'all' || row.payer_mode === payerFilter))
 
     return (
         <div className="flex flex-col gap-8">
@@ -96,7 +95,7 @@ export function UsageBreakdown({ overview }: UsageBreakdownProps) {
                     {t('admin.membership.usage.operationsDescription')}
                 </p>
                 <ul className="flex flex-col divide-y divide-line-faint">
-                    {overview.operations_month.filter(operation => isOperationFeatureEnabled(operation.operation)).map((operation) => (
+                    {overview.operations_month.map((operation) => (
                         <li key={operation.operation} className="grid grid-cols-[minmax(0,1fr)_minmax(120px,2fr)_auto] items-center gap-4 py-2.5">
                             <div className="min-w-0">
                                 <span className="block truncate font-ui text-sm font-semibold text-parchment-100">{operationName(operation.operation, t)}</span>

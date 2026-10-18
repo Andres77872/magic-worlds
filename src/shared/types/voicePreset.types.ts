@@ -38,10 +38,12 @@ export interface CharacterVoiceV2 {
 
 /** Provider identity is paired with its versioned stored shape. */
 export type VoiceProvider = 'elevenlabs' | 'fish_audio'
+export type FishSpeechModel = 'drama-3' | 's2.1-pro'
 
 export interface CharacterVoiceV3 extends Omit<CharacterVoiceV2, 'schema_version' | 'provider' | 'settings'> {
   schema_version: 3
   provider: 'fish_audio'
+  model_id?: FishSpeechModel
   settings?: Record<string, never> | null
   performance?: VoicePerformance | null
 }
@@ -62,6 +64,7 @@ export interface ElevenLabsVoicePreset {
 export interface FishVoicePreset extends Omit<ElevenLabsVoicePreset, 'schema_version' | 'provider' | 'settings'> {
     schema_version: 3
     provider: 'fish_audio'
+    model_id?: FishSpeechModel
     settings: Record<string, never> | null
     performance?: VoicePerformance | null
 }
@@ -78,6 +81,7 @@ export type VoicePreset = ElevenLabsVoicePreset | FishVoicePreset
 export type VoicePresetV2Write = Pick<ElevenLabsVoicePreset, 'name' | 'description' | 'voice_key' | 'settings' | 'emotion'> & {
     schema_version?: 3
     provider?: 'fish_audio'
+    model_id?: FishSpeechModel
     performance?: VoicePerformance | null
 }
 
@@ -100,8 +104,11 @@ export interface PreviewTextsResponse {
  * never free text. Exactly these keys (extra=forbid).
  */
 export interface VoicePresetPreviewRequestV2 {
+    /** Maximum authorized app-credit debit for a new render; omission means zero. */
+    max_credit_cost?: 0 | 1
     schema_version?: 3
     provider?: 'fish_audio'
+    model_id?: FishSpeechModel
     performance?: VoicePerformance | null
     voice_key: string
     settings: VoiceSettingsV2 | null
@@ -113,6 +120,7 @@ export interface VoicePresetPreviewRequestV2 {
 
 /** Metered preview result; the audio is `GET /voice-presets/preview/{cache_key}.mp3` (authed blob). */
 export interface VoicePresetPreviewResponse {
+    charged_credits?: number
     cache_key: string
     url?: string | null
     cached?: boolean

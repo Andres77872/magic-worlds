@@ -1,3 +1,4 @@
+import { verifyNovelAssistantRecord } from './novelAssistantContract'
 import type { AssistantKind, AssistantTurnResponse } from '@/shared/types/assistant.types'
 import { hasValidOptionalOrganization, isOrganizationWarnings } from './workspaceContract'
 
@@ -6,7 +7,7 @@ const positiveId = (value: unknown): value is number => Number.isSafeInteger(val
 const uuid = (value: unknown): value is string => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
 const messageFields = new Set(['message_id', 'conversation_id', 'user_id', 'project_hash', 'user_group_hash', 'sequence_no',
     'role', 'status', 'content', 'tool_calls', 'tool_call_id', 'tool_name', 'metadata', 'created_at', 'updated_at', 'completed_at'])
-const conversationFields = new Set(['conversation_id', 'user_id', 'project_hash', 'user_group_hash', 'kind', 'card_type', 'card_id', 'lorebook_id',
+const conversationFields = new Set(['conversation_id', 'user_id', 'project_hash', 'user_group_hash', 'kind', 'card_type', 'card_id', 'lorebook_id', 'story_id',
     'title', 'conversation_version', 'active_request_id', 'active_request_started_at', 'created_at', 'updated_at',
     // Workspace R1: the conversation's owning workspace (server-owned).
     'organization'])
@@ -20,7 +21,7 @@ const documentFields = ['tool_message', 'target', 'target_cas', 'applied_actions
  * has three terminal messages there and two for `app`.
  */
 export function verifyAssistantTurn<K extends AssistantKind>(value: unknown, kind: K, conversationId: number, requestId: string): value is AssistantTurnResponse<K> {
-    const document = kind !== 'app'
+    const document = kind === 'card' || kind === 'lorebook'
     // Workspace R1: a card turn also reports `organization_warnings` (initial collections removed before it finished).
     const warned = kind === 'card' && object(value) && 'organization_warnings' in value
     const fields = [...(document ? [...coreFields, ...documentFields] : coreFields), ...(warned ? ['organization_warnings'] : [])]
@@ -65,6 +66,10 @@ export function verifyAssistantTurn<K extends AssistantKind>(value: unknown, kin
             || (tool && tool.sequence_no !== assistant.sequence_no + 1)) return false
     } else if (userMetadata.request_id !== requestId
         || !terminal.every((message, index) => (message as Record<string, unknown>).sequence_no === firstSequence + index)) return false
+    if(kind==='novel' && (typeof value.conversation.story_id!=='string' || !value.conversation.story_id || value.conversation.card_type!=null || value.conversation.card_id!=null || value.conversation.lorebook_id!=null
+        || !verifyNovelAssistantRecord(assistantMetadata.novel,value.conversation.story_id,plan.execution_id as string)
+        || assistantMetadata.novel.context.request.message!==first.content || assistantMetadata.novel.result.answer!==assistant.content))return false
+    if(kind!=='novel'&&value.conversation.story_id!=null)return false
     const ids = new Set<number>()
     let sequence = 0
     for (const message of messages) {

@@ -1,3 +1,4 @@
+import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AdminGlobalPresetInput } from '@/shared'
 import { apiService } from '../index'
@@ -47,7 +48,7 @@ const ROW = {
 
 describe('admin global presets API (EP-5)', () => {
     beforeEach(() => {
-        vi.stubEnv('VITE_FEATURE_VOICES_ENABLED', 'true')
+        setTestFeatureFlags({ voices: true })
         localStorage.clear()
         localStorage.setItem('magic_worlds:token', 'root-token')
         fetchMock.mockReset()

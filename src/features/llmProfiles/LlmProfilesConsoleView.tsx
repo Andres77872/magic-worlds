@@ -1,3 +1,4 @@
+import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * Layout of both LLM profile pages, fed by `useLlmProfilesConsole` (or fixtures
  * in Storybook).
@@ -32,6 +33,7 @@ interface LlmProfilesConsoleViewProps {
 }
 
 export function LlmProfilesConsoleView({ state, onManageAppProfiles }: LlmProfilesConsoleViewProps) {
+    useFeatureFlags()
     const { t } = useTranslation()
     const { systemAdmin, loading, busy, profiles, details, models, preferences, assignments, editor, actions } = state
     const order = (items: LlmProfileSummary[]) => [...items].sort((a, b) => Number(a.status === 'archived') - Number(b.status === 'archived'))

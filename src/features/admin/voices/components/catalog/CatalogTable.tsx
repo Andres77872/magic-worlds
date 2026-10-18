@@ -31,7 +31,7 @@ export function CatalogTable({ voices, onManage }: CatalogTableProps) {
     const languageLines = (voice: AdminCatalogVoice) => {
         const languages = [...new Set([...voice.languages.map((entry) => entry.language), ...voice.acceptance.map((row) => row.language)])].sort()
         return languages.map((language) => {
-            const models = voice.provider === 'fish_audio' ? ['drama-3'] : ACCEPTANCE_MODELS
+            const models = voice.provider === 'fish_audio' ? ['drama-3', 's2.1-pro'] : ACCEPTANCE_MODELS
             const accepted = models.filter((modelId) =>
                 voice.acceptance.some((row) => row.model_id === modelId && row.language === language && row.verdict === 'pass'),
             )

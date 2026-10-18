@@ -4,6 +4,7 @@ import { ApiError } from '@/infrastructure/api'
 import type { VoiceCallState } from '@/shared/types/voice.types'
 import { installVoiceNarrationCopy } from '@/test-utils/voiceNarrationCopy'
 import { CallScreenView, type CallScreenViewProps } from './CallScreen'
+import type { LiveTranscriptLine } from '../liveTranscript'
 
 function baseProps(overrides: Partial<CallScreenViewProps> = {}): CallScreenViewProps {
     return {
@@ -48,7 +49,7 @@ describe('CallScreenView', () => {
     })
 
     it.each([
-        ['voice_unavailable', /voice isn’t available right now/i],
+        ['voice_unavailable', /voice can’t take calls right now/i],
         ['moderation_unavailable', /briefly unavailable/i],
     ] as const)('explains a tts_unavailable voice_error by its %s code, not as a provider failure', (code, copy) => {
         render(<CallScreenView {...baseProps({ state: 'listening', error: { category: 'tts_unavailable', code, message: 'raw', fatal: false } })} />)
@@ -56,6 +57,43 @@ describe('CallScreenView', () => {
         const alert = screen.getByRole('alert')
         expect(alert).toHaveTextContent(copy)
         expect(alert).not.toHaveTextContent(/voice provider could not complete/i)
+    })
+
+    it('shows the call setup in the start dialog and holds the start until it is ready', () => {
+        const onAcceptConsent = vi.fn()
+        const setup = <section data-testid="call-setup">setup</section>
+        const { rerender } = render(<CallScreenView {...baseProps({ state: 'idle', consentOpen: true, setup, setupBlocked: true, onAcceptConsent })} />)
+
+        const dialog = screen.getByRole('dialog')
+        expect(within(dialog).getByTestId('call-setup')).toBeInTheDocument()
+        const start = within(dialog).getByRole('button', { name: /consent and start/i })
+        expect(start).toBeDisabled()
+
+        rerender(<CallScreenView {...baseProps({ state: 'idle', consentOpen: true, setup, setupBlocked: false, onAcceptConsent })} />)
+        fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /consent and start/i }))
+        expect(onAcceptConsent).toHaveBeenCalledTimes(1)
+    })
+
+    it.each(['voice_unavailable', 'call_model_unavailable'])('leads a %s refusal to the call settings instead of a redial', (code) => {
+        const onOpenSetup = vi.fn()
+        render(<CallScreenView {...baseProps({
+            state: 'error',
+            error: { category: 'provider_submission', code, message: 'raw', fatal: true },
+            setup: <section>setup</section>,
+            onOpenSetup,
+            onCallAgain: vi.fn(),
+        })} />)
+
+        expect(screen.queryByRole('button', { name: 'Call again' })).not.toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button', { name: 'Call settings' }))
+        expect(onOpenSetup).toHaveBeenCalledTimes(1)
+    })
+
+    it('offers both a redial and the call settings after an ordinary end', () => {
+        render(<CallScreenView {...baseProps({ state: 'ended', endReason: 'user', setup: <section>setup</section>, onOpenSetup: vi.fn(), onCallAgain: vi.fn() })} />)
+
+        expect(screen.getByRole('button', { name: 'Call again' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Call settings' })).toBeInTheDocument()
     })
 
     it('renders live captions for both the character and the user', () => {
@@ -300,5 +338,77 @@ describe('CallScreenView redial after a terminal voice refusal (R1/R2)', () => {
     it('keeps the redial for a generic error (R0 unchanged)', () => {
         render(<CallScreenView {...baseProps({ state: 'error', error: { category: 'internal', code: 'VOICE_CONNECTION_LOST', message: 'lost', fatal: true }, onCallAgain: vi.fn() })} />)
         expect(screen.getByRole('button', { name: 'Call again' })).toBeInTheDocument()
+    })
+})
+
+describe('CallScreenView live transcript', () => {
+    const line = (role: 'user' | 'assistant', turnId: string, text: string, extra: Partial<LiveTranscriptLine> = {}): LiveTranscriptLine => ({
+        id: `${role}:${turnId}`, turnId, role, text, streaming: false, interrupted: false, ...extra,
+    })
+    const conversation = [
+        line('user', 't1', 'Who are you?'),
+        line('assistant', 't1', 'A keeper of maps (laughs).'),
+        line('user', 't2', 'Show me the road.'),
+        line('assistant', 't2', 'The northern', { interrupted: true }),
+    ]
+
+    it('captions the last exchange in order, user first, without speech markup', () => {
+        render(<CallScreenView {...baseProps({ state: 'listening', transcriptLines: conversation })} />)
+        const captions = screen.getByTestId('call-captions')
+        const texts = within(captions).getAllByText(/road|northern/).map((node) => node.textContent)
+        expect(texts[0]).toContain('Show me the road.')
+        expect(texts[1]).toContain('The northern')
+        expect(captions).toHaveTextContent('(interrupted)')
+        expect(captions).not.toHaveTextContent('Who are you?')
+    })
+
+    it('opens the whole transcript from the header and announces complete lines only', () => {
+        const streaming = [...conversation, line('assistant', 't3', 'Partial rep', { streaming: true })]
+        render(<CallScreenView {...baseProps({ state: 'assistant_thinking', transcriptLines: streaming })} />)
+        expect(screen.queryByTestId('call-live-transcript')).toBeNull()
+
+        const toggle = screen.getByRole('button', { name: 'Show transcript' })
+        fireEvent.click(toggle)
+        const panel = screen.getByTestId('call-live-transcript')
+        expect(screen.getByRole('button', { name: 'Hide transcript' })).toHaveAttribute('aria-pressed', 'true')
+        const log = within(panel).getByRole('log')
+        expect(within(log).getAllByRole('listitem')).toHaveLength(5)
+        expect(log).toHaveTextContent('A keeper of maps.')
+        expect(log).not.toHaveTextContent('(laughs)')
+        // The live region reads the newest complete line, never the streaming reply.
+        expect(screen.getByTestId('call-live-announcement')).toHaveTextContent('Lyra: The northern')
+    })
+
+    it('invites the user to speak first on a fresh call', () => {
+        render(<CallScreenView {...baseProps({ state: 'listening', transcriptLines: [] })} />)
+        expect(screen.getByTestId('call-first-turn-hint')).toHaveTextContent('Lyra is listening')
+    })
+
+    it('offers the transcript on the end panel once the call is over', () => {
+        render(<CallScreenView {...baseProps({ state: 'ended', endReason: 'user', transcriptLines: conversation })} />)
+        // The header toggle and the end panel both offer it; the end panel's is the labelled button.
+        const buttons = screen.getAllByRole('button', { name: 'Show transcript' })
+        expect(buttons).toHaveLength(2)
+        fireEvent.click(buttons[1])
+        expect(screen.getByTestId('call-live-transcript')).toBeInTheDocument()
+    })
+
+    it('toggles the microphone with M during a call, but not while typing', () => {
+        const onMute = vi.fn()
+        const onUnmute = vi.fn()
+        const { rerender } = render(<CallScreenView {...baseProps({ state: 'listening', onMute, onUnmute })} />)
+        fireEvent.keyDown(document.body, { key: 'm' })
+        expect(onMute).toHaveBeenCalledTimes(1)
+        rerender(<CallScreenView {...baseProps({ state: 'listening', isMuted: true, onMute, onUnmute })} />)
+        fireEvent.keyDown(document.body, { key: 'M' })
+        expect(onUnmute).toHaveBeenCalledTimes(1)
+        const input = document.createElement('input')
+        document.body.appendChild(input)
+        fireEvent.keyDown(input, { key: 'm' })
+        expect(onUnmute).toHaveBeenCalledTimes(1)
+        input.remove()
+        rerender(<CallScreenView {...baseProps({ state: 'ended', onMute, onUnmute })} />)
+        fireEvent.keyDown(document.body, { key: 'm' })
+        expect(onMute).toHaveBeenCalledTimes(1)
     })
 })

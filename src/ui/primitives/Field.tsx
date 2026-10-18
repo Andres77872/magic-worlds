@@ -11,7 +11,6 @@ import {
     type HTMLAttributes,
     type ComponentPropsWithRef,
     type ReactNode,
-    type TextareaHTMLAttributes,
 } from 'react'
 import { cx } from './cx'
 import { FieldContext, useFieldContext } from './fieldContext'
@@ -73,7 +72,7 @@ export function Input({ className, id, ...rest }: ComponentPropsWithRef<'input'>
     )
 }
 
-export function Textarea({ className, id, rows, ...rest }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+export function Textarea({ className, id, rows, ...rest }: ComponentPropsWithRef<'textarea'>) {
     const ctx = useFieldContext()
     return (
         <textarea

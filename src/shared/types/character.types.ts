@@ -48,6 +48,11 @@ export interface Character {
     /** Newest saved version pointer (read-only; 0/absent when no version saved yet). */
     latest_version_id?: string | null
     latest_version_number?: number
+    /** Frozen conversation provenance; read-only, separate from the live library head. */
+    source_card_id?: string
+    source_card_version_id?: string | null
+    source_card_version_number?: number
+    newer_version_available?: boolean
     /** Owner-only: true when there are unpublished draft edits (absent on foreign reads). */
     has_draft?: boolean
     draft_updated_at?: string | null
