@@ -186,28 +186,10 @@ export function safeResponseSegments(value: unknown): ChatResponseSegment[] {
         .slice(0, 32)
 }
 
-// Credential-shaped text never renders. Bare words like "secret", "bearer",
-// or "authorization" legitimately appear in fiction ("secretos olvidados"),
-// so they only count in key/token-shaped contexts — otherwise a cast member's
-// whole reply silently disappears from the transcript.
-const CREDENTIAL_TEXT_RE = /secret[_-]?key|client_secret|secret\s*[=:]|authorization\s*[=:]|bearer\s+[a-z0-9._-]{16,}/i
-
+// Narrative is ordinary model content. Credential validation belongs to the
+// request/configuration boundary; only type and display length are checked here.
 function safeText(value: unknown, max: number): string {
-    if (typeof value !== 'string') return ''
-    const text = value.trim()
-    const lowered = text.toLowerCase()
-    if (
-        !text ||
-        lowered.includes('http://') ||
-        lowered.includes('https://') ||
-        lowered.includes('/var/') ||
-        lowered.includes('/tmp/') ||
-        lowered.includes('api_key') ||
-        CREDENTIAL_TEXT_RE.test(text)
-    ) {
-        return ''
-    }
-    return text.slice(0, max)
+    return typeof value === 'string' ? value.trim().slice(0, max) : ''
 }
 
 function decodeXmlEntities(value: string): string {

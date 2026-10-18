@@ -19,6 +19,7 @@ import {
 import { clearVoiceCapabilitiesCache, toVoiceCapabilities } from '@/shared/voice/voiceCapabilities'
 import { gptProfile, kreaProfile, rootList } from '@/features/imageProfiles/imageProfileFixtures'
 import { InteractionCenterPanel } from './InteractionCenterPanel'
+import { SessionPersonaError } from '@/utils/characterRoles'
 
 vi.mock('../../../infrastructure/api/useAuthenticatedMediaUrl', () => ({
     useAuthenticatedMediaUrl: (url?: string | null) => ({ src: url ?? undefined, loading: false, error: null }),
@@ -181,6 +182,22 @@ describe('InteractionCenterPanel message deletion', () => {
         await act(async () => { fireEvent.click(screen.getByLabelText('Send message')) })
         expect(sendChat).toHaveBeenCalledExactlyOnceWith('Hello Lyra', expect.any(String))
         expect(ensureSession).toHaveBeenCalledTimes(2)
+    })
+
+    it.each([
+        new SessionPersonaError('invalid'),
+        { status: 422, message: 'persona_id must reference a persona card' },
+        { status: 404, message: 'Persona not found' },
+    ])('preserves the first message and explains persona setup rejection: %j', async (error) => {
+        const ensureSession = vi.fn().mockRejectedValue(error)
+        const sendChat = vi.fn()
+        hookMocks.useAdventureChatSocket.mockReturnValue({ status: 'closed', sendChat, sendTts: vi.fn(), cancel: vi.fn() })
+        renderPanel(makeConfig(), [], Number.NaN, undefined, undefined, ensureSession)
+        fireEvent.change(screen.getByPlaceholderText('What next?'), { target: { value: 'Hello Lyra' } })
+        await act(async () => { fireEvent.click(screen.getByLabelText('Send message')) })
+        expect(screen.getByPlaceholderText('What next?')).toHaveValue('Hello Lyra')
+        expect(screen.getByText(/Choose an available persona card before starting/)).toBeInTheDocument()
+        expect(sendChat).not.toHaveBeenCalled()
     })
 
     it('does not send a first message if the draft was left while creation was pending', async () => {

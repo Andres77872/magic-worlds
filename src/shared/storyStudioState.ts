@@ -140,3 +140,11 @@ export function studioReviewVersion(story:StoryOutline):string {
         story.parts.map((part)=>[part.id,part.metadataRevision]),
         story.chapters.map((chapter)=>[chapter.id,chapter.metadataRevision,chapter.scenes.map((scene)=>[scene.id,scene.metadataRevision,scene.revision,scene.contentHash])])])
 }
+/**
+ * Whether the studio's novel describes the saved heads of a verified index. A save acknowledged in place leaves the
+ * novel without a source version until the next index, so its heads are compared instead.
+ */
+export function studioMatchesIndex(story:StoryOutline,index:StoryStudioIndex):boolean {
+    if(!isStudioSource(story)||story.sourceVersion===index.sourceVersion)return true
+    return story.sourceVersion===null&&studioReviewVersion(story)===studioReviewVersion(index)
+}

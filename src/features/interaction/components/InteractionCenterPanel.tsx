@@ -36,6 +36,7 @@ import {isCallReply, isCallTurn, turnVoiceSessionId} from '../utils/callTurnMark
 import {buildCallTranscriptHash} from '@/features/call/callLinks'
 import {finalizeResponseSegments, resolveSegmentIdentity, segmentsToPlainText, streamingXmlToPlainText, streamingXmlToSegments} from '@/utils/chatSegments'
 import { scrollBehavior } from '@/utils/motion'
+import { isSessionPersonaError } from '@/utils/characterRoles'
 import type { LlmFeature } from '@/shared/types/llm.types'
 import { LlmFeatureControl } from '@/features/llmProfiles/LlmFeatureControl'
 import { llmRecoveryMessage } from '@/features/llmProfiles/llmRecovery'
@@ -1460,10 +1461,10 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
             if (!Number.isSafeInteger(id) || id < 1) throw new Error('Invalid session id')
             firstMessageRef.current = content
             setCreatedSessionId(id)
-        }).catch(() => {
+        }).catch((error: unknown) => {
             if (mountedRef.current && !fence.stopped) {
                 setIsLoading(false)
-                setError(t('interaction.center.generateFailed'))
+                setError(t(isSessionPersonaError(error) ? 'ui.personaPicker.invalidPersona' : 'interaction.center.generateFailed'))
             }
         }).finally(() => {
             if (creatingSessionRef.current === fence) creatingSessionRef.current = null

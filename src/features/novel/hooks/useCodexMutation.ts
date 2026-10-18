@@ -1,7 +1,7 @@
 import { useEffect,useLayoutEffect,useRef,useState } from 'react'
 import { useAuth,useData } from '@/app/hooks'
 import { ApiError } from '@/infrastructure/api'
-import type { StoryOutline,StoryCodexOperation,StoryCodexWrite } from '@/shared'
+import type { StoryOutline,StoryCodexAcknowledgement,StoryCodexOperation,StoryCodexWrite } from '@/shared'
 import { adoptNovelMutation,novelMutationKey,retireNovelMutation,type NovelJournalRecord } from '@/shared/novelMutationJournal'
 import { makeRequestId } from '@/utils/uuid'
 import { canonicalJson } from '@/utils/json'
@@ -27,7 +27,7 @@ export function useCodexMutation(story:StoryOutline|null,workspace:StoryWorkspac
         if(record)attempts.current.set(identity,record)
         setState({identity,record,busy:flights.current.has(identity),storageFailed:false,error:null})
     },[identity,key])
-    async function perform(operation?:StoryCodexOperation,expectedContextRevision?:number){
+    async function perform(operation?:StoryCodexOperation,expectedContextRevision?:number):Promise<StoryCodexAcknowledgement|undefined>{
         const current=live.current
         if(!current.story||!current.workspace.isCurrent())throw new ApiError(409,'The novel workspace changed. Your request is retained.',{code:'STORY_SCOPE_CHANGED'})
         if(flights.current.has(current.identity))throw new ApiError(409,'The Codex request is still running.',{code:'STORY_PENDING_OPERATION'})
@@ -42,9 +42,10 @@ export function useCodexMutation(story:StoryOutline|null,workspace:StoryWorkspac
         const isCurrent=()=>mounted.current&&live.current.identity===current.identity&&current.workspace.isCurrent()
         setState({identity:current.identity,record:pending,busy:true,storageFailed:Boolean(current.key)&&!stored,error:null})
         try{
-            await changeStoryCodex(current.story.id,pending.write)
+            const ack=await changeStoryCodex(current.story.id,pending.write)
             retireNovelMutation(pending,current.key);attempts.current.delete(current.identity)
             if(isCurrent())setState({identity:current.identity,record:null,busy:false,storageFailed:false,error:null})
+            return ack
         }catch(error){
             const definite=error instanceof ApiError&&error.status>=400&&error.status<500&&![408,429].includes(error.status)
             // A library card that changed or left during a review is reported by the review itself; the Codex did not change.
@@ -58,5 +59,5 @@ export function useCodexMutation(story:StoryOutline|null,workspace:StoryWorkspac
         }finally{flights.current.delete(current.identity)}
     }
     const current=state.identity===identity?state:null
-    return {perform,pending:current?.record?.write??null,busy:current?.busy??false,error:current?.error??null,storageFailed:current?.storageFailed??false,retry:()=>perform(),canRetry:!workspaceReadOnly}
+    return {perform,pending:current?.record?.write??null,busy:current?.busy??false,error:current?.error??null,storageFailed:current?.storageFailed??false,retry:async()=>{await perform()},canRetry:!workspaceReadOnly}
 }

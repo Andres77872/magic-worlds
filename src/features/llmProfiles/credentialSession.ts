@@ -4,8 +4,9 @@ import type { EffectiveLlmProfile } from '@/shared/types/llmProfile.types'
 import type { LlmRequest } from '@/shared/types/llm.types'
 import type { LlmFeature } from '@/shared/types/llm.types'
 
-const credentials = new Map<string, string>()
-const activeTargets = new Map<LlmFeature, { owner: string; target: string }>()
+const credentials = new Map<string, { key: string; generation: number }>()
+let credentialGeneration = 0
+const activeTargets = new Map<LlmFeature, { owner: string; target: string; revision: string }>()
 let projectContext: { account: string; project: string } | null = null
 const listeners = new Set<() => void>()
 let version = 0
@@ -32,7 +33,7 @@ function slot(profile: EffectiveLlmProfile): string {
         throw new Error('LLM_PERSONAL_CREDENTIAL_FORBIDDEN')
     }
     if (profile.project_hash !== projectContext?.project) throw new Error('LLM_SESSION_CHANGED')
-    return JSON.stringify([ownerScope(), profile.provider_target_key])
+    return JSON.stringify([ownerScope(), profile.provider_target_key, profile.catalog_revision])
 }
 
 let rememberedOwner: string | null = null
@@ -65,13 +66,27 @@ export const credentialSession = {
     select(feature: LlmFeature, profile: EffectiveLlmProfile): void {
         synchronize()
         const previous = activeTargets.get(feature)
-        if (previous && (profile.credential_mode !== 'user_byok' || previous.target !== profile.provider_target_key)) {
-            if (credentials.delete(JSON.stringify([previous.owner, previous.target]))) changed()
+        if (previous && (profile.credential_mode !== 'user_byok' || previous.target !== profile.provider_target_key || previous.revision !== profile.catalog_revision)) {
+            if (credentials.delete(JSON.stringify([previous.owner, previous.target, previous.revision]))) changed()
             activeTargets.delete(feature)
         }
-        if (profile.credential_mode === 'user_byok') activeTargets.set(feature, { owner: ownerScope(), target: profile.provider_target_key })
+        if (profile.credential_mode === 'user_byok') activeTargets.set(feature, { owner: ownerScope(), target: profile.provider_target_key, revision: profile.catalog_revision })
     },
     forget(profile: EffectiveLlmProfile): void { synchronize(); if (credentials.delete(slot(profile))) changed() },
+    rejectionHandler(feature: LlmFeature): () => void {
+        synchronize()
+        const target = activeTargets.get(feature)
+        const key = target ? JSON.stringify([target.owner, target.target, target.revision]) : undefined
+        const generation = key ? credentials.get(key)?.generation : undefined
+        // A late rejection must not erase a replacement key or another owner.
+        // This callback retains only a slot and generation, never the secret.
+        return () => {
+            if (key && generation !== undefined && credentials.get(key)?.generation === generation) {
+                credentials.delete(key)
+                changed()
+            }
+        }
+    },
     has(profile: EffectiveLlmProfile): boolean { synchronize(); try { return credentials.has(slot(profile)) } catch { return false } },
     remember(profile: EffectiveLlmProfile, key: string, expectedOwner: string): void {
         if (profile.credential_mode !== 'user_byok' || profile.profile_scope !== 'user' || profile.platform_connection_key !== null) throw new Error('LLM_PERSONAL_CREDENTIAL_FORBIDDEN')
@@ -81,7 +96,7 @@ export const credentialSession = {
         if (owner !== expectedOwner) throw new Error('LLM_SESSION_CHANGED')
         if (!API_BASE_URL.startsWith('https://')) throw new Error('LLM_CREDENTIAL_HTTPS_REQUIRED')
         if (!key || key.length > 4096 || key !== key.trim() || /[\x00-\x1f\x7f]/.test(key)) throw new Error('LLM_CREDENTIAL_INVALID')
-        credentials.set(slot(profile), key)
+        credentials.set(slot(profile), { key, generation: ++credentialGeneration })
         changed()
     },
     materialize(profile: EffectiveLlmProfile): LlmRequest {
@@ -89,7 +104,7 @@ export const credentialSession = {
         const selection = { mode: 'profile' as const, profile_id: profile.profile_id }
         if (profile.credential_mode === 'platform') return { selection, expected_revision_id: profile.revision_id }
         if (!API_BASE_URL.startsWith('https://')) throw new Error('LLM_CREDENTIAL_HTTPS_REQUIRED')
-        const key = credentials.get(slot(profile))
+        const key = credentials.get(slot(profile))?.key
         if (!key) throw new Error('BYOK_CREDENTIAL_REQUIRED')
         return { selection, expected_revision_id: profile.revision_id, credentials: { api_key: key } }
     },

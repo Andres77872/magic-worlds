@@ -167,6 +167,10 @@ export function verifyStoryCodexAcknowledgement(value:unknown,storyId:string,wri
     const operation=write.operation
     const refs=value.refs as StoryCardRef[]
     if(operation.op==='add')return operation.refs.every((item)=>refs.some((ref)=>ref.kind===item.kind&&ref.cardId===item.cardId&&ref.chapterId===(item.chapterId??null)&&ref.sceneId===(item.sceneId??null)&&ref.removedAt===null))
+    // The created card or entry is copied with the reviewed name and text, pinned to its own library source.
+    if(operation.op==='discover')return refs.some((ref)=>ref.kind===operation.destination&&ref.removedAt===null&&ref.chapterId===null&&ref.sceneId===null
+        &&ref.snapshot.name===operation.fields.name&&ref.snapshot.description===operation.fields.description
+        &&(operation.destination==='lorebook_entry'?ref.snapshot.source_lorebook_id===operation.lorebookId&&ref.snapshot.id===ref.cardId:ref.snapshot.source_card_id===ref.cardId))
     const ref=refs.find((item)=>item.id===operation.id)
     // A card records the reviewed version; a template or lorebook entry records the reviewed library state.
     if(operation.op==='refresh')return Boolean(ref&&ref.removedAt===null&&(ref.snapshot.source_card_version_id===operation.sourceVersionId||ref.snapshot.source_base?.state_id===operation.sourceVersionId))
@@ -178,13 +182,17 @@ export function verifyStoryCodexLibraryVersions(value:unknown):value is StoryCod
     return value.versions.every((item)=>record(item)&&Object.keys(item).length===2&&id(item.refId)&&integer(item.latestVersionNumber))
         &&value.changed.every((item)=>record(item)&&Object.keys(item).length===2&&id(item.refId)&&stateId(item.sourceVersionId))&&new Set(ids).size===ids.length
 }
-export function verifyStoryCodexLibraryDraft(value:unknown,refId:string):value is StoryCodexLibraryDraft {
-    return record(value)&&Object.keys(value).length===5&&value.refId===refId&&(value.basis==='draft'||value.basis==='published')
+export function verifyStoryCodexLibraryDraft(value:unknown,ref:Pick<StoryCardRef,'id'|'kind'>):value is StoryCodexLibraryDraft {
+    // A character has a race; a setting or item a type.
+    const detail=ref.kind==='character'?'race':'type'
+    const optionalLine=(item:unknown)=>item===null||text(item,255)
+    return record(value)&&Object.keys(value).length===8&&value.refId===ref.id&&(value.basis==='draft'||value.basis==='published')
+        &&text(value.name,255)&&optionalLine(value.alias)&&detail in value&&optionalLine(value[detail])
         &&text(value.description,200_000)&&typeof value.stamp==='string'&&/^[0-9a-f]{64}$/.test(value.stamp)&&integer(value.versionNumber)
 }
 export function verifyStoryCodexLibraryEntry(value:unknown,ref:StoryCardRef):value is StoryCodexLibraryEntry {
-    return record(value)&&Object.keys(value).length===6&&value.refId===ref.id&&value.lorebookId===ref.snapshot.source_lorebook_id&&value.entryId===ref.cardId
-        &&text(value.title,255)&&typeof value.content==='string'&&value.content.length<=200_000&&typeof value.stamp==='string'&&/^[0-9a-f]{64}$/.test(value.stamp)
+    return record(value)&&Object.keys(value).length===7&&value.refId===ref.id&&value.lorebookId===ref.snapshot.source_lorebook_id&&value.entryId===ref.cardId
+        &&text(value.title,255)&&Array.isArray(value.keys)&&value.keys.every((key)=>text(key,255))&&typeof value.content==='string'&&value.content.length<=200_000&&typeof value.stamp==='string'&&/^[0-9a-f]{64}$/.test(value.stamp)
 }
 export function verifyStoryCodexLibraryReview(value:unknown,ref:StoryCardRef):value is StoryCodexLibraryReview {
     if(!record(value)||Object.keys(value).length!==4||value.refId!==ref.id||!record(value.current))return false

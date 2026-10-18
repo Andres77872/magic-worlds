@@ -818,6 +818,18 @@ describe('GalleryPage', () => {
         await waitFor(() => expect(setPage).toHaveBeenCalledWith('character-chat'))
     })
 
+    it('opens the persona creator from an AI-only gallery instead of starting an invalid chat', async () => {
+        mockData.characters = [{ id: 'c1', name: 'Lyra', race: 'Half-elf', role: 'character' }]
+        vi.mocked(apiService.getCharacters).mockResolvedValue(mockData.characters)
+        render(<GalleryPage type="character" />)
+        await screen.findByText('Lyra')
+        fireEvent.click(screen.getAllByRole('button', { name: 'New chat' })[0])
+        expect(startCharacterChat).not.toHaveBeenCalled()
+        fireEvent.click(screen.getByRole('button', { name: 'Create persona' }))
+        expect(setEditingCharacter).toHaveBeenCalledWith(null)
+        expect(setPage).toHaveBeenCalledWith('character', { hash: '#/character?role=persona' })
+    })
+
     it('starts a new character chat with the card-specific default persona before the global default', async () => {
         mockData.characters = [
             {

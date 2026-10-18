@@ -295,6 +295,16 @@ describe('LandingPage (returning dashboard)', () => {
         expect(screen.queryByRole('dialog', { name: 'Choose your persona' })).toBeNull()
     })
 
+    it('offers persona creation from the cast rail when the library has no persona cards', () => {
+        characters = [CHARACTERS[1]]
+        render(<LandingPage />)
+        fireEvent.click(within(screen.getByTestId('cast-rail')).getByRole('button', { name: 'Start chat' }))
+        expect(startCharacterChat).not.toHaveBeenCalled()
+        fireEvent.click(screen.getByRole('button', { name: 'Create persona' }))
+        expect(setEditingCharacter).toHaveBeenCalledWith(null)
+        expect(setPage).toHaveBeenCalledWith('character', { hash: '#/character?role=persona' })
+    })
+
     it('starts a fresh character chat with a card-specific default persona from the cast rail', async () => {
         const cardPersona = { id: 'p2', name: 'Sera', race: 'Elf', stats: {}, role: 'persona' } as Character
         const target = { ...CHARACTERS[1], default_persona_id: 'p2' } as Character

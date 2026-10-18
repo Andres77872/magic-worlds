@@ -1,12 +1,12 @@
 # Refactor, migration, and delivery plan
 
-**Delivery review:** 2026-10-16. **Status:** D1 reliability implemented locally; D2 integration WIP; D3 saved-source preparation WIP; D4–D6 planned. Author, device, accessibility and release gates remain open. Overall novel availability is **WIP**, disabled in the example configuration and enabled in the reviewed local override. See [actual status and roadmap](14_status_and_roadmap.md) for evidence, rollout gates, and TBDs.
+**Delivery review:** 2026-10-16. **Status (audited 2026-10-18):** D1–D2 installed; the D3 assistant runs (inline AI is not yet moved into its pipeline, CL-04); D4 slices 1–19 and D5 slices 1–16 run; D6 not started. Author, device, accessibility and release gates remain open. Novels need the plan grant `novels`. **Deviations from this plan:** inline commands still use their own context compiler and accept path (D3 below); export jobs use their own store and an in-process runner instead of extending the shared tasks (D5 below). See [actual status and roadmap](14_status_and_roadmap.md) for evidence, rollout gates, and TBDs.
 
 **UI/UX delivery update:** 2026-10-15. The [prototype findings and UX-01–UX-12 work items](06_ui_ux_and_accessibility.md#prototype-findings-and-prioritized-uiux-work) extend each phase below. The standalone HTML is a design reference; this update authorizes no integration or release and completes no product gate.
 
 **Database preservation correction:** 2026-10-16. Preserve recovered non-novel content and current novels. [15](15_database_migration_and_legacy_cleanup.md) requires scoped changes with a verified backup; whole-database resets are disabled. The earlier production backfill/compatibility rollout remains superseded. Keep the 136-capability target and normal product integrity.
 
-This implementation sequence retains the complete target. The current Studio uses canonical scene documents behind a flag; **D1 reliability is implemented locally**, **D2 integration remains WIP**, **D3 source preparation is WIP**, and **D4–D6 remain planned**. No phase is marked shipped. The full product target is [05](05_feature_catalog.md); phases are dependency order rather than promised dates. Current status, dependencies, accountable areas, missing evidence, and TBD decisions are tracked in [14](14_status_and_roadmap.md).
+This implementation sequence retains the complete target. The current Studio uses canonical scene documents behind a flag; **D1–D2 are installed**, **the D3 assistant runs**, **D4 and D5 are in progress**, and **D6 has not started** (audited 2026-10-18). No phase is marked shipped. The full product target is [05](05_feature_catalog.md); phases are dependency order rather than promised dates. Current status, dependencies, accountable areas, missing evidence, and TBD decisions are tracked in [14](14_status_and_roadmap.md).
 
 Collaboration is out of scope for every phase. The plan covers one author with AI, including safe operation across that author's own tabs/devices and cached offline drafts.
 
@@ -34,7 +34,7 @@ Gate: verify the installed target schema read-only, then exercise seeded save/re
 
 ## D3: grounded writing assistant
 
-The [saved-source preparation boundary](21_assistant_context_boundary.md) is implemented locally. The complete conversation/profile/proposal/application contract below remains required; a provider-free context preview does not complete D3.
+The [saved-source preparation boundary](21_assistant_context_boundary.md) and the bound conversation/profile/proposal/application contract run in the app since 2026-10-17. **Not done (audit 2026-10-18):** inline commands were not moved into the same proposal/review/commit pipeline; they still call `/stories/{id}/context-preview` (unused by the UI) and `/generate/stream`, compiled by `story_generation.py` apart from `story_assistant_context.py`.
 
 Extend unified assistant kinds/storage, published-profile feature/role support and shared conversation/message/composer hooks for the novel inspector. Add explicit scope, context compiler, evidence-linked retrieval and changesets. Move inline commands into the same proposal/review/commit pipeline. Support single-scene drafting/editing, planning assistance, custom presets, summaries, and proposed canon extraction. Coordinate common tool/effect contracts with the adjacent assistant plan; novel proposal and commit policy remains here.
 
@@ -55,6 +55,8 @@ Gate: temporal knowledge and future-revelation fixtures, stale-summary recovery,
 Deliver validated Markdown/plain-text/DOCX import, full manuscript exports, project packages, front/back matter, EPUB/PDF compilation, goals/statistics, optional read-aloud/dictation, and owned media integration. Keep existing server-persisted chapter goals. Extend shared task operation/target/result contracts and result navigation for novel jobs, and reuse media providers/owned assets. Existing card PNG export and resource PDF ingestion do not implement manuscript compilation; durable multi-step novel jobs need explicit checkpoints.
 
 Gate: support/loss matrix, round-trip corpus, deterministic revision manifests, export cancellation/retry, accessible output, and large-project performance pass. Publishing is a separate explicit handoff, never an implicit export side effect.
+
+**Status (audit 2026-10-18):** import of six formats with loss reports, export to Word/EPUB/PDF/Markdown/text with matter and companion files, packages, goals and the writing log, book copy, translation and completions run (slices 1–16). **Deviation:** export jobs (slice 13) use their own `story_export_job` store and an in-process runner instead of the shared task contracts, so they are not in the *Tasks* drawer and a BFF restart interrupts them. **Not started:** read-aloud, dictation, cover generation. **Gate evidence missing:** EPUBCheck, Microsoft Word and e-reader checks, accessible-output checks, large-project export limits.
 
 ## D6: author-owned series and extension
 

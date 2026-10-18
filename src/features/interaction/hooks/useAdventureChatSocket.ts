@@ -12,6 +12,7 @@ import { generateUUID } from '@/utils/uuid'
 import { i18n } from '@/app/i18n'
 import { useWorkspace } from '@/app/hooks/useWorkspace'
 import { imageCredentialSession } from '@/features/imageProfiles/imageCredentialSession'
+import { credentialSession } from '@/features/llmProfiles/credentialSession'
 
 function bindPreparedTarget(materialize: () => LlmRequest, target: NonNullable<AdventureChatSocketErrorDetail['llmRetry']>): LlmRequest {
     const value = materialize()
@@ -128,7 +129,7 @@ export function useAdventureChatSocket(
     const preparation = useRef<AbortController | null>(null)
     const preparing = useRef(false)
     // The frame of the turn in flight, so a key the server asks for can resend it unchanged.
-    const turnRef = useRef<{ requestId: string; content: string; existingUserMessageId?: number; keyed: boolean; target?: LlmRequest; turnId?: string; image?: ChatImageChoice } | null>(null)
+    const turnRef = useRef<{ requestId: string; content: string; existingUserMessageId?: number; keyed: boolean; rejectCredential?: () => void; target?: LlmRequest; turnId?: string; image?: ChatImageChoice } | null>(null)
     const [status, setStatus] = useState<ChatSocketStatus>('closed')
     // Kept across reconnects of one socket, so a frame flushed on reopen still knows the server's features.
     const [capabilities, setCapabilities] = useState<ChatSocketCapabilities | null>(null)
@@ -146,6 +147,7 @@ export function useAdventureChatSocket(
                 ...(value.expected_revision_id ? { expected_revision_id: value.expected_revision_id } : {}),
                 ...(value.retry_of_execution_id ? { retry_of_execution_id: value.retry_of_execution_id } : {}) }
             turn.keyed = Boolean(value.credentials)
+            turn.rejectCredential = credentialSession.rejectionHandler(feature)
             return value
         }
         const choice = turn.image
@@ -164,6 +166,7 @@ export function useAdventureChatSocket(
         }).catch(failure => {
             if (preparation.current === controller) preparing.current = false
             if (controller.signal.aborted || socket !== socketRef.current) return
+            if (requestRef.current === id) requestRef.current = undefined
             if (failure instanceof DOMException && failure.name === 'AbortError') handlersRef.current.onDone?.({ interrupted: true })
             else if (failure instanceof Error && failure.message === 'LLM_EXECUTION_INTENT_CHANGED') {
                 llmIntents.settle(feature, intentKey(id))
@@ -172,8 +175,8 @@ export function useAdventureChatSocket(
         })
     }
 
-    // A resumed turn went out without a key and the server needs one to run it:
-    // ask for it, but only send it for the same profile revision.
+    // An unkeyed platform request may resolve to BYOK on the server. Supply
+    // credentials only after preparing that same retained profile revision.
     const resendWithKey = (socket: ChatSocket, requestId: string | undefined): boolean => {
         const turn = turnRef.current
         const target = turn && requestId === turn.requestId && !turn.keyed ? llmIntents.retained(feature, intentKey(turn.requestId)) : null
@@ -328,8 +331,9 @@ export function useAdventureChatSocket(
                         current.onVoiceSafetyNotice?.(message)
                         break
                     case 'error':
+                        if (['BYOK_CREDENTIAL_REJECTED', 'PROVIDER_AUTHENTICATION_REJECTED'].includes(message.code || '')) turnRef.current?.rejectCredential?.()
                         if (message.code === 'BYOK_CREDENTIAL_REQUIRED' && latest.current.resendWithKey(socket, message.request_id)) break
-                        if (['LLM_EXECUTION_UPSTREAM_FAILED', 'LLM_EXECUTION_FINISHED'].includes(message.code || '') && turnRef.current?.target) {
+                        if (['LLM_EXECUTION_UPSTREAM_FAILED', 'LLM_EXECUTION_FINISHED', 'BYOK_CREDENTIAL_REJECTED', 'PROVIDER_AUTHENTICATION_REJECTED', 'PROVIDER_PERMISSION_DENIED', 'PROVIDER_RATE_LIMITED', 'PROVIDER_QUOTA_EXCEEDED', 'PROVIDER_UNAVAILABLE', 'BYOK_TRANSPORT_UNSUPPORTED'].includes(message.code || '') && turnRef.current?.target) {
                             // The request is spent either way; a linked retry reads the turn's own target.
                             if (message.request_id) llmIntents.settle(latest.current.feature, latest.current.intentKey(message.request_id))
                             if (latest.current.confirmTerminal(socket, message.message, { category: message.category, code: message.code,
@@ -378,13 +382,14 @@ export function useAdventureChatSocket(
         const choice = image ? imageChoiceSnapshot(image) : previous?.requestId === id ? previous.image : undefined
         const turn = { requestId: id, content, existingUserMessageId, keyed: false, ...(choice ? { image: choice } : {}) }
         turnRef.current = turn
-        // A request already admitted must resend exactly the target it froze, without a key first.
+        // Reconnect/recovery keeps the frozen target and supplies BYOK credentials again.
         const frozen = llmIntents.retained(feature, intentKey(id)) ?? (previous?.requestId === id ? previous.target : undefined)
         prepare(socket, id, async signal => {
             const retained = frozen ?? (resumeExisting || !llmRetry?.retry_of_execution_id ? llmRetry : undefined)
-            const prepared = retained ? () => ({ ...retained, selection: retained.selection ? { ...retained.selection } : { mode: 'inherit' as const } })
+            const prepared = retained ? await prepareLlmDispatch(feature, signal, retained.selection, retained.retry_of_execution_id, id, workspaceId)
                 : await prepareLlmDispatch(feature, signal, llmRetry?.selection, llmRetry?.retry_of_execution_id, undefined, workspaceId)
-            const materialize = llmRetry?.retry_of_execution_id && !retained ? () => bindPreparedTarget(prepared, llmRetry) : prepared
+            const target = retained ?? llmRetry
+            const materialize = target ? () => bindPreparedTarget(prepared, target) : prepared
             return () => { if (socket) dispatch(socket, turn, materialize) }
         })
     }

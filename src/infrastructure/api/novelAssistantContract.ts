@@ -156,7 +156,7 @@ export function verifyNovelAssistantRecord(v:unknown,storyId:string,executionId?
     if(!isRecord(v)||!exact(v,['context','result',...['refinement','preset'].filter(k=>k in v)])||!verifyFrozenAssistantContext(v.context,storyId)||!isRecord(v.result))return false
     const c=v.context,r=v.result,p=c.packet
     if('preset'in v&&!isPresetSnapshot(v.preset,c.request))return false
-    if(!exact(r,['schemaVersion','storyId','sourceVersion','packetHash','answer','citations','proposal',...['facts','issues','notes','plan','structure','structureOmitted','summaries','chapterSummaries','partSummaries','bookSummary'].filter(k=>k in r)])||r.schemaVersion!==1||r.storyId!==storyId||r.sourceVersion!==c.sourceVersion
+    if(!exact(r,['schemaVersion','storyId','sourceVersion','packetHash','answer','citations','proposal',...['facts','issues','notes','plan','structure','structureOmitted','summaries','chapterSummaries','partSummaries','bookSummary','copy'].filter(k=>k in r)])||r.schemaVersion!==1||r.storyId!==storyId||r.sourceVersion!==c.sourceVersion
         ||r.packetHash!==c.packetHash||!nonempty(r.answer,20000)||r.answer!==r.answer.trim()||!Array.isArray(r.citations)||r.citations.length>80)return false
     const seen=new Set<string>()
     for(const citation of r.citations){
@@ -183,6 +183,8 @@ export function verifyNovelAssistantRecord(v:unknown,storyId:string,executionId?
     if('chapterSummaries'in r&&!verifyChapterSummaries(r.chapterSummaries,c))return false
     if('partSummaries'in r&&!verifyPartSummaries(r.partSummaries,c))return false
     if('bookSummary'in r&&!verifyBookSummary(r.bookSummary,c))return false
+    // Book copy alone (A26), only for the copy action.
+    if('copy'in r&&(c.request.action?.kind!=='copy'||!nonempty(r.copy,20000)||r.copy!==r.copy.trim()))return false
     const candidate=r.proposal
     if('refinement'in v&&(!verifyNovelRefinementSource(v.refinement,storyId,c.request.anchorSceneId)||c.request.task!=='suggest'||p.readOnly||candidate===null))return false
     if(candidate===null)return true

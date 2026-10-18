@@ -30,6 +30,7 @@ import type {StoryVariantRecord} from '@/shared/types/storyVariant.types'
 import type { PlanItems } from '../hooks/usePlanItems'
 import type { BulkScenes } from './NovelBulkScenes'
 import type { SceneSummaryWriter } from './NovelAssistantSummaries'
+import type { NovelCopyWriter } from './NovelAssistantCopy'
 import type { SuggestionsTogether } from '../hooks/useSuggestionsTogether'
 
 interface Props {
@@ -45,6 +46,10 @@ interface Props {
     summaries?: SceneSummaryWriter
     /** Opens the outline import with a reply's chapter plan (S18); absent where the outline cannot change. */
     outline?: (text: string) => void
+    /** Saves a reviewed blurb or synopsis as the novel's description or synopsis (A26); absent where the novel's details cannot change. */
+    copy?: NovelCopyWriter
+    /** The novel's Codex reference labels, to show which @references a proposal keeps (A10). */
+    referenceLabels?: readonly string[]
     /** Accepts the latest suggestion of several scenes as one manuscript change; absent where the manuscript cannot change. */
     together?: SuggestionsTogether
 }
@@ -90,7 +95,7 @@ export function NovelAssistantDrawer({ref,...props}: Props&{ref?:Ref<NovelAssist
     },[workspace])
     return <NovelAssistantDrawerView {...props} focusRevision={focusRevision} model={model} preferencesApi={preferencesApi} presetsApi={presetsApi} onClose={() => { if(model.preserve()){model.close();props.onClose()} }} />
 }
-export function NovelAssistantDrawerView({ open, onClose, source, story, readOnly, model, onReviewSuggestion, onAuthorVersions, profileControl,focusRevision=0,facts,tasks,structure,summaries,outline,together,preferencesApi,presetsApi }: Pick<Props, 'open' | 'onClose' | 'source' | 'story' | 'readOnly' | 'onReviewSuggestion' | 'onAuthorVersions' | 'facts' | 'tasks' | 'structure' | 'summaries' | 'outline' | 'together'> & { model: ReturnType<typeof useNovelAssistant>; profileControl?: ReactNode;focusRevision?:number;preferencesApi?:AssistantPreferencesApi;presetsApi?:AssistantPresetsApi }) {
+export function NovelAssistantDrawerView({ open, onClose, source, story, readOnly, model, onReviewSuggestion, onAuthorVersions, profileControl,focusRevision=0,facts,tasks,structure,summaries,outline,copy,referenceLabels,together,preferencesApi,presetsApi }: Pick<Props, 'open' | 'onClose' | 'source' | 'story' | 'readOnly' | 'onReviewSuggestion' | 'onAuthorVersions' | 'facts' | 'tasks' | 'structure' | 'summaries' | 'outline' | 'copy' | 'referenceLabels' | 'together'> & { model: ReturnType<typeof useNovelAssistant>; profileControl?: ReactNode;focusRevision?:number;preferencesApi?:AssistantPreferencesApi;presetsApi?:AssistantPresetsApi }) {
     const { t } = useTranslation(), text = (key: string) => t('novelEditor.assistant.' + key)
     const [discarding, setDiscarding] = useState<string | null>(null)
     const composer=useRef<HTMLDivElement>(null)
@@ -151,7 +156,7 @@ export function NovelAssistantDrawerView({ open, onClose, source, story, readOnl
                 useDisabled={model.busy || Boolean(draft.pending) || assistant.unavailable || Boolean(draft.refinement) || Boolean(assistant.activeConversation?.active_request_id)}
                 onUse={(value, values, replace) => { const result = model.applyPreset(value, values, replace); if (result === 'applied') focusDraft(); return result }} />
             {model.review && !model.reviewSent && <NovelAssistantTurnReview preview={model.review} story={story} current={model.reviewCurrent} />}
-            <NovelAssistantEvidence turns={assistant.turns} story={story} source={source} readOnly={readOnly} onReviewSuggestion={onReviewSuggestion} onAuthorVersions={onAuthorVersions} facts={facts} tasks={tasks} structure={structure} summaries={summaries} outline={outline} together={together}
+            <NovelAssistantEvidence turns={assistant.turns} story={story} source={source} readOnly={readOnly} onReviewSuggestion={onReviewSuggestion} onAuthorVersions={onAuthorVersions} facts={facts} tasks={tasks} structure={structure} summaries={summaries} outline={outline} copy={copy} referenceLabels={referenceLabels} together={together}
                 refineDisabled={model.busy||Boolean(draft.pending)||Boolean(assistant.activeConversation?.active_request_id)}
                 onRefineSuggestion={async(record,signal)=>{const ready=await model.refine(record,signal);if(ready)focusDraft();return ready}}
                 onDraftStep={readOnly?undefined:step=>{const ready=model.draftStep(step.sceneId,step.instruction,step.number);if(ready)focusDraft();return ready}} />

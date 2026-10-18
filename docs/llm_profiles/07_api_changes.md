@@ -1,5 +1,51 @@
 # Cambios requeridos de API
 
+## Implementación local BYOK — 2026-10-18
+
+El BFF conserva selección, política, cobros y el payload simbólico. Para BYOK,
+el POST existente a `/v1/chat/completions` añade
+`request_credentials: {version: 1, api_key: <clave de esta solicitud>}`.
+Cada cliente del grafo lleva `credential_binding: "request.byok"` junto con
+engine/model/endpoint y opciones sin credenciales; `api_info` no contiene la clave.
+
+API LLM oculta el campo de credenciales antes de validación/observadores, lo
+excluye del dump usado para admisión y fingerprint, y mantiene el grafo original
+sin clave para snapshots. Solo la copia privada construida para el runtime
+recibe la clave. La respuesta inline anuncia `X-BYOK-Transport-Version: 1`;
+el BFF rechaza un éxito BYOK sin esa versión con `BYOK_TRANSPORT_UNSUPPORTED`.
+No se añade ningún endpoint, tabla, catálogo ni protocolo nuevo de recuperación.
+
+Cada turno, replay por el endpoint de ejecución, retry y recuperación exige una
+clave aportada en esa solicitud. Las lecturas de historial/estado no la exigen.
+Retry y recuperación preparan la revisión retenida y solicitan la clave otra vez.
+Un resultado terminado se reproduce sin llamada al proveedor. Un resultado
+desconocido mantiene el cierre terminal existente: una clave nueva no autoriza
+repetir automáticamente una llamada posiblemente cobrada.
+
+Faltante: `BYOK_CREDENTIAL_REQUIRED` (409). Formato inválido:
+`BYOK_CREDENTIAL_INVALID` (422). Rechazo de autenticación del proveedor:
+`BYOK_CREDENTIAL_REJECTED` (422). Permisos, límite y saldo del proveedor conservan
+códigos separados. Los errores HTTP/SSE/WS no incluyen cuerpos ni mensajes crudos
+del proveedor y no se convierten en un 401 de sesión de la app.
+
+Las credenciales no forman parte de grafos, perfiles, hashes, checkpoints,
+resultados operativos ni colas. Se liberan clientes y referencias al terminar,
+fallar o cancelar. No hay fallback platform ni retry oculto de generación BYOK.
+La validación de credenciales se limita al canal y propiedades de configuración;
+no se filtra el contenido LLM ni sus segmentos por vocabulario o coincidencias.
+
+Durante el rollout, deshabilitar BYOK con la política existente de targets para
+evitar que instancias BFF antiguas sigan enviando claves dentro de `agt`.
+Desplegar magic-llm/magic-agents y API LLM, verificar todas las instancias,
+y después BFF/frontend; rehabilitar BYOK tras verificar el nuevo contrato. Un rollback debe deshabilitar BYOK mediante la política
+existente de targets; nunca recuperar el transporte de claves dentro de `agt`.
+No habilitar captura de cuerpos/headers privados en proxies o tracing.
+Las copias históricas anteriores requieren una revisión y limpieza operativa
+separada; no editar snapshots hasheados en sitio ni borrar historial automáticamente.
+
+Las secciones siguientes conservan la inspección histórica del 2026-10-15.
+
+
 **Revisado 2026-10-15. Estado: referencia de interfaces actuales y brecha de transporte.** El control de perfiles existe. El protocolo protegido, su handshake y la continuación upstream descritos por la especificación anterior no son el camino usado por este BFF. [16](16_current_status_and_roadmap.md) mantiene el estado.
 
 ## Interfaces presentes en el BFF

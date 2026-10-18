@@ -8,6 +8,10 @@
  * re-hydrated via `onHydrate` (discard/restore) and the gallery refreshed via `onPublished`.
  *
  * Renders nothing until the card has been created (no id ⇒ nothing to draft/publish yet).
+ *
+ * A write refused because the draft changed elsewhere (a novel staged a fact into it) opens a
+ * dialog instead of an error: load the newer draft, or keep this editor's version on purpose.
+ * Publishing offers no override — nothing the author has not seen goes live.
  */
 
 import { useState } from 'react'
@@ -17,8 +21,8 @@ import type { VersionableCardType } from '@/shared'
 import type { CardDraftDocument, CardPublishResult } from '@/shared/types/cardVersion.types'
 import { useNavigation } from '@/app/hooks'
 import { buildCardEditHash } from '@/features/gallery/galleryLinks'
-import type { UseCardDraftApi } from '../engine'
-import { Badge, Button, Icon, Input } from '@/ui/primitives'
+import { isDraftChanged, type UseCardDraftApi } from '../engine'
+import { Badge, Button, Icon, Input, Modal } from '@/ui/primitives'
 import { Toast } from '@/ui/primitives/Toast'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
 import { CardHistoryDrawer } from './CardHistoryDrawer'
@@ -32,6 +36,8 @@ export interface CardDraftControlsProps {
     onHydrate: (body: CardDraftDocument) => void
     /** Called after a successful publish (e.g. to refresh the gallery). */
     onPublished?: (result: CardPublishResult) => void
+    /** Called when the conflict dialog saved the editor's body over a newer draft (the form is now clean). */
+    onDraftSaved?: (body: unknown) => void
     /** Disable actions while the form runs its own submit. */
     disabled?: boolean
     /** Workspace R1: the card's own workspace (history and usage reads); default = committed. */
@@ -47,6 +53,7 @@ export function CardDraftControls({
     draft,
     onHydrate,
     onPublished,
+    onDraftSaved,
     disabled = false,
     workspaceId,
     readOnly = false,
@@ -67,10 +74,16 @@ export function CardDraftControls({
     const latest = draftState?.latestVersionNumber ?? 0
 
     const fail = (key: string | null) => setToast({ tone: 'error', message: t(key ?? 'cardVersions.errors.publish') })
+    // A changed draft opens the conflict dialog rather than an error toast.
+    const watch = () => {
+        const seen = { changed: false }
+        return { seen, onError: (cause: unknown) => { seen.changed = isDraftChanged(cause) } }
+    }
 
     const confirmPublish = async () => {
         if (readOnly) return
-        const result = await draft.publish(label.trim() || undefined)
+        const watched = watch()
+        const result = await draft.publish(label.trim() || undefined, watched)
         if (result) {
             setPublishOpen(false)
             setLabel('')
@@ -79,33 +92,62 @@ export function CardDraftControls({
             onPublished?.(result)
         } else {
             setPublishOpen(false)
-            fail(draft.error)
+            if (!watched.seen.changed) fail(draft.error)
         }
     }
 
     const confirmDiscard = async () => {
         if (readOnly) return
-        const published = await draft.discard()
+        const watched = watch()
+        const published = await draft.discard(watched)
         setDiscardOpen(false)
         if (published) {
             onHydrate(published)
             setToast({ tone: 'success', message: t('cardVersions.draft.discarded') })
-        } else {
+        } else if (!watched.seen.changed) {
             fail(draft.error)
         }
     }
 
     const handleRestore = async (versionNumber: number) => {
         if (readOnly) return
-        const body = await draft.restoreIntoDraft(versionNumber)
+        const watched = watch()
+        const body = await draft.restoreIntoDraft(versionNumber, watched)
         if (body) {
             onHydrate(body)
             // Restore stages the version into the draft → drop any `?version=` so the URL = draft.
             replaceHash(buildCardEditHash(cardType, cardId))
             setHistoryOpen(false)
             setToast({ tone: 'success', message: t('cardVersions.history.restored', { number: versionNumber }) })
-        } else {
+        } else if (!watched.seen.changed) {
             fail(draft.error)
+        }
+    }
+
+    const conflict = draft.conflict
+    const conflictNumber = conflict?.action === 'restore' ? conflict.versionNumber : undefined
+
+    /** Show the draft as stored now; the editor's unsaved edits give way to it. */
+    const loadNewer = async () => {
+        const body = await draft.loadLatest()
+        if (!body) return fail('cardVersions.errors.loadLatest')
+        onHydrate(body)
+        setToast({ tone: 'success', message: t('cardVersions.conflict.loaded') })
+    }
+
+    /** Replace the newer draft with this editor's own write, on purpose. */
+    const keepMine = async () => {
+        if (!conflict || readOnly || conflict.action === 'publish') return
+        if (!(await draft.adoptLatest())) return fail('cardVersions.errors.loadLatest')
+        draft.dismissConflict()
+        if (conflict.action === 'discard') return confirmDiscard()
+        if (conflict.action === 'restore') return handleRestore(conflict.versionNumber)
+        const watched = watch()
+        if (await draft.saveDraft(conflict.body, watched)) {
+            onDraftSaved?.(conflict.body)
+            setToast({ tone: 'success', message: t('cardVersions.draft.saved') })
+        } else if (!watched.seen.changed) {
+            fail('cardVersions.errors.draftSave')
         }
     }
 
@@ -192,6 +234,35 @@ export function CardDraftControls({
                 onConfirm={() => void confirmDiscard()}
                 onCancel={() => setDiscardOpen(false)}
             />
+
+            <Modal
+                open={conflict !== null}
+                onClose={draft.dismissConflict}
+                title={t('cardVersions.conflict.title')}
+                size="md"
+                footer={
+                    <div className="flex flex-wrap justify-end gap-2">
+                        <Button variant="ghost" onClick={draft.dismissConflict} disabled={busy}>
+                            {t('cardVersions.conflict.later')}
+                        </Button>
+                        {conflict && conflict.action !== 'publish' && !readOnly && (
+                            <Button variant="secondary" onClick={() => void keepMine()} disabled={busy}>
+                                {t(`cardVersions.conflict.keep.${conflict.action}`, { number: conflictNumber })}
+                            </Button>
+                        )}
+                        <Button variant="primary" onClick={() => void loadNewer()} disabled={busy}>
+                            {t('cardVersions.conflict.load')}
+                        </Button>
+                    </div>
+                }
+            >
+                {conflict && (
+                    <div className="flex flex-col gap-3 text-body text-parchment-200">
+                        <p>{t(`cardVersions.conflict.body.${conflict.action}`, { number: conflictNumber })}</p>
+                        <p className="text-caption text-parchment-400">{t('cardVersions.conflict.loadHint')}</p>
+                    </div>
+                )}
+            </Modal>
 
             <Toast
                 open={toast !== null}

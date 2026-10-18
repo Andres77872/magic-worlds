@@ -474,3 +474,27 @@ describe('AdventureCreator voice write refusals (I-36)', () => {
         expect(await screen.findByText('Your plan doesn’t include this voice option.')).toBeInTheDocument()
     })
 })
+
+describe('AdventureCreator protagonist compatibility', () => {
+    it.each(['character', null] as const)('preserves template authoring with protagonist role %s', async (role) => {
+        vi.clearAllMocks()
+        const previousTemplate = mocks.editingTemplate
+        const previousCharacters = mocks.characters
+        const ai = { id: 'ai-protagonist', name: 'Lyra', race: 'Elf', role: 'character', stats: {} }
+        mocks.characters = [ai]
+        mocks.editingTemplate = { id: 'tmpl-1', scenario: 'Open the gate', characters: [],
+            persona: role ? ai : undefined, organization: { workspace_id: TEST_WORKSPACE_ID, collection_ids: [] } }
+        mocks.updateAdventureTemplate.mockResolvedValue({ id: 'tmpl-1' })
+        try {
+            render(<AdventureCreator />)
+            fireEvent.click(screen.getAllByRole('button', { name: /^Update$/i })[0])
+            await waitFor(() => expect(mocks.updateAdventureTemplate).toHaveBeenCalledOnce())
+            expect(mocks.updateAdventureTemplate.mock.calls[0][1]).toMatchObject({
+                persona: role ? { source_card_id: 'ai-protagonist', role: 'character' } : null,
+            })
+        } finally {
+            mocks.editingTemplate = previousTemplate
+            mocks.characters = previousCharacters
+        }
+    })
+})

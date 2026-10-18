@@ -14,7 +14,8 @@ import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 import { useCallback, useMemo } from 'react'
 import { isContentTypeFeatureEnabled } from '@/shared/featureFlags'
 import type { SessionLoreEntry } from '@/features/lorebook/loreTriggers'
-import type { Lorebook, StoryOutline, StorySceneDocument, StoryCardKind, StoryCardRef, StoryCardSnapshot, StoryCodexLibraryField, StoryCodexReferenceInput, StoryCodexOperation, StoryCodexWrite } from '@/shared'
+import type { Lorebook, StoryOutline, StorySceneDocument, StoryCardKind, StoryCardRef, StoryCardSnapshot, StoryCodexAcknowledgement, StoryCodexDiscoveryDestination, StoryCodexDiscoveryFields, StoryCodexLibraryField, StoryCodexReferenceInput, StoryCodexOperation, StoryCodexWrite, StoryFactCodexField } from '@/shared'
+import { generateUUID } from '@/utils/uuid'
 import { useWorkspaceReadOnly } from '@/shared/hooks/useWorkspaceReadOnly'
 import {
     KIND_META,
@@ -65,6 +66,12 @@ export interface CodexApi {
     cloneLorebookEntries: (lorebook: Lorebook, entryIds: string[]) => Promise<void>
     toggleEntry: (entry: CodexEntry) => Promise<void>
     saveSnapshot: (entry: CodexEntry, patch: { label: string; description: string }) => Promise<void>
+    /** Write reviewed details into the novel's copy only; an empty alias clears it, source pins stay. */
+    saveSnapshotFields: (entry: CodexEntry, fields: Partial<Record<StoryFactCodexField, string>>) => Promise<StoryCodexAcknowledgement | undefined>
+    /** A new reference that exists only in this novel's Codex (no library card). */
+    addReference: (fields: { name: string; alias?: string; description: string }) => Promise<{ ack: StoryCodexAcknowledgement; refId: string } | undefined>
+    /** Create a private library card, or an entry in a library lorebook, and copy it into this Codex as one change. */
+    discover: (destination: StoryCodexDiscoveryDestination, fields: StoryCodexDiscoveryFields, lorebookId?: string) => Promise<StoryCodexAcknowledgement | undefined>
     removeEntry: (entry: CodexEntry) => Promise<void>
     /** Take reviewed details from the library version `sourceVersionId`; the rest keep the novel's values. */
     refreshEntry: (entry: CodexEntry, sourceVersionId: string, take: StoryCodexLibraryField[]) => Promise<void>
@@ -109,7 +116,7 @@ export function useCodex({ story, workspace, scene, scope='novel',chapterId:pare
     const perform=mutation.perform
     const track=useCallback(async(operation:StoryCodexOperation,expectedContextRevision?:number)=>{
         if(readOnly||!workspace.isCurrent())return
-        await perform(operation,expectedContextRevision)
+        return perform(operation,expectedContextRevision)
     },[readOnly, workspace, perform])
 
     // Keep every stored ref for precedence; availability only projects what
@@ -220,6 +227,38 @@ export function useCodex({ story, workspace, scene, scope='novel',chapterId:pare
         [storyId, track, featureFlagGeneration],
     )
 
+    const saveSnapshotFields = useCallback(
+        async (entry: CodexEntry, fields: Partial<Record<StoryFactCodexField, string>>) => {
+            if (!storyId || !isContentTypeFeatureEnabled(entry.kind)) return
+            const { alias, ...rest } = fields
+            // Merge, never replace: only the reviewed details change, and source pins and category stay as stored.
+            const snapshot: StoryCardSnapshot = { ...entry.ref.snapshot, ...rest }
+            if (alias !== undefined) { if (alias.trim()) snapshot.alias = alias.trim(); else delete snapshot.alias }
+            return track({op:'update',id:entry.id,patch:{snapshot}},entry.contextRevision)
+        },
+        [storyId, track, featureFlagGeneration],
+    )
+
+    const addReference = useCallback(
+        async ({ name, alias, description }: { name: string; alias?: string; description: string }) => {
+            if (!storyId || scope !== 'novel') return
+            const id = generateUUID()
+            const snapshot: StoryCardSnapshot = { id, name, ...(alias?.trim() ? { alias: alias.trim() } : {}), description, story_card_kind: 'snapshot_card' }
+            const ack = await track({op:'add',refs:[{ kind: 'snapshot_card', cardId: id, source: 'manual', enabled: true, precedence: nextPrecedence(), chapterId: null, sceneId: null, snapshot }]})
+            const ref = ack?.refs.find((row) => row.kind === 'snapshot_card' && row.cardId === id)
+            return ack && ref ? { ack, refId: ref.id } : undefined
+        },
+        [storyId, scope, track, nextPrecedence],
+    )
+
+    const discover = useCallback(
+        async (destination: StoryCodexDiscoveryDestination, fields: StoryCodexDiscoveryFields, lorebookId?: string) => {
+            if (!storyId || scope !== 'novel' || !isContentTypeFeatureEnabled(destination)) return
+            return track({ op: 'discover', destination, ...(lorebookId ? { lorebookId } : {}), fields })
+        },
+        [storyId, scope, track, featureFlagGeneration],
+    )
+
     const removeEntry = useCallback(
         async (entry: CodexEntry) => {
             if (!storyId || !isContentTypeFeatureEnabled(entry.kind)) return
@@ -302,6 +341,9 @@ export function useCodex({ story, workspace, scene, scope='novel',chapterId:pare
         cloneLorebookEntries,
         toggleEntry,
         saveSnapshot,
+        saveSnapshotFields,
+        addReference,
+        discover,
         removeEntry,
         refreshEntry,
         mentionEntries,

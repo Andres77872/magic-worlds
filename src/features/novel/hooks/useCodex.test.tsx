@@ -15,7 +15,7 @@ const changeStoryCodex=vi.fn(async(storyId,write)=>{
     if(operation.op==='update')await updateStoryCardRef(storyId,operation.id,operation.patch)
     if(operation.op==='remove')await deleteStoryCardRef(storyId,operation.id)
     if(operation.op==='restore')await restoreStoryCardRef(storyId,operation.id)
-    return {contextRevision:write.expectedContextRevision+1,refs:[]}
+    return {contextRevision:write.expectedContextRevision+1,refs:[] as StoryCardRef[]}
 })
 const refreshStory=vi.fn().mockResolvedValue(undefined)
 vi.mock('@/app/hooks', () => ({
@@ -286,6 +286,28 @@ describe('useCodex', () => {
                 story_card_kind: 'character',
             },
         })
+    })
+
+    it('writes reviewed fact details into the copy only and creates references and discoveries as one Codex change each', async () => {
+        const refs = [ref({ id: 'a', snapshot: snapshot({ alias: 'Ari', race: 'elf', source_card_id: 'card-x', source_card_version_id: 'v2', source_card_version_number: 2 }) })]
+        const { result } = renderHook(() => useCodex({ story: story(refs), workspace: WORKSPACE }))
+        // An empty alias clears it; source pins and untouched details stay as stored.
+        await act(async () => { await result.current.saveSnapshotFields(result.current.entries[0], { alias: '', race: 'selkie', description: 'Keeps the lamp.' }) })
+        expect(updateStoryCardRef).toHaveBeenLastCalledWith('s1', 'a', { snapshot: { id: 'card-x', name: 'Aria', description: 'Keeps the lamp.', race: 'selkie',
+            source_card_id: 'card-x', source_card_version_id: 'v2', source_card_version_number: 2, story_card_kind: 'character' } })
+        changeStoryCodex.mockClear()
+        changeStoryCodex.mockImplementationOnce(async (_id, write) => ({ contextRevision: write.expectedContextRevision + 1,
+            refs: [ref({ id: 'ref-new', kind: 'snapshot_card', cardId: write.operation.refs[0].cardId, precedence: 1, snapshot: write.operation.refs[0].snapshot })] }))
+        let made: Awaited<ReturnType<typeof result.current.addReference>>
+        await act(async () => { made = await result.current.addReference({ name: 'Odile', alias: ' ', description: 'The ferry pilot.' }) })
+        const added = changeStoryCodex.mock.calls[0][1].operation
+        expect(added).toMatchObject({ op: 'add', refs: [{ kind: 'snapshot_card', source: 'manual', enabled: true, precedence: 1, chapterId: null, sceneId: null,
+            snapshot: { name: 'Odile', description: 'The ferry pilot.', story_card_kind: 'snapshot_card' } }] })
+        expect(added.refs[0].snapshot.id).toBe(added.refs[0].cardId)
+        expect(added.refs[0].snapshot).not.toHaveProperty('alias')
+        expect(made!).toMatchObject({ refId: 'ref-new' })
+        await act(async () => { await result.current.discover('lorebook_entry', { name: 'Odile', description: 'The ferry pilot.', keys: ['Odile'] }, 'lb-1') })
+        expect(changeStoryCodex.mock.calls[1][1].operation).toEqual({ op: 'discover', destination: 'lorebook_entry', lorebookId: 'lb-1', fields: { name: 'Odile', description: 'The ferry pilot.', keys: ['Odile'] } })
     })
 
     it('saveSnapshot keeps lorebook entries in the strict snapshot schema', async () => {

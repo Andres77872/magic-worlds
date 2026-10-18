@@ -11,9 +11,11 @@ export type StoryAssistantAction=
     | {kind:'line_edit';focus:StoryAssistantLineEditFocus[]}
     | {kind:'dialogue';speaker:string}
     | {kind:'bridge'}
+    | {kind:'translate';language:string}
     | {kind:'brainstorm';topic:'premise'|'conflict'|'stakes'|'names'|'what_if'}
     | {kind:'outline';target:'synopsis'|'beats'|'chapter_plan'}
     | {kind:'summary'}
+    | {kind:'copy';form:'blurb'|'synopsis'|'titles'|'handoff'}
 export type StoryAssistantActionKind=StoryAssistantAction['kind']
 export interface StoryAssistantContextRequest {
     sourceVersion:string;anchorSceneId:string;scope:'selection'|'scene'|'chapter'|'novel'|'scenes';sceneIds:string[]
@@ -177,6 +179,8 @@ export interface NovelAssistantResult {
     /** How many proposed outline changes were left out because they did not fit the reply's sources or their kind. */
     structureOmitted?:number
     summaries?:NovelAssistantSceneSummary[];chapterSummaries?:NovelAssistantChapterSummary[];partSummaries?:NovelAssistantPartSummary[];bookSummary?:NovelAssistantBookSummary
+    /** The copy action's book copy alone, without the answer's notes to the author. */
+    copy?:string
 }
 export interface NovelGenerationReference {generationId:string;parentHash:string}
 export interface NovelRefinementReference extends NovelGenerationReference {variant?:StoryVariantReference}

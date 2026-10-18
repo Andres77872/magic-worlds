@@ -22,6 +22,7 @@ import { NovelCreateDialog as NovelCreateModal } from '@/features/novel/componen
 import { NovelPendingCreations } from '@/features/novel/components/NovelPendingCreations'
 import { PersonaPickerDialog } from '@/ui/components'
 import { CallStartErrorToast, useStartCall } from '@/features/call'
+import { buildPersonaCreatorHash } from '@/features/gallery/galleryLinks'
 import { isCallsFeatureEnabled } from '@/shared/featureFlags'
 import { isAdventuresFeatureEnabled, isLorebooksFeatureEnabled, isNovelsFeatureEnabled } from '@/shared/featureFlags'
 import { chatDisplayTitle } from '@/utils/chatTitle'
@@ -361,6 +362,14 @@ export function LandingPage() {
         if (isPersonaPickConfirming) return
         setPersonaPick(null)
         setPersonaPickError(null)
+    }
+
+    const createPersona = () => {
+        if (readOnly || isPersonaPickConfirming || callControls.personaPickConfirming) return
+        closePersonaPick()
+        callControls.closePersonaPick()
+        setEditingCharacter(null)
+        setPage('character', { hash: buildPersonaCreatorHash() })
     }
 
     const confirmPersonaPick = async (persona: Character) => {
@@ -753,13 +762,7 @@ export function LandingPage() {
                 characters={characters}
                 onConfirm={confirmPersonaPick}
                 onClose={closePersonaPick}
-                onCreateCharacter={() => {
-                    if (isPersonaPickConfirming) return
-                    setPersonaPick(null)
-                    setPersonaPickError(null)
-                    setEditingCharacter(null)
-                    setPage('character')
-                }}
+                onCreateCharacter={createPersona}
             />
 
             <PersonaPickerDialog
@@ -772,6 +775,7 @@ export function LandingPage() {
                 characters={characters}
                 onConfirm={callControls.confirmPersonaPick}
                 onClose={callControls.closePersonaPick}
+                onCreateCharacter={createPersona}
             />
             <CallStartErrorToast error={callControls.error} onClose={callControls.clearError} />
         </div>

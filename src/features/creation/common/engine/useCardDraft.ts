@@ -8,9 +8,15 @@
  * choreography + a small `draftState` (has_draft / based_on / latest); it does NOT own the
  * form fields — the creator passes `onDraftLoaded` (initial pending draft) and re-hydrates
  * itself from the bodies returned by discard/restore.
+ *
+ * Every write names the body the editor loaded (its `draft_stamp`, sent as `If-Match`). A draft a
+ * novel changed meanwhile (a staged fact) is refused instead of overwritten, published unseen or
+ * thrown away: the hook records the refused action as `conflict` until the author loads the newer
+ * draft or chooses to keep their own.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { ApiError } from '@/infrastructure/api'
 import { invalidateCardUsage } from '@/shared/hooks/useCardUsage'
 import { useScopedApi } from '@/shared/hooks/useScopedApi'
 import type { CardEditVersion } from '@/features/gallery/galleryLinks'
@@ -25,6 +31,20 @@ export interface CardDraftState {
     /** The current published latest version (the "Latest" marker / v{n} badge). */
     latestVersionNumber: number
 }
+
+/** The editor write the server refused because the card's draft changed since the editor loaded it. */
+export type CardDraftConflict =
+    | { action: 'save'; body: unknown }
+    | { action: 'publish' }
+    | { action: 'discard' }
+    | { action: 'restore'; versionNumber: number }
+
+/** True when an editor write was refused because the card's draft changed elsewhere (a novel staged a fact). */
+export function isDraftChanged(cause: unknown): boolean {
+    return cause instanceof ApiError && cause.status === 409 && cause.code === 'CARD_DRAFT_CHANGED'
+}
+
+type WriteOptions = { onError?: (error: unknown) => void }
 
 export interface UseCardDraftOptions {
     cardType: VersionableCardType
@@ -68,11 +88,21 @@ export interface UseCardDraftApi {
      * `voices.errors.*` key instead of the generic one; `onError` receives the
      * failure so the editor can point at the refused field.
      */
-    saveDraft: (body: unknown, options?: { onError?: (error: unknown) => void }) => Promise<boolean>
-    publish: (label?: string) => Promise<CardPublishResult | null>
-    discard: () => Promise<CardDraftDocument | null>
-    restoreIntoDraft: (versionNumber: number) => Promise<CardDraftDocument | null>
+    saveDraft: (body: unknown, options?: WriteOptions) => Promise<boolean>
+    publish: (label?: string, options?: WriteOptions) => Promise<CardPublishResult | null>
+    discard: (options?: WriteOptions) => Promise<CardDraftDocument | null>
+    restoreIntoDraft: (versionNumber: number, options?: WriteOptions) => Promise<CardDraftDocument | null>
     refresh: () => Promise<void>
+    /** The write refused because the draft changed since the editor loaded it, or null. */
+    conflict: CardDraftConflict | null
+    /** Read the card's draft as stored now and hold it as the editor's body; the caller re-hydrates the form. */
+    loadLatest: () => Promise<CardDraftDocument | null>
+    /**
+     * Hold the stamp of the draft as stored now without loading it, so the next write replaces it on purpose.
+     * False when the card could not be read.
+     */
+    adoptLatest: () => Promise<boolean>
+    dismissConflict: () => void
 }
 
 function toState(doc: CardDraftDocument): CardDraftState {
@@ -92,6 +122,9 @@ export function useCardDraft({ cardType, cardId, version, onDraftLoaded, workspa
     const [saving, setSaving] = useState(false)
     const [publishing, setPublishing] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [conflict, setConflict] = useState<CardDraftConflict | null>(null)
+    // The stamp of the body this editor loaded or last wrote; every write sends it back as If-Match.
+    const stampRef = useRef<string | null>(null)
     // Changing the callback must not restart a load or overwrite ongoing edits.
     // The effect dependencies already limit hydration to card/version transitions.
     const onDraftLoadedRef = useRef(onDraftLoaded)
@@ -110,6 +143,8 @@ export function useCardDraft({ cardType, cardId, version, onDraftLoaded, workspa
     // the body to display per `version`. The draft doc is always fetched (for the has-draft/latest
     // badges); the hydrated body depends on the version selector.
     useEffect(() => {
+        stampRef.current = null
+        setConflict(null)
         if (!cardId || !api) {
             setDraftState(null)
             setIsHistorical(false)
@@ -122,7 +157,10 @@ export function useCardDraft({ cardType, cardId, version, onDraftLoaded, workspa
         void (async () => {
             const doc = await fetchDraft()
             if (cancelled) return
-            if (doc) setDraftState(toState(doc))
+            if (doc) {
+                setDraftState(toState(doc))
+                stampRef.current = doc.draft_stamp ?? null
+            }
 
             if (typeof version === 'number') {
                 // Read-only historical view — never touches the draft. Falls back to the draft/
@@ -163,33 +201,47 @@ export function useCardDraft({ cardType, cardId, version, onDraftLoaded, workspa
         if (doc) setDraftState(toState(doc))
     }, [fetchDraft])
 
+    /** A refused write is either a changed draft (kept as `conflict`) or `fallback`'s error key. */
+    const refuse = useCallback((cause: unknown, refused: CardDraftConflict, fallback: string, options?: WriteOptions) => {
+        if (isDraftChanged(cause)) {
+            setConflict(refused)
+            setError('cardVersions.errors.draftChanged')
+        } else {
+            setError(fallback)
+        }
+        options?.onError?.(cause)
+    }, [])
+
     const saveDraft = useCallback(
-        async (body: unknown, options?: { onError?: (error: unknown) => void }): Promise<boolean> => {
+        async (body: unknown, options?: WriteOptions): Promise<boolean> => {
             if (!cardId || !api) return false
             setSaving(true)
             setError(null)
             try {
-                const doc = await api.saveCardDraft(cardType, cardId, body)
+                const doc = await api.saveCardDraft(cardType, cardId, body, stampRef.current ?? undefined)
                 setDraftState(toState(doc))
+                stampRef.current = doc.draft_stamp ?? null
+                setConflict(null)
                 return true
             } catch (cause) {
-                setError(voiceSaveErrorKey(cause) ?? 'cardVersions.errors.draftSave')
-                options?.onError?.(cause)
+                refuse(cause, { action: 'save', body }, voiceSaveErrorKey(cause) ?? 'cardVersions.errors.draftSave', options)
                 return false
             } finally {
                 setSaving(false)
             }
         },
-        [api, cardType, cardId],
+        [api, cardType, cardId, refuse],
     )
 
     const publish = useCallback(
-        async (label?: string): Promise<CardPublishResult | null> => {
+        async (label?: string, options?: WriteOptions): Promise<CardPublishResult | null> => {
             if (!cardId || !api) return null
             setPublishing(true)
             setError(null)
             try {
-                const result = await api.publishCardDraft(cardType, cardId, label)
+                const result = await api.publishCardDraft(cardType, cardId, label, stampRef.current ?? undefined)
+                stampRef.current = result.draft_stamp ?? null
+                setConflict(null)
                 // Publish changes the live card (latest bumps, draft cleared); usage display
                 // for this card may now be stale in the shared cache.
                 invalidateCardUsage(cardType, cardId)
@@ -199,55 +251,85 @@ export function useCardDraft({ cardType, cardId, version, onDraftLoaded, workspa
                     latestVersionNumber: result.version_number,
                 })
                 return result
-            } catch {
-                setError('cardVersions.errors.publish')
+            } catch (cause) {
+                refuse(cause, { action: 'publish' }, 'cardVersions.errors.publish', options)
                 return null
             } finally {
                 setPublishing(false)
             }
         },
-        [api, cardType, cardId],
+        [api, cardType, cardId, refuse],
     )
 
-    const discard = useCallback(async (): Promise<CardDraftDocument | null> => {
+    const discard = useCallback(async (options?: WriteOptions): Promise<CardDraftDocument | null> => {
         if (!cardId || !api) return null
         setSaving(true)
         setError(null)
         try {
-            await api.discardCardDraft(cardType, cardId)
+            await api.discardCardDraft(cardType, cardId, stampRef.current ?? undefined)
             // No draft now → getCardDraft returns the published body the form should reset to.
             const published = await api.getCardDraft(cardType, cardId)
             setDraftState(toState(published))
+            stampRef.current = published.draft_stamp ?? null
+            setConflict(null)
             return published
-        } catch {
-            setError('cardVersions.errors.discard')
+        } catch (cause) {
+            refuse(cause, { action: 'discard' }, 'cardVersions.errors.discard', options)
             return null
         } finally {
             setSaving(false)
         }
-    }, [api, cardType, cardId])
+    }, [api, cardType, cardId, refuse])
 
     const restoreIntoDraft = useCallback(
-        async (versionNumber: number): Promise<CardDraftDocument | null> => {
+        async (versionNumber: number, options?: WriteOptions): Promise<CardDraftDocument | null> => {
             if (!cardId || !api) return null
             setSaving(true)
             setError(null)
             try {
-                const doc = await api.restoreVersionIntoDraft(cardType, cardId, versionNumber)
+                const doc = await api.restoreVersionIntoDraft(cardType, cardId, versionNumber, stampRef.current ?? undefined)
                 setDraftState(toState(doc))
+                stampRef.current = doc.draft_stamp ?? null
+                setConflict(null)
                 // Restore stages the version into the draft → we're now editing a draft, not viewing history.
                 setIsHistorical(false)
                 setViewingVersionNumber(null)
                 return doc
-            } catch {
-                setError('cardVersions.errors.restoreDraft')
+            } catch (cause) {
+                refuse(cause, { action: 'restore', versionNumber }, 'cardVersions.errors.restoreDraft', options)
                 return null
             } finally {
                 setSaving(false)
             }
         },
-        [api, cardType, cardId],
+        [api, cardType, cardId, refuse],
     )
+
+    const loadLatest = useCallback(async (): Promise<CardDraftDocument | null> => {
+        setLoading(true)
+        const doc = await fetchDraft()
+        setLoading(false)
+        if (!doc) {
+            setError('cardVersions.errors.loadLatest')
+            return null
+        }
+        setDraftState(toState(doc))
+        stampRef.current = doc.draft_stamp ?? null
+        setConflict(null)
+        setError(null)
+        return doc
+    }, [fetchDraft])
+
+    const adoptLatest = useCallback(async (): Promise<boolean> => {
+        const doc = await fetchDraft()
+        if (!doc) {
+            setError('cardVersions.errors.loadLatest')
+            return false
+        }
+        setDraftState(toState(doc))
+        stampRef.current = doc.draft_stamp ?? null
+        return true
+    }, [fetchDraft])
 
     return {
         draftState,
@@ -265,5 +347,9 @@ export function useCardDraft({ cardType, cardId, version, onDraftLoaded, workspa
         discard,
         restoreIntoDraft,
         refresh,
+        conflict,
+        loadLatest,
+        adoptLatest,
+        dismissConflict: useCallback(() => setConflict(null), []),
     }
 }

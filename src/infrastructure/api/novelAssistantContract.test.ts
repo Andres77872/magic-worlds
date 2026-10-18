@@ -72,6 +72,15 @@ describe('novel assistant evidence and staged proposal boundary',()=>{
     })
 })
 
+describe('book copy',()=>{
+    it('keeps a copy field only on a copy-action reply',()=>{
+        // The copy field belongs to the copy action (A26); a reply to any other question cannot carry one.
+        const record=structuredClone(wire.records.ask) as unknown as {result:Record<string,unknown>}
+        record.result.copy='A keeper and a letter.'
+        expect(verifyNovelAssistantRecord(record,index.id,executionId)).toBe(false)
+    })
+})
+
 describe('proposed story facts',()=>{
     function withFacts(patch:Record<string,unknown>={}){
         const record=structuredClone(wire.records.suggest),source=record.context.packet.sources[0],passage=source.passages[0]

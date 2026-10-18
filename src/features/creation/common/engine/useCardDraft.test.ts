@@ -84,7 +84,7 @@ describe('useCardDraft', () => {
             ok = await result.current.saveDraft({ name: 'Edited' })
         })
         expect(ok).toBe(true)
-        expect(save).toHaveBeenCalledWith('item', 'c3', { name: 'Edited' })
+        expect(save).toHaveBeenCalledWith('item', 'c3', { name: 'Edited' }, undefined)
         await waitFor(() => expect(result.current.hasDraft).toBe(true))
     })
 
@@ -101,7 +101,7 @@ describe('useCardDraft', () => {
             const res = await result.current.publish('cut')
             publishedVersion = res?.version_number ?? 0
         })
-        expect(publish).toHaveBeenCalledWith('character', 'c4', 'cut')
+        expect(publish).toHaveBeenCalledWith('character', 'c4', 'cut', undefined)
         expect(publishedVersion).toBe(3)
         await waitFor(() => expect(result.current.hasDraft).toBe(false))
         expect(result.current.draftState?.latestVersionNumber).toBe(3)
@@ -151,6 +151,59 @@ describe('useCardDraft', () => {
         })
         expect(onError).toHaveBeenCalledExactlyOnceWith(failure)
         await waitFor(() => expect(result.current.error).toBe('cardVersions.errors.draftSave'))
+    })
+
+    it('sends the loaded stamp with each write and keeps a write refused over a changed draft as a conflict', async () => {
+        const loaded = 'a'.repeat(64), staged = 'b'.repeat(64), mine = 'c'.repeat(64)
+        const get = vi.spyOn(apiService, 'getCardDraft')
+            .mockResolvedValueOnce({ id: 'c10', is_draft: true, based_on_version_number: 2, latest_version_number: 2, draft_stamp: loaded })
+            .mockResolvedValue({ id: 'c10', name: 'Staged by a novel', is_draft: true, based_on_version_number: 2, latest_version_number: 2, draft_stamp: staged })
+        const save = vi.spyOn(apiService, 'saveCardDraft')
+            .mockRejectedValueOnce(new ApiError(409, 'changed', { code: 'CARD_DRAFT_CHANGED' }))
+            .mockResolvedValue({ id: 'c10', is_draft: true, latest_version_number: 2, draft_stamp: mine })
+        const publish = vi.spyOn(apiService, 'publishCardDraft').mockRejectedValue(new ApiError(409, 'changed', { code: 'CARD_DRAFT_CHANGED' }))
+        const onError = vi.fn()
+        const { result } = renderHook(() => useCardDraft({ cardType: 'character', cardId: 'c10' }))
+        await waitFor(() => expect(result.current.hasDraft).toBe(true))
+
+        let ok = true
+        await act(async () => { ok = await result.current.saveDraft({ name: 'Mine' }, { onError }) })
+        expect(ok).toBe(false)
+        expect(save).toHaveBeenLastCalledWith('character', 'c10', { name: 'Mine' }, loaded)
+        expect(onError).toHaveBeenCalledOnce()
+        expect(result.current.conflict).toEqual({ action: 'save', body: { name: 'Mine' } })
+        expect(result.current.error).toBe('cardVersions.errors.draftChanged')
+
+        // Loading the newer draft holds its stamp; the next write names it.
+        let newer: unknown = null
+        await act(async () => { newer = await result.current.loadLatest() })
+        expect(newer).toEqual(expect.objectContaining({ name: 'Staged by a novel' }))
+        expect(result.current.conflict).toBeNull()
+        await act(async () => { ok = await result.current.saveDraft({ name: 'Reviewed' }) })
+        expect(save).toHaveBeenLastCalledWith('character', 'c10', { name: 'Reviewed' }, staged)
+
+        // A publish over a draft changed since is a conflict too; the stamp after a save is the saved body's.
+        await act(async () => { await result.current.publish('cut') })
+        expect(publish).toHaveBeenCalledWith('character', 'c10', 'cut', mine)
+        expect(result.current.conflict).toEqual({ action: 'publish' })
+        expect(get).toHaveBeenCalledTimes(2)
+    })
+
+    it('adopts the stored stamp without loading it, so the next write replaces the newer draft on purpose', async () => {
+        vi.spyOn(apiService, 'getCardDraft')
+            .mockResolvedValueOnce({ id: 'c11', is_draft: false, latest_version_number: 1, draft_stamp: 'a'.repeat(64) })
+            .mockResolvedValue({ id: 'c11', is_draft: true, latest_version_number: 1, draft_stamp: 'b'.repeat(64) })
+        const discard = vi.spyOn(apiService, 'discardCardDraft').mockResolvedValue({ card_id: 'c11', discarded: true, has_draft: false })
+        const onDraftLoaded = vi.fn()
+        const { result } = renderHook(() => useCardDraft({ cardType: 'world', cardId: 'c11', onDraftLoaded }))
+        await waitFor(() => expect(result.current.draftState).not.toBeNull())
+
+        let adopted = false
+        await act(async () => { adopted = await result.current.adoptLatest() })
+        expect(adopted).toBe(true)
+        expect(onDraftLoaded).not.toHaveBeenCalled()
+        await act(async () => { await result.current.discard() })
+        expect(discard).toHaveBeenCalledWith('world', 'c11', 'b'.repeat(64))
     })
 
     it('version=<n> loads a read-only historical body without touching the draft', async () => {

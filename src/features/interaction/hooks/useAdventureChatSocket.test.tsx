@@ -385,7 +385,7 @@ describe('useAdventureChatSocket same-request recovery', () => {
     vi.clearAllMocks()
   })
 
-  it('resends a request with its frozen target and no key, and sends the key only when the server asks', async () => {
+  it('supplies credentials again before resending its frozen target', async () => {
     const calls = prepare(() => '22222222-2222-4222-8222-222222222222')
     const onError = vi.fn()
     const { result } = renderHook(() => useAdventureChatSocket(7, { onError }))
@@ -395,15 +395,10 @@ describe('useAdventureChatSocket same-request recovery', () => {
 
     result.current.sendChat('Open the door', 'req-9')
     await flush()
-    expect(calls).toHaveLength(1)
-    expect(sent()[1]).toEqual({ content: 'Open the door', id: 'req-9', existing: undefined, llm: target('22222222-2222-4222-8222-222222222222') })
-
-    socketHandlers?.onMessage({ type: 'error', message: 'Chat execution failed.', category: 'conflict', code: 'BYOK_CREDENTIAL_REQUIRED', request_id: 'req-9' })
-    await flush()
-    expect(onError).not.toHaveBeenCalled()
+    expect(calls).toHaveLength(2)
     expect(calls[1]).toEqual({ mode: 'profile', profile_id: PROFILE })
-    expect(sent()[2]).toEqual({ content: 'Open the door', id: 'req-9', existing: undefined, llm: target('22222222-2222-4222-8222-222222222222', 'FAKE_KEY') })
-
+    expect(sent()[1]).toEqual({ content: 'Open the door', id: 'req-9', existing: undefined,
+      llm: target('22222222-2222-4222-8222-222222222222', 'FAKE_KEY') })
     socketHandlers?.onMessage({ type: 'error', message: 'Chat execution failed.', category: 'conflict', code: 'BYOK_CREDENTIAL_REQUIRED', request_id: 'req-9' })
     expect(onError).toHaveBeenCalledWith('Chat execution failed.', expect.objectContaining({ code: 'BYOK_CREDENTIAL_REQUIRED', requestId: 'req-9' }))
   })
@@ -498,7 +493,7 @@ describe('retained chat attempts', () => {
     expect(JSON.stringify(onError.mock.calls) + JSON.stringify(localStorage) + JSON.stringify(sessionStorage)).not.toContain('FAKE_FRESH_CHILD_KEY')
   })
 
-  it('recovers a child after reload without a key, then requests one for its retained revision', async () => {
+  it('requires credentials before recovering a child after reload', async () => {
     const preparation = vi.fn(async () => () => ({ ...target, credentials: { api_key: 'FAKE_REENTERED_KEY' } }))
     release = configureLlmPreparation(preparation)
     const onError = vi.fn()
@@ -507,13 +502,9 @@ describe('retained chat attempts', () => {
     const command = { ...target, retry_of_execution_id: PARENT }
     result.current.sendChat('Open the door', 'child-request', undefined, command, true)
     await flush()
-    expect(preparation).not.toHaveBeenCalled()
-    expect(wires[0].llm).toEqual(command)
-    socketHandlers?.onMessage({ type: 'error', request_id: 'child-request', code: 'BYOK_CREDENTIAL_REQUIRED', message: 'Key required' })
-    await flush()
     // A retained retry is prepared against the session's workspace.
     expect(preparation).toHaveBeenCalledWith('chat_adventure', expect.any(AbortSignal), target.selection, PARENT, 'child-request', '0f1e2d3c-4b5a-4978-8a6b-5c4d3e2f1a0b')
-    expect(wires[1].llm).toEqual({ ...command, credentials: { api_key: 'FAKE_REENTERED_KEY' } })
+    expect(wires[0].llm).toEqual({ ...command, credentials: { api_key: 'FAKE_REENTERED_KEY' } })
     expect(onError).not.toHaveBeenCalled()
   })
 
@@ -575,6 +566,7 @@ describe('retained chat attempts', () => {
   })
 
   it.each(['missing', 'parent', 'user', 'private'] as const)('rejects a %s attempt association and drops its following stream', async mutation => {
+    release = configureLlmPreparation(async () => () => target)
     const onTurnStarted = vi.fn(), onDelta = vi.fn(), onError = vi.fn()
     const { result } = renderHook(() => useAdventureChatSocket(7, { onTurnStarted, onDelta, onError }))
     capture()

@@ -65,6 +65,11 @@ import { NavigationContext } from './NavigationProvider'
 import { pageFromHash } from '../../features/gallery/galleryLinks'
 import { characterChatParticipantIds } from '@/features/characterChat/codexParticipants'
 import { i18n } from '@/app/i18n'
+import { isSessionPersona, SessionPersonaError } from '@/utils/characterRoles'
+
+function requireSessionPersona(persona?: { id?: string; role?: Character['role'] } | null): void {
+    if (!isSessionPersona(persona)) throw new SessionPersonaError(i18n.t('ui.personaPicker.invalidPersona'))
+}
 
 export type CharacterChatMode = 'text' | 'voice'
 
@@ -588,9 +593,7 @@ export function DataProvider({ children }: DataProviderProps) {
             openLoginModal()
             throw new Error('Login required to start adventures')
         }
-        if (!persona?.id) {
-            throw new Error('Choose a persona before starting an adventure')
-        }
+        requireSessionPersona(persona)
         const draftId = `draft-${generateUUID()}`
         const adventure: Adventure = {
             ...structuredClone(template),
@@ -632,7 +635,14 @@ export function DataProvider({ children }: DataProviderProps) {
         const request = (async () => {
             let adventure = createdDraftsRef.current.get(key)
             if (!adventure) {
-                const session = await api.createAdventureSession(draft.draft!.templateId, draft.draft!.personaId)
+                const persona = draft.snapshot ? draft.snapshot.template.persona : draft.persona
+                // A cleared snapshot still needs its original valid creation persona.
+                const personaId = draft.snapshot?.template.persona?.source_card_id ?? persona?.id ?? draft.draft!.personaId
+                if (persona) requireSessionPersona({ ...persona, id: personaId })
+                if (!personaId || personaId !== personaId.trim()) throw new SessionPersonaError(i18n.t('ui.personaPicker.invalidPersona'))
+                const libraryPersona = characters.find((card) => card.id === personaId)
+                if (libraryPersona) requireSessionPersona(libraryPersona)
+                const session = await api.createAdventureSession(draft.draft!.templateId, personaId)
                 adventure = { ...draft, ...buildInProgressAdventure(session, draft, resolveAdventureSnapshot(session.template_snapshot)), draft: undefined, draftId: draft.draftId }
                 createdDraftsRef.current.set(key, adventure)
             }
@@ -700,10 +710,16 @@ export function DataProvider({ children }: DataProviderProps) {
             openLoginModal()
             throw new Error('Login required to edit adventure cards')
         }
+        const persona = snapshot.template.persona
+        if (persona) requireSessionPersona({ ...persona, id: persona.source_card_id ?? persona.id })
         if (editingInProgress?.id === adventureId && editingInProgress.draft) {
+            const key = `${accountKey}:${workspaceId ?? 'none'}:adventure:${adventureId}`
+            if (draftRequestsRef.current.has(key)) throw new Error(i18n.t('ui.personaPicker.setupInProgress'))
             const fields = adventureFieldsFromSnapshot(snapshot)
             setEditingInProgress({ ...editingInProgress, ...fields, snapshot,
-                draft: { ...editingInProgress.draft, snapshotEdited: true } })
+                draft: { ...editingInProgress.draft,
+                    personaId: persona ? persona.source_card_id ?? persona.id! : editingInProgress.draft.personaId,
+                    snapshotEdited: true } })
             return
         }
         // Persist to this adventure's own snapshot — never the library/template card.
@@ -1024,9 +1040,7 @@ export function DataProvider({ children }: DataProviderProps) {
             openLoginModal()
             throw new Error('Login required to chat with characters')
         }
-        if (!persona?.id) {
-            throw new Error('Choose a persona before starting a chat')
-        }
+        requireSessionPersona(persona)
         const draftId = `draft-${generateUUID()}`
         const chat: CharacterChatSession = {
             id: draftId, draftId, isDraft: true, kind: 'character',
@@ -1045,9 +1059,7 @@ export function DataProvider({ children }: DataProviderProps) {
             openLoginModal()
             throw new Error('Login required to chat with characters')
         }
-        if (!persona?.id) {
-            throw new Error('Choose a persona before starting a group chat')
-        }
+        requireSessionPersona(persona)
         const characterIds = selectedCharacters.map((character) => character.id).filter(Boolean)
         if (characterIds.length < 2 || characterIds.length > 6 || new Set(characterIds).size !== characterIds.length) {
             throw new Error('Choose 2 to 6 different characters for a group chat')
@@ -1086,6 +1098,8 @@ export function DataProvider({ children }: DataProviderProps) {
                 return value
             }
             if (!saved) {
+                requireSessionPersona(draft.persona)
+                if (draft.persona_id !== draft.persona!.id) throw new SessionPersonaError(i18n.t('ui.personaPicker.invalidPersona'))
                 saved = remember(draft.kind === 'character_group'
                     ? await api.createCharacterGroupChat(draft.character_ids!, draft.persona_id!)
                     : await api.createCharacterChat(draft.character_id!, draft.persona_id!))

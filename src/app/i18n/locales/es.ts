@@ -21,6 +21,7 @@ import { novelAssistantPresets } from './novelAssistantPresets'
 import { novelAssistantSummaries } from './novelAssistantSummaries'
 import { novelOutlineImport } from './novelOutlineImport'
 import { novelPlanningViews } from './novelPlanningViews'
+import { novelSurfaces } from './novelSurfaces'
 import { novelReview } from './novelReview'
 import { novelStructure } from './novelStructure'
 import { novelOutline } from './novelOutline'
@@ -229,6 +230,26 @@ export const es = {
                     publish: 'No se pudo publicar. Inténtalo de nuevo.',
                     discard: 'No se pudo descartar el borrador. Inténtalo de nuevo.',
                     restoreDraft: 'No se pudo cargar esa versión en tu borrador. Inténtalo de nuevo.',
+                    draftChanged: 'El borrador de esta tarjeta cambió en otro sitio desde que lo abriste.',
+                    loadLatest: 'No se pudo leer el borrador de la tarjeta. Inténtalo de nuevo.',
+                },
+                conflict: {
+                    title: 'El borrador de esta tarjeta cambió en otro sitio',
+                    body: {
+                        save: 'Algo guardó el borrador de esta tarjeta después de que lo abrieras, por ejemplo una novela que preparó un hecho en él. Tus cambios no se guardaron y no se perdió nada.',
+                        publish: 'Algo guardó el borrador de esta tarjeta después de que lo abrieras, por ejemplo una novela que preparó un hecho en él. No se publicó nada, así que nada que no hayas visto quedó publicado. Carga el borrador más reciente, revísalo y luego publica.',
+                        discard: 'Algo guardó el borrador de esta tarjeta después de que lo abrieras, por ejemplo una novela que preparó un hecho en él. El borrador no se descartó.',
+                        restore: 'Algo guardó el borrador de esta tarjeta después de que lo abrieras, por ejemplo una novela que preparó un hecho en él. La versión {{number}} no se cargó en el borrador.',
+                    },
+                    loadHint: 'Cargar el borrador más reciente reemplaza los cambios sin guardar de este editor.',
+                    load: 'Cargar el borrador más reciente',
+                    keep: {
+                        save: 'Guardar el mío encima',
+                        discard: 'Descartarlo de todos modos',
+                        restore: 'Cargar la versión {{number}} de todos modos',
+                    },
+                    later: 'Ahora no',
+                    loaded: 'Se cargó el borrador más reciente.',
                 },
             },
             sessionLorebooks: {
@@ -3328,12 +3349,14 @@ export const es = {
                 personaPicker: {
                     starting: 'Iniciando...',
                     noPersonas: 'No hay cartas de persona disponibles',
-                    noPersonasHint: 'Crea un personaje o persona antes de empezar.',
-                    createCharacter: 'Crear personaje',
+                    noPersonasHint: 'Crea una carta de persona para elegir a quién interpretar antes de empezar.',
+                    createCharacter: 'Crear persona',
                     untitled: 'Sin título',
                     persona: 'Persona',
                     character: 'Personaje',
                     default: 'Predeterminada',
+                    invalidPersona: 'Elige una carta de persona disponible antes de empezar. Si esta carta cambió o se eliminó, vuelve a la configuración y elige otra persona.',
+                    setupInProgress: 'Espera a que termine la configuración de la sesión antes de editar esta aventura.',
                 },
             },
             landing: {
@@ -4923,7 +4946,7 @@ export const es = {
                     separateConversation: 'Tu conversación se guarda cuando envías tu primer mensaje.',
                     searchCharacters: 'Buscar personajes',
                     searchPersonas: 'Buscar personas',
-                    personaHint: 'Elige una persona o interpreta cualquier tarjeta de personaje de tu biblioteca.',
+                    personaHint: 'Elige una carta de persona para interpretar en esta conversación.',
                     selectCharacter: 'Chatear con {{name}}',
                     selectPersona: 'Interpretar a {{name}}',
                     chattingWith: 'Chateando con',
@@ -5826,6 +5849,7 @@ export const es = {
                 assistantSummaries:novelAssistantSummaries.es,
                 outlineImport:novelOutlineImport.es,
                 planningViews:novelPlanningViews.es,
+                surfaces:novelSurfaces.es,
                 review:novelReview.es,
                 reader:novelReader.es,
                 typing:novelTyping.es,

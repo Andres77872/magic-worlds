@@ -57,7 +57,7 @@ it('isolates a late acknowledgement from a newly opened novel',async()=>{
     let finish!:(value:unknown)=>void
     mocks.change.mockImplementationOnce(()=>new Promise((resolve)=>{finish=resolve}))
     const view=renderHook(({current})=>useCodexMutation(current,workspace,false,false),{initialProps:{current:story}})
-    let request!:Promise<void>
+    let request!:Promise<unknown>
     act(()=>{request=view.result.current.perform(operation)})
     view.rerender({current:novel({id:'other-novel'})})
     expect(view.result.current.pending).toBeNull()

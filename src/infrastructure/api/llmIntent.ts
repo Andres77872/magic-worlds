@@ -6,7 +6,7 @@ type Target = { account: string; selection: LlmSelection; expected_revision_id: 
 /**
  * Secret-free memory of the target each unfinished request ID resolved to. The
  * server fingerprints selection and revision with the intent, so a retry of the
- * same request must send exactly what the first attempt sent, minus any key.
+ * same request keeps that target while supplying request-scoped credentials anew.
  */
 const targets = new Map<string, Target>()
 const LIMIT = 64
@@ -16,6 +16,8 @@ authSession.subscribe((next) => { if (next.sessionPhase !== 'authenticated' && n
 /** Outcomes that spend a request ID: the next attempt must be a new request. */
 const SPENT = new Set([
     'LLM_EXECUTION_FINISHED', 'LLM_EXECUTION_UPSTREAM_FAILED', 'LLM_EXECUTION_INTENT_CHANGED',
+    'BYOK_CREDENTIAL_REJECTED', 'PROVIDER_AUTHENTICATION_REJECTED', 'PROVIDER_PERMISSION_DENIED',
+    'PROVIDER_RATE_LIMITED', 'PROVIDER_QUOTA_EXCEEDED', 'PROVIDER_UNAVAILABLE', 'BYOK_TRANSPORT_UNSUPPORTED',
     'PROFILE_REVISION_CHANGED', 'PROFILE_UNAVAILABLE', 'PLATFORM_CREDENTIAL_FORBIDDEN', 'BYOK_EXPECTED_REVISION_REQUIRED',
 ])
 

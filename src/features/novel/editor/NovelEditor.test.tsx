@@ -507,6 +507,25 @@ describe('NovelEditor keyboard ownership', () => {
         expect(screen.getByTestId('beat-instruction')).toHaveValue('Keep this instruction until the connection returns.')
     })
 
+    it('continues from the caret with Mod-Shift-Enter only while completions are on', async () => {
+        const onGenerate = vi.fn(() => new Promise<never>(() => {})), onRequestSaveFlush = vi.fn(async () => true)
+        const view = render(<NovelEditor {...props({ initialBody: 'The gate held.', onGenerate, onRequestSaveFlush })} />)
+        const surface = await screen.findByLabelText('Scene manuscript'), editor = (surface as HTMLElement & { editor: Editor }).editor
+        // A real Enter (key code 13): the view cancels it, so only the prose keymap can answer.
+        const press = () => fireEvent.keyDown(surface, { key: 'Enter', code: 'Enter', keyCode: 13, ctrlKey: true, shiftKey: true })
+        act(() => { editor.commands.setTextSelection(editor.state.doc.content.size - 1) })
+        press()
+        await act(async () => {})
+        expect(onGenerate).not.toHaveBeenCalled(); expect(editor.getMarkdown()).toBe('The gate held.')
+        view.rerender(<NovelEditor {...props({ initialBody: 'The gate held.', onGenerate, onRequestSaveFlush, completionInstruction: 'Write one or two sentences that continue from the cursor.' })} />)
+        act(() => { editor.commands.setTextSelection(editor.state.doc.content.size - 1) })
+        press()
+        await waitFor(() => expect(onGenerate).toHaveBeenCalledOnce())
+        expect(onGenerate).toHaveBeenCalledWith(expect.objectContaining({ command: 'continue', cursorOffset: 14,
+            instruction: 'Write one or two sentences that continue from the cursor.' }), expect.anything())
+        expect(screen.queryByTestId('beat-composer')).not.toBeInTheDocument()
+    })
+
     it('opens the beat composer at the caret with Mod-Enter', async () => {
         await openComposer()
         expect(screen.getByTestId('beat-composer')).toBeInTheDocument()

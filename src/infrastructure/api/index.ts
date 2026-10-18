@@ -42,7 +42,7 @@ import { isStoryLibraryFilters,storyLibraryParams } from '@/shared/storyLibrary'
 import type { StoryLibraryFilters } from '@/shared/types/storyLibrary.types'
 import type { StoryCreationSources,StoryCreationSourcesPreview,StoryCreationSourcesSelection } from '@/shared'
 import type { StoryCopyWrite,StoryCopyPreview,StoryCopyAcknowledgement,StoryCopyProvenance } from '@/shared/types/story.types'
-import type { StoryCardRef, StoryCodexLibraryDraft, StoryCodexLibraryEntry, StoryCodexLibraryReview, StoryCodexLibraryNotices, StoryCodexWrite, StoryCodexAcknowledgement, StoryScene, StorySceneWrite, StoryUnitMetadata, StoryStructureWrite, StoryStructureAcknowledgement, StoryStructureRevision, StoryStructureHistoryPage, StoryStructureHistoryQuery } from '@/shared/types/story.types'
+import type { StoryCardRef, StoryCodexLibraryDraft, StoryCodexLibraryDraftFields, StoryCodexLibraryEntry, StoryCodexLibraryEntryFields, StoryCodexLibraryReview, StoryCodexLibraryNotices, StoryCodexWrite, StoryCodexAcknowledgement, StoryScene, StorySceneWrite, StoryUnitMetadata, StoryStructureWrite, StoryStructureAcknowledgement, StoryStructureRevision, StoryStructureHistoryPage, StoryStructureHistoryQuery } from '@/shared/types/story.types'
 import { verifyStoryStructureHistory,verifyStoryStructureRevision } from './storyHistoryContract'
 import type { StorySnapshotPreview,StorySnapshotPage,StorySnapshotDetail,StorySnapshotComparison,StorySnapshotSceneView,StorySnapshotScene,StorySnapshotRestorePreview,StorySnapshotRestoreOptions } from '@/shared/types/story.types'
 import { verifySnapshotPreview,verifySnapshotPage,verifySnapshotDetail,verifySnapshotComparison,verifySnapshotScene,verifySnapshotRestorePreview } from './storySnapshotContract'
@@ -65,6 +65,7 @@ import type { NovelAssistantTurnState } from '@/shared/types/novelAssistantContr
 import { trackResourceTaskRequest } from './resourceTaskEvents'
 import { assertPublicLlmData, assertEffectiveLlmProfile, assertLlmCapacityUsage, assertLlmProfileCompatibility, assertLlmProviderUsage } from './llmProfileContract'
 import { prepareLlmRequest, prepareRetainedLlmRequest } from './llmPreparation'
+import { credentialSession } from '@/features/llmProfiles/credentialSession'
 import { isLlmRequestSpent, llmIntents } from './llmIntent'
 import type { LlmFeature, LlmRequest, LlmSelection } from '@/shared/types/llm.types'
 import type { ImageCatalog, ImageProfile, ImageProfileList, ImageProfileMutation } from '@/shared/types/imageProfile.types'
@@ -719,6 +720,11 @@ export class ChatImagesUnsupportedError extends ApiError {
         super(status, 'Chat images are not available on this server.', { code: 'CHAT_IMAGES_UNSUPPORTED' })
         this.name = 'ChatImagesUnsupportedError'
     }
+}
+
+/** `If-Match` naming the card body the editor loaded (its `draft_stamp`); none when the editor holds no stamp yet. */
+function editorStampHeader(stamp?: string): Record<string, string> {
+    return stamp ? { 'If-Match': `"${stamp}"` } : {}
 }
 
 function chatMessageImagesPath(basePath: ChatImageBasePath, sessionId: number, messageId: number): string {
@@ -1741,9 +1747,8 @@ class ApiService {
 
     /**
      * One logical LLM request. A retry of the same request ID reuses the target
-     * its first attempt froze and asks without a key, since a finished or
-     * platform execution needs none. Only when the server asks for a key does
-     * the user supply one, and only for that same profile revision.
+     * its first attempt froze and supplies a fresh credential for BYOK before
+     * sending, including completed-result replay and explicit recovery.
      */
     private async withLlmIntent<T>(feature: LlmFeature, requestId: string, supplied: LlmRequest | undefined, signal: AbortSignal | undefined,
         send: (llm: LlmRequest) => Promise<T>, finished: (value: T) => boolean = () => true,
@@ -1752,9 +1757,13 @@ class ApiService {
         const owner = authSession.getSnapshot()
         // Workspace R1: retained retry/recovery profile reads ride this client's captured origin.
         const origin = this.workspaceScope?.workspaceId
-        let llm = llmIntents.retained(feature, requestId) ?? await (supplied?.retry_of_execution_id
-            ? prepareRetainedLlmRequest(feature, supplied, signal, undefined, origin) : prepareLlmRequest(feature, supplied, signal, undefined, origin))
+        const retained = llmIntents.retained(feature, requestId)
+        let llm = retained ? await prepareRetainedLlmRequest(feature, retained, signal, requestId, origin)
+            : await (supplied?.retry_of_execution_id
+                ? prepareRetainedLlmRequest(feature, supplied, signal, undefined, origin)
+                : prepareLlmRequest(feature, supplied, signal, undefined, origin))
         this.assertCurrentOwner(owner)
+        let rejectCredential = credentialSession.rejectionHandler(feature)
         llmIntents.retain(feature, requestId, llm)
         try {
             let value: T
@@ -1769,11 +1778,13 @@ class ApiService {
                     throw new ApiError(409, 'The profile changed since this request started.', { code: 'LLM_EXECUTION_INTENT_CHANGED', requestId, retryable: false })
                 }
                 this.assertCurrentOwner(owner)
+                rejectCredential = credentialSession.rejectionHandler(feature)
                 value = await send(llm)
             }
             if (finished(value)) llmIntents.settle(feature, requestId)
             return value
         } catch (error) {
+            if (error instanceof ApiError && ['BYOK_CREDENTIAL_REJECTED', 'PROVIDER_AUTHENTICATION_REJECTED'].includes(error.code || '')) rejectCredential()
             if (settleError(error)) llmIntents.settle(feature, requestId)
             throw error
         } finally {
@@ -3365,8 +3376,12 @@ class ApiService {
         )
     }
 
-    /** Write the editor's payload into the private draft (does not touch the live card). */
-    async saveCardDraft(cardType: VersionableCardType, cardId: string, body: unknown): Promise<CardDraftDocument> {
+    /**
+     * Write the editor's payload into the private draft (does not touch the live card). `expectedStamp` is the
+     * `draft_stamp` of the body the editor loaded: a draft changed since (a novel staged a fact) is refused with
+     * 409 `CARD_DRAFT_CHANGED` instead of being overwritten. The same guard rides publish, discard and restore.
+     */
+    async saveCardDraft(cardType: VersionableCardType, cardId: string, body: unknown, expectedStamp?: string): Promise<CardDraftDocument> {
         if (cardType) assertContentTypeFeatureEnabled(cardType)
         const token = this.getStoredToken()
         return this.authenticatedRequest<CardDraftDocument>(
@@ -3374,7 +3389,7 @@ class ApiService {
             token,
             {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', ...editorStampHeader(expectedStamp) },
                 body: stripCardBodyOrganization(stripVoiceProjections(body)) as unknown as BodyInit,
             },
         )
@@ -3384,18 +3399,19 @@ class ApiService {
     async discardCardDraft(
         cardType: VersionableCardType,
         cardId: string,
+        expectedStamp?: string,
     ): Promise<{ card_id: string; discarded: boolean; has_draft: boolean }> {
         if (cardType) assertContentTypeFeatureEnabled(cardType)
         const token = this.getStoredToken()
         return this.authenticatedRequest(
             `${this.versionBasePath(cardType)}/${encodeURIComponent(cardId)}/draft`,
             token,
-            { method: 'DELETE' },
+            { method: 'DELETE', headers: editorStampHeader(expectedStamp) },
         )
     }
 
     /** Promote the draft → live and cut a new version (v{n+1}). 409 when there's nothing to publish. */
-    async publishCardDraft(cardType: VersionableCardType, cardId: string, label?: string): Promise<CardPublishResult> {
+    async publishCardDraft(cardType: VersionableCardType, cardId: string, label?: string, expectedStamp?: string): Promise<CardPublishResult> {
         if (cardType) assertContentTypeFeatureEnabled(cardType)
         const token = this.getStoredToken()
         return this.authenticatedRequest<CardPublishResult>(
@@ -3403,7 +3419,7 @@ class ApiService {
             token,
             {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', ...editorStampHeader(expectedStamp) },
                 body: { label: label?.trim() || null } as unknown as BodyInit,
             },
         )
@@ -3414,13 +3430,14 @@ class ApiService {
         cardType: VersionableCardType,
         cardId: string,
         versionNumber: number,
+        expectedStamp?: string,
     ): Promise<CardDraftDocument> {
         if (cardType) assertContentTypeFeatureEnabled(cardType)
         const token = this.getStoredToken()
         return this.authenticatedRequest<CardDraftDocument>(
             `${this.versionBasePath(cardType)}/${encodeURIComponent(cardId)}/versions/${versionNumber}/restore`,
             token,
-            { method: 'POST' },
+            { method: 'POST', headers: editorStampHeader(expectedStamp) },
         )
     }
 
@@ -4544,15 +4561,17 @@ class ApiService {
     async getStoryCodexLibraryDraft(ref:StoryCardRef):Promise<StoryCodexLibraryDraft> {
         this.assertNovelsEnabled()
         const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(ref.storyId)}/codex/${encodeURIComponent(ref.id)}/library-draft`,this.getStoredToken())
-        if(!verifyStoryCodexLibraryDraft(value,ref.id))throw new ApiError(502,'Unsupported library draft.',{code:'story_contract',retryable:false})
+        if(!verifyStoryCodexLibraryDraft(value,ref))throw new ApiError(502,'Unsupported library draft.',{code:'story_contract',retryable:false})
         return value
     }
     /** Saves a reviewed description into the library card's private draft; publishing stays in the card editor. */
-    async stageStoryCodexLibraryDraft(ref:StoryCardRef,description:string,expectedStamp:string):Promise<StoryCodexLibraryDraft> {
+    async stageStoryCodexLibraryDraft(ref:StoryCardRef,fields:StoryCodexLibraryDraftFields,expectedStamp:string):Promise<StoryCodexLibraryDraft> {
         this.assertNovelsEnabled()
         const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(ref.storyId)}/codex/${encodeURIComponent(ref.id)}/library-draft`,this.getStoredToken(),
-            {method:'POST',headers:{'Content-Type':'application/json'},body:{description,expectedStamp} as unknown as BodyInit})
-        if(!verifyStoryCodexLibraryDraft(value,ref.id)||value.basis!=='draft')throw new ApiError(502,'Unsupported library draft acknowledgement.',{code:'story_contract',retryable:false})
+            {method:'POST',headers:{'Content-Type':'application/json'},body:{...fields,expectedStamp} as unknown as BodyInit})
+        // The draft now holds each staged detail (an empty alias reads back as none).
+        const holds=(draft:StoryCodexLibraryDraft)=>Object.entries(fields).every(([key,item])=>key==='alias'?draft.alias===(item||null):draft[key as 'name'|'description'|'race'|'type']===item)
+        if(!verifyStoryCodexLibraryDraft(value,ref)||value.basis!=='draft'||!holds(value))throw new ApiError(502,'Unsupported library draft acknowledgement.',{code:'story_contract',retryable:false})
         return value
     }
     /** The library lorebook entry this Codex entry was copied from, as stored. */
@@ -4564,12 +4583,14 @@ class ApiService {
         return value
     }
     /** Writes reviewed text into the library lorebook entry itself; it has no draft, so it applies at once. */
-    async writeStoryCodexLibraryEntry(ref:StoryCardRef,content:string,expectedStamp:string):Promise<StoryCodexLibraryEntry> {
+    async writeStoryCodexLibraryEntry(ref:StoryCardRef,fields:StoryCodexLibraryEntryFields,expectedStamp:string):Promise<StoryCodexLibraryEntry> {
         this.assertNovelsEnabled()
         this.assertLorebooksEnabled()
         const value=await this.authenticatedRequest<unknown>(`/stories/${encodeURIComponent(ref.storyId)}/codex/${encodeURIComponent(ref.id)}/library-entry`,this.getStoredToken(),
-            {method:'POST',headers:{'Content-Type':'application/json'},body:{content,expectedStamp} as unknown as BodyInit})
-        if(!verifyStoryCodexLibraryEntry(value,ref)||value.content!==content)throw new ApiError(502,'Unsupported library lorebook entry acknowledgement.',{code:'story_contract',retryable:false})
+            {method:'POST',headers:{'Content-Type':'application/json'},body:{...fields,expectedStamp} as unknown as BodyInit})
+        const holds=(entry:StoryCodexLibraryEntry)=>(fields.title===undefined||entry.title===fields.title)&&(fields.content===undefined||entry.content===fields.content)
+            &&(fields.keys===undefined||JSON.stringify(entry.keys)===JSON.stringify(fields.keys))
+        if(!verifyStoryCodexLibraryEntry(value,ref)||!holds(value))throw new ApiError(502,'Unsupported library lorebook entry acknowledgement.',{code:'story_contract',retryable:false})
         return value
     }
 

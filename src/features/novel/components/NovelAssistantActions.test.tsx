@@ -46,3 +46,32 @@ it('keeps the author’s own words and trims the speaker only when preparing', (
     // A stored action for the other task is not a recoverable draft.
     expect(isAssistantSourceSettings({ ...latest.settings, task: 'ask' })).toBe(false)
 })
+
+it('asks for book copy in the chosen form, and the instruction follows the form', () => {
+    render(<Harness />)
+    pick('Action', 'Book copy')
+    expect(latest.settings).toMatchObject({ task: 'ask', action: { kind: 'copy', form: 'blurb' } })
+    expect(latest.message).toBe('Write a back-cover blurb for this novel.')
+    expect(screen.getByText('Ask · answers in prose')).toBeInTheDocument()
+    pick('Form', 'Submission synopsis')
+    expect(latest.settings.action).toEqual({ kind: 'copy', form: 'synopsis' })
+    expect(latest.message).toBe('Write a submission synopsis of this novel, ending included.')
+    pick('Form', 'Editorial handoff')
+    expect(latest.message).toBe('Write an editorial handoff note for this manuscript.')
+    expect(isAssistantSourceSettings(latest.settings)).toBe(true)
+})
+
+it('translates into a named language and accepts only the characters a language name uses', () => {
+    render(<Harness />)
+    pick('Action', 'Translation')
+    expect(latest.settings).toMatchObject({ task: 'suggest', action: { kind: 'translate', language: '' } })
+    expect(latest.message).toBe('Translate this into the chosen language.')
+    expect(screen.getByRole('status')).toHaveTextContent('Name the language to translate into.')
+    // A half-typed language survives in the device draft but cannot be prepared.
+    expect(isAssistantSourceSettings(latest.settings)).toBe(true)
+    fireEvent.change(screen.getByRole('combobox', { name: /Target language/ }), { target: { value: '  Spanish (Mexico) {2} ' } })
+    expect(latest.settings.action).toEqual({ kind: 'translate', language: 'Spanish (Mexico)  ' })
+    expect(latest.message).toBe('Translate this into Spanish (Mexico).')
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(assistantSourceOptions(latest.settings, latest.message).action).toEqual({ kind: 'translate', language: 'Spanish (Mexico)' })
+})

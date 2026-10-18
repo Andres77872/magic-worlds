@@ -2,13 +2,18 @@
  * Review surface: revision tasks linked to passages (open → done with an optional
  * resolution), and the stash of cut text and alternative takes. Items reference
  * scenes by identity and quote; the manuscript changes only through Write.
+ *
+ * Review takes the studio's centre column in place of the manuscript (U01); the
+ * manuscript stays loaded behind it, so a selection made in Write can still be
+ * stashed or turned into a task here.
  */
 
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ListChecks } from 'lucide-react'
 import type { StoryPlanItem, StoryTaskState } from '@/shared'
-import { Badge, Button, Callout, Drawer, Field, Icon, Input, TabPanel, Tabs, Textarea } from '@/ui/primitives'
+import { Badge, Button, Callout, Field, Icon, Input, TabPanel, Tabs, Textarea } from '@/ui/primitives'
+import { NovelSurfaceHeading } from './NovelSurfaceHeading'
 import type { PlanItems } from '../hooks/usePlanItems'
 import type { PassageSelection } from './NovelFactsPanel'
 
@@ -17,7 +22,9 @@ type Task = StoryPlanItem<'task'>
 type Stashed = StoryPlanItem<'stash'>
 
 export interface NovelReviewDrawerProps {
+    /** Review is the chosen surface. */
     open: boolean
+    /** Back to Write. */
     onClose: () => void
     tasks: PlanItems<'task'>
     stash: PlanItems<'stash'>
@@ -43,8 +50,10 @@ export function NovelReviewDrawer({ open, onClose, tasks, stash, readOnly, scene
         catch { setNotice({ tone: 'warning', text: copy('saveFailed') }); return false }
         finally { setBusy(false) }
     }
+    if (!open) return null
     return (
-        <Drawer open={open} onClose={onClose} size="xl" title={copy('title')} eyebrow={copy('eyebrow')} icon={<Icon icon={ListChecks} size={18} />}>
+        <section aria-labelledby="novel-review-title" className="mx-auto flex w-full min-w-0 max-w-4xl flex-1 flex-col gap-4 px-4 py-5 sm:px-6" data-testid="novel-review-surface">
+            <NovelSurfaceHeading id="novel-review-title" title={copy('title')} eyebrow={copy('eyebrow')} icon={<Icon icon={ListChecks} size={18} />} onBack={onClose} />
             <div className="flex flex-col gap-4" data-testid="novel-review">
                 <Tabs idBase="novel-review" aria-label={copy('label')} value={view} onChange={(value) => { setView(value); setNotice(null) }}
                     options={(['tasks', 'stash'] as const).map((value) => ({ value, label: copy('tabs.' + value),
@@ -65,7 +74,7 @@ export function NovelReviewDrawer({ open, onClose, tasks, stash, readOnly, scene
                         cutSelection={cutSelection} insertText={insertText} notify={setNotice} />
                 </TabPanel>
             </div>
-        </Drawer>
+        </section>
     )
 }
 

@@ -11,13 +11,24 @@ const optionalRevision=(value:unknown)=>value===undefined||isNovelRevision(value
 const only=(value:Record<string,unknown>,keys:string[])=>Object.keys(value).every((key)=>keys.includes(key))
 const timestamp=(value:unknown)=>typeof value==='string'&&Number.isFinite(Date.parse(value))
 
+const CODEX_FIELDS=['name','alias','race','type','description'],CODEX_CREATIONS=['reference','character','world','item','lorebook_entry']
+/** The changed fields of an existing entry, or what was created; either one only with its Codex entry. */
+function factCodexDetails(data:Record<string,unknown>){
+    const fields=data.codexFields,created=data.codexCreated
+    if(fields===undefined&&created===undefined)return true
+    if(data.codexRefId===undefined||fields!==undefined&&created!==undefined)return false
+    return fields===undefined?CODEX_CREATIONS.includes(created as string)
+        :Array.isArray(fields)&&fields.length>0&&fields.every((field)=>CODEX_FIELDS.includes(field as string))&&new Set(fields).size===fields.length
+}
+
 function validData(kind:StoryPlanKind,data:unknown){
     if(!isRecord(data))return false
     if(kind==='task')return only(data,['title','body','sceneId','quote','sourceRevision','resolution','origin','originRef'])&&text(data.title,500,true)
         &&optional(data.body,8000)&&optionalId(data.sceneId)&&optional(data.quote,2000)&&optionalRevision(data.sourceRevision)&&optional(data.resolution,2000)
         &&['author','continuity','critique','plan'].includes(data.origin as string)&&optional(data.originRef,128)&&(data.quote===undefined||data.sceneId!==undefined)
-    if(kind==='fact')return only(data,['subject','subjectCardId','kind','statement','object','fromSceneId','untilSceneId','sourceSceneId','quote','sourceRevision','origin','originRef','codexRefId','codexRevision'])
+    if(kind==='fact')return only(data,['subject','subjectCardId','kind','statement','object','fromSceneId','untilSceneId','sourceSceneId','quote','sourceRevision','origin','originRef','codexRefId','codexRevision','codexFields','codexCreated'])
         &&optionalId(data.codexRefId)&&optionalRevision(data.codexRevision)&&(data.codexRefId===undefined)===(data.codexRevision===undefined)
+        &&factCodexDetails(data)
         &&text(data.subject,255,true)&&optionalId(data.subjectCardId)&&FACT_KINDS.includes(data.kind as string)&&text(data.statement,2000,true)&&optional(data.object,255)
         &&optionalId(data.fromSceneId)&&optionalId(data.untilSceneId)&&optionalId(data.sourceSceneId)&&optional(data.quote,2000)&&optionalRevision(data.sourceRevision)
         &&['author','assistant'].includes(data.origin as string)&&optional(data.originRef,128)

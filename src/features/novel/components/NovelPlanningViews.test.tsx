@@ -168,3 +168,18 @@ it('lists every scene on the board of a short novel with no show or hide control
     expect(screen.queryByRole('button',{name:/^(Show|Hide) .*scenes/})).not.toBeInTheDocument()
     expect(screen.getAllByRole('button',{name:/^Open .* in Write$/})).toHaveLength(3)
 })
+
+it('is a surface beside the manuscript: a titled region with a way back to Write, and nothing outside Plan',()=>{
+    const story=timedStory(),close=vi.fn()
+    const view=render(<NovelPlanningViews open onClose={close} story={story} activeSceneId="arrival" onOpenScene={vi.fn()}/>)
+    expect(screen.getByRole('region',{name:'Planning views'})).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button',{name:'Back to writing'}))
+    expect(close).toHaveBeenCalledOnce()
+    // The chosen view outlives leaving Plan.
+    fireEvent.click(screen.getByRole('tab',{name:'Timeline'}))
+    view.rerender(<NovelPlanningViews open={false} onClose={close} story={story} activeSceneId="arrival" onOpenScene={vi.fn()}/>)
+    expect(screen.queryByTestId('novel-plan-surface')).not.toBeInTheDocument()
+    view.rerender(<NovelPlanningViews open onClose={close} story={story} activeSceneId="arrival" onOpenScene={vi.fn()}/>)
+    expect(screen.getByRole('tab',{name:'Timeline'})).toHaveAttribute('aria-selected','true')
+})

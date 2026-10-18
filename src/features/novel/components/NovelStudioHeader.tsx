@@ -17,8 +17,6 @@ import {
     BookOpen,
     Bookmark,
     Keyboard,
-    LayoutGrid,
-    ListChecks,
     Link,
     PanelRight,
     Search,
@@ -27,6 +25,7 @@ import {
 } from 'lucide-react'
 import type { StoryOutline } from '@/shared'
 import { Icon, IconButton } from '@/ui/primitives'
+import { NovelSurfaceSwitch, type NovelSurface } from './NovelSurfaceSwitch'
 
 export interface NovelStudioHeaderProps {
     story: StoryOutline
@@ -51,8 +50,12 @@ export interface NovelStudioHeaderProps {
     onOpenLink?:()=>void
     onOpenReferences?:()=>void
     onOpenBlockMove?:()=>void
-    onOpenPlanning?:()=>void
-    onOpenReview?:()=>void
+    /** Write, Plan or Review in the centre column (U01); hidden in focus mode, which is Write only. */
+    surface?:NovelSurface
+    onSurfaceChange?:(surface:NovelSurface)=>void
+    /** Review is offered when revision tasks and the stash are available. */
+    review?:boolean
+    reviewCount?:number
     linkReadOnly?:boolean
     onOpenSearch?:()=>void
     onOpenFind: () => void
@@ -90,8 +93,10 @@ export function NovelStudioHeader({
     onOpenLink,
     onOpenReferences,
     onOpenBlockMove,
-    onOpenPlanning,
-    onOpenReview,
+    surface = 'write',
+    onSurfaceChange,
+    review = false,
+    reviewCount,
     linkReadOnly,
     onOpenSearch,
     onOpenFind,
@@ -158,7 +163,10 @@ export function NovelStudioHeader({
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
-                {!focusMode && (
+                {!focusMode && onSurfaceChange && (
+                    <NovelSurfaceSwitch value={surface} onChange={onSurfaceChange} review={review} reviewCount={reviewCount} />
+                )}
+                {!focusMode && surface === 'write' && (
                     <IconButton
                         label={t('novelEditor.header.codex')}
                         size="sm"
@@ -202,8 +210,6 @@ export function NovelStudioHeader({
                             data-testid="novel-header-menu"
                         >
                             {onOpenAssistantContext&&<MenuItem icon={BookOpen} label={t('novelEditor.assistant.title')} onSelect={()=>runMenuItem(onOpenAssistantContext)}/>}
-                            {onOpenPlanning&&<MenuItem icon={LayoutGrid} label={t('novelEditor.planningViews.open')} onSelect={()=>runMenuItem(onOpenPlanning)}/>}
-                            {onOpenReview&&<MenuItem icon={ListChecks} label={t('novelEditor.review.open')} onSelect={()=>runMenuItem(onOpenReview)}/>}
                             {onOpenAnnotations&&<MenuItem icon={StickyNote} label={t('novelEditor.annotations.title')} onSelect={()=>runMenuItem(onOpenAnnotations)}/>}
                             {onOpenBookmarks&&<MenuItem icon={Bookmark} label={t('novelEditor.bookmarks.title')} onSelect={()=>runMenuItem(onOpenBookmarks)}/>}
                             {onOpenManuscript&&<MenuItem icon={BookOpen} label={t('novelEditor.reader.title')} onSelect={()=>runMenuItem(onOpenManuscript)}/>}

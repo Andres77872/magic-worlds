@@ -21,6 +21,7 @@ import { novelAssistantPresets } from './novelAssistantPresets'
 import { novelAssistantSummaries } from './novelAssistantSummaries'
 import { novelOutlineImport } from './novelOutlineImport'
 import { novelPlanningViews } from './novelPlanningViews'
+import { novelSurfaces } from './novelSurfaces'
 import { novelReview } from './novelReview'
 import { novelStructure } from './novelStructure'
 import { novelOutline } from './novelOutline'
@@ -219,6 +220,26 @@ export const en = {
                     publish: 'Could not publish. Try again.',
                     discard: 'Could not discard the draft. Try again.',
                     restoreDraft: 'Could not load that version into your draft. Try again.',
+                    draftChanged: 'This card’s draft changed elsewhere since you opened it.',
+                    loadLatest: 'Could not read the card’s draft. Try again.',
+                },
+                conflict: {
+                    title: 'This card’s draft changed elsewhere',
+                    body: {
+                        save: 'Something else saved this card’s draft after you opened it, for example a novel that staged a fact into it. Your changes were not saved, and nothing was lost.',
+                        publish: 'Something else saved this card’s draft after you opened it, for example a novel that staged a fact into it. Nothing was published, so nothing you have not seen went live. Load the newer draft, review it, then publish.',
+                        discard: 'Something else saved this card’s draft after you opened it, for example a novel that staged a fact into it. The draft was not discarded.',
+                        restore: 'Something else saved this card’s draft after you opened it, for example a novel that staged a fact into it. Version {{number}} was not loaded into the draft.',
+                    },
+                    loadHint: 'Loading the newer draft replaces the unsaved edits in this editor.',
+                    load: 'Load the newer draft',
+                    keep: {
+                        save: 'Save mine over it',
+                        discard: 'Discard it anyway',
+                        restore: 'Load version {{number}} anyway',
+                    },
+                    later: 'Not now',
+                    loaded: 'Loaded the newer draft.',
                 },
             },
             sessionLorebooks: {
@@ -3318,12 +3339,14 @@ export const en = {
                 personaPicker: {
                     starting: 'Starting...',
                     noPersonas: 'No persona cards available',
-                    noPersonasHint: 'Create a character or persona before starting.',
-                    createCharacter: 'Create Character',
+                    noPersonasHint: 'Create a persona card to choose who you play before starting.',
+                    createCharacter: 'Create persona',
                     untitled: 'Untitled',
                     persona: 'Persona',
                     character: 'Character',
                     default: 'Default',
+                    invalidPersona: 'Choose an available persona card before starting. If this card changed or was removed, return to setup and choose another persona.',
+                    setupInProgress: 'Wait for session setup to finish before editing this adventure.',
                 },
             },
             landing: {
@@ -4913,7 +4936,7 @@ export const en = {
                     separateConversation: 'Your conversation is saved when you send your first message.',
                     searchCharacters: 'Search characters',
                     searchPersonas: 'Search personas',
-                    personaHint: 'Choose a persona or play as any character card in your library.',
+                    personaHint: 'Choose a persona card to play as in this conversation.',
                     selectCharacter: 'Chat with {{name}}',
                     selectPersona: 'Play as {{name}}',
                     chattingWith: 'Chatting with',
@@ -5816,6 +5839,7 @@ export const en = {
                 assistantSummaries:novelAssistantSummaries.en,
                 outlineImport:novelOutlineImport.en,
                 planningViews:novelPlanningViews.en,
+                surfaces:novelSurfaces.en,
                 review:novelReview.en,
                 reader:novelReader.en,
                 typing:novelTyping.en,

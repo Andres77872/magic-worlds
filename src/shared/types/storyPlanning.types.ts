@@ -34,7 +34,13 @@ export interface StoryFactData {
     /** The novel Codex entry the author applied this fact to, and the context revision that write produced. */
     codexRefId?: string
     codexRevision?: number
+    /** The entry's details the author changed, for an existing entry. */
+    codexFields?: StoryFactCodexField[]
+    /** What the reviewed write created: a novel-only reference, a private library card, or a library lorebook entry. */
+    codexCreated?: StoryFactCodexCreation
 }
+export type StoryFactCodexField = 'name' | 'alias' | 'race' | 'type' | 'description'
+export type StoryFactCodexCreation = 'reference' | 'character' | 'world' | 'item' | 'lorebook_entry'
 export interface StoryStashData {
     kind: 'cut' | 'take'
     title: string

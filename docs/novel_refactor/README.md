@@ -4,10 +4,14 @@
 **UI/UX plan update:** 2026-10-15, informed by the standalone demo and selected official accessibility/human–AI guidance.\
 **Database preservation correction:** 2026-10-16. The user required recovery of all non-novel content after the project-wide resets. That recovery is complete. Preserve the recovered data and current novels during all remaining work; whole-database resets are disabled. [15](15_database_migration_and_legacy_cleanup.md) records the recovery and scoped schema-change procedure.\
 **Reuse/overlap review:** 2026-10-16. [07](07_target_architecture.md#reuse-and-overlap-decisions) maps existing code to extensions/new work, records two duplicated Codex helpers and coordinates ownership with the main-assistant plan. NE-020 now distinguishes already-persisted execution instructions from missing safe history exposure and edit lineage.\
-**Status:** WIP. The scene-based Studio and organization foundation are implemented behind a frontend flag; the complete refactor remains WIP. The checked-in example disables novels, while this checkout's local environment enables them. See [14 — Actual status and roadmap](14_status_and_roadmap.md) for the exact gates and remaining work. The initial 2026-10-15 documentation pass did not change runtime code or data; the execution checkpoints below record later implementation.\
+**Status (audited 2026-10-18):** WIP. Of 136 capabilities, 53 are built and checked live, 38 are built but not checked live, 35 are partial and 10 are gaps. D1–D2 are installed, the D3 assistant runs, D4 slices 1–19 and D5 slices 1–16 run, and D6 has not started. No row has passed release acceptance. Novels are available only when the user's plan grants `novels`. See [14 — Actual status and roadmap](14_status_and_roadmap.md#current-progress-remaining-work-and-scope) for the per-phase picture, release gates, the prioritized next work and the decisions that wait on the owner.\
 **Target:** A complete novel-writing editor with an integrated, story-aware AI assistant.
 
-**Current progress and pending work:** [Read the current delivery status at the top of document 14](14_status_and_roadmap.md#current-progress-remaining-work-and-scope). It distinguishes installed features from uninstalled prepared work, maps the work to the original goal, records the shared-SDK scope correction, and lists the next execution steps. **The full D1–D6 goal is unfinished. The D3 assistant runs in the app on the shared `/v1/chat/completions` contract, with known gaps listed there.**
+**Current progress and pending work:** [Read the audited status at the top of document 14](14_status_and_roadmap.md#current-progress-remaining-work-and-scope); the verdict for every capability is in [05 — Audit 2026-10-18](05_feature_catalog.md#audit-2026-10-18). **The full D1–D6 goal is unfinished.** The top priorities on 2026-10-18 are:
+
+1. **P0 fixes:** 36 failing novel BFF tests (26 migration-chain tests that are ours to fix), Ctrl/⌘+Enter inserting a line break instead of opening the beat composer, 11 px low-contrast status hints, personal-key accounting after dispatch, an intermittent invalid assistant result, and export jobs that a BFF restart interrupts.
+2. **Finish D1–D3:** live checks of the 38 built rows, one context and review path for inline AI and the assistant (CL-04), drafting a scene from its plan, real diffs and per-change review, takes, accessibility and production-build performance.
+3. **Then** the rest of D4, D5 and D6. Branches (N05) and research (A28) wait on the owner's decisions.
 
 The dossier contains 21 Markdown documents, a standalone HTML prototype, 136 target capabilities, 23 NE findings, 12 prioritized UI/UX work items, and 62 primary references. The references cover eight writing/planning products and four editor or open-source foundations. Findings distinguish prior controlled reproductions, source-confirmed concerns, prototype observations, target gaps, and unmeasured risks. Vendor/model research retains its 2026-10-14 cutoff. The earlier lifecycle/UI review and its test/prototype records remain dated evidence. The deep review recorded focused frontend/backend tests. Use M1–M3 scoped implementation steps, three short DEV checks and the CL-01–CL-10 removal inventory. Historical reset approval is superseded by the preservation correction above; it does not authorize another rebuild.
 
@@ -15,13 +19,17 @@ The dossier contains 21 Markdown documents, a standalone HTML prototype, 136 tar
 
 ## Actual availability
 
-`VITE_FEATURE_NOVELS_ENABLED` enables the feature only when its value is the exact string `true`. [`.env.example`](../../.env.example) sets it to `false`; the local `.env` reviewed on 2026-10-14 sets it to `true`. Neither establishes the production flag value or deployed backend readiness. Disabled pages are hidden from navigation, direct navigation renders Not Found, and frontend story API methods reject calls. **WIP is the documentation status; a WIP placeholder is not the current application behavior.** Source: [flags](../../src/shared/featureFlags.ts), [router](../../src/app/router/AppRouter.tsx), [Sidebar](../../src/ui/components/Sidebar.tsx), and [API client](../../src/infrastructure/api/index.ts).
+Since 2026-10-18 04:45 novels follow the membership feature flags: they are available only when the user's plan grants `novels` (a missing or null grant is off; root bypasses), and the frontend `VITE_FEATURE_*` variables are gone. Disabled pages are hidden from navigation, direct navigation renders Not Found, and frontend story API methods reject calls. **WIP is the documentation status; a WIP placeholder is not the current application behavior.** Source: [flags](../../src/shared/featureFlags.ts), [router](../../src/app/router/AppRouter.tsx), [Sidebar](../../src/ui/components/Sidebar.tsx), and [API client](../../src/infrastructure/api/index.ts).
 
-The current foundation includes independent structured scenes, parts/chapters, scoped Codex snapshots, inline review, draft recovery, checkpoints, organization, recoverable trash and independent whole-novel copy with provenance/recovery. Saved-source assistant preparation is implemented locally; novel-bound conversations/proposals, planning/memory, complete portability and series remain required future work; D2 has remaining gates in the delivery register. Passing focused tests does not close the documented correctness findings or prove release readiness.
+The installed work includes structured scenes, parts and chapters, organization history, scoped Codex snapshots, inline review, draft recovery, checkpoints, recoverable Trash and copies (D1–D2); the story-aware assistant with cited sources, reviewed proposals, Stop and recovery (D3); planning views, tasks, stash, facts, continuity checks and grouped changesets (D4); and import, export, packages, export jobs, goals, book copy, translation and completions (D5). Passing focused tests does not close the documented correctness findings or prove release readiness.
 
 **Product scope:** One author writing and revising with AI. Collaboration is out of scope, including multi-user editing, presence, invitations, team roles, shared review access, and collaborative synchronization. Personal comments, AI change review, offline recovery, conflict protection across the author's own tabs/devices, and versioned canon across that author's series remain in scope. This exclusion applies to every feature, architecture recommendation, phase, and validation gate in the dossier.
 
-## Execution status — 2026-10-16
+## Historical execution log (2026-10-16 to 2026-10-17)
+
+> Historical. The checkpoints below record the order of work. Their "remaining" statements are superseded by the audited status in [14](14_status_and_roadmap.md#current-progress-remaining-work-and-scope).
+
+### Execution status — 2026-10-16
 
 Current D2 functional gaps include remaining editor/catalog and organization/context cases and complete performance/retention/offline/author/device/accessibility acceptance. Narrative-time editing already exists. Saved-reference inspection, within-container block movement, unit planning, continuous saved reading with direct seek/bounded bidirectional windows/device paragraph resume, and reviewed literal replacements with atomic apply/recovery/guarded undo-redo are installed locally. D3 source preparation is WIP; its conversations/proposals and all D4–D6 work remain pending. Installed verification and limits are recorded in 01/14; no phase or release completion is claimed.
 
@@ -68,7 +76,9 @@ The [standalone HTML demo](novel-studio-demo.html) illustrates Write/Plan/Review
 
 Use [11 — UI/UX delivery workstream](11_refactor_and_migration_plan.md#uiux-delivery-workstream) to sequence the work and [12 — Acceptance matrix](12_validation_and_acceptance.md#uiux-acceptance-matrix) to validate it in the app. The 26 temporary prototype assertions and limited desktop/390px browser checks are separate from the 211-test application baseline, author studies, and accessibility release gates. Evidence limits and rechecked sources are in [01](01_current_state_and_evidence.md#standalone-ui-prototype-evidence--2026-10-15) and [13](13_sources_and_open_decisions.md#uiux-guidance-addendum--2026-10-15).
 
-## Immediate priorities
+## Original priorities (2026-10-14)
+
+Items 1–6 are installed; 7 and 8 continue in every phase. The current priority list is in [14](14_status_and_roadmap.md#priority--what-to-do-next).
 
 1. Prevent stale saves and provide durable draft recovery.
 2. Make accepted AI replacements undoable and acceptance persistence reliable.
@@ -102,11 +112,11 @@ The subsequent 2026-10-15 deep review passed **221 frontend tests / 28 files** (
 | [15 — Database migration and legacy cleanup](15_database_migration_and_legacy_cleanup.md) | Data preservation and recovery, scoped schema changes, API/code replacement, lean checks and cleanup inventory |
 | [16 — Document and structure decision](16_document_and_structure_decision.md) | Accepted D2 document/identity decisions, options, costs and integration steps |
 | [17 — Personal annotation decision](17_annotation_anchors_and_personal_review.md) | Independent note/anchor versions, exact transaction mappings, orphan handling, personal review and additive storage |
-| [18 — Studio loading decision](18_studio_index_and_scene_loading.md) | Separate outline/selected-scene projections, explicit unloaded content, source preconditions and pending UI/cache integration |
+| [18 — Studio loading decision](18_studio_index_and_scene_loading.md) | Separate outline/selected-scene projections, explicit unloaded content, source preconditions and UI/cache integration (installed) |
 | [19 — Novel erasure and retention](19_novel_erasure_and_retention.md) | Explicit owned erasure, redaction, recovery and retention boundaries |
 | [20 — Offline and reconciliation](20_offline_and_reconciliation.md) | Device drafts, guarded reconciliation, offline app loading and remaining acceptance |
 | [21 — Assistant source boundary](21_assistant_context_boundary.md) | Installed saved-source preparation, exact evidence and remaining full assistant scope |
-| [22 — Bound novel turns and commits](22_novel_assistant_turns_and_commit.md) | Prepared conversation/profile/prompt/candidate boundary, historical compatibility and remaining execution/Studio gates |
+| [22 — Bound novel turns and commits](22_novel_assistant_turns_and_commit.md) | Conversation/profile/prompt/candidate boundary, now running in the app (D3), historical compatibility and remaining gates |
 
 
 ## Evidence and precedence

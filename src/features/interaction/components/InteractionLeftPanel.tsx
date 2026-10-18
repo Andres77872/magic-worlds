@@ -21,7 +21,7 @@ import { snapshotToCardPreview } from '@/features/codex'
 import { ModeBadge } from '../../../ui/components/common/ModeBadge'
 import { resolveMediaUrl } from '../../../infrastructure/api'
 import { useData, useFloatingWindows } from '../../../app/hooks'
-import { isAiCharacterCard, personaCandidates as orderedPersonaCandidates } from '../../../utils/characterRoles'
+import { isAiCharacterCard, sessionPersonaCandidates as orderedPersonaCandidates } from '../../../utils/characterRoles'
 import { AdventureCardDrawer } from './AdventureCardDrawer'
 import { CastVoiceMenu } from './voice/CastVoiceMenu'
 import { CastVoiceRefreshPanel } from './voice/CastVoiceRefreshPanel'
@@ -234,7 +234,9 @@ export function InteractionLeftPanel({
                 emptyHint={
                     picker === 'world'
                         ? t('interaction.leftPanel.noMoreWorlds')
-                        : t('interaction.leftPanel.noMoreCharacters')
+                        : picker === 'persona'
+                          ? t('ui.personaPicker.noPersonasHint')
+                          : t('interaction.leftPanel.noMoreCharacters')
                 }
                 onClose={() => setPicker(null)}
                 onConfirm={handleAddConfirm}

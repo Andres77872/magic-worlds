@@ -11,6 +11,7 @@ import { ChatroomPage } from './ChatroomPage'
 import { createWorkspaceTestState, TEST_WORKSPACE_ID, testWorkspace, WorkspaceTestProvider } from '@/shared/hooks/testing/workspaceTestUtils'
 
 const setPage = vi.fn()
+const setEditingCharacter = vi.fn()
 const openLoginModal = vi.fn()
 const resumeCharacterChat = vi.fn()
 const startCharacterChat = vi.fn().mockResolvedValue(undefined)
@@ -69,6 +70,7 @@ vi.mock('@/app/hooks', () => ({
         deleteCharacterChat,
         loadData,
         loadingState: { isLoading: false, error: null },
+        setEditingCharacter,
     }),
 }))
 
@@ -267,6 +269,19 @@ describe('ChatroomPage', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'New group chat' }))
         expect(openLoginModal).toHaveBeenCalledTimes(2)
+    })
+
+    it('opens persona creation without starting a conversation when no personas exist', async () => {
+        characters = CHARACTERS
+        await renderChatroom()
+        fireEvent.click(screen.getByRole('button', { name: 'New chat' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Chat with Lyra' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Choose persona' }))
+        expect(screen.getByRole('button', { name: 'Start chat' })).toBeDisabled()
+        fireEvent.click(screen.getByRole('button', { name: 'Create persona' }))
+        expect(setEditingCharacter).toHaveBeenCalledWith(null)
+        expect(setPage).toHaveBeenCalledWith('character', { hash: '#/character?role=persona' })
+        expect(startCharacterChat).not.toHaveBeenCalled()
     })
 
     it('creates a separate chat with the selected character and persona before navigating', async () => {

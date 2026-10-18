@@ -16,7 +16,7 @@ const mirren: Character = { id: 'mirren', name: 'Mirren', race: 'Elf', stats: {}
 const characters = [lyra, sable, aria, mirren]
 
 function setup(props: Partial<Parameters<typeof NewCharacterChatDialog>[0]> = {}) {
-    const handlers = { onStart: vi.fn().mockResolvedValue(undefined), onClose: vi.fn(), onRetry: vi.fn(), onBrowseCharacters: vi.fn() }
+    const handlers = { onStart: vi.fn().mockResolvedValue(undefined), onClose: vi.fn(), onRetry: vi.fn(), onBrowseCharacters: vi.fn(), onCreatePersona: vi.fn() }
     const view = render(<NewCharacterChatDialog characters={characters} {...handlers} {...props} />)
     return { ...handlers, ...view }
 }
@@ -107,13 +107,22 @@ describe('NewCharacterChatDialog', () => {
         expect(screen.getByRole('button', { name: 'Play as Aria' })).toHaveAttribute('aria-pressed', 'true')
     })
 
-    it('allows a library character as the persona when no persona cards exist', async () => {
-        const { onStart } = setup({ characters: [lyra, sable] })
+    it('offers persona creation when no persona cards exist, rather than a character fallback or search reset', () => {
+        const { onStart, onCreatePersona } = setup({ characters: [lyra, sable] })
         selectCharacter()
-        fireEvent.click(screen.getByRole('button', { name: 'Play as Sable' }))
-        fireEvent.click(screen.getByRole('button', { name: 'Start chat' }))
-        expect(onStart).toHaveBeenCalledExactlyOnceWith(lyra, sable)
-        await act(async () => {})
+        expect(screen.getByRole('button', { name: 'Start chat' })).toBeDisabled()
+        expect(screen.queryByRole('button', { name: 'Play as Sable' })).not.toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: 'Clear search' })).not.toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button', { name: 'Create persona' }))
+        expect(onCreatePersona).toHaveBeenCalledOnce()
+        expect(onStart).not.toHaveBeenCalled()
+    })
+
+    it('keeps AI cards out of the persona step even in a mixed library', () => {
+        setup()
+        selectCharacter()
+        expect(screen.queryByRole('button', { name: 'Play as Lyra' })).not.toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: 'Play as Sable' })).not.toBeInTheDocument()
     })
 
     it('keeps the selected pair after a failure and permits retry', async () => {

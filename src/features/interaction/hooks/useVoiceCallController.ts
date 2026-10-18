@@ -1,6 +1,8 @@
 import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react'
 import { makeRequestId } from '@/utils/uuid'
+import { isSessionPersonaError } from '@/utils/characterRoles'
+import { i18n } from '@/app/i18n'
 import { registerActiveVoiceCall } from '@/features/call/activeVoiceCall'
 import { reduceLiveTranscript, type LiveTranscriptLine } from '@/features/call/liveTranscript'
 import { voiceErrorCode } from '@/infrastructure/api/voiceSocket'
@@ -1055,9 +1057,13 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
             setLimits(consent.limits)
             applySegmentLimit(consent.limits)
         } catch (consentError) {
-            console.error('[voice-call][VOICE_CONSENT_REQUIRED] voice consent could not be saved', consentError)
             stopLocalResources({ closeSocket: true })
-            setControllerError(mapError(consentError, { category: 'consent_required', code: 'VOICE_CONSENT_REQUIRED', message: 'Voice consent could not be saved.', fatal: true }))
+            if (isSessionPersonaError(consentError)) {
+                setControllerError({ category: 'conflict', code: 'SESSION_PERSONA_INVALID', message: i18n.t('ui.personaPicker.invalidPersona'), fatal: true })
+            } else {
+                console.error('[voice-call][VOICE_CONSENT_REQUIRED] voice consent could not be saved', consentError)
+                setControllerError(mapError(consentError, { category: 'consent_required', code: 'VOICE_CONSENT_REQUIRED', message: 'Voice consent could not be saved.', fatal: true }))
+            }
             setLifecycle('error')
             return false
         }

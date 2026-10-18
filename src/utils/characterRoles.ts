@@ -32,3 +32,26 @@ export function personaCandidates(characters: Character[] = []): Character[] {
     const others = characters.filter(isAiCharacterCard)
     return [...personas, ...others]
 }
+
+/** Session creation is stricter than the optional protagonist on an authored template. */
+export function isSessionPersona(character?: { id?: string; role?: CharacterRole } | null): boolean {
+    return isPersonaCard(character) && typeof character?.id === 'string'
+        && character.id.length > 0 && character.id === character.id.trim()
+}
+
+export function sessionPersonaCandidates(characters: Character[] = []): Character[] {
+    return characters.filter(isSessionPersona)
+}
+
+export class SessionPersonaError extends Error {
+    readonly code = 'SESSION_PERSONA_INVALID'
+}
+
+/** Recognize only persona-specific setup failures, not every validation error. */
+export function isSessionPersonaError(error: unknown): boolean {
+    if (!error || typeof error !== 'object') return false
+    const value = error as { code?: unknown; status?: unknown; message?: unknown }
+    return value.code === 'SESSION_PERSONA_INVALID'
+        || (value.status === 422 && value.message === 'persona_id must reference a persona card')
+        || (value.status === 404 && value.message === 'Persona not found')
+}

@@ -60,6 +60,7 @@ import {
     UseExampleLink,
     readCategoryAttribute,
     useCardDraft,
+    isDraftChanged,
     useCardEditorRoute,
     useCreatorWorkspace,
     workspaceSaveErrorKey,
@@ -381,9 +382,11 @@ function WorldCreatorForm() {
             const payload = buildPayload()
             if (editingWorld) {
                 // Edit mode: save to the private draft and stay; Publish makes it live + a version.
-                const ok = await draft.saveDraft(payload)
+                let failure: unknown = null
+                const ok = await draft.saveDraft(payload, { onError: (cause) => { failure = cause } })
                 if (ok) markClean(JSON.stringify(payload))
-                setDraftToast(
+                // A draft changed elsewhere (a novel staged a fact) opens the draft controls' conflict dialog instead.
+                if (ok || !isDraftChanged(failure)) setDraftToast(
                     ok
                         ? { tone: 'success', message: t('cardVersions.draft.saved') }
                         : { tone: 'error', message: t('cardVersions.errors.draftSave') },
@@ -586,6 +589,7 @@ function WorldCreatorForm() {
                         cardName={name.trim() || t('creation.world.untitled')}
                         draft={draft}
                         onHydrate={(body) => hydrateFromCardBody(body as unknown as WorldCardResponse)}
+                        onDraftSaved={(body) => markClean(JSON.stringify(body))}
                         onPublished={() => {
                             void loadData({ silent: true })
                         }}

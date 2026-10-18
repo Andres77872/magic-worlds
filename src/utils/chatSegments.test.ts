@@ -104,7 +104,7 @@ describe('streamingXmlToSegments', () => {
 })
 
 describe('safeResponseSegments credential scrubbing', () => {
-    it('keeps narrative mentions of secrets/bearers but drops credential-shaped text', () => {
+    it('preserves model content without credential filtering', () => {
         const segments = safeResponseSegments([
             { kind: 'speech', speaker_id: 'v1', speaker_name: 'Vesper', content: 'narradora de secretos olvidados' },
             { kind: 'speech', speaker_id: 'v1', speaker_name: 'Vesper', content: 'the bearer of bad news arrives' },
@@ -114,6 +114,8 @@ describe('safeResponseSegments credential scrubbing', () => {
         expect(segments.map((segment) => segment.content)).toEqual([
             'narradora de secretos olvidados',
             'the bearer of bad news arrives',
+            'here: secret_key=abc123 for you',
+            'use bearer abcdefabcdefabcdef99 now',
         ])
     })
 })

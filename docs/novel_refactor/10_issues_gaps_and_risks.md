@@ -2,7 +2,9 @@
 
 **Source/lifecycle and deep cleanup review, 2026-10-15:** this remains an active issue register. Save ordering (NE-001), acceptance after a false flush (NE-003), lowercase offset mapping (NE-007), and missing scene/revision/novel-assistant contracts were rechecked in current source. The later migration/cleanup review passed the focused baseline suites in [01](01_current_state_and_evidence.md#deep-migration-and-cleanup-revalidation--2026-10-15), without rerunning the historical controlled defect fixtures or applying fixes. All NE-001–NE-023 retain their individual evidence class and remain open until their acceptance criteria are met.
 
-**Documentation review:** 2026-10-14. **Status:** WIP audit backlog — open source concerns, prior controlled reports, target gaps, and unmeasured risks; no remediation shipped by this update. Overall novel availability is **WIP**, disabled in the example configuration and enabled in the reviewed local override. See [actual status and roadmap](14_status_and_roadmap.md) for evidence, rollout gates, and TBDs.
+**Documentation review:** 2026-10-14. **Status:** WIP audit backlog — open source concerns, prior controlled reports, target gaps, and unmeasured risks; no remediation shipped by this update. Overall novel availability is **WIP**; novels need the plan grant `novels` (since 2026-10-18).
+
+**Current disposition (audit 2026-10-18):** the *Evidence* column below keeps each finding's original evidence. Today: **resolved in the checkout** (release unverified): NE-001–009, 011–014, 019, 022. **Built, acceptance open:** NE-015 (bound assistant, outline and multi-scene prose changesets) and NE-021 (import, export, packages; EPUBCheck, Word and e-reader checks and the *Tasks* drawer remain). **Partial:** NE-010 (links fixed and import loss reports exist; Word/EPUB acceptance remains), NE-016 (bulk actions, split and merge exist; drag holes and copies that drop planning remain), NE-018 (measured and fixed in a development build only), NE-020 (inline lineage and frozen presets exist; one inline/assistant lineage waits on CL-04), NE-023 (revision-bound summaries and as-of-scene facts exist; the POV and reveal policy is decision 10). **Open:** NE-017 (live regions added, but no assistive-technology audit, and the 11 px status hints measure about 2.1:1). Details: [14](14_status_and_roadmap.md#execution-disposition-of-findings). See [actual status and roadmap](14_status_and_roadmap.md) for evidence, rollout gates, and TBDs.
 
 **Reuse/provenance clarification, 2026-10-16:** [07](07_target_architecture.md#reuse-and-overlap-decisions) records existing foundations, two duplicated Codex helpers and adjacent-plan ownership. NE-020 is narrowed below: custom instructions are already embedded in the persisted frozen execution payload; safe history exposure and manuscript application lineage remain missing. No source fix or new defect reproduction was performed.
 
@@ -32,7 +34,7 @@ Research snapshot: 2026-10-14. Confidence definitions and reproduction evidence 
 | NE-012 | P1 | Story token budget is a prompt setting rather than an enforced assembly limit | Source-confirmed within reviewed assembly path |
 | NE-013 | P1 | No durable recovery of the latest unsaved draft | Gap |
 | NE-014 | P1 | No user-facing manuscript revisions or chapter trash/restore | Gap |
-| NE-015 | P1 target gap | No novel-bound conversational assistant with changesets | Built (2026-10-18): bound assistant runs (D3) and outline changesets with one undo run (D4); grouped multi-scene prose changesets and acceptance remain |
+| NE-015 | P1 target gap | No novel-bound conversational assistant with changesets | Built (2026-10-18): bound assistant runs (D3); outline changesets and grouped multi-scene prose changesets with one undo run (D4 slices 15–16); acceptance remains |
 | NE-016 | P2 | Chapter model/UI lacks full scene organization and structure operations | Gap |
 | NE-017 | P2 | Status, autocomplete, toolbar, contrast, and focus need accessibility work | Source-confirmed concerns; live audit outstanding |
 | NE-018 | P2 | Whole-document work occurs on hot editing/save paths | Measured 2026-10-18 on a 1,500-scene novel (development build): typing p95 40 ms and a 76 ms save after fixing whole-novel rendering and cache copies on the typing path; production and low-end hardware unmeasured. See [large-manuscript performance](14_status_and_roadmap.md#d2-slice--large-manuscript-performance-2026-10-18) |
@@ -149,6 +151,8 @@ These risks describe the proposed expanded system, not newly discovered vulnerab
 | Growing history/storage | Expensive queries and retention problems | Paginated revisions, checkpoints, explicit retention/export/erase policies |
 
 ## Migration and cleanup review additions
+
+> **Superseded the same day** by the data-preservation correction ([15](15_database_migration_and_legacy_cleanup.md)): non-novel content was recovered, whole-database resets are disabled, and every schema change is an additive scoped upgrade with a verified backup. The "reset", "discard/reseed" and "destructive" responses below are historical and must not be followed.
 
 **Policy revision, 2026-10-16:** the user confirmed a development project with no users and disposable test data, and authorizes destructive changes only to this project's test DB. The earlier production backfill/compatibility/observation obligations and eighteen migration scenarios are superseded by [15](15_database_migration_and_legacy_cleanup.md) and the three DEV checks in [12](12_validation_and_acceptance.md#database-migration-and-cleanup-acceptance).
 

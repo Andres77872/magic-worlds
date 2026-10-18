@@ -8,6 +8,7 @@ import type { CapturedVoiceSegment } from '../audio/voiceVadWorklet'
 import type { MicrophoneCaptureApi, UseMicrophoneCaptureOptions } from './useMicrophoneCapture'
 import type { VoiceCallSocketApi, VoiceCallSocketHandlers } from './useVoiceCallSocket'
 import { deriveVoiceCallState, useVoiceCallController } from './useVoiceCallController'
+import { SessionPersonaError } from '@/utils/characterRoles'
 import { activeVoiceCallWorkspaceId, endActiveVoiceCall, hasActiveVoiceCall } from '@/features/call/activeVoiceCall'
 import { createElement, type ReactNode } from 'react'
 import { AttestationContext, type AttestationContextValue } from '@/features/legal/attestation/attestationContext'
@@ -202,6 +203,17 @@ describe('useVoiceCallController', () => {
         expect(mocks.socketApi!.start).toHaveBeenCalledTimes(1)
         expect(mocks.microphoneApi!.stop).not.toHaveBeenCalled()
         expect(mocks.socketApi!.close).not.toHaveBeenCalled()
+    })
+
+    it('cleans up capture and reports persona setup failure separately from voice consent', async () => {
+        const ensureSession = vi.fn().mockRejectedValue(new SessionPersonaError('invalid'))
+        const { result } = renderController({ sessionId: null, ensureSession })
+        await act(async () => { await expect(result.current.startCall()).resolves.toBe(false) })
+        expect(result.current.error).toMatchObject({ code: 'SESSION_PERSONA_INVALID', category: 'conflict', fatal: true })
+        expect(result.current.error?.message).toContain('Choose an available persona card')
+        expect(mocks.microphoneApi!.stop).toHaveBeenCalled()
+        expect(mocks.apiService.saveVoiceConsent).not.toHaveBeenCalled()
+        expect(mocks.socketApi!.start).not.toHaveBeenCalled()
     })
 
     it('does not create a draft chat when microphone permission is denied', async () => {

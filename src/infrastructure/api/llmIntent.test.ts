@@ -42,7 +42,7 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs() })
 
 describe('LLM request intents', () => {
-    it('retries an unfinished request with its frozen target and no key, then releases it', async () => {
+    it('resends an unfinished request with fresh credentials for its frozen target, then releases it', async () => {
         const { prepared, sent, generate } = await load()
         prepared.mockReturnValue({ selection, expected_revision_id: 'revision-1', credentials: { api_key: FAKE_KEY } })
         fetchMock.mockResolvedValueOnce(json({ detail: { code: 'LLM_EXECUTION_IN_PROGRESS' } }, 409))
@@ -50,28 +50,26 @@ describe('LLM request intents', () => {
             .mockResolvedValueOnce(json(storyResult('request-1')))
         await expect(generate('request-1')).rejects.toMatchObject({ code: 'LLM_EXECUTION_IN_PROGRESS' })
         await expect(generate('request-1')).resolves.toMatchObject({ generation: { requestId: 'request-1' } })
-        // The retry reached the same plan without resolving a new profile or sending the key.
-        expect(prepared).toHaveBeenCalledOnce()
+        // Every resend prepares credentials against the same retained profile revision.
+        expect(prepared).toHaveBeenCalledTimes(2)
         expect(sent()).toEqual([
             { selection, expected_revision_id: 'revision-1', credentials: { api_key: FAKE_KEY } },
-            { selection, expected_revision_id: 'revision-1' },
+            { selection, expected_revision_id: 'revision-1', credentials: { api_key: FAKE_KEY } },
         ])
         await generate('request-1')
-        expect(prepared).toHaveBeenCalledTimes(2)
+        expect(prepared).toHaveBeenCalledTimes(3)
     })
 
-    it('asks for a key only when the server needs one, and only for the frozen revision', async () => {
+    it('supplies a key before sending recovery, only for the frozen revision', async () => {
         const { prepared, sent, generate } = await load()
         prepared.mockReturnValueOnce({ selection, expected_revision_id: 'revision-1', credentials: { api_key: FAKE_KEY } })
             .mockReturnValueOnce({ selection, expected_revision_id: 'revision-1', credentials: { api_key: FAKE_KEY } })
         fetchMock.mockResolvedValueOnce(json({ detail: { code: 'LLM_EXECUTION_RECOVERY_REQUIRED' } }, 409))
-            .mockResolvedValueOnce(json({ detail: { code: 'BYOK_CREDENTIAL_REQUIRED' } }, 409))
             .mockResolvedValueOnce(json(storyResult('request-2')))
         await expect(generate('request-2')).rejects.toMatchObject({ code: 'LLM_EXECUTION_RECOVERY_REQUIRED' })
         await expect(generate('request-2')).resolves.toMatchObject({ generation: { requestId: 'request-2' } })
         expect(prepared).toHaveBeenLastCalledWith('novel', undefined, selection)
         expect(sent().slice(1)).toEqual([
-            { selection, expected_revision_id: 'revision-1' },
             { selection, expected_revision_id: 'revision-1', credentials: { api_key: FAKE_KEY } },
         ])
     })

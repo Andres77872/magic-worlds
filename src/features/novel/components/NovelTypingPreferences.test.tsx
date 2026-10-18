@@ -1,6 +1,7 @@
 import { fireEvent,render,screen } from '@testing-library/react'
 import { expect,it,vi } from 'vitest'
 import { DEFAULT_TYPING,PLAIN_TYPING } from '../utils/typingPreferences'
+import { DEFAULT_COMPLETIONS } from '../utils/completions'
 import { NovelTypingPreferences } from './NovelTypingPreferences'
 it('offers a single literal-typing action and reports unavailable reopening hints',()=>{
     const onChange=vi.fn(),onClose=vi.fn()
@@ -26,4 +27,16 @@ it('changes only the display preference when showing invisible characters and re
     expect(display).toHaveBeenCalledWith(false);expect(typing).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button',{name:'Reset typing preferences'}))
     expect(typing).toHaveBeenCalledWith(DEFAULT_TYPING);expect(display).toHaveBeenLastCalledWith(false)
+})
+
+it('turns completions on explicitly, offers their length only while on, and resets them to off',()=>{
+    const completions=vi.fn()
+    const view=render(<NovelTypingPreferences open value={DEFAULT_TYPING} onChange={()=>{}} onClose={()=>{}} storageUnavailable={false} completions={DEFAULT_COMPLETIONS} onCompletions={completions}/>)
+    const toggle=screen.getByRole('switch',{name:'Completion shortcut'})
+    expect(toggle).not.toBeChecked();expect(screen.queryByLabelText('Completion length')).not.toBeInTheDocument()
+    fireEvent.click(toggle);expect(completions).toHaveBeenCalledWith({enabled:true,length:'sentence'})
+    view.rerender(<NovelTypingPreferences open value={DEFAULT_TYPING} onChange={()=>{}} onClose={()=>{}} storageUnavailable={false} completions={{enabled:true,length:'sentence'}} onCompletions={completions}/>)
+    expect(screen.getByRole('switch',{name:'Completion shortcut'})).toBeChecked()
+    expect(screen.getByText(/Ctrl\+Shift\+Enter/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button',{name:'Reset typing preferences'}));expect(completions).toHaveBeenLastCalledWith(DEFAULT_COMPLETIONS)
 })

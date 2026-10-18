@@ -27,6 +27,7 @@ function render(ui: ReactElement) {
 }
 
 const setPage = vi.fn()
+const setEditingCharacter = vi.fn()
 const openLoginModal = vi.fn()
 const resumeCharacterChat = vi.fn()
 const startCharacterChat = vi.fn<(character: Character, persona: Character) => Promise<CharacterChatSession>>()
@@ -61,7 +62,7 @@ function fishCapabilities(fishCalls: boolean) {
 vi.mock('@/app/hooks', () => ({
     useAuth: () => ({ isAuthenticated: authed, openLoginModal }),
     useNavigation: () => ({ setPage }),
-    useData: () => ({ characters, characterChats, startCharacterChat, resumeCharacterChat, loadingState: libraryState, loadData }),
+    useData: () => ({ characters, characterChats, startCharacterChat, resumeCharacterChat, loadingState: libraryState, loadData, setEditingCharacter }),
 }))
 
 // GalleryCard reaches for the playlist (theme-song button); stub the deep import.
@@ -195,6 +196,18 @@ describe('CallsPage', () => {
         await waitFor(() => expect(startCharacterChat).toHaveBeenCalledWith(MIRA, PERSONA))
         await waitFor(() => expect(resumeCharacterChat).toHaveBeenCalledWith({ id: 'chat-1', character: MIRA }, { mode: 'voice' }))
         expect(setPage).toHaveBeenCalledWith('character-chat')
+    })
+
+    it('requires a persona and opens the persona creator when the library has only AI characters', async () => {
+        characters = [MIRA]
+        render(<CallsPage />)
+        fireEvent.click(screen.getByRole('button', { name: 'Call Mira' }))
+        const create = await screen.findByRole('button', { name: 'Create persona' })
+        expect(startCharacterChat).not.toHaveBeenCalled()
+        expect(resumeCharacterChat).not.toHaveBeenCalled()
+        fireEvent.click(create)
+        expect(setEditingCharacter).toHaveBeenCalledWith(null)
+        expect(setPage).toHaveBeenCalledWith('character', { hash: '#/character?role=persona' })
     })
 
     it('opens the call of a Fish-voiced character while Fish calls are off, so the call setup can offer another voice', async () => {

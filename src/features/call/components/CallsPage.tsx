@@ -24,6 +24,7 @@ import { useWorkspaceReadOnly } from '@/shared/hooks/useWorkspaceReadOnly'
 import { CallHistoryRow } from './CallHistoryRow'
 import { CallStartErrorToast } from './CallStartErrorToast'
 import { CallTranscriptView } from './CallTranscriptView'
+import { buildPersonaCreatorHash } from '@/features/gallery/galleryLinks'
 
 const CALLS_PAGE_SIZE = 30
 
@@ -35,13 +36,19 @@ function hasVoice(character: Character): boolean {
 export function CallsPage() {
     const { t } = useTranslation()
     const { isAuthenticated } = useAuth()
-    const { characters, characterChats, loadingState, loadData, openCharacterChatById } = useData()
+    const { characters, characterChats, loadingState, loadData, openCharacterChatById, setEditingCharacter } = useData()
     const { setPage } = useNavigation()
     // Workspace R1: call history is workspace-local; the account's one-live-call policy is not.
     const { api, capture, isCurrent, workspaceEpoch } = useWorkspace()
     const call = useStartCall()
     // An archived workspace keeps its call history readable; a new call is new work there.
     const readOnly = useWorkspaceReadOnly()
+    const createPersona = () => {
+        if (readOnly || call.personaPickConfirming) return
+        call.closePersonaPick()
+        setEditingCharacter(null)
+        setPage('character', { hash: buildPersonaCreatorHash() })
+    }
     // 09 §7: calls switched off for this account (`capabilities.status`, account level,
     // fail open): call buttons are disabled with copy; history stays readable.
     const callsUnavailable = call.callsUnavailable
@@ -225,6 +232,7 @@ export function CallsPage() {
                     characters={characters ?? []}
                     onConfirm={call.confirmPersonaPick}
                     onClose={call.closePersonaPick}
+                    onCreateCharacter={createPersona}
                 />
                 <CallStartErrorToast error={call.error} onClose={call.clearError} />
             </div>
@@ -409,6 +417,7 @@ export function CallsPage() {
                 characters={characters ?? []}
                 onConfirm={call.confirmPersonaPick}
                 onClose={call.closePersonaPick}
+                onCreateCharacter={createPersona}
             />
             <CallStartErrorToast error={call.error} onClose={call.clearError} />
         </div>

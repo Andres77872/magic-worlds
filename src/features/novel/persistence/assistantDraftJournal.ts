@@ -54,7 +54,7 @@ export function isAssistantProfileSelection(v: unknown): v is LlmSelection {
 export function assistantSourceOptions(settings: AssistantSourceSettings, message: string): StoryAssistantContextOptions {
     const action = settings.action
     return { ...structuredClone(settings), message: message.trim(),
-        ...(action ? { action: action.kind === 'dialogue' ? { ...action, speaker: action.speaker.trim() } : structuredClone(action) } : {}),
+        ...(action ? { action: action.kind === 'dialogue' ? { ...action, speaker: action.speaker.trim() } : action.kind === 'translate' ? { ...action, language: action.language.trim() } : structuredClone(action) } : {}),
         selection: settings.scope === 'selection' ? settings.selection : null,
         sceneIds: settings.scope === 'scenes' ? [...new Set([settings.anchorSceneId, ...settings.sceneIds])] : [],
         limits: { contextWindow: Number(settings.limits.contextWindow), outputTokens: Number(settings.limits.outputTokens), maxSources: Number(settings.limits.maxSources), maxPassages: Number(settings.limits.maxPassages) } }
@@ -86,12 +86,13 @@ export function newAssistantDraft(storyId: string, anchorSceneId: string, select
     return { storyId, id: makeRequestId('novel-draft'), sequence: 0, conversationId: null, title: '', message: '',
         settings: initialAssistantSettings(anchorSceneId, selection), selection: { mode: 'inherit' }, creation: null, pending: null }
 }
-/** An action with half-chosen parameters (no change, no focus, a speaker still being typed) for the current task. */
+/** An action with half-chosen parameters (no change, no focus, a speaker or language still being typed) for the current task. */
 function isRecoverableAction(v: unknown, task: unknown): boolean {
     if (!isRecord(v) || typeof v.kind !== 'string' || !Object.prototype.hasOwnProperty.call(ASSISTANT_ACTION_TASKS, v.kind) || ASSISTANT_ACTION_TASKS[v.kind as StoryAssistantActionKind] !== task) return false
     const complete = v.kind === 'transform' && v.pov === null && v.tense === null ? { ...v, pov: 'first' }
         : v.kind === 'line_edit' && Array.isArray(v.focus) && v.focus.length === 0 ? { ...v, focus: ['grammar'] }
-            : v.kind === 'dialogue' && typeof v.speaker === 'string' ? { ...v, speaker: v.speaker.trim() || 'Speaker' } : v
+            : v.kind === 'dialogue' && typeof v.speaker === 'string' ? { ...v, speaker: v.speaker.trim() || 'Speaker' }
+                : v.kind === 'translate' && typeof v.language === 'string' ? { ...v, language: v.language.trim() || 'Language' } : v
     return isAssistantAction(complete)
 }
 export function isAssistantSourceSettings(v: unknown): v is AssistantSourceSettings {

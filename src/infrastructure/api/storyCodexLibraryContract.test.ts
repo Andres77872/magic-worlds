@@ -59,21 +59,38 @@ describe('Codex library contracts', () => {
         expect(verifyStoryCodexAcknowledgement({ contextRevision: 5, refs: [{ ...ref, snapshot: current, removedAt: '2026-10-17T00:00:00Z' }] }, 'story-1', write)).toBe(false)
     })
 
-    it('accepts a library draft basis for the same entry with a content stamp', () => {
-        const value = { refId: 'ref-1', basis: 'published', description: 'A ranger', stamp: 'a'.repeat(64), versionNumber: 3 }
-        expect(verifyStoryCodexLibraryDraft(value, 'ref-1')).toBe(true)
-        for (const bad of [{ ...value, refId: 'ref-2' }, { ...value, basis: 'body' }, { ...value, stamp: 'xyz' }, { ...value, versionNumber: -1 }, { ...value, extra: 1 }])
-            expect(verifyStoryCodexLibraryDraft(bad, 'ref-1')).toBe(false)
+    it('accepts a library draft basis for the same entry with a content stamp and the details its kind has', () => {
+        const value = { refId: 'ref-1', basis: 'published', name: 'Mira', alias: null, race: 'Elf', description: 'A ranger', stamp: 'a'.repeat(64), versionNumber: 3 }
+        expect(verifyStoryCodexLibraryDraft(value, ref)).toBe(true)
+        expect(verifyStoryCodexLibraryDraft({ ...value, alias: 'The Ranger', race: null }, ref)).toBe(true)
+        const setting = { refId: 'ref-1', basis: 'published', name: 'Mira', alias: null, description: 'A ranger', stamp: 'a'.repeat(64), versionNumber: 3 }
+        expect(verifyStoryCodexLibraryDraft({ ...setting, type: 'Harbor town' }, { id: 'ref-1', kind: 'world' })).toBe(true)
+        for (const bad of [{ ...value, refId: 'ref-2' }, { ...value, basis: 'body' }, { ...value, stamp: 'xyz' }, { ...value, versionNumber: -1 }, { ...value, extra: 1 },
+            { ...value, name: 7 }, { ...value, alias: 7 }, setting, { ...setting, type: 'Harbor town' }])
+            expect(verifyStoryCodexLibraryDraft(bad, ref)).toBe(false)
+    })
+
+    it('acknowledges a discovery only with a copy of the reviewed details pinned to its new library source', () => {
+        const fields = { name: 'Odile', description: 'The ferry pilot.' }
+        const write: StoryCodexWrite = { requestId: 'discover-1', expectedContextRevision: 4, operation: { op: 'discover', destination: 'character', fields } }
+        const made: StoryCardRef = { ...ref, id: 'ref-9', cardId: 'card-9', snapshot: { id: 'card-9', ...fields, story_card_kind: 'character', source_card_id: 'card-9', source_card_version_id: 'v1', source_card_version_number: 1 } }
+        expect(verifyStoryCodexAcknowledgement({ contextRevision: 5, refs: [ref, made] }, 'story-1', write)).toBe(true)
+        expect(verifyStoryCodexAcknowledgement({ contextRevision: 5, refs: [ref] }, 'story-1', write)).toBe(false)
+        expect(verifyStoryCodexAcknowledgement({ contextRevision: 5, refs: [{ ...made, snapshot: { ...made.snapshot, description: 'Other.' } }] }, 'story-1', write)).toBe(false)
+        const lore: StoryCodexWrite = { requestId: 'discover-2', expectedContextRevision: 4, operation: { op: 'discover', destination: 'lorebook_entry', lorebookId: 'book-1', fields: { ...fields, keys: ['Odile'] } } }
+        const entry: StoryCardRef = { ...ref, id: 'ref-10', kind: 'lorebook_entry', cardId: 'entry-9', snapshot: { id: 'entry-9', ...fields, story_card_kind: 'lorebook_entry', source_lorebook_id: 'book-1' } }
+        expect(verifyStoryCodexAcknowledgement({ contextRevision: 5, refs: [entry] }, 'story-1', lore)).toBe(true)
+        expect(verifyStoryCodexAcknowledgement({ contextRevision: 5, refs: [{ ...entry, snapshot: { ...entry.snapshot, source_lorebook_id: 'book-2' } }] }, 'story-1', lore)).toBe(false)
     })
 
     it('accepts the library lorebook entry a Codex lorebook entry was copied from, with a content stamp', () => {
         const entry: StoryCardRef = { ...ref, id: 'ref-2', kind: 'lorebook_entry', cardId: 'entry-1',
             snapshot: { id: 'entry-1', name: 'The Tide Bell', description: 'A brass bell.', story_card_kind: 'lorebook_entry', source_lorebook_id: 'book-1' } }
-        const value = { refId: 'ref-2', lorebookId: 'book-1', entryId: 'entry-1', title: 'The Tide Bell', content: 'A brass bell.', stamp: 'a'.repeat(64) }
+        const value = { refId: 'ref-2', lorebookId: 'book-1', entryId: 'entry-1', title: 'The Tide Bell', keys: ['bell', 'tide'], content: 'A brass bell.', stamp: 'a'.repeat(64) }
         expect(verifyStoryCodexLibraryEntry(value, entry)).toBe(true)
         expect(verifyStoryCodexLibraryEntry({ ...value, content: '' }, entry)).toBe(true)
         for (const bad of [{ ...value, refId: 'ref-1' }, { ...value, lorebookId: 'book-2' }, { ...value, entryId: 'entry-2' }, { ...value, stamp: 'xyz' },
-            { ...value, content: 7 }, { ...value, extra: 1 }])
+            { ...value, content: 7 }, { ...value, extra: 1 }, { ...value, keys: 'bell' }, { ...value, keys: [7] }])
             expect(verifyStoryCodexLibraryEntry(bad, entry)).toBe(false)
     })
 })

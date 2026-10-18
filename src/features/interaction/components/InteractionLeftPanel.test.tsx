@@ -1,12 +1,13 @@
 import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
-import { act, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Adventure, AdventureSnapshot, EffectiveVoice } from '@/shared'
+import type { Adventure, AdventureSnapshot, Character, EffectiveVoice } from '@/shared'
 import { InteractionLeftPanel } from './InteractionLeftPanel'
 import sidebarStory from './InteractionLeftPanel.stories'
 
+const library = vi.hoisted(() => ({ characters: [] as Character[] }))
 vi.mock('../../../app/hooks', () => ({
-    useData: () => ({ characters: [], worlds: [] }),
+    useData: () => ({ characters: library.characters, worlds: [] }),
     useFloatingWindows: () => ({ openWindow: vi.fn(), closeWindow: vi.fn(), closeAll: vi.fn(), focusWindow: vi.fn(), windows: [] }),
 }))
 
@@ -70,6 +71,27 @@ describe('InteractionLeftPanel lorebooks', () => {
         expect(screen.getByRole('button', { name: /Mirren Vale/ })).toBeInTheDocument()
         expect(screen.getByRole('button', { name: /Lyra Dawnwhisper/ })).toBeInTheDocument()
         expect(screen.getByRole('button', { name: /The Sunken Library/ })).toBeInTheDocument()
+    })
+
+    it('only offers real personas and preserves the selection after a blocked draft edit', async () => {
+        library.characters = [
+            { id: 'ai', name: 'Lyra', role: 'character', race: 'Elf', stats: {} },
+            { id: 'p1', name: 'Aria', role: 'persona', race: 'Human', stats: {} },
+        ]
+        const save = vi.fn().mockRejectedValueOnce(new Error('Wait for session setup to finish.')).mockResolvedValue(undefined)
+        try {
+            render(<InteractionLeftPanel adventure={ADVENTURE} onBack={vi.fn()} onSnapshotChange={save} />)
+            fireEvent.click(screen.getByRole('button', { name: 'Choose persona' }))
+            expect(screen.queryByRole('button', { name: /Lyra/ })).not.toBeInTheDocument()
+            fireEvent.click(screen.getByRole('button', { name: /Aria/ }))
+            fireEvent.click(within(screen.getByRole('dialog', { name: 'Choose your persona' })).getByRole('button', { name: 'Choose persona' }))
+            expect(await screen.findByRole('alert')).toHaveTextContent('Wait for session setup')
+            expect(screen.getByRole('button', { name: /Aria/ })).toHaveAttribute('aria-pressed', 'true')
+            fireEvent.click(within(screen.getByRole('dialog', { name: 'Choose your persona' })).getByRole('button', { name: 'Choose persona' }))
+            await act(async () => {})
+            expect(save).toHaveBeenCalledTimes(2)
+            expect(save).toHaveBeenLastCalledWith(expect.objectContaining({ template: expect.objectContaining({ persona: expect.objectContaining({ role: 'persona', source_card_id: 'p1' }) }) }))
+        } finally { library.characters = [] }
     })
 })
 

@@ -92,6 +92,8 @@ export interface NovelEditorProps {
     aiDisabled?: boolean
     showInvisibles?:boolean
     typingPreferences?:import('../utils/typingPreferences').TypingPreferences
+    /** With completions on (A27), Mod-Shift-Enter continues from the cursor with this length sentence; absent while they are off (the key then opens the beat composer like Mod-Enter). */
+    completionInstruction?:string|null
     manuscriptLanguage?:string|null
     searchTarget?:import('./extensions/manuscriptSearchTarget').ManuscriptSearchTarget|null
     searchTargetBlocked?:boolean

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { CheckCircle2, Circle, Loader2, MessageCircle, UserCircle } from 'lucide-react'
 import type { Character } from '@/shared'
 import { resolveMediaUrl } from '@/infrastructure/api'
-import { defaultPersonaForCharacter, isAiCharacterCard, isPersonaCard, personaCandidates } from '@/utils/characterRoles'
+import { defaultPersonaForCharacter, isAiCharacterCard, isPersonaCard, sessionPersonaCandidates } from '@/utils/characterRoles'
 import { Avatar, Badge, Button, Field, Icon, Input, Modal, Tag, cx } from '@/ui/primitives'
 import { EmptyState } from '@/ui/components/common/EmptyState'
 
@@ -15,6 +15,7 @@ interface NewCharacterChatDialogProps {
     onStart: (character: Character, persona: Character) => Promise<unknown>
     onClose: () => void
     onBrowseCharacters: () => void
+    onCreatePersona?: () => void
 }
 
 /** Mounted for each new chat so a canceled selection never leaks into the next one. */
@@ -26,6 +27,7 @@ export function NewCharacterChatDialog({
     onStart,
     onClose,
     onBrowseCharacters,
+    onCreatePersona,
 }: NewCharacterChatDialogProps) {
     const { t } = useTranslation()
     const [step, setStep] = useState<'character' | 'persona'>('character')
@@ -39,7 +41,7 @@ export function NewCharacterChatDialog({
     const headingRef = useRef<HTMLHeadingElement>(null)
     const headingId = useId()
     const aiCharacters = useMemo(() => characters.filter(isAiCharacterCard), [characters])
-    const personas = useMemo(() => personaCandidates(characters), [characters])
+    const personas = useMemo(() => sessionPersonaCandidates(characters), [characters])
     const selectedCharacter = aiCharacters.find((character) => character.id === characterId)
     const selectedPersona = personas.find((persona) => persona.id === personaId)
     const preferredPersona = selectedCharacter && defaultPersonaForCharacter(selectedCharacter, characters)
@@ -179,7 +181,14 @@ export function NewCharacterChatDialog({
                                 onChange={(event) => choosingCharacter ? setCharacterQuery(event.target.value) : setPersonaQuery(event.target.value)}
                             />
                         </Field>
-                        {visibleCandidates.length === 0 ? (
+                        {!choosingCharacter && personas.length === 0 ? (
+                            <EmptyState
+                                icon={<Icon icon={UserCircle} size={32} />}
+                                message={t('ui.personaPicker.noPersonas')}
+                                secondaryText={t('ui.personaPicker.noPersonasHint')}
+                                button={onCreatePersona ? { label: t('ui.personaPicker.createCharacter'), onClick: onCreatePersona } : undefined}
+                            />
+                        ) : visibleCandidates.length === 0 ? (
                             <EmptyState
                                 message={t('characterChat.newChat.noMatches')}
                                 secondaryText={t('characterChat.newChat.noMatchesHint')}

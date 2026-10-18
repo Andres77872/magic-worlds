@@ -60,6 +60,7 @@ import { MentionMenu } from './components/MentionMenu'
 import { ManuscriptReferenceDialog } from './components/ManuscriptReferenceDialog'
 import { referenceChoices, mentionChoices, type ManuscriptReferenceChoice } from './referenceChoices'
 import { createReferenceInspection } from './extensions/referenceInspection'
+import { createCompletionShortcut } from './extensions/completionShortcut'
 import { captureBlockMove, moveBlockAdjacent, type BlockMoveTarget } from './blockMovement'
 import { createBlockMovement } from './extensions/blockMovement'
 import { ManuscriptBlockMoveDialog } from './components/ManuscriptBlockMoveDialog'
@@ -130,6 +131,7 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
         regenerateKey: () => {},
     })
     const submitSlashRef = useRef<(item: SlashItem) => void>(() => {})
+    const requestCompletionRef = useRef<() => boolean>(() => false)
     const editorRef = useRef<ReturnType<typeof useEditor> | null>(null)
     const [linkTarget,setLinkTarget]=useState<ManuscriptLinkTarget|null>(null)
     const [pasteAsText,setPasteAsText]=useState(0)
@@ -250,6 +252,7 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
             ManuscriptSearchHighlight,
             createManuscriptLinks({onOpen:(position)=>openLinkRef.current(position),onPasteAsText:(count)=>setPasteAsText(count)}),
             createReferenceInspection((position) => inspectReferencesRef.current(position)),
+            createCompletionShortcut(() => requestCompletionRef.current()),
             createBlockMovement((direction) => moveAdjacentBlocksRef.current(direction)),
             AiBeat.configure({
                 getLabels: () => ({
@@ -494,6 +497,13 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
         if (beatOpen) cancelBeat()
     }, [beatOpen, cancelBeat, readOnly, resolveSuggestion])
 
+    // A completion (A27) is the slash menu's Continue at the cursor, with the length the author chose.
+    requestCompletionRef.current = () => {
+        const instruction = propsRef.current.completionInstruction
+        if (!instruction || phaseRef.current !== 'idle' || propsRef.current.readOnly || propsRef.current.aiDisabled) return false
+        void inlineAI.submit('continue', instruction)
+        return true
+    }
     submitSlashRef.current = (item) => {
         if (propsRef.current.readOnly) return
         if (item.type === 'block') {
@@ -623,6 +633,12 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
                         // Mod-Enter belongs to Regenerate while a generation is under
                         // review — that binding lives in the extension keymap. Read-only,
                         // there is nothing to write, so it does nothing.
+                        // With completions on (A27), Mod-Shift-Enter from elsewhere in the editor
+                        // continues at the cursor too; in the prose its keymap answers first.
+                        if (event.key === 'Enter' && event.shiftKey && requestCompletionRef.current()) {
+                            event.preventDefault()
+                            return
+                        }
                         if (event.key === 'Enter' && phaseRef.current === 'idle' && !readOnly && !propsRef.current.aiDisabled) {
                             event.preventDefault()
                             beat.openAt('')

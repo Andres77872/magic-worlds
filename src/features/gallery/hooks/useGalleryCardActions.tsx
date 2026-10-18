@@ -34,7 +34,7 @@ import { errorMessage } from '@/utils/errors'
 import { isCallsFeatureEnabled } from '@/shared/featureFlags'
 import { isCommunityCardsFeatureEnabled, isNovelsFeatureEnabled } from '@/shared/featureFlags'
 import { publicItems, type GalleryItem, type GalleryType } from '../galleryConfig'
-import { buildCardEditHash, buildSharedCardUrl } from '../galleryLinks'
+import { buildCardEditHash, buildSharedCardUrl, buildPersonaCreatorHash } from '../galleryLinks'
 
 export interface GalleryActionNotice {
     tone: 'success' | 'error'
@@ -619,6 +619,14 @@ export function useGalleryCardActions({ api, readOnly = false, onItemChanged, on
         setPersonaPickError(null)
     }
 
+    const createPersona = () => {
+        if (readOnly || isPersonaPickConfirming || callControls.personaPickConfirming) return
+        closePersonaPick()
+        callControls.closePersonaPick()
+        setEditingCharacter(null)
+        setPage('character', { hash: buildPersonaCreatorHash() })
+    }
+
     const confirmPersonaPick = async (persona: Character) => {
         const pending = personaPick
         if (!pending || isPersonaPickConfirming) return
@@ -701,13 +709,7 @@ export function useGalleryCardActions({ api, readOnly = false, onItemChanged, on
                 characters={characters}
                 onConfirm={confirmPersonaPick}
                 onClose={closePersonaPick}
-                onCreateCharacter={() => {
-                    if (isPersonaPickConfirming) return
-                    setPersonaPick(null)
-                    setPersonaPickError(null)
-                    setEditingCharacter(null)
-                    setPage('character')
-                }}
+                onCreateCharacter={createPersona}
             />
 
             <VersionHistoryDrawer
@@ -735,6 +737,7 @@ export function useGalleryCardActions({ api, readOnly = false, onItemChanged, on
                 characters={characters}
                 onConfirm={callControls.confirmPersonaPick}
                 onClose={callControls.closePersonaPick}
+                onCreateCharacter={createPersona}
             />
             <CallStartErrorToast error={callControls.error} onClose={callControls.clearError} />
             {novelSource&&novelSource.api===api&&isCurrent(novelSource.scope)&&<NovelCreateDialog open initial={novelSource} creating={creatingNovel}

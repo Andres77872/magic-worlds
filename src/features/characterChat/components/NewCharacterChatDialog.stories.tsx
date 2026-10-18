@@ -23,6 +23,7 @@ function DialogDemo(args: ComponentProps<typeof NewCharacterChatDialog>) {
                     {...args}
                     onClose={() => { args.onClose(); setOpen(false) }}
                     onBrowseCharacters={() => { args.onBrowseCharacters(); setOpen(false) }}
+                    onCreatePersona={() => { args.onCreatePersona?.(); setOpen(false) }}
                     onStart={async (character, persona) => { await args.onStart(character, persona); setOpen(false) }}
                 />
             )}
@@ -50,6 +51,7 @@ const meta = {
         onStart: { control: false },
         onClose: { control: false },
         onBrowseCharacters: { control: false },
+        onCreatePersona: { control: false },
     },
     args: {
         characters: library,
@@ -59,6 +61,7 @@ const meta = {
         onStart: async () => {},
         onClose: () => {},
         onBrowseCharacters: () => {},
+        onCreatePersona: () => {},
     },
     render: (args) => <DialogDemo {...args} />,
 } satisfies Meta<typeof NewCharacterChatDialog>
@@ -84,6 +87,10 @@ export const PersonaSelection: Story = {
 }
 
 export const EmptyLibrary: Story = { args: { characters: [] } }
+export const NoPersonas: Story = {
+    args: { characters: library.filter((card) => card.role === 'character') },
+    play: PersonaSelection.play,
+}
 export const LoadingLibrary: Story = { args: { characters: [], loading: true } }
 export const LoadFailure: Story = { args: { loadError: 'The library is unavailable.' } }
 export const StartFailure: Story = {

@@ -52,4 +52,21 @@ describe('volatile provider credential session', () => {
         credentialSession.setProject('project-one', authSession.getSnapshot().accountKey)
         expect(() => credentialSession.remember({ ...profile, profile_scope: 'system', credential_mode: 'platform', platform_connection_key: 'connection' }, KEY, credentialSession.ownerScope())).toThrow('LLM_PERSONAL_CREDENTIAL_FORBIDDEN')
     })
+    it('clears a rejected key while preserving a replacement from a later request', () => {
+        remember(); credentialSession.select('novel', profile)
+        const rejectOld = credentialSession.rejectionHandler('novel')
+        credentialSession.remember(profile, 'FAKE_REPLACEMENT_KEY', credentialSession.ownerScope())
+        rejectOld()
+        expect(credentialSession.materialize(profile).credentials?.api_key).toBe('FAKE_REPLACEMENT_KEY')
+        credentialSession.rejectionHandler('novel')()
+        expect(() => credentialSession.materialize(profile)).toThrow('BYOK_CREDENTIAL_REQUIRED')
+    })
+    it('requires re-entry when the same provider target changes its catalog revision', () => {
+        remember(); credentialSession.select('novel', profile)
+        const changed = { ...profile, catalog_revision: 'catalog-two' }
+        credentialSession.select('novel', changed)
+        expect(credentialSession.has(profile)).toBe(false)
+        expect(() => credentialSession.materialize(changed)).toThrow('BYOK_CREDENTIAL_REQUIRED')
+    })
+
 })

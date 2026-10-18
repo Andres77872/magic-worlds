@@ -1,10 +1,32 @@
 # Validation, evaluations, and acceptance
 
-**Source/lifecycle and deep cleanup review:** 2026-10-15. **Status:** Open release gates. The historical October 14 record reports 211 focused tests. The subsequent deep review passed 221 frontend tests and 290 backend unit/mock-contract tests, as recorded in [01](01_current_state_and_evidence.md#deep-migration-and-cleanup-revalidation--2026-10-15). Product implementation/validation remains open. Database migration validation now follows the lean development-reset checks below; the former production rollout/backfill matrix is superseded. Novel rollout is disabled in the example configuration and enabled in the dated local override. See [actual status and roadmap](14_status_and_roadmap.md) for evidence, rollout gates, and TBDs.
+**Source/lifecycle and deep cleanup review:** 2026-10-15. **Status:** Open release gates; see [Gate status — audit 2026-10-18](#gate-status--audit-2026-10-18). The historical October 14 record reports 211 focused tests. The subsequent deep review passed 221 frontend tests and 290 backend unit/mock-contract tests, as recorded in [01](01_current_state_and_evidence.md#deep-migration-and-cleanup-revalidation--2026-10-15). Product implementation/validation remains open. Database migration validation now follows the lean development-reset checks below; the former production rollout/backfill matrix is superseded. Novel rollout is disabled in the example configuration and enabled in the dated local override. See [actual status and roadmap](14_status_and_roadmap.md) for evidence, rollout gates, and TBDs.
 
 **UI/UX acceptance update:** 2026-10-15. The UX-01–UX-12 matrix below translates the [demo findings and interaction contracts](06_ui_ux_and_accessibility.md) into planned release checks. Passing prototype assertions does not complete those checks in the application.
 
 **Database preservation correction:** 2026-10-16. Preserve recovered non-novel content and current novels; whole-database resets are disabled. Use scoped schema changes with a verified backup, the three short DEV checks and relevant product tests, without a production rollout program.
+
+## Gate status — audit 2026-10-18
+
+Which release gates have recorded evidence today. The detail is in [14 — Release gates](14_status_and_roadmap.md#release-gates).
+
+| Gate | Evidence recorded | Missing |
+|---|---|---|
+| Availability (grant on/off) | Per-plan grant `novels`; live signed-in journeys 2026-10-17/18 | Auth-expiry, missing-profile and archived-workspace runs; any deployed evidence |
+| Defect regressions (NE) | D1 set passes in the checkout | NE-017 has none; NE-010, 016, 018, 020, 023 partial |
+| DEV-01–03 per upgrade | A verified backup and unchanged-row fingerprints for every schema upgrade through `2026_10_novel_export_jobs` | **26 failing migration-chain tests** (newer markers unhandled); isolated-copy rehearsal recorded only for statistics, bookmarks and erase |
+| Test suites | Frontend 5,848 passed (75 failures, all outside novels); BFF novel scope 1,622 passed | **36 failing novel BFF tests**; no full BFF run since 2026-10-17 |
+| Performance | Development build: p95 key latency 40 ms, save about 76 ms, heap stable over 60 scene switches on 1,500 scenes | Production build, CPU throttling, low-end devices, phones, 500/2,000 Codex entries, large libraries; timeline and matrix render every scene |
+| Screen reader | **None** | Everything |
+| Keyboard-only journey | Per-feature checks only | Write → revise → undo → recover without a mouse |
+| Contrast, zoom, text spacing, forced colors | **None measured** | Everything; known 2.1:1 status hints |
+| Device matrix | 320×720 dialogs, 375 px, 1,030 and 1,600 px windows | 768/1024/1440 px, a real phone, IME and mobile keyboard |
+| Offline | Cold offline app, reconnect, device lifecycle (controlled browsers) | Cross-browser and mobile eviction |
+| Retention | **None** | Needs decisions 5 and 6 |
+| Export validation | SHA-256 manifests; LibreOffice conversions; strict XML parse and browser render for EPUB | EPUBCheck (needs approval to download), Microsoft Word, e-readers, output accessibility |
+| AI evaluation | Retrieval policy evaluation (`evaluate_story_retrieval.py`) | Human scoring; flashback, unreliable-narrator and hostile-research fixtures; the intermittent invalid result |
+| Failure drills | Stop, lost-turn and offline drills (live) | BFF restart during an export job; provider timeout and quota exhaustion |
+| Author acceptance (UX-12) | **None** | A study (decision 13) |
 
 ## Evidence already collected
 

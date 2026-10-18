@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { CheckCircle2, Circle, Loader2, UserCircle } from 'lucide-react'
 import type { Character } from '@/shared'
 import { resolveMediaUrl } from '@/infrastructure/api'
-import { characterRole, defaultPersona, personaCandidates } from '@/utils/characterRoles'
+import { characterRole, defaultPersona, sessionPersonaCandidates } from '@/utils/characterRoles'
 import { Avatar, Badge, Button, Callout, Icon, Modal, Tag, cx } from '@/ui/primitives'
 import { EmptyState } from './common/EmptyState'
 
@@ -33,8 +33,8 @@ export function PersonaPickerDialog({
     onCreateCharacter,
 }: PersonaPickerDialogProps) {
     const { t } = useTranslation()
-    const candidates = useMemo(() => personaCandidates(characters), [characters])
-    const preferred = useMemo(() => defaultPersona(characters) ?? candidates[0], [characters, candidates])
+    const candidates = useMemo(() => sessionPersonaCandidates(characters), [characters])
+    const preferred = useMemo(() => defaultPersona(candidates) ?? candidates[0], [candidates])
     const [selectedId, setSelectedId] = useState<string | undefined>(preferred?.id)
 
     useEffect(() => {

@@ -10,7 +10,7 @@ import type { StoryFactData, StoryFactKind, StoryPlanItem } from '@/shared'
 import { Badge, Button, Callout, Field, Input, Select, Textarea } from '@/ui/primitives'
 import type { PlanItems } from '../hooks/usePlanItems'
 import { factConflicts, factsAt, type PlanningScene } from '../utils/planningViews'
-import { NovelFactCodexReview, type FactCodex } from './NovelFactCodexReview'
+import { NovelFactCodexReview, type FactCodex, type FactCodexLink } from './NovelFactCodexReview'
 import { NovelFactLibraryStage } from './NovelFactLibraryStage'
 
 export interface PassageSelection { sceneId: string; quote: string; revision: number }
@@ -46,8 +46,10 @@ export function NovelFactsPanel({ scenes, facts, readOnly, activeSceneId, subjec
     const stagedEntry = staged?.data.codexRefId ? codex?.entries.find((entry) => entry.id === staged.data.codexRefId) : undefined
     const stageable = (fact: Fact) => Boolean(fact.state === 'approved' && fact.data.codexRefId && codex?.library && !codex.readOnly
         && codex.entries.some((entry) => entry.id === fact.data.codexRefId) && (codex.library.linked(fact.data.codexRefId) || Boolean(codex.library.lorebook?.linked(fact.data.codexRefId))))
-    const recordCodex = async (fact: Fact, codexRefId: string, codexRevision: number) => {
-        try { await facts.update(fact, { data: { ...fact.data, codexRefId, codexRevision } }); return true } catch { return false }
+    // The fact records where it went: the entry, the Codex revision the write produced and what changed or was created.
+    const recordCodex = async (fact: Fact, codexRefId: string, codexRevision: number, link?: FactCodexLink) => {
+        const data = { ...fact.data, codexRefId, codexRevision, ...(link?.fields?.length ? { codexFields: link.fields } : {}), ...(link?.created ? { codexCreated: link.created } : {}) }
+        try { await facts.update(fact, { data }); return true } catch { return false }
     }
     const title = (id: string | undefined) => scenes.find((scene) => scene.id === id)?.title
     const placed = factsAt(facts.items, scenes, asOf || null)
@@ -90,7 +92,10 @@ export function NovelFactsPanel({ scenes, facts, readOnly, activeSceneId, subjec
                     {fact.data.origin === 'assistant' && <Badge tone="arcane">{copy('origins.assistant')}</Badge>}
                     {fact.data.codexRefId && codex && <Badge tone="ember">{(() => { const entry = codex.entries.find((row) => row.id === fact.data.codexRefId)
                         return entry ? copy('codex.inCodex', { label: entry.label }) : copy('codex.inCodexMissing') })()}</Badge>}
+                    {fact.data.codexRefId && fact.data.codexCreated && <Badge tone="neutral">{copy('codex.created.' + fact.data.codexCreated)}</Badge>}
                 </div>
+                {fact.data.codexRefId && Boolean(fact.data.codexFields?.length) && <p className="text-caption text-parchment-400">
+                    {copy('codex.changed', { fields: (fact.data.codexFields ?? []).map((field) => copy('fields.names.' + field)).join(', ') })}</p>}
                 <p className="font-narrative text-body text-parchment-100">{fact.data.statement}</p>
                 <p className="text-caption text-parchment-400">{copy('range', { from: title(fact.data.fromSceneId) ?? copy('beginning'), until: title(fact.data.untilSceneId) ?? copy('end') })}</p>
                 {fact.data.quote && <p className="border-l-2 border-parchment-50/20 pl-2 font-narrative text-caption text-parchment-300">{copy('evidence', { quote: fact.data.quote })}</p>}
@@ -112,7 +117,7 @@ export function NovelFactsPanel({ scenes, facts, readOnly, activeSceneId, subjec
     return (
         <div className="flex flex-col gap-3" data-testid="novel-facts">
             {reviewed && codex && !readOnly && <NovelFactCodexReview fact={reviewed} codex={codex} sceneTitle={title} onClose={() => setReviewing(null)}
-                onApplied={(entryId, revision) => recordCodex(reviewed, entryId, revision)} />}
+                onApplied={(entryId, revision, link) => recordCodex(reviewed, entryId, revision, link)} />}
             {staged && stagedEntry && codex?.library && !readOnly && <NovelFactLibraryStage fact={staged} entry={stagedEntry} library={codex.library} onClose={() => setStaging(null)} />}
             <p className="text-caption text-parchment-400">{copy('help')}</p>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">

@@ -63,6 +63,7 @@ import {
     GuidedSection,
     UseExampleLink,
     useCardDraft,
+    isDraftChanged,
     useCardEditorRoute,
     useCreatorWorkspace,
     useDirtyPayload,
@@ -448,7 +449,8 @@ function CharacterCreatorForm() {
                 if (voiceSave) setSaveError(t(voiceSave))
                 const fieldKey = ok ? null : voiceFieldErrorKey(failure)
                 if (fieldKey) setVoiceFieldError({ key: fieldKey, voice })
-                setDraftToast(
+                // A draft changed elsewhere (a novel staged a fact) opens the draft controls' conflict dialog instead.
+                if (ok || !isDraftChanged(failure)) setDraftToast(
                     ok
                         ? { tone: 'success', message: t('cardVersions.draft.saved') }
                         : { tone: 'error', message: voiceSave ? t(voiceSave) : t('cardVersions.errors.draftSave') },
@@ -688,6 +690,7 @@ function CharacterCreatorForm() {
                         cardName={name.trim() || t('creation.character.untitled')}
                         draft={draft}
                         onHydrate={(body) => hydrateFromCardBody(body as unknown as CharacterCardResponse)}
+                        onDraftSaved={(body) => markClean(JSON.stringify(body))}
                         onPublished={() => {
                             void loadData({ silent: true })
                         }}

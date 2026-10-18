@@ -14,7 +14,7 @@ import { EmptyState, ConfirmDialog, LoadingSpinner } from '@/ui/components'
 import { Button, Icon, IconButton, IconTile, Input, PageHeader, Toast } from '@/ui/primitives'
 import { ResumeCard } from '@/features/landing/components/ResumeCard'
 import { toResumeSessions, type ResumeSession } from '@/features/landing/components/resumeModel'
-import { buildGalleryModeHash } from '@/features/gallery/galleryLinks'
+import { buildGalleryModeHash, buildPersonaCreatorHash } from '@/features/gallery/galleryLinks'
 import { useVoiceAvailability } from '@/features/interaction/hooks/useVoiceAvailability'
 import { apiService } from '@/infrastructure/api'
 import { isCallsFeatureEnabled } from '@/shared/featureFlags'
@@ -49,6 +49,7 @@ export function ChatroomPage() {
         deleteCharacterChat,
         loadData,
         loadingState,
+        setEditingCharacter,
     } = useData()
     const [query, setQuery] = useState('')
     const [newChatOpen, setNewChatOpen] = useState(false)
@@ -307,6 +308,11 @@ export function ChatroomPage() {
                     onRetry={() => void refreshLibrary()}
                     onStart={startNewChat}
                     onClose={() => setNewChatOpen(false)}
+                    onCreatePersona={() => {
+                        setNewChatOpen(false)
+                        setEditingCharacter(null)
+                        setPage('character', { hash: buildPersonaCreatorHash() })
+                    }}
                     onBrowseCharacters={() => {
                         setNewChatOpen(false)
                         setPage('gallery-characters')

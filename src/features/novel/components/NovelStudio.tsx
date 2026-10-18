@@ -1,6 +1,7 @@
 import { useAssistantContextSource } from '../hooks/useAssistantContextSource'
 import { NovelAssistantDrawer,type NovelAssistantHandle } from './NovelAssistantDrawer'
 import type { SceneSummaryOutcome, SceneSummaryWriter } from './NovelAssistantSummaries'
+import type { NovelCopyWriter } from './NovelAssistantCopy'
 import { useNovelAssistantSource } from '../hooks/useNovelAssistantSource'
 import { useStudioAssistantReview } from '../hooks/useStudioAssistantReview'
 import { useSuggestionsTogether } from '../hooks/useSuggestionsTogether'
@@ -56,7 +57,8 @@ import { useData, useNavigation } from '@/app/hooks'
 import { WorkspaceContext } from '@/app/providers/workspaceContext'
 import { CodexCardPickerDrawer } from '@/features/codex'
 import type { StoryGeneration,StoryStructureOperation,StoryAnnotation,StoryAnnotationPoint,StoryVariantRecord,StoryOutline } from '@/shared'
-import { isLorebooksFeatureEnabled } from '@/shared/featureFlags'
+import { isContentTypeFeatureEnabled, isLorebooksFeatureEnabled } from '@/shared/featureFlags'
+import { normalizeLorebookList } from '@/features/lorebook/lorebookTransforms'
 import { resolveAnnotationRange,resolveDocumentAnnotationRange } from '@/shared/storyAnnotationAnchors'
 import type { ManuscriptSearchTarget } from '../editor/extensions/manuscriptSearchTarget'
 import type { AnnotationSource } from '../hooks/useAnnotationSource'
@@ -78,6 +80,8 @@ import { readingAttributes } from '../utils/readingPreferences'
 import { NovelReadingPreferences } from './NovelReadingPreferences'
 import { NovelTypingPreferences } from './NovelTypingPreferences'
 import { useTypingPreferences } from '../hooks/useTypingPreferences'
+import { useCompletionPreferences } from '../hooks/useCompletionPreferences'
+import { completionInstruction } from '../utils/completions'
 import { NovelManuscriptSearch } from './NovelManuscriptSearch'
 import { useManuscriptSearchSource } from '../hooks/useManuscriptSearchSource'
 import { useManuscriptReplacementSource } from '../hooks/useManuscriptReplacementSource'
@@ -94,6 +98,7 @@ import { NovelStructureDrawer } from './NovelStructureDrawer'
 import { NovelPlanningViews } from './NovelPlanningViews'
 import type { FactCodex } from './NovelFactCodexReview'
 import { NovelReviewDrawer } from './NovelReviewDrawer'
+import type { NovelSurface } from './NovelSurfaceSwitch'
 import { usePlanItems, usePlanItemsSource } from '../hooks/usePlanItems'
 import { NovelGenerationHistoryDrawer } from './NovelGenerationHistoryDrawer'
 import { NovelRevisionDrawer } from './NovelRevisionDrawer'
@@ -133,6 +138,7 @@ export function NovelStudio() {
     const reading = useReadingPreferences(studio.viewKey ?? null)
     const typing=useTypingPreferences(studio.viewKey??null)
     const invisibles=useInvisibleCharacters(studio.viewKey??null)
+    const completions=useCompletionPreferences(studio.viewKey??null)
     const {containerRef,outlineDocked,inspectorDocked}=useStudioLayout(reading.preferences.width)
     const narrowPanel=studio.narrowPanel==='outline'&&!outlineDocked?'outline':studio.narrowPanel==='codex'&&!inspectorDocked?'codex':null
     const setNarrowPanel=studio.setNarrowPanel
@@ -184,8 +190,32 @@ export function NovelStudio() {
     const [exportOpen,setExportOpen]=useState(false)
     const [packageOpen,setPackageOpen]=useState(false)
     const [progressOpen,setProgressOpen]=useState(false)
-    const [planningOpen,setPlanningOpen]=useState(false)
-    const [reviewOpen,setReviewOpen]=useState(false)
+    // Write, Plan or Review in the centre column (U01), for this novel only: another novel, or focus mode, is Write.
+    const [surfaceState,setSurfaceState]=useState<{storyId:string|null;surface:NovelSurface}>({storyId:null,surface:'write'})
+    const surface:NovelSurface=surfaceState.storyId===(story?.id??null)&&!studio.focusMode?surfaceState.surface:'write'
+    const planningOpen=surface==='plan',reviewOpen=surface==='review'
+    const centreRef=useRef<HTMLDivElement|null>(null)
+    // The page keeps the manuscript's scroll position while Plan or Review is shown; they open at their top. A scene
+    // opened from them starts at its top, where the editor restores that scene's own position.
+    const writeScroll=useRef<{top:number;sceneId:string|null}>({top:0,sceneId:null}),shownSurface=useRef<NovelSurface>('write')
+    const shownSceneId=studio.activeScene?.id??null
+    const setSurface=(next:NovelSurface)=>{
+        const main=centreRef.current?.closest<HTMLElement>('[data-app-main]')
+        if(surface==='write'&&next!=='write'&&main)writeScroll.current={top:main.scrollTop,sceneId:shownSceneId}
+        setSurfaceState({storyId:story?.id??null,surface:next})
+    }
+    // Leaving Plan or Review from their own controls (which then disappear) hands focus back to the switch.
+    const switchFocus=useRef(false)
+    const backToWrite=()=>{switchFocus.current=true;setSurface('write')}
+    useLayoutEffect(()=>{
+        const previous=shownSurface.current
+        shownSurface.current=surface
+        const main=centreRef.current?.closest<HTMLElement>('[data-app-main]')
+        if(!main||previous===surface)return
+        main.scrollTop=surface==='write'&&writeScroll.current.sceneId===shownSceneId?writeScroll.current.top:0
+        if(surface==='write'&&switchFocus.current)centreRef.current?.closest('.novel-reading-room')?.querySelector<HTMLElement>('[data-testid="novel-surface-switch"] [aria-checked="true"]')?.focus({preventScroll:true})
+        switchFocus.current=false
+    },[surface,shownSceneId])
     const [annotationsOpen,setAnnotationsOpen]=useState(false)
     const [annotationsKind,setAnnotationsKind]=useState<'note'|'bookmark'>('note')
     const [annotationSeed,setAnnotationSeed]=useState<{owner:AnnotationSource;draft:PersonalNoteDraft}|null>(null)
@@ -207,7 +237,8 @@ export function NovelStudio() {
     const [privateAuthorScope,setPrivateAuthorScope]=useState<string|null>(null)
     const authorReadOnly=authorVariantTargetReadOnly(story,authorSession?.sceneId??null,readOnly)
     const [assistantSession,setAssistantSession]=useState<{key:string;sceneId:string;selection:StoryAnnotationSelection|null;open:boolean}|null>(null)
-    const planTasks=usePlanItems(planSource,'task',planningOpen||reviewOpen||Boolean(assistantSession?.open))
+    // Open tasks are counted on the Review switch, so they load with the novel.
+    const planTasks=usePlanItems(planSource,'task',true)
     const planFacts=usePlanItems(planSource,'fact',planningOpen||Boolean(assistantSession?.open))
     const [readerSession,setReaderSession]=useState<{key:string;token:string}|null>(null)
     const readerLive=useRef<typeof readerSession>(null)
@@ -439,25 +470,50 @@ export function NovelStudio() {
         return {api,ref:entry.ref}
     }
     // Approved facts go to this novel's own Codex snapshots; the write checks the context revision it was reviewed at.
+    const codexFailure=(error:unknown)=>error instanceof ApiError&&error.code==='STORY_LIBRARY_LOREBOOK_MISSING'?'lorebookMissing' as const:error instanceof ApiError&&error.status===409?'conflict' as const:'failed' as const
+    const codexWritable=()=>!codex.readOnly&&!codex.busy&&!codex.pending&&storyWorkspace.isCurrent()
+    // The labels the editor reads as @references, so a proposal's review can say which ones it keeps (A10).
+    const referenceLabels=codex.referenceEntries.map((entry)=>entry.label)
     const factCodex:FactCodex={
-        entries:codex.referenceEntries.filter((entry)=>!entry.removed).map((entry)=>({id:entry.id,label:entry.label,kind:entry.kind,description:entry.description??'',scopeLabel:entry.scopeLabel,sourceId:entry.sourceId??''})),
+        entries:codex.referenceEntries.filter((entry)=>!entry.removed).map((entry)=>{
+            const snapshot=codex.resolveEntry(entry.id)?.ref.snapshot
+            return {id:entry.id,label:entry.label,kind:entry.kind,description:entry.description??'',scopeLabel:entry.scopeLabel,sourceId:entry.sourceId??'',
+                values:{name:snapshot?.name??entry.label,alias:snapshot?.alias??'',race:snapshot?.race??'',type:snapshot?.type??''}}
+        }),
         readOnly:codex.readOnly,busy:codex.busy||Boolean(codex.pending),
-        apply:async(id,description)=>{
-            const entry=codex.resolveEntry(id),expected=entry?.contextRevision
-            if(!entry||entry.ref.removedAt||expected===undefined||codex.readOnly||codex.busy||codex.pending||!storyWorkspace.isCurrent())return {ok:false,reason:'unavailable'}
-            try{await codex.saveSnapshot(entry,{label:entry.label,description});return {ok:true,revision:expected+1}}
-            catch(error){return {ok:false,reason:error instanceof ApiError&&error.status===409?'conflict':'failed'}}
+        apply:async(id,fields)=>{
+            const entry=codex.resolveEntry(id)
+            if(!entry||entry.ref.removedAt||entry.contextRevision===undefined||!codexWritable())return {ok:false,reason:'unavailable'}
+            try{const ack=await codex.saveSnapshotFields(entry,fields);return ack?{ok:true,revision:ack.contextRevision}:{ok:false,reason:'unavailable'}}
+            catch(error){return {ok:false,reason:codexFailure(error)==='conflict'?'conflict':'failed'}}
         },
+        // A new reference lives only in this novel; a new library card or lorebook entry is created with its copy as one change.
+        create:async(destination,fields,lorebookId)=>{
+            if(!codexWritable())return {ok:false,reason:'unavailable'}
+            try{
+                if(destination==='reference'){const made=await codex.addReference(fields);return made?{ok:true,entryId:made.refId,revision:made.ack.contextRevision}:{ok:false,reason:'unavailable'}}
+                const before=new Set((story?.activeCardRefs??[]).map((ref)=>ref.id))
+                const ack=await codex.discover(destination,fields,lorebookId)
+                const made=ack?.refs.filter((ref)=>!before.has(ref.id)&&ref.kind===destination&&!ref.removedAt).sort((a,b)=>b.precedence-a.precedence)[0]
+                return ack&&made?{ok:true,entryId:made.id,revision:ack.contextRevision}:{ok:false,reason:'failed'}
+            }catch(error){return {ok:false,reason:codexFailure(error)}}
+        },
+        cardKinds:(['character','world','item'] as const).filter((kind)=>isContentTypeFeatureEnabled(kind)),
+        lorebooks:isLorebooksFeatureEnabled()?async()=>{
+            const api=storyWorkspace.isCurrent()?storyWorkspace.detachedApi():null
+            if(!api)throw new ApiError(409,'The novel workspace changed.',{code:'STORY_SCOPE_CHANGED'})
+            return normalizeLorebookList(await api.getLorebooks(0,100)).map((lorebook)=>({id:lorebook.id,title:lorebook.name}))
+        }:undefined,
         // A fact applied to an entry copied from a library card can be staged in that card's private draft.
         library:!readOnly?{
             linked:(id)=>{const entry=codex.resolveEntry(id);return Boolean(entry&&!entry.ref.removedAt&&LIBRARY_KINDS.has(entry.kind)&&entry.ref.snapshot.source_card_id===entry.ref.cardId)},
             read:async(id)=>libraryTarget(id).api.getStoryCodexLibraryDraft(libraryTarget(id).ref),
-            stage:async(id,description,stamp)=>{const target=libraryTarget(id);return target.api.stageStoryCodexLibraryDraft(target.ref,description,stamp)},
+            stage:async(id,fields,stamp)=>{const target=libraryTarget(id);return target.api.stageStoryCodexLibraryDraft(target.ref,fields,stamp)},
             // A lorebook entry has no draft: its write changes the library entry at once, after its own review.
             lorebook:isLorebooksFeatureEnabled()?{
                 linked:(id)=>{const entry=codex.resolveEntry(id);return Boolean(entry&&!entry.ref.removedAt&&entry.kind==='lorebook_entry'&&entry.ref.snapshot.id===entry.ref.cardId&&entry.ref.snapshot.source_lorebook_id)},
                 read:async(id)=>libraryTarget(id).api.getStoryCodexLibraryEntry(libraryTarget(id).ref),
-                write:async(id,content,stamp)=>{const target=libraryTarget(id);return target.api.writeStoryCodexLibraryEntry(target.ref,content,stamp)},
+                write:async(id,fields,stamp)=>{const target=libraryTarget(id);return target.api.writeStoryCodexLibraryEntry(target.ref,fields,stamp)},
             }:undefined,
         }:undefined,
     }
@@ -519,6 +575,18 @@ export function NovelStudio() {
             try{return sameBasis(basis,current(await refreshStory(story.id)))?'failed':'changed'}catch{return 'failed'}
         }
     }
+    // A reviewed blurb or synopsis becomes the novel's description or synopsis, only while its details are the ones the author saw (A26).
+    const saveNovelCopy:NovelCopyWriter=async(field,text,reviewedRevision)=>{
+        if(!await beforeStructureWrite())return 'failed'
+        try{
+            const fresh=await refreshStory(story.id)
+            if(fresh.status==='archived'||fresh.trashedAt||!storyWorkspace.isCurrent())return 'unavailable'
+            if(fresh.metadataRevision!==reviewedRevision)return 'changed'
+            const write={requestId:makeRequestId('novel-copy'),expectedMetadataRevision:fresh.metadataRevision}
+            await updateStory(fresh.id,field==='description'?{...write,description:text}:{...write,details:{...fresh.details,synopsis:text}})
+            return 'saved'
+        }catch(error){return error instanceof ApiError&&error.status===409?'changed':'failed'}
+    }
     const summaryWriter:SceneSummaryWriter|undefined=readOnly||studio.workspaceReadOnly?undefined
         :{save:saveSceneSummary,saveChapter:(id,text,basis)=>saveWideSummary({kind:'chapter',id},text,basis),savePart:(id,text,basis)=>saveWideSummary({kind:'part',id},text,basis),
             saveBook:(text,basis)=>saveWideSummary({kind:'book',id:null},text,basis)}
@@ -526,7 +594,6 @@ export function NovelStudio() {
     const summaryRefresh=assistantSource&&novelAssistantSource&&!readOnly?{available:true,open:(sceneIds:string[],book:boolean,fromSummaries?:boolean)=>{
         if(!assistantHandle.current||!sceneIds.length)return
         assistantHandle.current.refreshSummaries(sceneIds,book,fromSummaries)
-        setPlanningOpen(false)
         setAssistantSession({key:assistantSource.key,sceneId:sceneIds[0],selection:null,open:true})
     }}:undefined
     const handleAddChapter=()=>{void (async()=>{
@@ -614,7 +681,7 @@ export function NovelStudio() {
                 focusMode={studio.focusMode}
                 codexOpen={inspectorDocked ? studio.codexOpen : narrowPanel === 'codex'}
                 typewriter={studio.typewriter}
-                onToggleFocusMode={studio.toggleFocusMode}
+                onToggleFocusMode={()=>{if(!studio.focusMode)setSurface('write');studio.toggleFocusMode()}}
                 onToggleCodex={() => inspectorDocked ? studio.setCodexOpen(!studio.codexOpen) : setNarrowPanel(narrowPanel === 'codex' ? null : 'codex')}
                 onToggleTypewriter={studio.toggleTypewriter}
                 onOpenHistory={() => studio.setHistoryOpen(true)}
@@ -622,8 +689,8 @@ export function NovelStudio() {
                 onOpenExport={exportSource?()=>setExportOpen(true):undefined}
                 onOpenPackage={packageSource?()=>setPackageOpen(true):undefined}
                 onOpenProgress={progressSource?()=>setProgressOpen(true):undefined}
-                onOpenPlanning={()=>setPlanningOpen(true)}
-                onOpenReview={planSource?()=>setReviewOpen(true):undefined}
+                surface={surface} onSurfaceChange={setSurface} review={Boolean(planSource)}
+                reviewCount={planTasks.items.filter((task)=>task.state==='open').length}
                 onOpenAnnotations={()=>openAnnotations('note')}
                 onOpenBookmarks={()=>openAnnotations('bookmark')}
                 onOpenAssistantContext={assistantSource&&activeScene?()=>{
@@ -652,7 +719,7 @@ export function NovelStudio() {
                 anchorSceneId={assistantSession?.key===assistantSource.key?assistantSession.sceneId:activeScene?.id??story.chapters.flatMap(chapter=>chapter.scenes)[0].id}
                 selection={assistantSession?.key===assistantSource.key?assistantSession.selection:null} readOnly={readOnly} onAuthRequired={()=>{requireAuth()}} onReviewSuggestion={reviewAssistantSuggestion} onAuthorVersions={openAuthorVersions}
                 facts={planSource?planFacts:undefined} tasks={planSource?planTasks:undefined} structure={readOnly||studio.workspaceReadOnly?undefined:{operate:performStructure,busy:studio.structure.busy,error:studio.structure.error}}
-                summaries={summaryWriter} outline={readOnly?undefined:(text)=>setOutlineImport(text)} together={readOnly||studio.workspaceReadOnly?undefined:suggestionsTogether}/>}
+                summaries={summaryWriter} outline={readOnly?undefined:(text)=>setOutlineImport(text)} copy={readOnly||studio.workspaceReadOnly?undefined:saveNovelCopy} referenceLabels={referenceLabels} together={readOnly||studio.workspaceReadOnly?undefined:suggestionsTogether}/>}
             {authorVariantSource&&<Drawer open={privateAuthorScope===authorVariantSource.key} size="2xl" title={t('novelEditor.variants.device.title')}
                 onClose={()=>{if(privateAuthorHandle.current?.preserve()!==false)setPrivateAuthorScope(null)}}>
                 <NovelPrivateAuthorVersions ref={privateAuthorHandle} key={authorVariantSource.key} scope={deviceCacheScope(authorVariantSource.scope.userHash)} current={authorVariantSource.isCurrent}
@@ -673,7 +740,8 @@ export function NovelStudio() {
                 onClose={()=>setAuthorSession(null)} onReview={reviewAuthoredVariant} onRefine={refineAuthoredVersion}/>}
             <NovelManuscriptReader key={readerSession?.token??'closed'} open={Boolean(readerSession&&readerSession.key===readerSource?.key)} source={readerSource} story={story} preferences={reading.preferences} preferenceKey={studio.viewKey??null} activeChapterId={activeChapter?.id} activeSceneId={activeScene?.id} onClose={closeReader} onOpenScene={openReaderScene} onBookmark={readOnly?undefined:bookmarkReading}/>
             <NovelReadingPreferences open={readingScope !== null && readingScope === (studio.viewKey ?? story.id)} onClose={() => setReadingScope(null)} value={reading.preferences} onChange={reading.setPreferences} storageUnavailable={reading.storageUnavailable} />
-            <NovelTypingPreferences open={typingScope!==null&&typingScope===(studio.viewKey??story.id)} onClose={()=>setTypingScope(null)} value={typing.preferences} onChange={typing.setPreferences} storageUnavailable={typing.storageUnavailable} showInvisibles={invisibles.preferences.visible} onShowInvisibles={visible=>invisibles.setPreferences({visible})} invisiblesUnavailable={invisibles.storageUnavailable}/>
+            <NovelTypingPreferences open={typingScope!==null&&typingScope===(studio.viewKey??story.id)} onClose={()=>setTypingScope(null)} value={typing.preferences} onChange={typing.setPreferences} storageUnavailable={typing.storageUnavailable} showInvisibles={invisibles.preferences.visible} onShowInvisibles={visible=>invisibles.setPreferences({visible})} invisiblesUnavailable={invisibles.storageUnavailable}
+                completions={completions.preferences} onCompletions={completions.setPreferences} completionsUnavailable={completions.storageUnavailable}/>
             <NovelManuscriptSearch open={searchScope!==null&&searchScope===searchSource?.key} onClose={()=>setSearchScope(null)} story={story} source={searchSource} beforeNavigate={beforeCopyOpen} onNavigate={navigateSearch} replacements={replacements}/>
             {searchNotice&&searchNotice.scope===searchSource?.key&&<Callout role="status" tone={searchNotice.key==='opened'?'info':'warning'}>{t('novelEditor.search.'+searchNotice.key)}</Callout>}
             {bookmarkNotice&&bookmarkNotice.owner===annotations.source&&<Callout role="status" tone={bookmarkNotice.key==='opened'?'info':'warning'}>{t('novelEditor.bookmarks.'+bookmarkNotice.key)}</Callout>}
@@ -759,7 +827,7 @@ export function NovelStudio() {
                 className={cx(
                     'grid min-h-0 flex-1 grid-cols-1',
                     !studio.focusMode && outlineDocked &&
-                        (studio.codexOpen && inspectorDocked
+                        (studio.codexOpen && inspectorDocked && surface === 'write'
                             ? 'grid-cols-[224px_minmax(0,1fr)_300px]'
                             : 'grid-cols-[224px_minmax(0,1fr)]'),
                 )}
@@ -776,7 +844,11 @@ export function NovelStudio() {
                     />
                 )}
 
-                <section className="novel-reading-surface flex min-h-[640px] min-w-0 flex-col">
+                <div ref={centreRef} className="relative flex min-h-[640px] min-w-0 flex-col">
+                {/* Plan and Review take this column; the manuscript stays loaded behind them (out of the flow,
+                    invisible and inert), so its draft, cursor, selection and scroll wait unchanged. */}
+                <section className={cx('novel-reading-surface flex min-h-[640px] min-w-0 flex-1 flex-col', surface !== 'write' && 'invisible absolute inset-0 overflow-hidden')}
+                    inert={surface !== 'write'} aria-hidden={surface !== 'write' || undefined} data-testid="novel-write-surface">
                     {/* Aligned to the prose measure so the title sits over the column
                         rather than over the page. */}
                     <div className="mx-auto w-full max-w-[var(--width-manuscript)] px-7 pt-6">
@@ -800,6 +872,7 @@ export function NovelStudio() {
                             getInitialPosition={position.getInitialPosition}
                             showInvisibles={invisibles.preferences.visible}
                             typingPreferences={typing.preferences}
+                            completionInstruction={completions.preferences.enabled?completionInstruction(completions.preferences.length):null}
                             manuscriptLanguage={story.details.language}
                             aiDisabled={draft.online === false}
                             searchTarget={bookmarkReady&&pendingBookmark&&draft.getRevision()===activeScene.revision?pendingBookmark.target:searchReady&&pendingSearch&&draft.getRevision()===activeScene.revision?{
@@ -863,26 +936,48 @@ export function NovelStudio() {
                             }}
                         />
                     )}
-                    {activeScene&&<StudioStatusStrip
-                        words={plainTextWordCount(documentText(draft.document))}
-                        goal={wordGoal.goal}
-                        onSetGoal={(goal) => {
-                            if (!requireWritable()) return
-                            setWordGoalSaveFailed(false)
-                            void wordGoal.setGoal(goal).then((saved) => {
-                                if (!saved && storyWorkspace.isCurrent()) setWordGoalSaveFailed(true)
-                            })
-                        }}
-                        saveState={draft.saveState}
-                        lastSavedAt={draft.lastSavedAt}
-                        onRetrySave={() => {
-                            if (requireWritable()) void draft.saveNow()
-                        }}
-                        readOnly={sceneReadOnly||Boolean(wordGoal.pending)||draft.online === false}
-                    />}
                 </section>
+                <NovelPlanningViews open={planningOpen} onClose={backToWrite} story={story} activeSceneId={activeScene?.id??null}
+                    onEditScene={(id)=>setManaging({kind:'scene',id})} onOpenScene={openPlannedScene}
+                    facts={planSource?planFacts:undefined} openTasks={openTasks} readOnly={readOnly} getSelection={passageSelection} appearances={appearanceSearch} codex={factCodex}
+                    bulk={studio.workspaceReadOnly?undefined:{operate:performStructure,busy:studio.structure.busy,error:studio.structure.error}}
+                    summaries={{writer:summaryWriter,refresh:summaryRefresh}}/>
+                {planSource&&<NovelReviewDrawer open={reviewOpen} onClose={backToWrite} tasks={planTasks} stash={planStash} readOnly={readOnly}
+                    sceneTitle={(id)=>chaptersFor(story).flatMap((chapter)=>chapter.scenes).find((scene)=>scene.id===id&&!scene.trashedAt)?.title??null}
+                    getSelection={passageSelection}
+                    cutSelection={(expected)=>!sceneReadOnly&&!draft.recovery&&Boolean(editorHandleRef.current?.cutSelection?.(expected))}
+                    insertText={(text)=>{
+                        // The text lands at the manuscript's cursor, so Write is shown to see it.
+                        const inserted=!sceneReadOnly&&!draft.recovery&&Boolean(editorHandleRef.current?.insertText?.(text))
+                        if(inserted)backToWrite()
+                        return inserted
+                    }}
+                    onOpenPassage={async(sceneId,quote)=>{
+                        const opened=await openPassage(sceneId,quote)
+                        if(opened!=='blocked')backToWrite()
+                        return opened
+                    }}/>}
+                {/* The save state stays in view on every surface: the manuscript keeps saving behind Plan and Review. */}
+                {activeScene&&<StudioStatusStrip
+                    words={plainTextWordCount(documentText(draft.document))}
+                    goal={wordGoal.goal}
+                    onSetGoal={(goal) => {
+                        if (!requireWritable()) return
+                        setWordGoalSaveFailed(false)
+                        void wordGoal.setGoal(goal).then((saved) => {
+                            if (!saved && storyWorkspace.isCurrent()) setWordGoalSaveFailed(true)
+                        })
+                    }}
+                    saveState={draft.saveState}
+                    lastSavedAt={draft.lastSavedAt}
+                    onRetrySave={() => {
+                        if (requireWritable()) void draft.saveNow()
+                    }}
+                    readOnly={sceneReadOnly||Boolean(wordGoal.pending)||draft.online === false}
+                />}
+                </div>
 
-                {!studio.focusMode && studio.codexOpen && inspectorDocked && (
+                {!studio.focusMode && studio.codexOpen && inspectorDocked && surface === 'write' && (
                     <CodexPanel
                         codex={codex}
                         workspaceId={storyWorkspace.workspaceId}
@@ -933,21 +1028,6 @@ export function NovelStudio() {
                     if(!visible||!await beforeCopyOpen()||!storyWorkspace.isCurrent())return false
                     setPendingSearch(null);setPendingBookmark(null);return studio.selectScene(id)
                 }}/>
-            <NovelPlanningViews open={planningOpen} onClose={()=>setPlanningOpen(false)} story={story} activeSceneId={activeScene?.id??null}
-                onEditScene={(id)=>{setPlanningOpen(false);setManaging({kind:'scene',id})}} onOpenScene={openPlannedScene}
-                facts={planSource?planFacts:undefined} openTasks={openTasks} readOnly={readOnly} getSelection={passageSelection} appearances={appearanceSearch} codex={factCodex}
-                bulk={studio.workspaceReadOnly?undefined:{operate:performStructure,busy:studio.structure.busy,error:studio.structure.error}}
-                summaries={{writer:summaryWriter,refresh:summaryRefresh}}/>
-            {planSource&&<NovelReviewDrawer open={reviewOpen} onClose={()=>setReviewOpen(false)} tasks={planTasks} stash={planStash} readOnly={readOnly}
-                sceneTitle={(id)=>chaptersFor(story).flatMap((chapter)=>chapter.scenes).find((scene)=>scene.id===id&&!scene.trashedAt)?.title??null}
-                getSelection={passageSelection}
-                cutSelection={(expected)=>!sceneReadOnly&&!draft.recovery&&Boolean(editorHandleRef.current?.cutSelection?.(expected))}
-                insertText={(text)=>!sceneReadOnly&&!draft.recovery&&Boolean(editorHandleRef.current?.insertText?.(text))}
-                onOpenPassage={async(sceneId,quote)=>{
-                    const opened=await openPassage(sceneId,quote)
-                    if(opened!=='blocked')setReviewOpen(false)
-                    return opened
-                }}/>}
             {progressSource&&progressOpen&&<NovelProgressDialog key={progressSource.key} open onClose={()=>setProgressOpen(false)} load={progressSource.load} streakKey={progressSource.streakKey}/>}
             {exportSource&&exportOpen&&<NovelExportDialog key={exportSource.key} open onClose={()=>setExportOpen(false)} source={exportSource} savedVersion={studioReviewVersion(story)}/>}
             {packageSource&&packageOpen&&<NovelPackageExportDialog key={packageSource.key} open onClose={()=>setPackageOpen(false)} source={packageSource}/>}

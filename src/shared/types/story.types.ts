@@ -102,6 +102,12 @@ export type StoryCodexOperation=
     |{op:'remove'|'restore';id:string}
     /** Take the chosen fields from the reviewed library version; fields left out keep the novel's values. */
     |{op:'refresh';id:string;sourceVersionId:string;take:StoryCodexLibraryField[]}
+    /** Create a private library card, or an entry in a library lorebook, from a reviewed discovery, and copy it here (K12). */
+    |{op:'discover';destination:StoryCodexDiscoveryDestination;lorebookId?:string;fields:StoryCodexDiscoveryFields}
+/** Where a reviewed novel discovery can be created in the library. */
+export type StoryCodexDiscoveryDestination='character'|'world'|'item'|'lorebook_entry'
+/** A discovery's details: race only for a character, type only for a setting or item, keys only (and always) for a lorebook entry. */
+export interface StoryCodexDiscoveryFields {name:string;alias?:string;race?:string;type?:string;description:string;keys?:string[]}
 export interface StoryCodexWrite {requestId:string;expectedContextRevision:number;operation:StoryCodexOperation}
 /** The card details a Codex copy can take from its library card. */
 export type StoryCodexLibraryField='name'|'alias'|'description'|'race'|'type'|'category'
@@ -121,12 +127,18 @@ export interface StoryCodexLibraryReview {refId:string;current:StoryCardSnapshot
  * What staging a reviewed description into a Codex entry's library card starts from: the card's private draft, else
  * its published body. `stamp` names that exact content; a stage from an older stamp is refused.
  */
-export interface StoryCodexLibraryDraft {refId:string;basis:'draft'|'published';description:string;stamp:string;versionNumber:number}
+export interface StoryCodexLibraryDraft {refId:string;basis:'draft'|'published';name:string;alias:string|null;description:string
+    /** A character's race, or a setting's or item's type: the one detail besides name, alias and description each kind has. */
+    race?:string|null;type?:string|null;stamp:string;versionNumber:number}
+/** The reviewed details to stage; those left out keep the draft's values, and an empty alias clears it. */
+export type StoryCodexLibraryDraftFields=Partial<Record<'name'|'alias'|'description'|'race'|'type',string>>
 /**
  * The library lorebook entry a Codex copy came from, as stored. Entries have no draft: a write changes the library entry
  * itself. `stamp` names the whole stored entry; a write from an older stamp is refused.
  */
-export interface StoryCodexLibraryEntry {refId:string;lorebookId:string;entryId:string;title:string;content:string;stamp:string}
+export interface StoryCodexLibraryEntry {refId:string;lorebookId:string;entryId:string;title:string;keys:string[];content:string;stamp:string}
+/** The reviewed title, keys and content to write; those left out stay as stored. */
+export interface StoryCodexLibraryEntryFields {title?:string;keys?:string[];content?:string}
 export interface StoryCodexAcknowledgement {contextRevision:number;refs:StoryCardRef[]}
 
 export interface StoryCopyOptions {

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import type { StoryGeneration, StoryOutline, StorySceneDocument, StoryVariantRecord } from '@/shared'
 import { documentSignature } from '@/shared/storyDocument'
-import { isStudioSource } from '@/shared/storyStudioState'
+import { studioMatchesIndex } from '@/shared/storyStudioState'
 import type { NovelEditorHandle } from '../editor/types'
 import type { SceneDraftApi } from './useSceneDraft'
 import type { AuthorVariantSource } from './useAuthorVariantSource'
@@ -64,7 +64,7 @@ export function useStudioVariantReview(options: Options) {
         if (!value.source.isCurrent() || now.source?.key !== value.source.key || now.story?.id !== v.storyId || value.controller.signal.aborted
             || now.readOnly || now.blocked || now.loadError || now.selectedUnit !== v.operation.sceneId
             || now.story.metadataRevision !== index.metadataRevision || now.story.structureRevision !== index.structureRevision || now.story.contextRevision !== index.contextRevision
-            || isStudioSource(now.story) && now.story.sourceVersion !== index.sourceVersion) { finish(value, false); return }
+            || !studioMatchesIndex(now.story, index)) { finish(value, false); return }
         if (now.scene?.id !== v.operation.sceneId || now.draft.sceneId !== v.operation.sceneId) return
         const editor = now.editorRef.current
         if (!editor || now.scene.inheritance?.readOnly || now.draft.online === false || now.draft.recovery || now.draft.conflictServer || now.draft.suspended

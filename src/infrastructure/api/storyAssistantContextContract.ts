@@ -159,8 +159,10 @@ function readingOrder(p:Record<string,unknown>):boolean {
     return unique(p.readingOrder)&&p.readingOrder.length===sources.length&&p.readingOrder.every(id=>sources.includes(id))
 }
 /** Writing actions return a reviewable proposal (Suggest); the others answer in prose (Ask). */
-export const ASSISTANT_ACTION_TASKS:Record<StoryAssistantActionKind,StoryAssistantContextRequest['task']>={transform:'suggest',line_edit:'suggest',dialogue:'suggest',bridge:'suggest',brainstorm:'ask',outline:'ask',summary:'ask'}
+export const ASSISTANT_ACTION_TASKS:Record<StoryAssistantActionKind,StoryAssistantContextRequest['task']>={transform:'suggest',line_edit:'suggest',dialogue:'suggest',bridge:'suggest',translate:'suggest',brainstorm:'ask',outline:'ask',summary:'ask',copy:'ask'}
 export const LINE_EDIT_FOCUS:readonly StoryAssistantLineEditFocus[]=['grammar','clarity','repetition','rhythm','word_choice']
+/** A language as the author names it ("Spanish", "pt-BR", "Spanish (Mexico)"): 1–60 letters and a few separators, trimmed. */
+export const isLanguageName=(v:unknown):v is string=>typeof v==='string'&&v.length>0&&v.length<=60&&v===v.trim()&&/\p{L}/u.test(v)&&/^[\p{L}\p{M} ()'’,.-]+$/u.test(v)
 export function isAssistantAction(v:unknown):v is StoryAssistantAction {
     if(!isRecord(v))return false
     switch(v.kind){
@@ -169,6 +171,8 @@ export function isAssistantAction(v:unknown):v is StoryAssistantAction {
         case 'dialogue':return exact(v,['kind','speaker'])&&filled(v.speaker,120)&&v.speaker===v.speaker.trim()
         case 'brainstorm':return exact(v,['kind','topic'])&&['premise','conflict','stakes','names','what_if'].includes(String(v.topic))
         case 'outline':return exact(v,['kind','target'])&&['synopsis','beats','chapter_plan'].includes(String(v.target))
+        case 'translate':return exact(v,['kind','language'])&&isLanguageName(v.language)
+        case 'copy':return exact(v,['kind','form'])&&['blurb','synopsis','titles','handoff'].includes(String(v.form))
         case 'bridge':case 'summary':return exact(v,['kind'])
         default:return false
     }

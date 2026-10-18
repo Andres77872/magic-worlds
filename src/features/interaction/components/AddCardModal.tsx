@@ -7,7 +7,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Check, Plus } from 'lucide-react'
-import { Button, Icon, Input, Modal, Tag, cx } from '../../../ui/primitives'
+import { Button, Callout, Icon, Input, Modal, Tag, cx } from '../../../ui/primitives'
 
 export interface AddCandidate {
     id: string
@@ -34,6 +34,7 @@ export function AddCardModal({ open, title, confirmKind, candidates, emptyHint, 
     const [selected, setSelected] = useState<string[]>([])
     const [query, setQuery] = useState('')
     const [busy, setBusy] = useState(false)
+    const [error, setError] = useState<string | null>(null)
 
     // Reset transient state each time the modal opens (adjust-during-render, no effect).
     const [prevOpen, setPrevOpen] = useState(open)
@@ -43,6 +44,7 @@ export function AddCardModal({ open, title, confirmKind, candidates, emptyHint, 
             setSelected([])
             setQuery('')
             setBusy(false)
+            setError(null)
         }
     }
 
@@ -60,9 +62,12 @@ export function AddCardModal({ open, title, confirmKind, candidates, emptyHint, 
     const confirm = async () => {
         if (selected.length === 0) return
         setBusy(true)
+        setError(null)
         try {
             await onConfirm(selected)
             onClose()
+        } catch (cause) {
+            setError(cause instanceof Error ? cause.message : t('interaction.cardDrawer.saveErrorGeneric'))
         } finally {
             setBusy(false)
         }
@@ -96,6 +101,7 @@ export function AddCardModal({ open, title, confirmKind, candidates, emptyHint, 
                 </>
             }
         >
+            {error && <Callout tone="danger" role="alert">{error}</Callout>}
             {candidates.length === 0 ? (
                 <p className="py-4 text-center font-narrative text-[14px] italic text-parchment-400">{emptyHint}</p>
             ) : (

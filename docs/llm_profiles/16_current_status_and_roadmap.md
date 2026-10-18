@@ -1,5 +1,13 @@
 # Estado actual y roadmap de perfiles LLM
 
+> **Actualización local 2026-10-18:** el transporte BYOK separa credenciales de
+> `agt`, la admisión/replay exige clave por solicitud y el runtime guarda solo
+> bindings sin secreto. Faltantes y claves rechazadas tienen errores específicos;
+> no se filtra contenido LLM. Ver el contrato implementado y rollout en [07](07_api_changes.md).
+> El inventario fechado debajo describe la inspección histórica del 15 de octubre;
+> no representa una certificación del despliegue ni una limpieza de copias previas.
+
+
 **Revisión de fuentes/documentación: 2026-10-15. Estado: fundamento funcional implementado; custodia y aceptación operativa pendientes.** Este ledger es la autoridad de estado de perfiles LLM; no acredita el runtime/paquete ni la configuración de una instalación desplegada.
 
 ## Estado verificable

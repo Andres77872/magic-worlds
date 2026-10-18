@@ -180,3 +180,32 @@ it('keeps the writing assistant available for archived reading and restores menu
     fireEvent.click(screen.getByRole('menuitem',{name:'Writing assistant'}))
     expect(open).toHaveBeenCalledOnce();expect(screen.getByTestId('novel-header-more')).toHaveFocus()
 })
+
+it('switches Write, Plan and Review from the header, counts open tasks and keeps the switch out of focus mode', () => {
+    const change = vi.fn()
+    const view = render(<NovelStudioHeader story={story} chapterTitle="Opening" focusMode={false} codexOpen={false} typewriter={false} {...handlers()}
+        surface="plan" onSurfaceChange={change} review reviewCount={3} />)
+    const group = screen.getByRole('radiogroup', { name: 'Studio view' })
+    expect(group).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Plan' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('radio', { name: 'Review, 3 open tasks' })).toHaveAttribute('tabindex', '-1')
+    // The Codex inspector belongs to Write.
+    expect(screen.queryByRole('button', { name: 'Codex panel' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('radio', { name: 'Write' }))
+    expect(change).toHaveBeenLastCalledWith('write')
+    fireEvent.keyDown(screen.getByRole('radio', { name: 'Plan' }), { key: 'ArrowRight' })
+    expect(change).toHaveBeenLastCalledWith('review')
+    // Planning views and Review left the More menu for the switch.
+    fireEvent.click(screen.getByTestId('novel-header-more'))
+    expect(screen.queryByRole('menuitem', { name: 'Planning views' })).not.toBeInTheDocument()
+    view.rerender(<NovelStudioHeader story={story} chapterTitle="Opening" focusMode codexOpen={false} typewriter={false} {...handlers()}
+        surface="write" onSurfaceChange={change} review reviewCount={3} />)
+    expect(screen.queryByRole('radiogroup', { name: 'Studio view' })).not.toBeInTheDocument()
+})
+
+it('offers Review only when revision tasks are available', () => {
+    render(<NovelStudioHeader story={story} chapterTitle="Opening" focusMode={false} codexOpen={false} typewriter={false} {...handlers()}
+        surface="write" onSurfaceChange={vi.fn()} />)
+    expect(screen.getAllByRole('radio').map((radio) => radio.getAttribute('aria-label'))).toEqual(['Write', 'Plan'])
+    expect(screen.getByRole('button', { name: 'Codex panel' })).toBeInTheDocument()
+})

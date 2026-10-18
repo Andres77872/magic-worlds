@@ -3,7 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObje
 import type { StoryOutline, StorySceneDocument, StoryGeneration } from '@/shared'
 import type { NovelAssistantRecord } from '@/shared/types/storyAssistant.types'
 import { documentSignature } from '@/shared/storyDocument'
-import { isStudioSource } from '@/shared/storyStudioState'
+import { studioMatchesIndex } from '@/shared/storyStudioState'
 import type { NovelEditorHandle } from '../editor/types'
 import type { SceneDraftApi } from './useSceneDraft'
 import type { NovelAssistantSource } from './useNovelAssistantSource'
@@ -97,7 +97,7 @@ export function useStudioAssistantReview(options: Options) {
         if (!waiting.source.isCurrent() || now.source?.key !== waiting.source.key || now.story?.id !== proposal.storyId
             || waiting.controller.signal.aborted || now.readOnly || now.blocked || now.loadError || now.selectedUnit !== proposal.sceneId
             || now.story.metadataRevision !== novel.metadataRevision || now.story.structureRevision !== novel.structureRevision || now.story.contextRevision !== novel.contextRevision
-            || isStudioSource(now.story) && now.story.sourceVersion !== waiting.record.context.sourceVersion) {
+            || !studioMatchesIndex(now.story, waiting.checked.index)) {
             finish(waiting, false); return
         }
         if (now.scene?.id !== proposal.sceneId || now.draft.sceneId !== proposal.sceneId) return

@@ -46,6 +46,11 @@ export interface CardDraftDocument extends Record<string, unknown> {
     is_draft?: boolean
     /** The published version this draft was forked from. */
     based_on_version_number?: number | null
+    /**
+     * The stamp of this body (draft, else published) as the server stores it. The editor sends it back as
+     * `If-Match` on save, publish, discard and restore, so a draft a novel changed meanwhile is never overwritten.
+     */
+    draft_stamp?: string
     latest_version_number?: number
     /** True when this body is a read-only historical version (from `GET /{cards}/{id}/versions/{n}`). */
     is_historical?: boolean
@@ -68,4 +73,6 @@ export interface CardPublishResult {
     name?: string
     /** The freshly published card document (now live for sessions/clones). */
     card: CardDraftDocument
+    /** The stamp of the published body the editor now holds (its next save's `If-Match`). */
+    draft_stamp?: string
 }

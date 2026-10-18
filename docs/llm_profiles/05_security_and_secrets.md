@@ -1,10 +1,10 @@
 # Seguridad y secretos
 
-**Lifecycle: diseño/requisitos y decisiones conservados. Revisado 2026-10-15.** Este archivo define el objetivo, no un inventario de lo ya instalado. El [ledger 16](16_current_status_and_roadmap.md), la [API actual 07](07_api_changes.md) y el [registro F01–F11](../security/README.md) tienen precedencia. La custodia end-to-end sigue abierta.
+**Lifecycle: contrato actualizado en los working trees del 2026-10-18.** El transporte implementado y su despliegue se describen en [07](07_api_changes.md). Los registros del 15 de octubre son históricos; la instalación desplegada y los datos anteriores no se han certificado ni limpiado.
 
 ## Promesa y límites
 
-**Requisito objetivo: ninguna clave personal debe persistirse en infraestructura de la aplicación. No está cumplido end-to-end por el transporte actual.** El BFF inserta la clave en el graph outbound y el ejecutor captura ese graph; F04 sigue abierto. Las reglas siguientes describen la garantía que falta implementar/aceptar, no el comportamiento ya certificado. La memoria del navegador sí es transitoria; ausencia de un endpoint de recuperación no demuestra ausencia en snapshots.
+**Contrato implementado: las claves recibidas por el canal BYOK no se incluyen en datos persistibles.** El BFF las envía separadas de `agt`; el ejecutor guarda bindings y crea los clientes con una copia privada por solicitud. Las pruebas locales cubren snapshots nativos, errores, cancelación y grafos anidados. Esto no certifica despliegues ni copias históricas. El contenido de prompts y respuestas se conserva según su contrato de producto y no se filtra: un secreto escrito deliberadamente en ese contenido o en un grafo arbitrario puede persistirse como contenido.
 
 Eso no hace invisible la clave al operador: un proceso o infraestructura controlados por el operador pueden observarla durante el tránsito/ejecución. Python y JavaScript tampoco permiten garantizar borrado físico de todas las copias de un string. Se eliminan referencias y se limita su duración, sin prometer zeroization. Para que la infraestructura nunca reciba la clave se necesitaría otro flujo con ejecutor controlado por el usuario.
 
@@ -12,7 +12,7 @@ Memoria del cliente reduce persistencia, pero sigue expuesta a XSS o scripts mal
 
 ## Información y ubicación
 
-La tabla define ubicaciones **permitidas por el contrato objetivo**; no es un resultado de escaneo de persistencia. En particular, «Nunca» para BYOK exige remediar F04.
+La tabla define ubicaciones permitidas para el canal de credenciales BYOK implementado; no es un escaneo de infraestructura desplegada ni de datos históricos.
 
 | Información | DB | Cliente | Servidor |
 |---|---|---|---|
@@ -27,7 +27,7 @@ No guardar tampoco claves cifradas, hashes de claves, prefijos/sufijos, fingerpr
 
 ## Ciclo de vida BYOK
 
-Secuencia requerida. Los pasos 6–8 no se acreditan por la implementación actual; ver [07](07_api_changes.md).
+Secuencia implementada en los working trees del 2026-10-18; contrato y límites operativos en [07](07_api_changes.md). La instalación desplegada y copias históricas requieren verificación independiente.
 
 1. El usuario guarda un perfil **sin secret**.
 2. Al usarlo, la UI solicita la clave en un input oculto y confirma el destino autorizado.
@@ -44,9 +44,9 @@ La conexión HTTP puede reutilizar transporte sin secreto si la biblioteca lo pe
 
 ### Errores y ausencia de clave
 
-- Perfil BYOK sin clave: `BYOK_KEY_REQUIRED`, sin llamada externa y sin reserva de crédito.
-- Clave rechazada: `BYOK_KEY_REJECTED`; no convertirlo en 401 de sesión app ni disparar refresh infinito.
-- Timeout/429: retry acotado del mismo target; no usar clave root.
+- Perfil BYOK sin clave: `BYOK_CREDENTIAL_REQUIRED`, sin llamada externa y sin reserva de crédito.
+- Clave rechazada: `BYOK_CREDENTIAL_REJECTED`; no convertirlo en 401 de sesión app ni disparar refresh infinito.
+- Timeout/429: error explícito; un retry de generación requiere una nueva solicitud con clave y el mismo target retenido. No usar clave root.
 - Cambiar la clave tras un fallo permite un nuevo intento autorizado sin incluirla en el fingerprint durable. La idempotencia distingue un replay de resultado terminado de una reejecución con nueva clave.
 - Perfil platform con credencial personal adjunta: rechazo de combinación; no ignorar el secreto silenciosamente.
 

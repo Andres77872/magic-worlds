@@ -1,6 +1,6 @@
 /**
- * Named assistant actions beside the composer: a POV/tense transform, line edit, dialogue or bridge returns a
- * proposal for review (Suggest); brainstorming, outlines and summaries answer in prose (Ask). Choosing one sets
+ * Named assistant actions beside the composer: a POV/tense transform, line edit, dialogue, bridge or translation returns a
+ * proposal for review (Suggest); brainstorming, outlines, summaries and book copy answer in prose (Ask). Choosing one sets
  * the matching task and, while the message is empty or still the previous action's wording, its instruction.
  */
 
@@ -10,6 +10,8 @@ import type { StoryAssistantAction, StoryAssistantActionKind } from '@/shared/ty
 import { Badge, Chip, Field, Input, Select } from '@/ui/primitives'
 import { withoutAction, type AssistantSourceSettings } from '../persistence/assistantDraftJournal'
 import { ASSISTANT_ACTION_KINDS, assistantActionMessage, defaultAssistantAction } from '../utils/assistantActions'
+
+const LANGUAGES = ['english', 'spanish', 'french', 'german', 'italian', 'portuguese', 'japanese', 'korean', 'chinese'] as const
 
 interface Props {
     value: AssistantSourceSettings
@@ -27,8 +29,8 @@ export function NovelAssistantActions({ value, message, disabled, onChange }: Pr
         const previous = action ? assistantActionMessage(t, action) : ''
         onChange(settings, !message.trim() || message.trim() === previous ? next ? assistantActionMessage(t, next) : '' : message)
     }
-    const needs = action && !isAssistantAction(action.kind === 'dialogue' ? { ...action, speaker: action.speaker.trim() } : action)
-        ? text(action.kind === 'transform' ? 'transformNeeds' : action.kind === 'line_edit' ? 'focusNeeds' : 'speakerNeeds') : null
+    const needs = action && !isAssistantAction(action.kind === 'dialogue' ? { ...action, speaker: action.speaker.trim() } : action.kind === 'translate' ? { ...action, language: action.language.trim() } : action)
+        ? text(action.kind === 'transform' ? 'transformNeeds' : action.kind === 'line_edit' ? 'focusNeeds' : action.kind === 'translate' ? 'languageNeeds' : 'speakerNeeds') : null
     return <section aria-label={text('label')} className="space-y-3 rounded-lg border border-line p-3">
         <Field label={text('label')} helper={action ? t('novelEditor.assistantActions.kindHelp.' + action.kind) : text('help')}>
             <Select value={action?.kind ?? ''} disabled={disabled} onChange={(kind) => choose(kind ? defaultAssistantAction(kind as StoryAssistantActionKind) : null)}
@@ -48,10 +50,18 @@ export function NovelAssistantActions({ value, message, disabled, onChange }: Pr
         </div></fieldset>}
         {action?.kind === 'dialogue' && <Field label={text('speaker')} helper={text('speakerHelp')}>
             <Input value={action.speaker} maxLength={120} disabled={disabled} onChange={(event) => choose({ ...action, speaker: event.target.value.trimStart() })} /></Field>}
+        {action?.kind === 'translate' && <Field label={text('language')} helper={text('languageHelp')}>
+            {/* Only letters and the separators a language name uses, so a half-typed name is always a recoverable draft. */}
+            <Input value={action.language} maxLength={60} list="novel-assistant-languages" disabled={disabled}
+                onChange={(event) => choose({ ...action, language: event.target.value.replace(/[^\p{L}\p{M} ()'’,.-]/gu, '').trimStart() })} />
+            <datalist id="novel-assistant-languages">{LANGUAGES.map((language) => <option key={language} value={t('novelEditor.assistantActions.languages.' + language)} />)}</datalist>
+        </Field>}
         {action?.kind === 'brainstorm' && <Field label={text('topic')}><Select value={action.topic} disabled={disabled} onChange={(topic) => choose({ ...action, topic: topic as typeof action.topic })}
             options={(['premise', 'conflict', 'stakes', 'names', 'what_if'] as const).map((topic) => ({ value: topic, label: t('novelEditor.assistantActions.topics.' + topic) }))} /></Field>}
         {action?.kind === 'outline' && <Field label={text('target')}><Select value={action.target} disabled={disabled} onChange={(target) => choose({ ...action, target: target as typeof action.target })}
             options={(['synopsis', 'beats', 'chapter_plan'] as const).map((target) => ({ value: target, label: t('novelEditor.assistantActions.targets.' + target) }))} /></Field>}
+        {action?.kind === 'copy' && <Field label={text('form')}><Select value={action.form} disabled={disabled} onChange={(form) => choose({ ...action, form: form as typeof action.form })}
+            options={(['blurb', 'synopsis', 'titles', 'handoff'] as const).map((form) => ({ value: form, label: t('novelEditor.assistantActions.forms.' + form) }))} /></Field>}
         {needs && <p role="status" className="text-caption text-ember-300">{needs}</p>}
     </section>
 }

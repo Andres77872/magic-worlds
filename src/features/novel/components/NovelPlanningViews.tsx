@@ -4,13 +4,17 @@
  * opens a scene in Write, where the working position is restored per scene.
  * Unit metadata (status, cast, threads, story-time order) stays in scene
  * details; only the chosen view is local to this panel.
+ *
+ * Plan is a studio surface (U01): it takes the centre column in place of the
+ * manuscript, which stays loaded behind it, and opening a scene returns to Write.
  */
 
 import { useState, type Dispatch, type SetStateAction } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown, ChevronRight, LayoutGrid } from 'lucide-react'
 import type { StoryOutline } from '@/shared'
-import { Badge, Button, Callout, Drawer, Icon, IconButton, TabPanel, Tabs, cx } from '@/ui/primitives'
+import { Badge, Button, Callout, Icon, IconButton, TabPanel, Tabs, cx } from '@/ui/primitives'
+import { NovelSurfaceHeading } from './NovelSurfaceHeading'
 import { snapshotLabel } from '../utils/codexUtils'
 import { chaptersFor } from '../utils/novelUtils'
 import { planningScenes, sceneMatrix, storyTimeline, type PlanningScene, type PlanningView } from '../utils/planningViews'
@@ -24,7 +28,9 @@ import { LARGE_OUTLINE_SCENES } from './NovelChapterRail'
 import type { SceneSummaryWriter } from './NovelAssistantSummaries'
 
 export interface NovelPlanningViewsProps {
+    /** Plan is the chosen surface. */
     open: boolean
+    /** Back to Write (after a scene opens, or from the surface's own control). */
     onClose: () => void
     story: StoryOutline
     activeSceneId: string | null
@@ -58,12 +64,15 @@ export function NovelPlanningViews(props: NovelPlanningViewsProps) {
     const [chosen, setChosen] = useState<string[]>([])
     const [boardOpen, setBoardOpen] = useState<ReadonlyMap<string, boolean>>(() => new Map())
     const state: PlanningState = { view, setView, opening, setOpening, blocked, setBlocked, appearance, setAppearance, selecting, setSelecting, chosen, setChosen, boardOpen, setBoardOpen }
-    // The Drawer renders nothing while closed, so the views below are not built on every Studio
-    // render: in a 1,500-scene novel that cost about 95 ms per keystroke.
+    // Nothing renders outside Plan, so the views below are not built on every Studio render while
+    // writing: in a 1,500-scene novel that cost about 95 ms per keystroke.
+    if (!props.open) return null
     return (
-        <Drawer open={props.open} onClose={props.onClose} size="2xl" title={t('novelEditor.planningViews.title')} eyebrow={t('novelEditor.planningViews.eyebrow')} icon={<Icon icon={LayoutGrid} size={18} />}>
+        <section aria-labelledby="novel-plan-title" className="mx-auto flex w-full min-w-0 max-w-6xl flex-1 flex-col gap-4 px-4 py-5 sm:px-6" data-testid="novel-plan-surface">
+            <NovelSurfaceHeading id="novel-plan-title" title={t('novelEditor.planningViews.title')} eyebrow={t('novelEditor.planningViews.eyebrow')}
+                icon={<Icon icon={LayoutGrid} size={18} />} onBack={props.onClose} />
             <PlanningContent {...props} state={state} />
-        </Drawer>
+        </section>
     )
 }
 

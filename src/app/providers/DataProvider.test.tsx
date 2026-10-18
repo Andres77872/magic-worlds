@@ -3,9 +3,10 @@ import { setAllTestFeatureFlags as grantFixtureFeatures } from '@/shared/hooks/t
 beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
 import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils'
 import { useContext, useState, type ContextType } from 'react'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AdventureSnapshot } from '../../shared'
+import type { Adventure, AdventureSnapshot } from '../../shared'
+import { SessionPersonaError } from '@/utils/characterRoles'
 
 // Auth: always authenticated so saveInProgressSnapshot proceeds.
 vi.mock('@/app/hooks', () => ({
@@ -674,5 +675,132 @@ describe('DataProvider.clearAllData', () => {
         expect(apiService.deleteItem).not.toHaveBeenCalled()
         expect(apiService.deleteAdventureTemplate).not.toHaveBeenCalled()
         expect(apiService.deleteAdventureSession).not.toHaveBeenCalled()
+    })
+})
+
+describe('DataProvider session persona boundaries and adventure recovery', () => {
+    const savedSnapshot: AdventureSnapshot = { ...SNAPSHOT, template: { ...SNAPSHOT.template, id: 't1', persona: CHAT_PERSONA } }
+    const savedSession = { adventure_id: 11, adventure_template: 't1', template_snapshot: savedSnapshot }
+    const withPersona = (persona: AdventureSnapshot['template']['persona']): AdventureSnapshot => ({
+        ...savedSnapshot, template: { ...savedSnapshot.template, persona },
+    })
+    let context: { current: NonNullable<ContextType<typeof DataContext>> }
+
+    async function mount() {
+        const rendered = renderHook(() => useContext(DataContext)!, { wrapper: DataProvider })
+        context = rendered.result
+        await act(async () => {})
+    }
+
+    beforeEach(() => {
+        vi.clearAllMocks()
+        setTestFeatureFlags({ adventures: true, groupChats: true })
+        workspaceMock.status = 'ready'
+        vi.mocked(apiService.getCharacters).mockResolvedValue([])
+        vi.mocked(apiService.getCharacterChats).mockResolvedValue([])
+        vi.mocked(apiService.createAdventureSession).mockReset().mockResolvedValue(savedSession)
+        vi.mocked(apiService.updateAdventureSnapshot).mockReset().mockResolvedValue({ template_snapshot: savedSnapshot })
+    })
+
+    it.each(['chat', 'group', 'adventure'] as const)('rejects invalid %s personas without changing active state or calling creation APIs', async (kind) => {
+        await mount()
+        for (const persona of [CHAT_CHARACTER, { ...CHAT_PERSONA, role: undefined }, { ...CHAT_PERSONA, id: '' }, { ...CHAT_PERSONA, id: ' padded ' }]) {
+            const start = () => kind === 'adventure' ? context.current.startTemplate(TEMPLATE, persona)
+                : kind === 'group' ? context.current.startCharacterGroupChat([CHAT_CHARACTER, { ...CHAT_CHARACTER, id: 'c2' }], persona)
+                : context.current.startCharacterChat(CHAT_CHARACTER, persona)
+            await expect(start()).rejects.toBeInstanceOf(SessionPersonaError)
+        }
+        expect(context.current.activeCharacterChat).toBeNull()
+        expect(context.current.editingInProgress).toBeNull()
+        expect(apiService.createAdventureSession).not.toHaveBeenCalled()
+        expect(apiService.createCharacterChat).not.toHaveBeenCalled()
+        expect(apiService.createCharacterGroupChat).not.toHaveBeenCalled()
+    })
+
+    it('rejects a stale invalid chat draft before sending its persona id', async () => {
+        await mount()
+        act(() => context.current.resumeCharacterChat({ id: 'draft-legacy', isDraft: true, character_id: 'c1', persona_id: 'c2', persona: CHAT_CHARACTER }))
+        await expect(context.current.ensureCharacterChatSession(context.current.activeCharacterChat!)).rejects.toBeInstanceOf(SessionPersonaError)
+        expect(apiService.createCharacterChat).not.toHaveBeenCalled()
+    })
+
+    it('resumes saved sessions without requiring live library source cards', async () => {
+        await mount()
+        const savedChat = { id: '9', character: CHAT_CHARACTER, persona: CHAT_PERSONA }
+        const savedAdventure: Adventure = { ...TEMPLATE, id: '11', status: 'in-progress', persona: CHAT_PERSONA, snapshot: savedSnapshot }
+        act(() => { context.current.resumeCharacterChat(savedChat); context.current.editInProgress(savedAdventure) })
+        await expect(context.current.ensureCharacterChatSession(savedChat)).resolves.toBe(9)
+        await expect(context.current.ensureAdventureSession(savedAdventure)).resolves.toBe(11)
+        expect(apiService.createAdventureSession).not.toHaveBeenCalled()
+        expect(apiService.createCharacterChat).not.toHaveBeenCalled()
+    })
+
+    it('repairs a legacy adventure draft after replacing an invalid persona', async () => {
+        await mount()
+        let draft!: Adventure
+        await act(async () => { draft = await context.current.startTemplate(TEMPLATE, CHAT_PERSONA) })
+        act(() => context.current.editInProgress({ ...draft, persona: CHAT_CHARACTER,
+            draft: { ...draft.draft!, personaId: 'c1' }, snapshot: withPersona(CHAT_CHARACTER) }))
+        await expect(context.current.ensureAdventureSession(context.current.editingInProgress!)).rejects.toBeInstanceOf(SessionPersonaError)
+        expect(apiService.createAdventureSession).not.toHaveBeenCalled()
+        const corrected = withPersona({ ...CHAT_PERSONA, id: 'p2', source_card_id: 'p2' })
+        vi.mocked(apiService.updateAdventureSnapshot).mockResolvedValue({ template_snapshot: corrected })
+        await act(async () => { await context.current.saveInProgressSnapshot(draft.id, corrected) })
+        expect(context.current.editingInProgress?.draft?.personaId).toBe('p2')
+        await act(async () => { await context.current.ensureAdventureSession(context.current.editingInProgress!) })
+        expect(apiService.createAdventureSession).toHaveBeenCalledExactlyOnceWith('t1', 'p2')
+        expect(context.current.editingInProgress?.persona?.id).toBe('p2')
+    })
+
+    it('preserves the valid creation seed when the final snapshot persona is removed', async () => {
+        await mount()
+        await act(async () => { await context.current.startTemplate(TEMPLATE, CHAT_PERSONA) })
+        const cleared = withPersona(null)
+        vi.mocked(apiService.updateAdventureSnapshot).mockResolvedValue({ template_snapshot: cleared })
+        await act(async () => { await context.current.saveInProgressSnapshot(context.current.editingInProgress!.id, cleared) })
+        expect(context.current.editingInProgress?.draft?.personaId).toBe('p1')
+        await act(async () => { await context.current.ensureAdventureSession(context.current.editingInProgress!) })
+        expect(apiService.createAdventureSession).toHaveBeenCalledExactlyOnceWith('t1', 'p1')
+        expect(apiService.updateAdventureSnapshot).toHaveBeenCalledWith(11, expect.objectContaining({ template: expect.objectContaining({ persona: null }) }))
+        expect(context.current.editingInProgress?.persona).toBeUndefined()
+    })
+
+    it('rejects non-persona snapshot additions for both local drafts and saved sessions', async () => {
+        await mount()
+        await act(async () => { await context.current.startTemplate(TEMPLATE, CHAT_PERSONA) })
+        for (const id of [context.current.editingInProgress!.id, '11']) {
+            await expect(context.current.saveInProgressSnapshot(id, withPersona(CHAT_CHARACTER))).rejects.toBeInstanceOf(SessionPersonaError)
+        }
+        expect(context.current.editingInProgress?.persona).toEqual(CHAT_PERSONA)
+        expect(apiService.updateAdventureSnapshot).not.toHaveBeenCalled()
+    })
+
+    it('rejects draft edits while creation is pending and still creates only once', async () => {
+        await mount()
+        await act(async () => { await context.current.startTemplate(TEMPLATE, CHAT_PERSONA) })
+        let finish!: (value: typeof savedSession) => void
+        vi.mocked(apiService.createAdventureSession).mockReturnValue(new Promise((resolve) => { finish = resolve }))
+        let request!: Promise<number>
+        act(() => { request = context.current.ensureAdventureSession(context.current.editingInProgress!) })
+        await expect(context.current.saveInProgressSnapshot(context.current.editingInProgress!.id, withPersona({ ...CHAT_PERSONA, id: 'p2' }))).rejects.toThrow('Wait for session setup')
+        expect(context.current.editingInProgress?.draft?.personaId).toBe('p1')
+        await act(async () => { finish(savedSession); await request })
+        expect(apiService.createAdventureSession).toHaveBeenCalledTimes(1)
+        expect(context.current.editingInProgress?.id).toBe('11')
+    })
+
+    it('reuses the created session when a corrected snapshot save fails, even if the persona is edited again', async () => {
+        await mount()
+        await act(async () => { await context.current.startTemplate(TEMPLATE, CHAT_PERSONA) })
+        await act(async () => { await context.current.saveInProgressSnapshot(context.current.editingInProgress!.id, withPersona({ ...CHAT_PERSONA, id: 'p2' })) })
+        vi.mocked(apiService.updateAdventureSnapshot).mockRejectedValueOnce(new Error('offline'))
+        await act(async () => { await expect(context.current.ensureAdventureSession(context.current.editingInProgress!)).rejects.toThrow('offline') })
+        const edited = withPersona({ ...CHAT_PERSONA, id: 'p3' })
+        vi.mocked(apiService.updateAdventureSnapshot).mockResolvedValue({ template_snapshot: edited })
+        await act(async () => { await context.current.saveInProgressSnapshot(context.current.editingInProgress!.id, edited) })
+        await act(async () => { await context.current.ensureAdventureSession(context.current.editingInProgress!) })
+        expect(apiService.createAdventureSession).toHaveBeenCalledExactlyOnceWith('t1', 'p2')
+        expect(apiService.updateAdventureSnapshot).toHaveBeenCalledTimes(2)
+        expect(context.current.editingInProgress?.persona?.id).toBe('p3')
     })
 })

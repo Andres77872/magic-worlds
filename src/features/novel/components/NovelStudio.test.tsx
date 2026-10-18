@@ -366,7 +366,7 @@ describe('NovelStudio word goal persistence', () => {
         expect(mocks.setGoal).toHaveBeenCalledWith(2200)
     })
     it('changes only the explicitly selected current pin and rejects stale or out-of-scope context choices', async () => {
-        const current = { id: 'selected-pin', label: 'Mira', enabled: false, contextRevision: 4 }
+        const current = { id: 'selected-pin', label: 'Mira', enabled: false, contextRevision: 4, ref: { snapshot: { id: 'card-1', name: 'Mira', description: '', story_card_kind: 'character' } } }
         mocks.resolveReference.mockReturnValue(current)
         mocks.referenceEntries.push({ id: 'selected-pin', contextState: 'disabled' })
         try {
@@ -414,8 +414,13 @@ describe('NovelStudio word goal persistence', () => {
         value.selectScene=selected;value.story.chapters[0].scenes.push(storyScene({id:'later-scene',chapterId:value.story.chapters[0].id,order:9}),storyScene({id:'hidden-scene',trashedAt:'2026-10-16T10:00:00'}))
         render(<NovelStudio/>)
         expect(mocks.planningProps.open).toBe(false)
-        act(()=>{(mocks.headerProps.onOpenPlanning as ()=>void)()})
+        expect(mocks.headerProps.surface).toBe('write')
+        // Plan takes the centre column; the manuscript stays loaded behind it, inert, and comes back unchanged.
+        act(()=>{(mocks.headerProps.onSurfaceChange as (surface:string)=>void)('plan')})
         expect(mocks.planningProps.open).toBe(true)
+        expect(mocks.headerProps.surface).toBe('plan')
+        expect(screen.getByTestId('novel-write-surface')).toHaveAttribute('inert')
+        expect(screen.getByTestId('novel-write-surface')).toHaveAttribute('aria-hidden','true')
         const open=mocks.planningProps.onOpenScene as (id:string)=>Promise<boolean>
         await expect(open(value.activeScene.id)).resolves.toBe(true)
         await expect(open('hidden-scene')).resolves.toBe(false);await expect(open('missing-scene')).resolves.toBe(false)
@@ -425,6 +430,18 @@ describe('NovelStudio word goal persistence', () => {
         mocks.flush.mockResolvedValue(true)
         await expect(open('later-scene')).resolves.toBe(true)
         expect(selected).toHaveBeenCalledWith('later-scene')
+    })
+
+    it('returns to Write from Plan, and focus mode is Write only',()=>{
+        render(<NovelStudio/>)
+        act(()=>{(mocks.headerProps.onSurfaceChange as (surface:string)=>void)('plan')})
+        act(()=>{(mocks.planningProps.onClose as ()=>void)()})
+        expect(mocks.headerProps.surface).toBe('write')
+        expect(screen.getByTestId('novel-write-surface')).not.toHaveAttribute('inert')
+        act(()=>{(mocks.headerProps.onSurfaceChange as (surface:string)=>void)('plan')})
+        act(()=>{(mocks.headerProps.onToggleFocusMode as ()=>void)()})
+        expect(mocks.headerProps.surface).toBe('write')
+        expect(mocks.planningProps.open).toBe(false)
     })
 
     it('surfaces a visible error when the stored word-goal save fails', async () => {

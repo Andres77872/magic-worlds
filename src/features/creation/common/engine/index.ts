@@ -20,6 +20,8 @@ export type {
 export { useGuidedCard, readCategoryAttribute, type GuidedCardApi } from './useGuidedCard'
 export {
     useCardDraft,
+    isDraftChanged,
+    type CardDraftConflict,
     type CardDraftState,
     type UseCardDraftApi,
     type UseCardDraftOptions,

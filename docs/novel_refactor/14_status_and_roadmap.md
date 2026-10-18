@@ -3,19 +3,149 @@
 <!-- CURRENT_DELIVERY_STATUS_START -->
 ## Current progress, remaining work, and scope
 
-**Updated: 2026-10-18 09:30 CST. Full goal: unfinished.** Review and execute the entire 136-capability D1–D6 plan. No phase has been reduced to the features already built. Test counts are evidence for particular changes, not a completion percentage.
+**Audited: 2026-10-18 13:15 CST. Full goal: unfinished.** All 136 catalog rows were rechecked against the code in
+both repositories and against the evidence recorded in this document (one read-only audit per catalog area, plus a
+review of docs 10–15 and fresh test runs). Every row now has one of four verdicts:
 
-### What you can use versus what is only prepared
+- **Done · live:** built, wired into the app, and checked in the signed-in app against the real API.
+- **Done · not live:** built and wired, but checked only with tests, Storybook or a throwaway database.
+- **Partial:** a named part is missing.
+- **Gap:** nothing meaningful exists.
 
-| Area | Actual status | What remains |
+The verdict and the missing part for every row are in [05 — Audit 2026-10-18](05_feature_catalog.md#audit-2026-10-18).
+Author, device and assistive-technology acceptance is still open for **every** row and is not repeated per row.
+
+### Where the plan stands
+
+| Area | Done · live | Done · not live | Partial | Gap | Rows |
+|---|---:|---:|---:|---:|---:|
+| N · novel and library | 5 | 9 | 0 | 2 | 16 |
+| S · structure and planning | 10 | 8 | 2 | 0 | 20 |
+| E · core editing | 2 | 8 | 7 | 3 | 20 |
+| R · saving, revision, review | 4 | 6 | 4 | 0 | 14 |
+| A · AI drafting and editing | 14 | 6 | 7 | 1 | 28 |
+| K · Codex, memory, continuity | 7 | 1 | 5 | 1 | 14 |
+| U · UI, productivity, accessibility | 3 | 0 | 8 | 2 | 13 |
+| X · portability and media | 8 | 0 | 2 | 1 | 11 |
+| **Total** | **53** | **38** | **35** | **10** | **136** |
+
+91 of 136 rows are built. None has passed release acceptance: there is no author study, no screen-reader session and
+no production-build performance run (see *Release gates*).
+
+### By phase
+
+| Phase | Done | Open catalog rows | Other open requirements |
+|---|---|---|---|
+| D1 — editor reliability | Ordered revision-checked saves, recovery and conflicts, checkpoints, explicit AI review with atomic accept and undo. Save → accept → undo → reload checked live 2026-10-17. | **Partial:** E05 (no clear-formatting command; the selection toolbar is not keyboard-reachable), E08 (no Unicode normalization in scene Find; word counts fixed to English segmentation), U05/U06 (no keyboard-only or screen-reader pass; 11 px status hints at about 2.1:1 contrast). **Bug:** a real Ctrl/⌘+Enter in the prose inserts a line break instead of opening the beat composer (E01). | Retention, storage ceilings and shared-device/logout policy (decisions 5, 6); release checks. |
+| D2 — structure and organization | Parts, chapters, scenes, organization history, templates, copies, notes, bookmarks, search, reading, snapshots, device recovery, library discovery. Large-manuscript performance fixed in a development build. | **Partial:** S07 (the merge review shows excerpts, not the merged text), E10 (language typography only for Spanish), U11 (no onboarding examples). **Built with known holes:** S04 (no drop at a chapter's end or into an empty or collapsed chapter; parts cannot be dragged; a drag applies with no review), N04/S05 (copies drop tasks, facts and stash), N11 (an edited outline cannot be saved as a reusable template). | Production-build and low-end-device performance (NE-018); the timeline and matrix render every scene; offline and retention acceptance. |
+| D3 — story-aware assistant | Runs on the shared `/v1/chat/completions` contract: Ask, Suggest → review → accept → undo, Stop, recovery, cited sources, named actions, revision-bound summaries and retrieval (K09), prompt presets (A19), reply style (A25). | **Partial:** A01, A03 (no length target for Expand/Condense), A05 (no draft-a-scene-from-its-plan), A08 (no narrative distance or voice), A11 (regenerate discards the previous take; no comparison), A20/K10 (inline AI has no context preview before sending), A21 (personal-key quota after dispatch; inline Stop has no receipt), K03 (no Codex priority control), R06 (no computed diff anywhere), R07 (no per-change accept), R12 (no passage-level AI provenance), S18 (no outline-to-new-novel), U02/U03 (no shared inspector, command palette or shortcut help), U04, U12. **Gap:** E19 (no `lang`/`dir`, RTL handling or IME audit). | **CL-04:** inline AI still has its own context compiler and accept path; doc 11's D3 step to unify them is not done. The *Known D3 gaps* below. Author AI-quality evaluation (decision 13). |
+| D4 — planning, continuity, personal review | Slices 1–19: views, tasks, stash, facts, extraction, continuity checks, appearances, critique notes, step plans, outline proposals, library updates, facts into the Codex and library, bulk scenes, grouped changesets, Write/Plan/Review. | **Partial:** K05/K06 (fact subjects are free text; `subjectCardId` is never set), K14 (canon-vs-fact conflicts appear only inside a library review), R08 (AI review notes are tasks, not anchored notes). **Gap:** N05 branches (decision 10), A28 research (decision 9). | Narrative-time and POV policy with temporal gate fixtures (NE-023, decision 10). |
+| D5 — portability and productivity | Slices 1–16: export to Word, EPUB, PDF, Markdown and text with matter, glossary and companion files; six import formats with loss reports; `.mwnovel` packages; export jobs; goals and writing log; book copy (A26); translation (A10); completions (A27). | **Partial:** X10 (export jobs are not in the shared *Tasks* drawer and stop if the BFF restarts), X09 (no cover generation, although `/images/text-to-image` exists), E06 (no visible plain-paste command; no import into an existing novel), E13 (no character count, reading time or selection count), E16 (no page or section break the author can place). **Gap:** U09 read-aloud, U10 dictation, E15 footnotes, images and tables, E20 source view. | EPUBCheck validation (needs your OK to download it); Microsoft Word and e-reader checks. Doc 11/15 asked export jobs to extend the shared tasks instead of adding their own store; slice 13 deviated. |
+| D6 — series and extensions | Nothing. | **Gap:** N13, K13, X12. **Partial:** U13 (only account prompt presets exist). | Series inheritance decision (decision 8). |
+
+The 38 rows built but never checked live are mostly D1–D2 editing and organization work: N01, N02, N04, N06, N07,
+N08, N10, N11, N16, S03, S04, S05, S08, S11, S16, S17, S19, E03, E04, E07, E11, E12, E14, E17, E18, R02, R03, R04, R05,
+R13, R15, K02, and the inline commands and actions with no live turn: A02, A04, A06, A07, A09, A12.
+
+### Release gates
+
+| Gate | Status on 2026-10-18 |
+|---|---|
+| Frontend tests | Full suite at 12:18: **5,848 passed, 75 failed**, 14 skipped (665 files). All 21 failing files are outside the novel feature (voice, narration, admin voices, explicit-test attempts): other sessions' work in progress. Production build, typecheck and lint of the edited novel files passed with slice 16. |
+| BFF tests | Novel scope (266 story/novel test files plus `tests/agent_graphs`): **1,622 passed, 36 failed**, 40 skipped. **26** are migration-chain tests: the novel migration modules cannot rebuild a predecessor past `2026_10_membership_feature_flags` (another session, 04:45) and `2026_10_novel_export_jobs` (ours, slice 13, 06:42). Slice 13's note that those failures came only from the membership revision was wrong: ours adds a second unhandled marker. **4** in `test_story_codex_unversioned_sources` fail with "MySQL pool is not initialized" (not yet triaged). **3** in `test_novel_assistant_output_limits` fail against the uncommitted `llm_execution_transport.py` change from other work (to confirm). The last full BFF run (15,068 passed / 22 failed) is from 2026-10-17; a later one stalled at 44 %. |
+| Accessibility | **Not met.** No screen-reader session, no keyboard-only journey, no 200 %/400 % zoom pass, contrast not measured (NE-017 open). |
+| Performance | Development build only (p95 key latency 40 ms on a 1,500-scene, 1.1-million-word novel). Production build, CPU throttling, low-end devices and phones not measured. |
+| Author acceptance | **None.** No study has run (UX-12, decision 13). |
+| Export validation | SHA-256 manifests and LibreOffice conversions only. No EPUBCheck, Microsoft Word or e-reader check. |
+| Availability | Novels need the plan grant `novels` (since 2026-10-18 04:45; root bypasses). No deployed or production evidence. |
+
+### Priority — what to do next
+
+**P0 — fix before anything new.**
+
+1. **Make the novel BFF tests green.** Teach the novel migration modules to reverse the membership and export-job
+   deltas when they rebuild a predecessor (26 tests). Triage the 4 Codex route failures. Confirm the 3 output-limit
+   failures come from the outside transport change. Then run the full BFF suite. The 75 frontend failures belong to
+   other work: report them, don't fix them here.
+2. **Ctrl/⌘+Enter in the prose.** TipTap's hard-break `Mod-Enter` handles the key first, so the beat-composer
+   shortcut that the status strip advertises inserts a line break (E01/A05). A higher-priority keymap fixes it, as
+   `completionShortcut.ts` already does for Ctrl+Shift+Enter.
+3. **Contrast.** The 11 px status-strip hints use `text-parchment-500` (about 2.1:1, NE-017).
+4. **Personal-key (BYOK) accounting after dispatch** (*Known D3 gaps* 1): it touches the user's quota and key.
+5. **The intermittent `LLM_EXECUTION_RESULT_INVALID`** (2 of 9 book-copy turns, cause unknown).
+6. **Export jobs survive a BFF restart** (X10): they run inside the BFF process today, and the interrupted state was
+   never checked live.
+
+**P1 — finish D1–D3.** The plan puts this before more D4–D6 work.
+
+7. **Live checks of the 38 built rows.** Start with the R0 journey: gallery → create → type → save → reopen. Then copy,
+   archive, Trash and erase, library filters, resume, the reader, replacements, bookmarks and history restore.
+   Then the inline commands Rewrite, Expand, Condense and Describe, and the actions Bridge, Dialogue, Line edit and
+   Brainstorm.
+8. **CL-04: one context and review path for inline AI and the assistant.** That means a context preview before an
+   inline run (K10/A20; `/stories/{id}/context-preview` exists and nothing calls it), approved facts and summaries in
+   inline context, and an inline Stop receipt (A21).
+9. **A05:** draft a scene from its synopsis, planned beats and goal.
+10. **R06/R07:** a computed diff for proposals, revisions and snapshots, and accepting or rejecting single changes
+    inside a proposal.
+11. **A11 with CL-06:** keep regenerated takes and compare them. Keep one stash path instead of two (the generation
+    `stashed` status and the plan-item stash).
+12. **Accessibility acceptance:** a keyboard-only write → revise → undo → recover journey, NVDA or VoiceOver, and
+    200 %/400 % zoom. Add E05's clear-formatting command and a keyboard-reachable toolbar.
+13. **Performance:** a production build, CPU throttling and a phone. Virtualize the timeline and matrix (280 ms on
+    1,500 scenes).
+14. **Smaller D1–D3 partials:** A01; A03 length target; A08 distance and voice; K03 Codex priority; R12 passage
+    provenance; S07 exact merge preview; S18 outline to a new novel; E08/E09/E19 language (`lang`, spellcheck
+    choice, normalization); U02/U03 shared inspector, palette and shortcut help; U04 mobile keyboard; U11 onboarding;
+    U12 second-tab refresh.
+
+**P2 — rest of D4.**
+
+15. **K05/K06:** link fact subjects to Codex cards. **K14:** show canon-vs-fact conflicts outside library review.
+    **R08:** anchored AI review notes.
+16. **S04:** close the drag holes. **N04/S05:** copies that keep tasks, facts and stash.
+17. **N05 and A28**, once decided.
+
+**P3 — rest of D5.**
+
+18. **X10:** export jobs in the shared *Tasks* drawer. The BFF's `routes/tasks.py` belongs to another session, so
+    coordinate first.
+19. **X09:** cover generation.
+20. **U09/U10:** reuse the TTS and speech-to-text engines, which are bound to chat today. The voice code is under
+    active change in another session.
+21. **EPUBCheck**, which needs your OK to download.
+22. **E06, E13, E15, E16, E20.**
+
+**P4 — D6.** Series canon, overrides, presets and publication handoff (N13, K13, U13, X12), after decision 8.
+
+### Decisions only you can make
+
+| Decision | Blocks | Recommendation |
 |---|---|---|
-| Non-novel recovery | **Completed:** 3,885 recovered records across 96 tables. Files were preserved; records without files remain valid. | Preserve those records and all current novels during subsequent work. |
-| D1 — editor reliability | **Installed:** ordered revision-checked saves, recovery/conflict handling, checkpoints, explicit AI review and atomic acceptance. | Real-device, assistive-technology and author acceptance; release checks. |
-| D2 — structure and organization | **Substantial work installed:** scenes/chapters/parts, organization/history, templates/copies, notes/bookmarks, search/reading, snapshots, device recovery and saved-source preparation. | Remaining catalog/context/organization cases, offline/storage/retention and accessibility acceptance. Large-manuscript performance was measured and fixed on a 1,500-scene, 1.1-million-word novel on 2026-10-18 (see *D2 slice — large-manuscript performance*); production-build and low-end-device measurement remain. |
-| D3 — story-aware assistant | **Running in the app (frontend, BFF, schema `2026_10_novel_import_formats`) on the shared `/v1/chat/completions` contract.** Ask, Suggest → review → accept → undo, Stop (including from another tab), lost-turn recovery and draft resume were verified live with a real provider on 2026-10-17. | The two open items under *Known D3 gaps*; account/workspace/profile lifecycle and source/context policy. The novel style sheet and character voices (N15, K08), the account's reply style (A25), saved scene summaries as revision-bound memory (K09) and outline import with assistant chapter plans (S18) run since 2026-10-17. Chapter and book summaries tied to their scenes' revisions (rest of K09/A14), and a novel-wide summary status view with *Still accurate*, a primed assistant refresh and *Save all ready* (rest of K09), run since 2026-10-18. The author's own prompt presets, versioned and frozen with each reply (A19), run since 2026-10-18 01:30. Part summaries, and a book summary built from current part, chapter and scene summaries for novels over 20 scenes (rest of K09), run since 2026-10-18 02:10. Source scenes are ranked by an evaluated BM25 policy with a revision-bound stored index (rest of K09, which is now complete) since 2026-10-18 02:45. Named actions (A06–A09, A12–A14) run since 2026-10-17 19:25. |
-| D4 — planning, continuity, personal review | **In progress. Slices 1–17 run in the app (schema `2026_10_novel_planning`):** board, timeline and matrix views plus scene story-time order (S13–S15); passage-linked tasks (R10), a stash of cuts and alternative takes (R11), story facts with as-of-scene state and contradiction flags (K05, K06, K14 for facts), assistant fact extraction into proposed facts the author approves (A18), and assistant continuity checks against prose and approved facts whose cited issues become continuity tasks (A16, K14 prose↔plan), whole-novel appearance lists with passage navigation (K07), assistant critique notes and one-scene step plans with progress (A15, A24, A17 for prose), reviewed application of approved facts to the novel's own Codex entries (K12, novel-local), reviewed bulk scene actions that undo in one step (S20; R14 for organization changes), assistant-proposed outline changes (move, split, merge) applied one at a time with undo (A17), a field-by-field review of newer library card versions that takes chosen details into the novel's Codex copy (K11), staging an approved fact in the library card's private draft for the owner to publish (K12 library target), and library updates for lorebook entries and adventure templates, compared against the library details the copy pinned, with linked approved facts in the review (rest of K11), and writing an approved fact into the library lorebook entry a Codex entry copies, after a review that says it applies at once (K12 lorebook target), and chapter proposals (split, merge, move, new chapter) applied one at a time or all ready ones together as one outline changeset with one undo (rest of A17; R14 for structure; slice 15, since 07:16), and the latest assistant suggestion of several scenes accepted together as one manuscript changeset with one undo that keeps scenes written since (prose half of R14; slice 16, checked live 08:59), and part proposals (a new part starting at a chapter, applied alone or with the others, reading order kept; rest of A17; slice 17, checked live 09:25). | Research (A28), other fields and new cards or entries as discovery targets (rest of K12), branches (N05), separate surfaces (U01). |
-| D5 — portability and productivity | **Started. Slices 1–13 and the style-sheet file run in the app:** whole-manuscript export to Word (.docx), EPUB 3, PDF (with chosen page size, margins, type and spacing), Markdown and plain text from saved scenes at one reviewed source version, with section inclusion, title/part/chapter/scene title choices, real Word lists and hyperlinks, an optional linked contents page in Word and EPUB, front and back matter from a chapter's *Export section*, a glossary from chosen Codex entries, review-notes and AI-changes files of the same scenes, a style-sheet file, and a download verified against the summary's SHA-256 (X03, X04, X05, X06, X07, X10). Export jobs build the reviewed file in the background with a stage, a log, cancel, retry at the same source version and a SHA-256-checked download (rest of X10; slice 13, since 06:42). Markdown, plain-text, Word, EPUB, OpenDocument text and RTF import into a new novel, with a reviewed conversion preview, a loss report and the original file kept (X01, X02; EPUB, ODT and RTF since 2026-10-18 03:35); front and back matter comes back as chapters with their export role, from EPUB semantics, Word/ODT/RTF styles, the Markdown export's section comments or usual matter titles (since 04:05). A deadline and daily target, a writing log of saved edits, and a progress view with pace, today, an optional streak and recent days (N12, U07, U08). A project package (`.mwnovel`) backs up the whole novel, with optional notes, planning and scene history, and restores it as a new novel (N14, X08; since 04:50). | EPUB validation with the W3C checker, export jobs in the shared *Tasks* drawer, read-aloud and dictation (U09, U10), translation, blurbs and completions (A10, A26, A27). |
-| D6 — series and extensions | **Pending.** | Versioned author-owned series canon/style, local overrides, presets and optional explicit publication handoff. |
+| N05: is a branch a parallel head inside the novel or a linked copy, and what canon, facts and tasks does it inherit? (decision 10) | N05 | A linked copy that reuses N04's reviewed copy. A first slice that needs no decision: compare two named snapshots as editions. |
+| A28: author-supplied research notes now, or wait for a fetch service with its own budget? (decision 9) | A28 | Author-supplied notes with title, address and date, approved explicitly and offered to the assistant as fenced data. This needs a scoped `story_plan_item.kind` upgrade. Nothing goes into `api.magic_llm`. |
+| Retention, storage ceilings, shared-device and logout policy (decisions 5, 6) | D1/D2 recovery release, R02, R13 | — |
+| The five unused `cat_*` tables in the `magic_llm` database | Nothing in this project | Leave them until you decide. |
+| Download EPUBCheck (and Java) to validate EPUB files | X04 release check | — |
+| An author study and AI-quality thresholds (decision 13) | D3 and UX-12 release gates | — |
+| WIP placeholder or hidden UI when the grant is off | R0 | Current behaviour (hidden, direct links show Not Found). |
+
+### What was corrected by this audit
+
+- **Built rows that doc 05 still marked Partial:** S01, S05, S06, S08, S19, E02, E07, R04, R05, R13, A17, A18.
+- **Rows whose doc 05 text was bare or outdated:** S07, S10, E05, E06, E08, E09, E13, E16, R06, R07, R12, A01, A02, A05,
+  A11, A20, A21, K02, K03, K10, U08, U13, X09 (X09 and U13 were marked Gap; both are Partial).
+- **A row marked Present that is partial:** A03 (no length target).
+- **Stale statements fixed:** the 09:30 timestamp; "neither repository is committed"; *Implemented foundation and
+  gaps* and *Roadmap and dependencies* still said "D5 slices 1–13" and listed translation and blurbs as remaining;
+  the M2/M3 and CL rows; the TBD rows for changeset semantics and import coverage; README availability, which
+  still described `VITE_FEATURE_NOVELS_ENABLED`.
+- **Missing from the earlier status:** the CL-04 inline/assistant split, the 26 migration-chain failures, the
+  intermittent `LLM_EXECUTION_RESULT_INVALID`, the Ctrl+Enter conflict, and the export-job deviation from shared
+  tasks.
+
+The sections below (*How D3 runs now* and the dated slices) are evidence. Where an older "remaining" line disagrees
+with this summary, this summary wins.
 
 ### How D3 runs now
 
@@ -64,6 +194,15 @@ retired); the dead executor-observation inputs of the Stop fence. Still open:
    totals for it. The receipt copy therefore states only that no platform credits were charged.
 2. **Executor database.** The five `cat_*` tables created in the `magic_llm` database during the reverted install
    remain, unused. They are outside this project and are left untouched until the user decides.
+3. **Intermittent `LLM_EXECUTION_RESULT_INVALID`** (added 2026-10-18 by the audit). 2 of 9 book-copy turns failed
+   this way after about 23 s, with no credits charged; retries passed and the cause is unknown (D5 slice 14). An
+   earlier cause, a stray closing brace in *Summary* replies, was fixed in the BFF.
+4. **Inline AI is a separate path** (CL-04, added by the audit). Inline commands use their own context compiler
+   (`story_generation.py`) and accept route, with no context preview before sending and only a browser abort as
+   Stop. Doc 11 plans one pipeline for both.
+
+Also seen, outside the novel work: after a gallery reload the first click on *Open <novel>* can be lost while the
+window gains focus (`DataProvider` focus gate, D4 slice 15 item 4).
 
 Known limits, not defects: a second open tab does not refresh its conversation list or an open conversation's
 active state until it reselects or reloads; opening the assistant in a second tab may take over the newest
@@ -71,7 +210,7 @@ unsent draft (the first tab keeps its in-memory copy and rewrites it on its next
 
 ### D4 slice 1 — planning views (2026-10-17)
 
-- **One model, three views.** *More → Planning views* opens Board (scene cards by part and chapter with status,
+- **One model, three views.** *More → Planning views* (since slice 19, the *Plan* surface) opens Board (scene cards by part and chapter with status,
   story time, saved word count, POV and synopsis), Timeline (story chronology separate from reading order; a scene
   read after one that happens later is flagged *Flashback*, and scenes without a time are listed apart) and Matrix
   (characters from cast/POV and plot threads against scenes in reading order). The views derive from the loaded
@@ -101,7 +240,7 @@ unsent draft (the first tab keeps its in-memory copy and rewrites it on its next
   Routes: `GET/POST /stories/{id}/plan-items` and `GET /stories/{id}/plan-item-requests/{requestId}`; writes are
   idempotent by request id, refused on archived/trashed novels, and every scene reference must belong to the novel.
   Models: `src/models/story_planning.py`; store: `story_plan_store.py`.
-- **Tasks (R10).** *More → Tasks & stash*: a task can link the selected passage (scene, quote, revision). Filters
+- **Tasks (R10).** *More → Tasks & stash* (since slice 19, the *Review* surface): a task can link the selected passage (scene, quote, revision). Filters
   Open/Done/All; *Mark done* with an optional resolution, Dismiss, Reopen, Trash; *Go to passage* finds the quote in
   its scene and highlights it, or opens the scene when the text has changed. The board shows open tasks per scene.
 - **Stash (R11).** *Cut selection to stash* saves the text first and removes it from the manuscript only after the
@@ -282,7 +421,7 @@ unsent draft (the first tab keeps its in-memory copy and rewrites it on its next
   review and contract tests); typecheck and lint of the edited files clean. Pre-edit copies:
   `.dev/backups/novel-fact-codex-20261017/`; BFF log `.dev/logs/bff-d4factcodex-20261017T173610.log`.
 - **Still open for K12/K11:** library targets (a separate explicit decision that updates the library card, never
-  other novels' pins), other fields, lorebook entries as new destinations, and reviewing newer library versions
+  other novels' pins), other fields, lorebook entries as new destinations (all done in slices 12, 14 and 18), and reviewing newer library versions
   against a novel's pinned snapshot (K11).
 
 ### D4 slice 9 — bulk scene actions with one undo (S20, R14 for organization, 2026-10-17)
@@ -417,8 +556,8 @@ unsent draft (the first tab keeps its in-memory copy and rewrites it on its next
   description sentence) and an unpublished draft (race “Sea elf” and the staged fact). Publish or discard it in the card
   editor.
 - **Still open for K12:** lorebook entries as targets (done in slice 14, 2026-10-18), other card fields than
-  description, and a guard in the card editor itself (its own draft save replaces the whole draft, so an editor left
-  open on older text can overwrite a staged description; reopen the card before editing).
+  description (done in slice 18, 2026-10-18), and a guard in the card editor itself (done 2026-10-18, see “Card-editor
+  draft guard” below: an editor left open on older text is refused instead of overwriting a staged description).
 
 ### D4 slice 13 — library updates for lorebook entries and adventure templates (rest of K11, 2026-10-18)
 
@@ -698,6 +837,161 @@ unsent draft (the first tab keeps its in-memory copy and rewrites it on its next
   *Harbor* and two *The Keeper* parts in Trash.
 - **Not covered live:** a new part that splits an existing part (the novel had none; covered by BFF and frontend
   tests).
+
+### D4 slice 18 — every Codex detail, and new cards, references or lorebook entries from a fact (rest of K12, 2026-10-18)
+
+- **What the author does.** *Planning views → Facts → Add to Codex…* now asks first where the fact goes: an existing
+  entry in this novel's Codex, a new reference only in this novel, a new character, setting or item card in the
+  library, or a new entry in a library lorebook (the last two only while those features are on). Every choice is
+  explicit; nothing is created to resolve a mention.
+  - **Existing entry:** one row per detail the entry's kind has (name, alias, race for a character, type for a setting
+    or item, description; name and description for a lorebook entry), each with *Keep*/*Change*, its value now and,
+    when changed, an editable value after. The description starts on *Change* with the statement as its own paragraph
+    (unless it already holds it); everything else starts on *Keep*. Only changed details are written, to this novel's
+    copy only; an empty alias clears it; source pins stay.
+  - **New reference:** name (the subject), optional alias and description (the statement); a note says no library card
+    is created and nothing else sees it.
+  - **New card:** name, alias, race or type, description; a warning says a private card is created in the library
+    and copied into this Codex in the same change, used nowhere else until the author adds it.
+  - **New lorebook entry:** choose the lorebook (preselected when there is one), name, keys (comma list, at most 20)
+    and text; a warning names the lorebook and says chats, adventures and novels using it read the entry from their
+    next turn.
+  - The fact then records the entry, the Codex revision and either the details changed (*Changed in the Codex:
+    Alias, Description*) or what was created (*New library card*, *New reference*, *New lorebook entry*).
+- **Library reviews cover every detail.** *Stage in library card…* now reviews name, alias, race or type and
+  description against the card's draft (else its saved body); *Write to library lorebook entry…* reviews title, keys
+  and text. Details the fact already changed in this novel's copy are proposed again (on *Change*, with the novel's
+  value). A card never published says *Starting from the saved card, which has not been published yet*. Empty or more
+  than 50 keys are refused before sending. Stamp refusals are unchanged: a source saved meanwhile is refused, the
+  review reloads from the new version.
+- **How it works.** New Codex operation `discover` `{destination, lorebookId?, fields}` under the novel's lock,
+  receipt and context check: it creates the private card (same path as the card editor) or appends the lorebook entry
+  (the Lorebook Studio's blank-entry defaults, after the existing entries, in the story's workspace;
+  `STORY_LIBRARY_LOREBOOK_MISSING` 409 otherwise), then inserts its pinned Codex copy last in the novel's order — one
+  change, one receipt; a refusal creates nothing. A new reference is an ordinary `add` of a `snapshot_card` with its
+  own snapshot. `POST …/library-draft` takes any of `name`, `alias` (`''` clears), `description`, `race`/`type`;
+  `POST …/library-entry` any of `title`, `keys` (≤ 50, each once), `content`; both still need `expectedStamp`, and
+  their reads now return those details. Facts gain `codexFields` or `codexCreated` (each needs `codexRefId`; not both);
+  package exports drop them with the link.
+- **Live check, real API and browser (10:02–10:10).** BFF restarted 09:59 with the same command (pid 139895, log
+  `.dev/logs/bff-k12rest-20261018T095932.log`). Test novel *Assistant check (package restore, no history)* →
+  *Facts*:
+  - **Existing entry:** *Keeps the lamp at Gull Point lighthouse* → Mara with *Alias* changed to “The Lamp-keeper” →
+    Codex revision 8; the copy has the alias, race “Elf” and pins unchanged, the fact `codexFields:
+    ["alias","description"]`.
+  - **New item card:** *Has the letter* → *A new item card* “The drowned woman's letter”, type “Letter” → revision 9;
+    `tb_card` private (`card_public=0`), in the story's workspace, version 0 like any unpublished card; the copy is
+    pinned to it; the fact says *New library card*.
+  - **New reference:** *the sea delivered a letter* (approved first) → *A new reference* “The oilcloth bundle”, alias
+    “The kelp parcel” → revision 10, a `snapshot_card` copy.
+  - **New lorebook entry:** *the letter is addressed to a woman who drowned* (approved first) → *Gull Point Lore
+    (test)* preselected, “The drowned woman”, keys `drowned woman, the letter, drowned woman` → revision 11; the entry
+    is stored with keys `["drowned woman","the letter"]` after The Tide Bell, and the copy is pinned with
+    `source_base`.
+  - **Card draft:** *Stage in library card…* on the Mara fact proposed the alias and the statement; *Name* →
+    “Mara Venn”, *Race* → “Selkie” → the draft holds all four with its other props untouched, and the published body
+    is still “Mara”/“Elf”.
+  - **Lorebook entry write:** *Write to library lorebook entry…* on The Tide Bell with *Title* and *Keys* changed;
+    meanwhile the entry's text was written through the API → refused (*saved in the Lorebook Studio since you opened
+    this review*), reloaded with the new text; written again → title “The Tide Bell of Gull Point”, keys `["tide
+    bell","Gull Point bell"]`, the other writer's text kept, activation settings untouched.
+  - Every Codex, draft and entry write answered 200 except the one expected 409; the BFF log shows nothing else on
+    these routes. **Seen and fixed live:** the draft review would have said *published card (version 0)* for a card
+    never published.
+- **Checks.** BFF Codex, planning, package, library-draft, lorebook-entry and story route tests 226 passed (new:
+  discovery model and creation, the discover route, draft and entry field writes, fact provenance). Frontend novel,
+  API, i18n and shared: 2,471 passed / 14 skipped; the 3 failures are outside this work (the 2 known
+  `sessionVoiceApi` tests and `fishAudioSupport` “negotiated recipe envelope”, in voice files this work did not touch).
+  App and story typechecks clean; lint of the edited files clean apart from existing `any` errors elsewhere in
+  `src/infrastructure/api/index.ts`. Pre-edit copies of the BFF files: `.dev/backups/novel-k12-rest-20261018/`.
+- **Test data left in place:** in the test novel, the Mara copy's alias, the new Codex entries “The drowned woman's
+  letter” (item), “The oilcloth bundle” (reference) and “The drowned woman” (lorebook entry) and their facts; in the
+  library, the private item card, the lorebook entry “The drowned woman”, the Mara card draft (name “Mara Venn”, race
+  “Selkie”) and The Tide Bell entry's new title, keys and tarred-rope sentence.
+- **Card editor:** now guarded (next section). An editor left open on older details is refused instead of overwriting
+  a staged change.
+
+### Card-editor draft guard — the novel's staged facts and the card editor never overwrite each other (K12, 2026-10-18)
+
+- **What it does.** A novel stages a reviewed fact into a library card's private draft (slices 12 and 18); the card
+  editor saves, publishes, discards or restores that same draft. Both now name the body they loaded. The card editor
+  keeps the `draft_stamp` the BFF returns with the draft (the same SHA-256 stamp the novel's library-draft read calls
+  `stamp`) and sends it as `If-Match` on save, publish, discard and restore. When the draft changed since (a novel
+  staged a fact, another tab saved), the write is refused with `409 CARD_DRAFT_CHANGED` and nothing changes. The
+  novel's stage was already refused the other way (`STORY_LIBRARY_DRAFT_CHANGED`) once the editor saved.
+- **What the author sees.** A dialog, “This card’s draft changed elsewhere”, says the save, publish, discard or
+  restore was not applied and nothing was lost. *Load the newer draft* re-fills the editor from the draft as stored
+  (it says this replaces unsaved edits). For save, discard and restore, a second button repeats the write on purpose
+  after reading the current stamp (*Save mine over it*, *Discard it anyway*, *Load version n anyway*). Publishing has no
+  override: nothing the author has not seen goes live; they load the newer draft, review it, then publish. *Not now*
+  closes the dialog; the next write is refused again until one of the two is chosen. The same applies to character,
+  world and item editors (one shared hook and header).
+- **Backend.** `CardModel.upsert_card_draft`, `publish_card_draft`, `discard_card_draft` and `restore_card_version`
+  take `expected_stamp`; the check runs inside the write's transaction after the card row lock (discard takes the lock
+  with the check), the same lock the novel's stage takes, so the two cannot interleave. `GET`/`PUT …/draft` and
+  restore return `draft_stamp`; publish returns the published body's stamp. `If-Match` is optional (quoted or bare
+  64-hex; malformed → 422), so other clients behave as before. Documented in the BFF's `docs/api_usage/cards.md`.
+- **Tests.** BFF: model refusals for save (nothing written, rollback), publish (no version inserted) and discard (the
+  check holds the row `FOR UPDATE`, no delete); route mapping of `If-Match`, 409 and 422 for all four writes; the card
+  versioning and card route files pass (76). Frontend: `useCardDraft` sends the loaded, loaded-newer and last-saved
+  stamps and keeps a refused write as a conflict (2 new tests, 16 in the file); `CardDraftControls` dialog (4 new
+  tests); typecheck clean; the creation and API test folders pass except four tests in
+  `sessionVoiceApi.test.ts` (voice contract header '5' vs '4') and `explicitTestAttempts.test.ts` (BYOK replay) that
+  belong to other in-progress work.
+- **Live check, real API and browser (10:29–10:33).** BFF restarted 10:29 with the same command (pid 189046, log
+  `.dev/logs/bff-draftguard-20261018T102934.log`). Opened the Mara Venn card editor (draft stamp `1787a46f…`). Staged
+  “Rings the tide bell at dusk.” through the novel's library-draft route (stamp now `51cd450e…`). *Save draft* in the
+  open editor → `PUT …/draft` 409, the dialog above; the stored draft still held the staged sentence. *Load the newer
+  draft* → the description field holds the sentence, toast “Loaded the newer draft.”; *Save draft* → 200. A novel
+  stage sent with the old stamp `51cd450e…` → 409 `STORY_LIBRARY_DRAFT_CHANGED`. Staged “Counts the gulls at dawn.”;
+  *Publish* in the editor → `POST …/publish` 409 and the publish dialog with no override; the card stayed at v3.
+  *Save draft* → 409, *Save mine over it* → `GET …/draft` then `PUT …/draft` 200, toast “Draft saved”. MySQL:
+  `tb_card.latest_version_number` 3, draft based on 3, its description ends with the tide-bell sentence and not the
+  gull sentence (overwritten on purpose). BFF log: only the unrelated `speech_limiter` startup alert.
+- **Test data left in place:** the Mara card draft now also holds “Rings the tide bell at dusk.”.
+- **Not covered live:** the world and item editors (same hook and header, covered by tests), and discard or restore
+  conflicts (covered by tests).
+
+### D4 slice 19 — Write, Plan and Review as separate surfaces (U01, 2026-10-18)
+
+- **What it does.** The studio header has a *Studio view* switch: **Write · Plan · Review** (icons alone below the
+  medium breakpoint; Review shows the number of open revision tasks, read as “Review, 9 open tasks”). It is a radio
+  group with arrow-key movement. Write is the manuscript as before. **Plan** shows the planning views (board,
+  timeline, matrix, facts, summaries) in the centre column instead of a drawer over the prose; **Review** shows tasks
+  and the stash the same way. Each has a heading and *Back to writing*. Planning views and Review left the More menu.
+- **The manuscript waits unchanged.** Behind Plan and Review the manuscript stays mounted, out of the flow, invisible
+  and `inert` (so not focusable or read out): the same editor instance, its draft and autosave, its selection and its
+  own scroll survive. The page's scroll position in Write is kept and restored; Plan and Review open at their top. A
+  selection made in Write can still be stashed or turned into a task from Review.
+- **Leaving Plan and Review.** Opening a scene from the board, timeline, matrix or appearances, opening a task's
+  passage, or inserting a stashed take at the cursor returns to Write (a different scene opens at its top, where the
+  editor restores its own position); a blocked save barrier keeps Plan or Review with the existing message. Focus goes
+  back to the switch. The save strip (words, goal, save state) stays below every surface, since the manuscript keeps
+  saving behind them. The Codex inspector and its toggle belong to Write. Focus mode is Write only: entering it from
+  Plan or Review returns to Write and hides the switch. The choice lasts for the open novel; another novel opens in
+  Write (start typing stays the default, N01), and the per-device studio layout schema is unchanged.
+- **Performance kept.** Plan and Review render nothing while not shown, as the drawers did (the planning views cost
+  about 95 ms per keystroke on 1,500 scenes when always built). Open tasks now load with the novel (one plan-items
+  read) so the switch can count them; facts and the stash still load on demand.
+- **Code.** `NovelSurfaceSwitch.tsx` and `NovelSurfaceHeading.tsx` (new), `NovelStudio.tsx` (surface state per novel,
+  centre column, scroll and focus hand-back), `NovelStudioHeader.tsx`, `NovelPlanningViews.tsx` and
+  `NovelReviewDrawer.tsx` (regions instead of drawers), copy in `src/app/i18n/locales/novelSurfaces.ts` (en/es). No
+  BFF or schema change.
+- **Tests.** Header switch (labels, checked state, count, arrow keys, menu items gone, hidden in focus mode, Review
+  only with tasks, Codex toggle only in Write); Plan as a region with *Back to writing*, rendering nothing outside Plan
+  and keeping the chosen view; studio: Plan shown with the manuscript `inert`/`aria-hidden`, back to Write, focus mode
+  returns to Write. Novel folder: 1,247 pass; typecheck, story typecheck, lint and production build clean.
+- **Live check, real API and browser (10:40–10:49),** test novel *Assistant check (package restore, no history)*:
+  the switch reads Write / Plan / “Review, 9 open tasks”. Selected “lamp” in Scene 1, scrolled the page to 120, chose
+  Plan: the board replaced the prose, the manuscript surface was `inert` and hidden, the page at 0. Back to Write: the
+  same editor instance (identity checked), selection still “lamp”, page at 120. Review showed 9 open tasks; *Go to
+  passage* on the Scene 3 task returned to Write with Scene 3 open and the passage highlighted (“Saved passage opened
+  and highlighted”). From Plan, *Open Scene 1 in Write* returned to Write on Scene 1 at the top. *Back to writing* left
+  focus on the Write radio. At 375 px the switch shows icons only and the page has no horizontal overflow (document
+  width 375).
+- **Not covered live:** Spanish labels (covered by the locale files and tests; switching the account language was
+  not done), a blocked save barrier from Plan (covered by tests), and an author usability study (doc 13 still lists
+  author studies for these surfaces).
 
 ### D3 named assistant actions (A06–A09, A12–A14, 2026-10-17)
 
@@ -1565,7 +1859,7 @@ unsent draft (the first tab keeps its in-memory copy and rewrites it on its next
 
 ### D3 slice — summary status across the novel and one-step refresh (rest of K09, 2026-10-18)
 
-- **Summaries view.** *More → Planning views → Summaries* lists the book, then each chapter followed by its scenes,
+- **Summaries view.** *More → Planning views → Summaries* (since D4 slice 19, *Plan → Summaries*) lists the book, then each chapter followed by its scenes,
   in reading order. Only units the assistant reads are listed: scenes in Trash, merged, archived or left out of AI
   are not.
   - Each row has a state:
@@ -2363,6 +2657,207 @@ at 06:42 with the same command (pid 4082145, log `.dev/logs/bff-novelexportjobs2
   adapter in the BFF's `/tasks` and the frontend task union, both edited by other sessions). Jobs run in the BFF
   process, not a separate worker; a restart interrupts them and they are retried by the author.
 
+### D5 slice 14 — book copy: blurb, submission synopsis, titles and an editorial handoff (A26, 2026-10-18)
+
+**Status: running in the app since 11:27.** Verifying it live meant restarting the BFF on `:8010` several times with
+the same command, each restart after a fix found in the live check. The last one, at 11:27 (pid 281728, log
+`.dev/logs/bff-copyaction3-20261018T112719.log`), runs the final code without the temporary diagnostic described
+below.
+
+- **What the author sees.** The assistant's *Action* list has *Book copy*, an Ask action with a *Form*:
+  - *Blurb*: back-cover copy of 120–200 words that does not give away the ending.
+  - *Submission synopsis*: 400–800 words in present tense that tells the whole story, ending included.
+  - *Title ideas*: 5–10 titles, each with a line on why it fits.
+  - *Editorial handoff*: premise, genre and audience, where the manuscript stands, and open questions.
+
+  Choosing a form sets the composer's instruction (for example "Write a submission synopsis of this novel, ending
+  included."), unless the author has already written their own. A blurb or synopsis reply has a section in its
+  evidence: *Use as the novel's description* or *Use as the novel's synopsis*. It shows the current text (or that
+  there is none) and an editable *Text to save* filled with the copy. *Save* writes it only after the author clicks.
+  Text past the limits is refused before saving (description 60,000 UTF-8 bytes, synopsis 20,000 characters). So
+  is empty text, and text equal to the saved text. Title ideas and handoff notes are read-only answers.
+- **Copy kept apart from notes.** The first live replies put notes for the author ("the sources disagree on…",
+  "this line is invented") after the blurb. That follows the assistant's standing rules to separate evidence from
+  invention and to say what the sources do not establish, so tightening the prompt alone did not stop it. The reply
+  now has a structured `copy` field with the copy alone. The answer still presents the copy and may add a short note.
+  *Text to save* is filled from `copy`; replies saved before the field existed fall back to the answer. When
+  passages disagree on a detail the copy uses, the model picks one and also returns the disagreement as a continuity
+  issue. This is the one case besides a continuity check where issues are returned.
+- **Writing.** The studio re-reads the novel behind the save barrier. It refuses an archived or trashed novel, or a
+  workspace that is no longer current (*unavailable*). It also refuses a novel whose metadata revision moved past the
+  one the author saw (*changed*, nothing saved). Otherwise it calls `PUT /stories/{id}/studio-index` with that
+  expected revision, writing either `description` or `details` with only `synopsis` replaced. A `409` is reported as
+  *changed*.
+- **Rules (BFF).**
+  - `{kind:'copy', form:'blurb'|'synopsis'|'titles'|'handoff'}` is an Ask-only action. A Suggest turn, an unknown form
+    or a missing form is refused.
+  - Like summaries and outlines, the action reads whole scenes.
+  - The reply's `copy` (at most 20,000 characters, trimmed) is kept only when the turn's action is `copy`; on any
+    other turn it is dropped.
+  - Record validation refuses a stored `copy` that is empty or not a string.
+  - The frontend contract refuses `copy` on a reply to any other action.
+- **Graph.** `novel_assistant.v2.json` gained the copy instructions and the `copy` string in `novel_reply` (required,
+  empty for none). Its registered hash in `builtin_agents.v1.json` is now
+  `cae58dcc5313d954f6a19519ee839975717dcc159ddaf9e3fc674ddf47c866bb`, and `/ready` passes with it. Nothing changed
+  in `api.magic_llm`.
+- **Files.**
+  - BFF: `CopyAction` in `src/models/story_assistant.py`. `bookCopy` (wire name `copy`) on `NovelAssistantReply`
+    in `src/models/novel_assistant.py`. Copy rules in `SYSTEM` and `copy` in `WHOLE_SCENE_ACTIONS`
+    (`src/services/story_assistant_context.py`). The reply key in `src/services/assistants/novel.py`. Keeping and
+    re-validating `copy` in `src/services/assistants/novel_result.py`. The graph and hash registry.
+  - BFF tests: copy cases in `tests/services/test_story_assistant_context.py`; new
+    `test_book_copy_is_kept_apart_from_the_answer_only_for_the_copy_action_and_survives_record_validation` in
+    `tests/services/test_novel_assistant_result.py`. Backups are in `.dev/backups/novel-copy-action-20261018/`.
+  - Frontend: the `copy` action and `NovelAssistantRecord.result.copy` in `storyAssistant.types.ts`. The action check
+    in `storyAssistantContextContract.ts` and the `copy` check in `novelAssistantContract.ts`. Kind, default,
+    instruction and label in `assistantActions.ts`, and the *Form* picker in `NovelAssistantActions.tsx`. New
+    `NovelAssistantCopy.tsx`, threaded through `NovelAssistantEvidence` and `NovelAssistantDrawer` (`copy` prop),
+    with the `saveNovelCopy` writer in `NovelStudio.tsx`. Strings (en, es) in `novelAssistantActions.ts` (`kinds.copy`,
+    `forms`, `messages.copy`, `use.*`).
+  - Frontend tests: new `NovelAssistantCopy.test.tsx`, plus copy cases in `NovelAssistantActions.test.tsx`,
+    `storyAssistantAction.test.ts` and `novelAssistantContract.test.ts`.
+- **Code checks.**
+  - BFF: assistant, graph and result suites, 324 passed.
+  - Frontend: typecheck, ESLint for the changed files and `pnpm build` are clean. The novel + API selection has
+    2,243 passed and 4 failed, all outside novel code: two in `explicitTestAttempts` (BYOK attempts) and two in
+    `sessionVoiceApi`.
+  - The BFF's wider runs show failures from other sessions' work: `request_credentials` in the upstream-contract
+    tests, BYOK in `test_novel_assistant_output_limits.py`, and the migration marker. The full BFF suite also stalled
+    at 44% on a test outside this work, so it was stopped.
+- **Live checks (2026-10-18, test user, workspace *My library*, novel *Assistant check (package restore, no
+  history)*, profile `claude-sonnet-5.5`, scope *This novel*, *Author analysis*).**
+  - *Blurb*: the copy covered Mara, the letter, the lit lamp, the second letter and the stranger, without the ending.
+    *Text to save* held only the blurb, while the answer added its notes. Scene 3's "Twelve winters" against
+    "eleven" elsewhere came back as one continuity issue. Saving moved the novel from metadata revision 1 to 2, and
+    MySQL holds exactly the reviewed blurb as `description`. The section then showed it as the current description
+    and *This is already the saved text*.
+  - *Submission synopsis*: 178 words. The answer said it is shorter than 400 words because the draft has three
+    scenes, and the copy itself has no notes. Saving moved the revision to 3. `details` holds only `synopsis`
+    (918 characters), and the description was unchanged.
+  - *Title ideas*: nine titles with reasons and no save section. *Editorial handoff*: premise, genre and audience
+    (marked as inferred), status and open questions, plus continuity issues.
+- **Seen during the check, not fixed here.**
+  - 2 of 9 novel-assistant turns ended with `LLM_EXECUTION_RESULT_INVALID` after about 23 s: one blurb, one
+    synopsis. A one-line control question and the same actions passed when retried. Both failures came after the
+    `copy` field was added, while the BFF also ran another session's uncommitted transport changes
+    (`llm_execution_tools.py`, edited 11:11, loaded by the 11:13 restart). The cause is not known.
+  - A temporary diagnostic that logged which check failed was added at 11:22. The next three copy turns all passed,
+    and it was removed at 11:27, leaving that file's diff exactly as the other session left it.
+  - The dev page fully reloaded twice while turns were streaming, likely from other sessions' frontend edits. One
+    synopsis turn was cut off. *Check saved result* reported it stopped with no credits charged.
+
+### D5 slice 15 — translation with kept references (A10, 2026-10-18)
+
+**Status: running in the app since 11:35.** The BFF on `:8010` was restarted once for this slice, at 11:35 (pid
+295569, log `.dev/logs/bff-translate-20261018T113550.log`), with the same command as before.
+
+- **What the author sees.** The assistant's *Action* list has *Translation*, a Suggest action with a *Target
+  language* field. The field suggests common languages and also accepts any name (*Spanish (Mexico)*, *Brazilian
+  Portuguese*). Characters other than letters, spaces and `( ) ' ’ , . -` are dropped as the author types. Without a
+  language the action cannot be prepared. Choosing it sets the instruction "Translate this into Spanish." unless the
+  author wrote their own. The reply is a normal proposal for the selection or the scope, reviewed and accepted like any
+  other suggestion. The answer lists the choices to check: kept names, adapted idioms, wordplay and measures, and
+  tense.
+- **References.** Saved prose shows each Codex mention as `@Label`, and accepting a proposal turns `@Label` back into
+  the mention. A reference the model translates or drops would become plain text. The prompt therefore asks for every
+  `@Name` exactly as written. The proposal's evidence now counts, for each Codex label, the references in the original
+  and in the proposal, using the same longest-label match as the editor:
+  - *References kept: @Mara (3).* when all are kept;
+  - a warning listing each lost reference with how many survived, saying that accepting leaves it as plain text unless
+    the author writes it back as `@name`.
+
+  Nothing is shown when the original has no references. The count applies to every proposal, not only translations.
+- **Rules (BFF).** `{kind:'translate', language}` is Suggest-only. The language must be 1–60 characters, already
+  trimmed, contain a letter, and use only letters, combining marks, spaces and `( ) ' ’ , . -`. A line break, digits
+  or an untrimmed name are refused, so the field cannot carry instructions. The system prompt adds that each
+  `@Name` stays as written. The frontend contract checks the same rule.
+- **Graph.** `novel_assistant.v2.json` gained the translate instructions. Its registered hash is now
+  `0acfdaa2df29b364b280a52cda879b5c633b589403c2170eee9a4d104ea77117`, and `/ready` passes with it. Nothing changed
+  in `api.magic_llm`.
+- **Review fix found in the live check.** After any save in the studio, *Review suggestion* refused every assistant
+  proposal ("could not be opened for review"). A save acknowledged in place leaves the studio's novel with no source
+  version until the next full index (`studio_state`), and staging compared that empty version with the turn's. The
+  review had already fetched a fresh index and checked it against the turn. Staging now accepts the studio's novel
+  when its saved heads (`studioReviewVersion`) equal that index's. The new check is `studioMatchesIndex` in
+  `src/shared/storyStudioState.ts`. The same check was fixed in the *Authored versions* review
+  (`useStudioVariantReview`).
+- **Files.**
+  - BFF: `TranslateAction` in `src/models/story_assistant.py` (`ACTION_TASKS['translate']='suggest'`). The reference
+    sentence in `SYSTEM` (`src/services/story_assistant_context.py`). The graph and hash registry.
+  - BFF tests: translate cases and refusals in `tests/services/test_story_assistant_context.py`. Backups are in
+    `.dev/backups/novel-translate-action-20261018/`.
+  - Frontend: the action in `storyAssistant.types.ts`, and `isLanguageName` with the action check in
+    `storyAssistantContextContract.ts`. Kind, default, instruction and label in `assistantActions.ts`. Recovery of
+    saved drafts in `assistantDraftJournal.ts`. The *Target language* field in `NovelAssistantActions.tsx`. New
+    `utils/referenceKeeping.ts` and `NovelProposalReferences.tsx`, shown by `NovelAssistantEvidence` with the labels
+    passed from `NovelStudio` through `NovelAssistantDrawer` (`referenceLabels`). Strings (en, es) in
+    `novelAssistantActions.ts` (`kinds.translate`, `language*`, `languages`, `messages.translate`, `references.*`).
+    The review fix in `storyStudioState.ts`, `useStudioAssistantReview.ts` and `useStudioVariantReview.ts`.
+  - Frontend tests: new `referenceKeeping.test.ts` and `NovelProposalReferences.test.tsx`, translate cases in
+    `NovelAssistantActions.test.tsx` and `storyAssistantAction.test.ts`, and a `studioMatchesIndex` case in
+    `storyStudioState.test.ts`.
+- **Code checks.**
+  - BFF: assistant, graph and result suites, 330 passed.
+  - Frontend: typecheck and ESLint for the changed files are clean. The novel + shared + API selection has 2,483
+    passed and 5 failed, all outside novel code: two in `explicitTestAttempts`, two in `sessionVoiceApi`, and one in
+    `fishAudioSupport` (voice work in progress elsewhere).
+- **Live checks (2026-10-18, test user, novel *Assistant check (package restore, no history)*, profile
+  `claude-sonnet-5.5`, scope *This scene*).**
+  - Two, then three, mentions of *Mara* were typed in Scene 1 with the `@` picker and saved (scene revisions 6 and 7).
+  - *Translation → Spanish*: the proposal kept both `@Mara` references and left the plain-text "Mara" as plain text.
+    The evidence showed *References kept: @Mara (2).* The answer listed the choices to check (Gull Point kept,
+    "oilcloth" as *tela encerada*, tense).
+  - Opening that proposal for review failed, which led to the fix above. After the fix, with a save made just before
+    the turn, a second translation (*References kept: @Mara (3).*) opened for review. The proposed Spanish text showed
+    three Codex mention chips. It was declined, and MySQL still holds the English scene at revision 7.
+
+### D5 slice 16 — opt-in completion suggestions (A27, 2026-10-18)
+
+**Status: running in the app since 12:06.** Frontend only. The BFF on `:8010` was not restarted (still pid 295569).
+
+- **What the author sees.** *Typing preferences* has a *Completions* section with a *Completion shortcut* switch. It is
+  off by default, per novel on this device, like the other typing preferences. Its help says what turning it on
+  means:
+  - `Ctrl+Shift+Enter` (`⌘+Shift+Return` on a Mac) asks the *Novel writing* profile to continue from the cursor, with
+    the same context as *Continue* in the `/` menu;
+  - each request is billed like any generation;
+  - the suggestion appears in place with *Accept* and *Decline*, and Esc also declines it.
+
+  While it is on, *Completion length* chooses *A sentence or two* (default) or *About a paragraph*. *Reset typing
+  preferences* turns completions off again. While it is off, the key does nothing new.
+- **How it works.** A completion is the editor's existing inline continuation (`/stories/{id}/generate/stream`,
+  command `continue`, with the cursor offset), sent with a length sentence: "Write one or two sentences that continue
+  from the cursor." or "Write about one paragraph that continues from the cursor." Everything else is the existing
+  inline path: the save before generating, the streaming preview, Stop, *Regenerate*, accept and decline, the
+  candidate in *Generation history*, and no shortcut while read-only or offline.
+- **Why a prose keymap.** The editor shell skips keys the view has already cancelled, and ProseMirror cancels every
+  real Enter. So the shortcut is a keymap in the prose (`createCompletionShortcut`); the shell still answers it when
+  focus is elsewhere in the editor. The first live try used only the shell handler. It did nothing with a real key,
+  although a synthetic event with key code 0 worked (jsdom tests use the same code). The unit test now presses a real
+  Enter, key code 13.
+- **Not taken.** A *Continue writing* assistant action (Suggest, appending to the scene) was built first, then
+  reverted before any restart: it duplicated the inline continuation, and `append_scene` cannot continue mid-paragraph.
+  The BFF files are back to their backups in `.dev/backups/novel-continue-action-20261018/` (graph hash
+  `0acfdaa2…` again, 330 BFF tests passing).
+- **Files.** New `utils/completions.ts`, `hooks/useCompletionPreferences.ts` and
+  `editor/extensions/completionShortcut.ts`. `completionInstruction` prop and the request in `NovelEditor.tsx` and
+  `editor/types.ts`. The section in `NovelTypingPreferences.tsx`, wired in `NovelStudio.tsx`. Strings (en, es) in
+  `novelTyping.ts` (`completions.*`). Tests: new `completions.test.ts`, a case in `NovelTypingPreferences.test.tsx`,
+  and a case in `NovelEditor.test.tsx`.
+- **Code checks.** Typecheck, ESLint for the changed files and `pnpm build` are clean. The novel + shared + API
+  selection has 2,486 passed and the same 5 failures outside novel code as slice 15.
+- **Live checks (same test novel and profile).**
+  - The switch saved `{enabled:true,length:'sentence'}` for the novel on this device.
+  - With the cursor at the end of the first paragraph, the request returned two sentences (+49 words) in place.
+    Declining set the candidate to `rejected`.
+  - With a real `Ctrl+Shift+Enter` at the end of the scene, the inline proposal moved from pending to review in
+    about 5.6 s: two sentences, +52 words. No beat composer opened. MySQL holds the candidate as `continue` with the
+    completion sentence as its instruction. It was declined, and the scene stayed at revision 7.
+- **Seen during the check, not fixed here.** A real `Ctrl+Enter` in the prose inserts a line break (TipTap's
+  `Mod-Enter`) instead of opening the beat composer. The shell's `Mod-Enter` branch only runs when focus is outside
+  the prose, which is the case its tests cover. The UI does not advertise `Ctrl+Enter` for the composer. The line
+  break inserted while checking this was undone: scene revision 9 has the same content hash as revision 7.
+
 ### Which work belongs to the goal
 
 | Work | Relationship to the requested plan |
@@ -2379,26 +2874,26 @@ at 06:42 with the same command (pid 4082145, log `.dev/logs/bff-novelexportjobs2
 
 ### Next work, in execution order
 
-1. **Finish remaining D1–D3 requirements.** Context/source policy, account/workspace/profile
-   lifecycle, offline/retention and accessibility acceptance; production-build and low-end-device performance
-   checks (the development-build measurement and fixes are done); resolve the release-relevant failures.
-2. **Continue D4** after slice 17: the left-out outline changes path seen live when a model next errs, branches
-   (N05), separate surfaces (U01), research (A28), and the rest of K12 (fields other than the description; new cards
-   or lorebook entries as destinations). Grouped multi-scene manuscript changesets (prose half of R14, slice 16) and
-   part proposals plus the quiet streaming drawer (rest of A17, slice 17) are done and checked live.
-3. **Continue D5 after slices 1–13 and the style sheet (Word/Markdown/text, EPUB and PDF export, review-notes, AI-changes and style-sheet files, real Word lists and links, contents page, front/back matter, Markdown/text/Word/EPUB/ODT/RTF import with front/back-matter roles, Codex glossary, goals and writing log, project packages, export jobs), then D6**, as specified in the linked catalog and design documents: read-aloud and dictation; then series canon, overrides, presets and publication handoff. They remain part of the original goal.
+The ordered list is *Priority — what to do next* at the top of this document (audited 2026-10-18). In short:
+P0 fixes first (novel BFF tests, Ctrl/⌘+Enter, contrast, personal-key accounting, the intermittent invalid result,
+export jobs across a restart); then P1, the rest of D1–D3 (live checks of the 38 built rows, one inline/assistant
+pipeline, drafting from the plan, diffs and per-change review, takes, accessibility and production-build
+performance); then the rest of D4 (P2), D5 (P3) and D6 (P4). N05 and A28 wait on your decisions. All of it remains
+part of the original goal.
 
 ### Where the work is
 
 - Frontend: `/home/andres/WebstormProjects/magic-worlds`. BFF: `/home/andres/PycharmProjects/magic-worlds-api`.
-  Neither is committed; both carry other in-progress work, so review changes per file.
-- The BFF on `:8010` currently runs from a terminal process started during this work (the current one, pid 74695, was started by this work at 09:20 with the same command; log
-  `magic-worlds-api/.dev/logs/bff-newpart-20261018T092026.log`), not from PyCharm. Restart it from PyCharm when convenient.
-- Backups: `.dev/backups/novel-assistant-install-20261017/` — the shared-service snapshots before and after the
+  Both have a "novel refactor" commit of 2026-10-18 09:33 (frontend `692e56b`, BFF `70c9c27`). Everything after it is
+  uncommitted (about 128 frontend and 126 BFF paths) and mixed with other sessions' work, so review changes per file.
+- The BFF on `:8010` runs from a terminal process started by this work (pid 295569, started 11:35 with the usual
+  command; log `magic-worlds-api/.dev/logs/bff-translate-20261018T113550.log`), not from PyCharm. Restart it from
+  PyCharm when convenient.
+- Backups: `.dev/backups/novel-assistant-install-20261017/` holds the shared-service snapshots before and after the
   revert, the project database backups, and `bff-protected-removal-*` with every BFF file touched by the
-  protected-client removal (including the staged copy of the removed module).
+  protected-client removal. Each later schema upgrade kept its own verified backup (see its slice).
 
-The [feature catalog](05_feature_catalog.md), [implementation plan](11_refactor_and_migration_plan.md), [acceptance requirements](12_validation_and_acceptance.md) and [phase/dependency register](#roadmap-and-dependencies) define the full scope. The entries below retain dated evidence; an old “remaining work” statement does not supersede this current summary.
+The [feature catalog](05_feature_catalog.md), [implementation plan](11_refactor_and_migration_plan.md), [acceptance requirements](12_validation_and_acceptance.md) and [phase/dependency register](#roadmap-and-dependencies) define the full scope. The entries above retain dated evidence; an old "remaining work" statement does not supersede the audited summary at the top.
 <!-- CURRENT_DELIVERY_STATUS_END -->
 
 ## Dated implementation evidence
@@ -3118,13 +3613,13 @@ capabilities or later phases is removed by this checkpoint.
 | Disabled frontend behavior | Implemented gating | [Sidebar](../../src/ui/components/Sidebar.tsx) hides story navigation; [AppRouter](../../src/app/router/AppRouter.tsx) renders Not Found for disabled pages; [API methods](../../src/infrastructure/api/index.ts) throw `Novels are disabled.` before requests |
 | WIP placeholder in product UI | Gap / product decision TBD | No WIP page is rendered by the current router. Documentation uses WIP status; changing the UI would require separate implementation |
 | Backend story domain | Current scene source and local API verified; release unverified | Current schema bootstrap, healthy API and provider-free MySQL smoke passed on 2026-10-16. The frontend flag remains independent of backend authorization |
-| Focused frontend verification | Current D1 + D2 scene checks, 2026-10-16 | Latest installed full suite: **5,112 passed / one conditional fixture skipped (549 files)**; production build and Storybook typecheck passed. Exact commands/results are in [01](01_current_state_and_evidence.md#d2-open-scene-reconnect-and-reconciliation-evidence--2026-10-16). Historical 2026-10-15 baseline retained below |
-| Focused BFF verification | Current creation/scene/Codex/copy/history/snapshot/statistics/search model/route/document checks pass, 2026-10-16 | Latest scoped installed story/manuscript/model/route plus bootstrap/migration/reset-isolation and execution/workspace verification: **895 passed across two non-overlapping commands**, plus retained synthetic actual MySQL verification. Earlier filename scopes remain dated evidence in 01; command scopes differ and are not additive |
-| Live product / release readiness | Partial local evidence; release unverified | Schema, health and actual persistence smoke verified. Account age/terms reconfirmation was left to the owner; full author workflow, assistive technology, performance and model-quality evaluation remain open |
-| Expanded refactor | D1–D2 installed; D3 running; D4 and D5 in progress; D6 pending (updated 2026-10-18) | See the current summary at the top of this document; release and acceptance gates above remain open |
+| Focused frontend verification | Full suite rerun by the 2026-10-18 audit | **5,848 passed, 75 failed, 14 skipped (665 files)** at 12:18; all 21 failing files are outside the novel feature (voice, narration, admin voices, explicit-test attempts). Earlier baselines (5,112 on 2026-10-16) are in [01](01_current_state_and_evidence.md#d2-open-scene-reconnect-and-reconciliation-evidence--2026-10-16) |
+| Focused BFF verification | **Not green** (2026-10-18 audit) | Novel scope (266 story/novel files plus agent graphs): **1,622 passed, 36 failed, 40 skipped**. 26 migration-chain failures (newer schema markers unhandled; ours to fix), 4 Codex route tests ("MySQL pool is not initialized"; to triage), 3 output-limit tests (outside transport change; to confirm). See *Release gates* at the top |
+| Live product / release readiness | Partial local evidence; release unverified | 53 of 136 rows checked live in the signed-in app (2026-10-17/18); live database at `2026_10_novel_export_jobs`, 124 tables, 21 novels (read 2026-10-18 13:05). Author workflow, assistive technology, production-build performance and model-quality evaluation remain open |
+| Expanded refactor | D1–D2 installed; D3 running; D4 slices 1–19 and D5 slices 1–16 run; D6 not started (audited 2026-10-18) | See the current summary at the top of this document; release and acceptance gates above remain open |
 | Standalone UI demo | Prototype only; not integrated | [HTML reference](novel-studio-demo.html); 26 temporary jsdom assertions and limited browser inspection on 2026-10-15. AI/account/context fixtures and simplified local recovery do not establish product behavior |
 | UI/UX implementation plan | Updated; product work planned | UX-01–UX-12 in [06](06_ui_ux_and_accessibility.md), delivery mapping in [11](11_refactor_and_migration_plan.md#uiux-delivery-workstream), application gates in [12](12_validation_and_acceptance.md#uiux-acceptance-matrix) |
-| Database/code/feature cleanup plan | Scene, annotation, statistics, bookmark and erasure contracts installed; later cleanup remains | `2026_10_novel_erase`, 112 tables / 157 FKs; all 4,449 original content rows fingerprinted unchanged after the additive erasure-record upgrade; obsolete chapter-body writer/tables/callers retired |
+| Database/code/feature cleanup plan | Every novel schema upgrade through `2026_10_novel_export_jobs` installed additively with a verified backup; later cleanup remains | 124 tables (2026-10-18). Obsolete chapter-body writer/tables/callers retired. Still open: CL-04 (inline vs. assistant paths), CL-06 (two stash paths), CL-08, CL-09 |
 
 An implemented DTO, endpoint, toolbar command, or test pass is not a shipped feature. Here **implemented** means code exists, **partial** means a limited variant or lower layer exists, **planned** means a target gap, and **unverified** means required runtime/release evidence is missing. Disabled features retain **WIP** status even where their code exists.
 
@@ -3138,13 +3633,13 @@ An implemented DTO, endpoint, toolbar command, or test pass is not a shipped fea
 | Structure | Parts, chapters, independent scenes, scoped metadata/defaults, atomic organization/lifecycle, reviewed copies including personal comments, guarded undo and independent novel copy | Remaining nested/compound/context and full position acceptance | [outline](../../src/features/novel/components/NovelChapterRail.tsx), [copy review](../../src/features/novel/components/NovelUnitCopyModal.tsx), BFF annotation/unit-copy smokes |
 | Personal review | Personal notes and point/passage bookmarks, independent content/anchor versions, exact navigation/orphan review, applicable state/Trash actions, scoped draft/receipt recovery, independent copies and frozen reads | D4 AI review/issues and D5 export; broader acceptance | [personal notes](../../src/features/novel/components/NovelAnnotationDrawer.tsx), [ADR 17](17_annotation_anchors_and_personal_review.md), BFF annotation smoke |
 | Autosave | Ordered scene queue, independent text/metadata CAS, exact receipts; scoped prose/details/goal/lifecycle/Codex/scene-restore recovery and conflict comparison | Full offline/storage/retention policy and large-project performance remain unverified | [save hook](../../src/features/novel/hooks/useSceneDraft.ts), cache regressions and actual MySQL smoke |
-| AI inline actions | Implemented seven commands, cursor-grounded saved context, decoration-only review, explicit atomic acceptance and undo/redo | Unified conversational/multi-scene proposal pipeline remains D3 | [useInlineAI](../../src/features/novel/editor/hooks/useInlineAI.ts), [AiSuggestion](../../src/features/novel/editor/extensions/aiSuggestion.ts) |
+| AI inline actions | Implemented seven commands, cursor-grounded saved context, decoration-only review, explicit atomic acceptance and undo/redo; opt-in completions (A27) | Still its own context compiler and accept path (CL-04): no context preview before sending, no approved facts or summaries in its context, no Stop receipt | [useInlineAI](../../src/features/novel/editor/hooks/useInlineAI.ts), [AiSuggestion](../../src/features/novel/editor/extensions/aiSuggestion.ts) |
 | History | Filtered small scene pages, verified individual checkpoints/excerpt copy, hash-bound text restore with durable recovery; generation lineage; reviewed organization undo/redo and manuscript snapshots/restore; recoverable Trash and frozen personal-note reads | Retention/author/performance acceptance and conversational changeset history | [revision drawer](../../src/features/novel/components/NovelRevisionDrawer.tsx), [scene recovery](../../src/features/novel/hooks/useSceneRestores.ts), [organization history](../../src/features/novel/components/NovelStructureHistory.tsx), [snapshot drawer](../../src/features/novel/components/NovelSnapshotDrawer.tsx), BFF scene/history/snapshot stores |
 | Stash | Running: cuts and alternative takes in *Tasks & stash* with reinsertion (D4 slice 2, R11) | Lineage and review/undo acceptance | [API client](../../src/infrastructure/api/index.ts), [DataProvider](../../src/app/providers/DataProvider.tsx), BFF `/generations/{id}/stash` |
 | Codex | Novel/chapter/scene snapshots, local precedence, frozen version pins, stable mentions, removal tombstones and disabled restoration; frontend feature filters preserve hidden refs | Source-update impact review, temporal canon and extraction; hidden enabled refs still participate in BFF context | [useCodex](../../src/features/novel/hooks/useCodex.ts), [CodexPanel](../../src/features/novel/components/codex/CodexPanel.tsx), identity smoke |
 | Context | Existing inline preview/execution compiler plus separate saved-source assistant preparation: exact messages/quotes, inherited defaults, scoped pins, visible omissions/conflicts and reserved-output budget | Connect bound assistant turns/profiles to the same prepared compiler; unified application lineage and temporal memory | [ADR 21](21_assistant_context_boundary.md), BFF compiler and native HTTP/MySQL packet checks |
-| Novel chat assistant | Running since 2026-10-17 (D3): bound conversations, cited sources, Ask/Suggest → review → accept → undo, Stop and recovery | AI quality evaluation, BYOK accounting after dispatch, account/profile lifecycle | [AssistantKind](../../src/shared/types/assistant.types.ts), BFF `AssistantKind`, NE-015 |
-| Portability and production | Running (D5 slices 1–13): Word/EPUB/PDF/Markdown/text export, six import formats with loss reports, `.mwnovel` packages, export jobs | EPUBCheck validation, export jobs in the *Tasks* drawer, translation/blurbs/read-aloud/dictation | [NovelStudioHeader](../../src/features/novel/components/NovelStudioHeader.tsx), NE-021 |
+| Novel chat assistant | Running since 2026-10-17 (D3): bound conversations, cited sources, Ask/Suggest → review → accept → undo, Stop and recovery, named actions, grouped changesets | AI quality evaluation, BYOK accounting after dispatch, the intermittent invalid result, account/profile lifecycle | [AssistantKind](../../src/shared/types/assistant.types.ts), BFF `AssistantKind`, NE-015 |
+| Portability and production | Running (D5 slices 1–16): Word/EPUB/PDF/Markdown/text export, six import formats with loss reports, `.mwnovel` packages, export jobs, book copy, translation, completions | EPUBCheck validation, export jobs in the *Tasks* drawer and across restarts, cover generation, read-aloud, dictation | [NovelStudioHeader](../../src/features/novel/components/NovelStudioHeader.tsx), NE-021 |
 | Accessibility and performance | Partial / runtime unverified | Status announcements, active-option/focus semantics, deliberate review keyboard behavior; measured typing/render/save performance | NE-017/018/019; [validation](12_validation_and_acceptance.md) |
 
 ## Roadmap and dependencies
@@ -3154,10 +3649,10 @@ An implemented DTO, endpoint, toolbar command, or test pass is not a shipped fea
 | R0 — establish availability | **WIP** | Existing gating | Record deployed build flag, compatible BFF/profile versions, disabled UX choice and intended release cohort | Enabled/disabled route and API checks; live gallery → create → save → reopen; unknown production values explicitly retained | Product + frontend + operations; named owner TBD |
 | D1 — reliable editor and persistence | **Implemented/validated in checkout, WIP release** (2026-10-16); broader UI/author gates outstanding | R0 source baseline | Complete real-device/assistive-technology and author gates; carry the verified persistence/review guarantees into the D2 scene contract | Ordered save/conflict/recovery, undo/redo, target mapping and restore regressions pass; actual MySQL CAS/restore/acceptance replay passed; 250 frontend / 323 scoped BFF tests, build and story typecheck passed | Frontend editor/data + BFF story persistence; implementation owner Codex, release owner TBD |
 | D2 — document model and organization | **WIP integration** (scene schema/API/editor/outline/lifecycle, templates, reviewed sources/copies, personal notes, creation recovery, organization undo/redo, snapshots/restore, history, library discovery, cover/default POV, saved statistics/size, reading appearance, view/position resume, manuscript result navigation, unit planning, bounded saved reading/resume, reviewed replacements, personal bookmarks, metadata/selected-scene loading, bounded generation history, highlights/invisible-character display and deliberate root erasure, open-scene reconnect, reviewed rich-block reconciliation, persistent device entry, durable exact-source review choices and opt-in cold app loading locally checked) | D1 save/revision contract; [accepted document decision](16_document_and_structure_decision.md) | Remaining catalog features; broader context/organization cases; complete performance and retention/offline/author acceptance | Current schema verification + isolated save/reopen/annotation/structure/copy/creation/source/template/snapshot/restore/history/library/statistics/search smoke, targeted product regressions | Frontend novel + BFF domain/database; implementation owner Codex, release owner TBD |
-| D3 — grounded novel assistant | **Running since 2026-10-17 (see summary); inline AI still uses its own context compiler** | D1 reliability, D2 revision/target contracts; context compiler | NE-015/020; novel kind/profile, scope, retrieval, summaries, explicit changesets; shared inline/chat review and commit; stash | Trace equals actual packet; enforced budget; target/base checks; idempotent application; transport recovery; profile/account/workspace isolation; author usefulness evaluation | Assistant/profile + frontend novel + BFF; named owners TBD |
-| D4 — planning, continuity and personal review | **In progress — slices 1–16 run (see summary)** | D2 structure + D3 proposals/memory | NE-023; board/timeline/matrix, knowledge/reveal state, plot threads, comments/tasks, reviewed multi-scene work | Source-linked continuity fixtures; stale-memory invalidation; dependency-safe partial acceptance; uncertain findings reviewed by authors | Novel product/UX + memory/assistant; named owners TBD |
-| D5 — portability and productivity | **In progress — slices 1–13 run (see summary)** | D2 document/schema + D1 revision/recovery; format decisions | NE-021; Markdown/plain-text/DOCX import, manuscript/project export, selected EPUB/PDF workflows, whole-novel goals and writing-session analytics (saved totals and per-chapter word goals already exist), optional owned media/read-aloud | Format support/loss matrix; round-trip fixtures; frozen export manifest; cancellation/retry and accessible outputs; measured large-project limits | Novel frontend + BFF import/export/media; named owners TBD |
-| D6 — author-owned series and extension | **Planned** | D2/D3/D4 versioned canon + D5 portability | Versioned series canon/style with novel overrides; bounded presets; optional explicit publication handoff | No silent changes to old novels/context/exports; inheritance/isolation/restore tests; extension capability and license decisions | Product + novel/assistant/workspace; named owners TBD |
+| D3 — grounded novel assistant | **Running since 2026-10-17; 7 A rows, K03, K10, R06, R07, R12, S18 and several U rows still partial (see summary); inline AI still uses its own context compiler (CL-04)** | D1 reliability, D2 revision/target contracts; context compiler | NE-015/020; novel kind/profile, scope, retrieval, summaries, explicit changesets; shared inline/chat review and commit; stash | Trace equals actual packet; enforced budget; target/base checks; idempotent application; transport recovery; profile/account/workspace isolation; author usefulness evaluation | Assistant/profile + frontend novel + BFF; named owners TBD |
+| D4 — planning, continuity and personal review | **In progress — slices 1–19 run; open: K05, K06, K14, R08 partial; N05, A28 wait on decisions (see summary)** | D2 structure + D3 proposals/memory | NE-023; board/timeline/matrix, knowledge/reveal state, plot threads, comments/tasks, reviewed multi-scene work | Source-linked continuity fixtures; stale-memory invalidation; dependency-safe partial acceptance; uncertain findings reviewed by authors | Novel product/UX + memory/assistant; named owners TBD |
+| D5 — portability and productivity | **In progress — slices 1–16 run; open: X09, X10, E06, E13, E16 partial; U09, U10, E15, E20 gaps (see summary)** | D2 document/schema + D1 revision/recovery; format decisions | NE-021; Markdown/plain-text/DOCX import, manuscript/project export, selected EPUB/PDF workflows, whole-novel goals and writing-session analytics (saved totals and per-chapter word goals already exist), optional owned media/read-aloud | Format support/loss matrix; round-trip fixtures; frozen export manifest; cancellation/retry and accessible outputs; measured large-project limits | Novel frontend + BFF import/export/media; named owners TBD |
+| D6 — author-owned series and extension | **Not started** | D2/D3/D4 versioned canon + D5 portability | Versioned series canon/style with novel overrides; bounded presets; optional explicit publication handoff | No silent changes to old novels/context/exports; inheritance/isolation/restore tests; extension capability and license decisions | Product + novel/assistant/workspace; named owners TBD |
 
 All phases retain the single-author scope. Multi-user editing, presence, invitations, coeditor roles, shared reviewer access, and CRDT synchronization are **out of scope**, rather than TBD roadmap items. Phase details are in [11](11_refactor_and_migration_plan.md); acceptance matrices are in [12](12_validation_and_acceptance.md).
 
@@ -3168,12 +3663,12 @@ The current policy is **preserve non-novel data and current novels; no whole-dat
 | Workstream | Status / next action |
 |---|---|
 | M1 · Current schema and code | **Scene contract installed; further phase extensions remain:** update `db.sql`, marker/seeds/bootstrap, services/contracts and frontend callers together. Prefer a clean target schema; remove obsolete writers/adapters |
-| M2 · Scoped database changes | **Non-novel content recovered and retained:** the subsequent verified private backup/additive upgrade installed `2026_10_novel_annotations`; all 4,276 pre-existing content rows were verified unchanged. Future extensions require the same preservation procedure |
-| M3 · Short smoke and cleanup | **D1 verified:** DEV-01 startup/schema, DEV-02 actual MySQL fresh-data flow; DEV-03 status-only acceptance, timestamp merge, duplicate Codex helpers and obsolete goal migration removed. Scene writer replacement verified; later phase cleanup remains. Use relevant existing tests; no 18-case migration suite |
+| M2 · Scoped database changes | **Done per upgrade through `2026_10_novel_export_jobs` (124 tables):** each additive upgrade (`scripts/migrations/20261016_*` to `20261018_*`) had a verified private backup and unchanged-row fingerprints. Future extensions require the same preservation procedure |
+| M3 · Short smoke and cleanup | **Partial:** DEV-01/02/03 ran for D1 and for each upgrade, but **26 migration-chain tests fail** (2026-10-18 audit): the older novel migration modules cannot rebuild a predecessor past `2026_10_membership_feature_flags` and `2026_10_novel_export_jobs`. Fix before the next schema change. Use relevant existing tests; no 18-case migration suite |
 | CL-01/02 · Storage/API | **Current replacements implemented; later phases remain:** retire superseded writers/contracts when their replacement works. Preserve existing rows; any further schema change requires its own scoped preservation review |
-| CL-03/04/05 · Save/editor/AI | **D1/D2 current writers implemented:** ordered saves/CAS, separate AI previews, atomic acceptance, one context compiler and canonical scene JSON/stable references replace raw chapter Markdown/name-only persistence. Later assistant/annotation paths must retain those guarantees |
-| CL-06/07/08 · Codex/browser/exposure | **Partial:** scoped snapshots/tombstones and current draft format connected; known obsolete draft/goal keys discarded. Reference mutation recovery is implemented; complete stash workflow and future feature exposure |
-| CL-09/10 · Code/contracts/docs | **D1 implemented:** duplicated Codex helpers re-export shared implementations; strict write/accept DTOs, focused regressions, i18n and API docs updated. **Remaining:** later phase contracts and complete mutation recovery |
+| CL-03/04/05 · Save/editor/AI | **CL-03 and CL-05 done:** ordered saves/CAS and canonical scene JSON/stable references replace `updatedAt` merges and raw Markdown. **CL-04 open:** inline AI still compiles its own context (`story_generation.py`) and accepts through its own route, apart from the assistant; Tab acceptance is gone |
+| CL-06/07/08 · Codex/browser/exposure | **CL-07 done** (obsolete draft/goal keys discarded). **CL-06 open:** the plan-item stash (R11) exists, but the generation `stashed` status is still written by the assistant's *Stash* button, so two stash paths remain. **CL-08 open:** exposure follows the per-plan grant; dead controls and exports not yet audited |
+| CL-09/10 · Code/contracts/docs | **CL-09 open:** duplicated Codex helpers re-export shared implementations, but story persistence still lives in `models.py` and long predecessor-marker chains remain in `bootstrap.py`. **CL-10** is ongoing per slice |
 
 Named implementation owners/dates remain TBD. Cleanup completes when the replacement works and its obsolete path is gone; no observation window or preserved legacy-data manifest is required. Keep normal product revisions, undo, ownership, trash and new-request recovery. No feature phase is closed by resetting fixtures.
 
@@ -3200,7 +3695,7 @@ Prototype corrections do not close NE-017/019 or establish the production behavi
 | NE-008/014 | Stable mention JSON and checkpoint/scene/chapter/part/root trash recovery implemented in this checkout, with identity and actual MySQL smoke evidence; release/complete UX gates remain |
 | NE-017 | Live announcements/active options/explicit review/group semantics improved; complete keyboard/contrast/assistive-technology acceptance remains open |
 | NE-020 | Safe instruction projection and base/applied revision lineage implemented for inline generations; unified assistant/changeset lineage remains D3 |
-| NE-016/018/023 | Open: remaining organization edge cases/copy; production-build and low-end performance; narrative-time memory rules. NE-015 (novel assistant) and NE-021 (portability) are built (D3, D5); their acceptance remains (updated 2026-10-18) |
+| NE-016/018/023 | Partial: organization edge cases (drag holes, copies that drop planning); production-build and low-end performance (development build measured); narrative-time memory rules (revision-bound summaries and as-of-scene facts exist, POV/reveal policy is decision 10). NE-015 (novel assistant, including multi-scene prose changesets since D4 slice 16) and NE-021 (portability) are built; their acceptance remains (audited 2026-10-18) |
 
 ## Open backlog and closure rules
 
@@ -3214,16 +3709,16 @@ The first integrity work is ordered saves/revision checks (NE-001), recoverable 
 |---|---|---|---|
 | WIP placeholder versus hidden/Not Found disabled UI | **TBD product choice** | UI implementation when selected | Existing behavior remains sufficient for development reset; production cohort planning is not a prerequisite |
 | Canonical schema, block/reference IDs and wire offsets | **Resolved for current schema: ADR 16; future import/export support remains D5** | D2 schema and D3 precise targeting | Current document/selection fixtures; no legacy Markdown database bridge required |
-| Rich-text application in Python: semantic operations versus approved JSON snapshots | **D2 implemented:** validated canonical JSON/checkpoint restores and server-side structure transforms; D3 changeset semantics remain TBD | D3 commit | Current transaction/fidelity regressions and actual MySQL restore chains; BFF/editor |
+| Rich-text application in Python: semantic operations versus approved JSON snapshots | **Settled in practice (D4 slices 15–16):** server-side structure transforms for outline changes and validated final documents per scene for prose changesets, each revision-checked and undone in one step | D3 commit | Current transaction/fidelity regressions and actual MySQL restore chains; BFF/editor |
 | Revision/checkpoint/trash retention, storage ceilings and logout/shared-device policy | **Root Trash/erase resolved in ADR 19; broader revision/unit/device/storage policy TBD** | D1 durable recovery release | Storage/quota/eviction, auth/account and restore scenarios; product/persistence |
 | Offline guarantee and conflict UX | **Open-scene pause/checked reconnect, reviewed merges, persistent device entry, review-choice recovery and opt-in verified cold app loading implemented; broader storage/shared-device/retention and author acceptance remain** | D1/D2 recovery release | Cached edits, reconnect, multi-tab/device revision conflicts; frontend/product |
 | Context allocations, output reservation, helper cost/latency and AI-quality thresholds | **TBD** | D3 broadened generation | Frozen profile/graph/language corpus and author review; AI/product |
 | Narrative-time/POV/unreliable-narrator and derived-memory policy | **TBD** | D4 continuity | Source evidence and future-revelation/flashback fixtures; product/memory |
-| Exact import/export feature coverage and optional EPUB/PDF/media scope | **TBD** | D5 implementation | Format fixtures, loss report and author delivery tasks; product/import-export |
+| Exact import/export feature coverage and optional EPUB/PDF/media scope | **Settled in practice for text formats:** import of Markdown, text, Word, EPUB, ODT and RTF with loss reports; export to Word, EPUB, PDF, Markdown and text. **Media (read-aloud, dictation, cover generation) still TBD** | D5 implementation | Format fixtures, loss report and author delivery tasks; product/import-export |
 | Series inheritance/update behavior within workspace permissions | **TBD** | D6 | Cross-novel version pins/local overrides and isolation fixtures; product/workspace |
 | Add-on/conversion licenses and hosting dependency | **TBD** | Dependency adoption | Fresh primary documentation and prototype; engineering/product |
 | Named owners, work-item links, phase dates and release evidence | **TBD** | Delivery scheduling and shipped status | Assign after scoped contracts/estimates; no dates are promised here |
-| Current scene/annotation/revision/receipt/statistics schema and minimal seed | **Installed/verified: `2026_10_novel_erase`, 112 tables / 157 FKs** | M1/M2 | [15 storage blueprint](15_database_migration_and_legacy_cleanup.md#required-storage-changes-by-phase), exact verifier, preservation fingerprints and fresh synthetic smoke |
+| Current scene/annotation/revision/receipt/statistics schema and minimal seed | **Installed/verified: `2026_10_novel_export_jobs`, 124 tables (2026-10-18)** | M1/M2 | [15 storage blueprint](15_database_migration_and_legacy_cleanup.md#required-storage-changes-by-phase), exact verifier, preservation fingerprints and fresh synthetic smoke |
 | Legacy-data/backfill/client compatibility policy | **Resolved: preserve recovered content; no further whole-database resets** | Current plan | User required non-novel recovery. Preserve installed novels and unrelated content through scoped changes; no bridge to the discarded pre-refactor format is required |
 | Migration test/rollout scope | **Resolved: three lean DEV checks** | M3 | No support/observation window or backup/rollback rehearsal for this test DB; use CL inventory for code cleanup |
 

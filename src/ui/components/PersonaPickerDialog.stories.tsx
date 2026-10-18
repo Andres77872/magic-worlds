@@ -5,6 +5,11 @@ import { Button } from '../primitives'
 import { characters } from './lists/fixtures'
 import { PersonaPickerDialog } from './PersonaPickerDialog'
 
+const library = characters.map((character, index) => ({ ...character,
+  role: index >= 2 ? 'persona' as const : 'character' as const,
+  is_default_persona: index === 3,
+}))
+
 const meta = {
   title: 'Components/PersonaPickerDialog',
   component: PersonaPickerDialog,
@@ -14,7 +19,7 @@ const meta = {
     docs: {
       description: {
         component:
-          'Choose which character you play *as* before entering a scene. Lists persona-eligible characters with ember (player) / arcane (AI) avatar rings; the default persona is preselected. Built on the Modal primitive — confirm or cancel from the footer.',
+          'Choose a persona card before entering a conversation or adventure. Only persona cards are eligible; the default persona is preselected. An empty persona library offers persona creation.',
       },
     },
   },
@@ -36,7 +41,7 @@ const meta = {
     description: 'Pick the character you’ll play as. You can switch later.',
     isConfirming: false,
     open: false,
-    characters,
+    characters: library,
     onConfirm: () => {},
     onClose: () => {},
   },
@@ -54,7 +59,7 @@ function PickerDemo(props: Partial<ComponentProps<typeof PersonaPickerDialog>>) 
       <PersonaPickerDialog
         title="Choose your persona"
         actionLabel="Enter the scene"
-        characters={characters}
+        characters={library}
         {...props}
         open={open}
         onConfirm={() => setOpen(false)}
@@ -73,5 +78,10 @@ export const WithError: Story = {
 
 export const Empty: Story = {
   args: { characters: [], onCreateCharacter: () => {} },
+  render: (args) => <PickerDemo {...args} />,
+}
+
+export const NoPersonas: Story = {
+  args: { characters: library.filter((card) => card.role === 'character'), onCreateCharacter: () => {} },
   render: (args) => <PickerDemo {...args} />,
 }

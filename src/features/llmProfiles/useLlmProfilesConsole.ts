@@ -352,26 +352,17 @@ export function useLlmProfilesConsole(systemAdmin: boolean): LlmProfilesConsole 
         if (retry) testIntent.current = { key, request: crypto.randomUUID(), parent: retry.retry_of_execution_id }
         const attempt = testIntent.current!
         const requestId = testIntent.current!.request
+        let rejectCredential = () => {}
         const rememberFailure = (failure: unknown) => {
+            if (failure instanceof ApiError && ['BYOK_CREDENTIAL_REJECTED', 'PROVIDER_AUTHENTICATION_REJECTED'].includes(failure.code || '')) rejectCredential()
             if (failure instanceof ApiError && failure.llmRetry && owner.current === expectedOwner && testIntent.current === attempt) {
                 attempt.nextRetry = { ...failure.llmRetry }
-            }
-        }
-        if (retained && !retry) {
-            try {
-                const result = await apiService.testLlmProfile(editing.profile_id, target, feature, requestId, systemAdmin, undefined, attempt.parent)
-                if (owner.current !== expectedOwner) return
-                testIntent.current = null
-                setTestResult(result)
-                return
-            } catch (failure) {
-                rememberFailure(failure)
-                if (!(failure instanceof ApiError) || failure.code !== 'BYOK_CREDENTIAL_REQUIRED') throw failure
             }
         }
         const llm = systemAdmin ? undefined : retry ? await prepareRetainedLlmRequest(feature, retry)
             : await prepareLlmRequest(feature, { selection: { mode: 'profile', profile_id: editing.profile_id },
                 ...(attempt.parent ? { retry_of_execution_id: attempt.parent, expected_revision_id: target.kind === 'published' ? target.revisionId : undefined } : {}) }, undefined, retained && !retry ? requestId : undefined)
+        rejectCredential = credentialSession.rejectionHandler(feature)
         try {
             if (owner.current !== expectedOwner) return
             if (target.kind === 'published' && llm?.expected_revision_id && llm.expected_revision_id !== target.revisionId) throw new Error('PROFILE_REVISION_CHANGED')
