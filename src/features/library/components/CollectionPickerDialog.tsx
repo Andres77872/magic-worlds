@@ -6,9 +6,9 @@ import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
  */
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Folder, FolderPlus, Loader2 } from 'lucide-react'
+import { Check, Folder, FolderPlus, Loader2 } from 'lucide-react'
 import type { Collection } from '@/shared/types'
-import { Button, Callout, Icon, Modal, SelectionCheck, cx } from '@/ui/primitives'
+import { Badge, Button, Callout, Icon, Modal, SelectionCheck, cx } from '@/ui/primitives'
 import { SELECTED_CARD_CLASS } from '@/ui/components/lists/Card/cardStyles'
 import { isLibraryCardCountAvailable } from '@/shared/featureFlags'
 
@@ -19,6 +19,10 @@ interface CollectionPickerDialogProps {
     cardCount: number
     /** A collection to leave out (the folder the cards are being viewed in). */
     excludeId?: string | null
+    /** Collections that all target cards already belong to. */
+    memberCollectionIds?: ReadonlySet<string>
+    /** Collections that some (but not all) target cards already belong to. */
+    partialCollectionIds?: ReadonlySet<string>
     onClose: () => void
     onCreateCollection: () => void
     /** Resolves null on success, else the message to show. */
@@ -31,6 +35,8 @@ export function CollectionPickerDialog({
     loading = false,
     cardCount,
     excludeId = null,
+    memberCollectionIds,
+    partialCollectionIds,
     onClose,
     onCreateCollection,
     onConfirm,
@@ -100,6 +106,8 @@ export function CollectionPickerDialog({
                     <ul className="flex max-h-80 flex-col gap-1.5 overflow-y-auto" aria-label={t('library.picker.title')}>
                         {choices.map((collection) => {
                             const isSelected = selected.has(collection.id)
+                            const isAlreadyMember = memberCollectionIds?.has(collection.id) ?? false
+                            const isPartialMember = !isAlreadyMember && (partialCollectionIds?.has(collection.id) ?? false)
                             return (
                                 <li key={collection.id}>
                                     <button
@@ -113,6 +121,16 @@ export function CollectionPickerDialog({
                                     >
                                         <Icon icon={Folder} size={16} className="shrink-0 text-ember-400" />
                                         <span className="min-w-0 flex-1 truncate font-semibold text-fg">{collection.name}</span>
+                                        {isAlreadyMember && (
+                                            <Badge tone="ember" icon={<Icon icon={Check} size={10} />} className="shrink-0 px-2 py-0.5 text-micro">
+                                                {t('library.picker.alreadyMember')}
+                                            </Badge>
+                                        )}
+                                        {isPartialMember && (
+                                            <Badge tone="neutral" className="shrink-0 px-2 py-0.5 text-micro">
+                                                {t('library.picker.partialMember')}
+                                            </Badge>
+                                        )}
                                         <span className="shrink-0 text-caption text-fg-muted">
                                             {isLibraryCardCountAvailable() && t('library.folder.cardCount', { count: collection.card_count })}
                                         </span>

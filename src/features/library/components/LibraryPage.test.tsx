@@ -413,4 +413,110 @@ describe('LibraryPage (Workspace R1)', () => {
         fireEvent.click(screen.getByRole('menuitem', { name: 'Copy to workspace' }))
         expect(await screen.findByRole('dialog', { name: 'Copy to workspace' })).toBeInTheDocument()
     })
+
+    it('drags a single card onto a folder to add it and updates its collection badge', async () => {
+        api.setCollectionMembers.mockResolvedValue({ collection_id: TEST_COLLECTION_ID, added: 1, removed: 0, unchanged: 0 })
+        renderLibrary()
+        await screen.findByText('Lyra')
+
+        const lyraCard = screen.getAllByTestId('gallery-card')[0]
+        const sketchesFolder = within(screen.getByTestId('library-folders')).getByRole('button', { name: 'Open collection Sketches' })
+
+        fireEvent.dragStart(lyraCard)
+        fireEvent.dragOver(sketchesFolder)
+        fireEvent.drop(sketchesFolder)
+        fireEvent.dragEnd(lyraCard)
+
+        await waitFor(() => expect(api.setCollectionMembers).toHaveBeenCalledWith(TEST_WORKSPACE_ID, TEST_COLLECTION_ID, {
+            add: [{ card_type: 'character', card_id: 'c1' }],
+            remove: [],
+        }))
+        expect(await screen.findByText('Added to 1 collection')).toBeInTheDocument()
+        expect(within(lyraCard).getByTestId('card-collection-badge')).toHaveTextContent('Sketches')
+    })
+
+    it('drags all selected cards together when dragging one of a multi-card selection', async () => {
+        api.setCollectionMembers.mockResolvedValue({ collection_id: TEST_COLLECTION_ID, added: 3, removed: 0, unchanged: 0 })
+        renderLibrary()
+        await screen.findByText('Lyra')
+
+        fireEvent.click(screen.getByRole('button', { name: 'Select' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Select this page' }))
+        expect(screen.getByRole('toolbar', { name: 'Selection actions' })).toHaveTextContent('3 selected')
+
+        const lyraCard = screen.getAllByTestId('gallery-card')[0]
+        const sketchesFolder = within(screen.getByTestId('library-folders')).getByRole('button', { name: 'Open collection Sketches' })
+
+        fireEvent.dragStart(lyraCard)
+        fireEvent.dragOver(sketchesFolder)
+        fireEvent.drop(sketchesFolder)
+        fireEvent.dragEnd(lyraCard)
+
+        await waitFor(() => expect(api.setCollectionMembers).toHaveBeenCalledWith(TEST_WORKSPACE_ID, TEST_COLLECTION_ID, {
+            add: [
+                { card_type: 'character', card_id: 'c1' },
+                { card_type: 'character', card_id: 'p1' },
+                { card_type: 'world', card_id: 'w1' },
+            ],
+            remove: [],
+        }))
+        await waitFor(() => expect(screen.getByRole('toolbar', { name: 'Selection actions' })).toHaveTextContent('0 selected'))
+    })
+
+    it('skips the API call and shows an already-in-collection notice when dropping a member card', async () => {
+        api.listLibraryCards.mockResolvedValue(
+            page([
+                character('c1', 'Lyra', {
+                    organization: { workspace_id: TEST_WORKSPACE_ID, collection_ids: [TEST_COLLECTION_ID] },
+                }),
+            ]),
+        )
+        renderLibrary()
+        await screen.findByText('Lyra')
+
+        const lyraCard = screen.getAllByTestId('gallery-card')[0]
+        expect(within(lyraCard).getByTestId('card-collection-badge')).toHaveTextContent('Sketches')
+
+        const sketchesFolder = within(screen.getByTestId('library-folders')).getByRole('button', { name: 'Open collection Sketches' })
+        fireEvent.dragStart(lyraCard)
+        fireEvent.drop(sketchesFolder)
+        fireEvent.dragEnd(lyraCard)
+
+        expect(await screen.findByText('Already in Sketches')).toBeInTheDocument()
+        expect(api.setCollectionMembers).not.toHaveBeenCalled()
+
+        // Also marks existing membership inside the Add to collection dialog.
+        fireEvent.click(within(lyraCard).getByTestId('card-options-button'))
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Add to collection' }))
+        const picker = await screen.findByRole('dialog', { name: 'Add to collection' })
+        expect(within(picker).getByText('In collection')).toBeInTheDocument()
+    })
+
+    it('shows the collection shelf, header description/actions, and drop-to-remove target inside a folder', async () => {
+        api.setCollectionMembers.mockResolvedValue({ collection_id: TEST_COLLECTION_ID, added: 0, removed: 1, unchanged: 0 })
+        renderLibrary(`${ROOT}&collection=${TEST_COLLECTION_ID}`)
+        await screen.findByText('Lyra')
+
+        // Open collection description and header actions menu are visible.
+        expect(screen.getByText('Rough ideas')).toBeInTheDocument()
+        expect(screen.getByTestId('collection-header-options-button')).toBeInTheDocument()
+
+        // Compact collection shelf allows switching folders or dropping cards.
+        const shelf = screen.getByTestId('library-collection-shelf')
+        expect(within(shelf).getByRole('button', { name: 'Open collection Ashfall cast' })).toBeInTheDocument()
+
+        const lyraCard = screen.getAllByTestId('gallery-card')[0]
+        fireEvent.dragStart(lyraCard)
+        const removeZone = screen.getByTestId('library-drop-remove')
+        fireEvent.dragOver(removeZone)
+        fireEvent.drop(removeZone)
+        fireEvent.dragEnd(lyraCard)
+
+        await waitFor(() => expect(api.setCollectionMembers).toHaveBeenCalledWith(TEST_WORKSPACE_ID, TEST_COLLECTION_ID, {
+            add: [],
+            remove: [{ card_type: 'character', card_id: 'c1' }],
+        }))
+        await waitFor(() => expect(screen.queryByText('Lyra')).not.toBeInTheDocument())
+    })
 })
+

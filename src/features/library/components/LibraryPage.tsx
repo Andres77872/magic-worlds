@@ -9,15 +9,32 @@ import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
  * server's stable order with offset paging. Cards keep the unchanged
  * GalleryCard design; the type shows in its eyebrow slot. Search is always
  * visible: at the root it filters folders locally and cards on the server;
- * inside a folder it searches that collection. Organization (add/remove
- * membership, copy to workspace, new collection) and creation (the existing
- * creators with a captured origin) start here. An archived workspace is
- * read-only: browsing and copying out stay available.
+ * inside a folder it searches that collection. Organization (drag-and-drop to
+ * folders, add/remove membership, copy to workspace, new collection) and
+ * creation (the existing creators with a captured origin) start here. An
+ * archived workspace is read-only: browsing and copying out stay available.
  */
 import { isContentTypeFeatureEnabled } from '@/shared/featureFlags'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type DragEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CheckCircle2, ChevronLeft, ChevronRight, CheckSquare, Copy, FolderMinus, FolderPlus, Pencil, Plus, RefreshCw, Search, Trash2, Users, X } from 'lucide-react'
+import {
+    CheckCircle2,
+    ChevronLeft,
+    ChevronRight,
+    CheckSquare,
+    Copy,
+    Folder,
+    FolderMinus,
+    FolderPlus,
+    Pencil,
+    Plus,
+    RefreshCw,
+    Search,
+    Sparkles,
+    Trash2,
+    Users,
+    X,
+} from 'lucide-react'
 import { useData, useNavigation } from '@/app/hooks'
 import { useWorkspace } from '@/app/hooks/useWorkspace'
 import { apiService, isWorkspaceApiError } from '@/infrastructure/api'
@@ -27,9 +44,9 @@ import {
     isCommunityCardsFeatureEnabled,
     isGroupChatsFeatureEnabled,
 } from '@/shared/featureFlags'
-import { CardGrid, GalleryCard, GalleryCardSkeleton, type CardOption } from '@/ui/components'
+import { CardGrid, CardOptions, GalleryCard, GalleryCardSkeleton, type CardOption } from '@/ui/components'
 import { ConfirmDialog } from '@/ui/components/ConfirmDialog'
-import { Button, Callout, Chip, controlClass, Icon, IconButton, PageHeader, Select, Toast, cx } from '@/ui/primitives'
+import { Button, Callout, Chip, controlClass, Icon, IconButton, PageHeader, SectionHeader, Select, Toast, cx } from '@/ui/primitives'
 import { galleryConfigFor, galleryItemFromCard, type GalleryItem } from '@/features/gallery/galleryConfig'
 import { buildGalleryModeHash, buildPersonaCreatorHash, pageHash } from '@/features/gallery/galleryLinks'
 import { cardGridDensity, cardGridLayout, galleryCardView } from '@/features/gallery/galleryView'
@@ -40,6 +57,16 @@ import { useCardImport } from '@/features/gallery/hooks/useCardImport'
 import { useGalleryCardActions, versionableCardTypeFor } from '@/features/gallery/hooks/useGalleryCardActions'
 import { useNavigationCoordinator } from '@/features/workspaces/useNavigationCoordinator'
 import { useCreationOrigin, type LibraryTypeFilter } from '../creationOrigin'
+import {
+    cardCollectionIds,
+    clearLibraryDragData,
+    hasLibraryDragData,
+    readLibraryDragKeys,
+    resolveDragItems,
+    summarizeCardMemberships,
+    withUpdatedCardMembership,
+    writeLibraryDragData,
+} from '../libraryDrag'
 import {
     buildLibraryHash,
     EMPTY_LIBRARY_ROUTE,
@@ -54,7 +81,7 @@ import { takeLibraryReturn } from '../libraryReturn'
 import { forgetLibraryCards, libraryItemKey, useLibraryCards } from '../hooks/useLibraryCards'
 import { forgetLibraryCollections, useLibraryCollections } from '../hooks/useLibraryCollections'
 import { BulkSelectionBar } from './BulkSelectionBar'
-import { CollectionFolder } from './CollectionFolder'
+import { CollectionFolder, type FolderDropState } from './CollectionFolder'
 import { CollectionFormDialog, type CollectionFormValues } from './CollectionFormDialog'
 import { CollectionPickerDialog } from './CollectionPickerDialog'
 import { CopyToWorkspaceDrawer, type CopyCardRef } from './CopyToWorkspaceDrawer'
@@ -120,6 +147,10 @@ export function LibraryPage() {
     const { collections } = collectionsState
     const currentCollection = inCollection ? collections.find((collection) => collection.id === route.collectionId) ?? null : null
     const collectionMissing = inCollection && !collectionsState.loading && !collectionsState.error && currentCollection === null
+    const collectionNameById = useMemo(
+        () => new Map(collections.map((collection) => [collection.id, collection.name])),
+        [collections],
+    )
 
     const cards = useLibraryCards(api, selectedWorkspaceId, route)
     const locationKey = selectedWorkspaceId ? libraryQueryKey(selectedWorkspaceId, route) : ''
@@ -157,14 +188,20 @@ export function LibraryPage() {
             || collection.name.toLocaleLowerCase().includes(folderQuery)
             || (collection.description ?? '').toLocaleLowerCase().includes(folderQuery))
 
-    // --- Selection (bulk organization; distinct from the group-chat selection) ------------
+    // --- Selection & Drag state ---------------------------------------------------------
     const [selectionMode, setSelectionMode] = useState(false)
     const [selected, setSelected] = useState<ReadonlyMap<string, GalleryItem>>(new Map())
+    const [draggingItems, setDraggingItems] = useState<GalleryItem[] | null>(null)
+    const [dragOverTargetId, setDragOverTargetId] = useState<string | null>(null)
+    const [droppingTargetId, setDroppingTargetId] = useState<string | null>(null)
     const selectionScope = `${workspaceEpoch}:${route.collectionId ?? ''}`
     const [appliedSelectionScope, setAppliedSelectionScope] = useState(selectionScope)
     if (appliedSelectionScope !== selectionScope) {
         setAppliedSelectionScope(selectionScope)
         setSelected(new Map())
+        setDraggingItems(null)
+        setDragOverTargetId(null)
+        setDroppingTargetId(null)
     }
     const toggleSelected = (item: GalleryItem) => setSelected((current) => {
         const next = new Map(current)
@@ -189,6 +226,8 @@ export function LibraryPage() {
     const [pendingDeleteCollection, setPendingDeleteCollection] = useState<Collection | null>(null)
     const [deletingCollection, setDeletingCollection] = useState(false)
     const [membershipBusy, setMembershipBusy] = useState(false)
+
+    const pickerMemberships = useMemo(() => summarizeCardMemberships(pickerFor ?? []), [pickerFor])
 
     const actions = useGalleryCardActions({
         api,
@@ -242,6 +281,9 @@ export function LibraryPage() {
         setCollectionForm(null)
         setPendingDeleteCollection(null)
         setSelectionMode(false)
+        setDraggingItems(null)
+        setDragOverTargetId(null)
+        setDroppingTargetId(null)
     }
 
     // --- Reveal (View card) and the creator's return highlight ----------------------------
@@ -281,6 +323,15 @@ export function LibraryPage() {
         if (!revealedItem || !isContentTypeFeatureEnabled(revealedItem.galleryType)) return visible
         return [revealedItem, ...visible.filter((item) => libraryItemKey(item) !== libraryItemKey(revealedItem))]
     }, [cards.items, revealedItem, featureFlagGeneration])
+
+    const itemByKey = useMemo(
+        () => new Map(displayItems.map((item) => [libraryItemKey(item), item])),
+        [displayItems],
+    )
+    const draggingKeys = useMemo(
+        () => new Set((draggingItems ?? []).map(libraryItemKey)),
+        [draggingItems],
+    )
 
     const [pendingReturn, setPendingReturn] = useState<ReturnType<typeof takeLibraryReturn>>(null)
     useEffect(() => {
@@ -337,7 +388,7 @@ export function LibraryPage() {
 
     // --- Navigation between root and folders ----------------------------------------------
     const openFolder = (collection: Collection) => {
-        rootScroll.set(locationKey, mainScroller()?.scrollTop ?? 0)
+        if (!inCollection) rootScroll.set(locationKey, mainScroller()?.scrollTop ?? 0)
         // A folder starts unfiltered at All types; the root keeps its search for the return.
         setPage('library', { hash: buildLibraryHash({ workspaceId: selectedWorkspaceId, collectionId: collection.id }) })
     }
@@ -377,6 +428,15 @@ export function LibraryPage() {
             return membershipError(error)
         }
         if (!isCurrent(scope)) return null
+        if (!route.uncollected) {
+            for (const item of items) {
+                let nextItem = item
+                for (const collectionId of collectionIds) {
+                    nextItem = withUpdatedCardMembership(nextItem, collectionId, 'add', selectedWorkspaceId)
+                }
+                if (nextItem !== item) cards.upsertItem(nextItem)
+            }
+        }
         forgetLibraryCards(selectedWorkspaceId)
         void collectionsState.refresh()
         if (route.uncollected) cards.refresh()
@@ -414,6 +474,101 @@ export function LibraryPage() {
         } finally {
             setMembershipBusy(false)
         }
+    }
+
+    // --- Drag-and-drop handlers ---------------------------------------------------------
+    const resolveActiveDragItems = (event?: DragEvent<HTMLElement>): GalleryItem[] => {
+        if (draggingItems && draggingItems.length > 0) return draggingItems
+        const keys = readLibraryDragKeys(event)
+        return keys
+            .map((key) => itemByKey.get(key) ?? selected.get(key))
+            .filter((item): item is GalleryItem => Boolean(item))
+    }
+
+    const startCardDrag = (event: DragEvent<HTMLDivElement>, item: GalleryItem) => {
+        if (readOnly) {
+            event.preventDefault()
+            return
+        }
+        const items = resolveDragItems(item, selected)
+        const badgeLabel = items.length === 1 ? items[0].title : t('library.drag.dragCount', { count: items.length })
+        writeLibraryDragData(event, items, badgeLabel)
+        setDraggingItems(items)
+    }
+
+    const endCardDrag = () => {
+        clearLibraryDragData()
+        setDraggingItems(null)
+        setDragOverTargetId(null)
+    }
+
+    const folderDropState = (collection: Collection): FolderDropState => {
+        if (readOnly || collection.id === route.collectionId) return 'idle'
+        if (droppingTargetId === collection.id) return 'dropping'
+        if (!draggingItems || draggingItems.length === 0) return 'idle'
+        const allAlreadyIn = draggingItems.every((item) => cardCollectionIds(item).includes(collection.id))
+        if (allAlreadyIn) return 'member'
+        return dragOverTargetId === collection.id ? 'over' : 'ready'
+    }
+
+    const folderDropLabel = (): string => {
+        const count = draggingItems?.length ?? 1
+        return count > 1 ? t('library.drag.addMany', { count }) : t('library.drag.addOne')
+    }
+
+    const handleFolderDragOver = (event: DragEvent<HTMLDivElement>, collection: Collection) => {
+        if (readOnly || collection.id === route.collectionId || !hasLibraryDragData(event)) return
+        event.preventDefault()
+        if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
+        if (dragOverTargetId !== collection.id) setDragOverTargetId(collection.id)
+    }
+
+    const handleFolderDragLeave = (event: DragEvent<HTMLDivElement>, collection: Collection) => {
+        if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+        if (dragOverTargetId === collection.id) setDragOverTargetId(null)
+    }
+
+    const handleFolderDrop = (event: DragEvent<HTMLDivElement>, collection: Collection) => {
+        event.preventDefault()
+        const items = resolveActiveDragItems(event)
+        endCardDrag()
+        if (readOnly || collection.id === route.collectionId || items.length === 0) return
+        const allAlreadyIn = items.every((item) => cardCollectionIds(item).includes(collection.id))
+        if (allAlreadyIn) {
+            setNotice({
+                tone: 'success',
+                title: t('library.drag.alreadyInNotice', { name: collection.name }),
+            })
+            return
+        }
+        setDroppingTargetId(collection.id)
+        void addToCollections(items, [collection.id])
+            .then((message) => {
+                if (message) setNotice({ tone: 'error', title: message })
+            })
+            .finally(() => {
+                setDroppingTargetId((current) => (current === collection.id ? null : current))
+            })
+    }
+
+    const handleRemoveDragOver = (event: DragEvent<HTMLDivElement>) => {
+        if (readOnly || !inCollection || !hasLibraryDragData(event)) return
+        event.preventDefault()
+        if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
+        if (dragOverTargetId !== 'remove') setDragOverTargetId('remove')
+    }
+
+    const handleRemoveDragLeave = (event: DragEvent<HTMLDivElement>) => {
+        if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+        if (dragOverTargetId === 'remove') setDragOverTargetId(null)
+    }
+
+    const handleRemoveDrop = (event: DragEvent<HTMLDivElement>) => {
+        event.preventDefault()
+        const items = resolveActiveDragItems(event)
+        endCardDrag()
+        if (readOnly || !inCollection || items.length === 0) return
+        void removeFromCollection(items)
     }
 
     // --- Collections CRUD (versions via If-Match) -----------------------------------------
@@ -567,6 +722,14 @@ export function LibraryPage() {
         return item.galleryType === 'adventure' && item.eyebrow ? `${base} · ${item.eyebrow}` : base
     }
 
+    const cardCollectionNames = useCallback(
+        (item: GalleryItem): string[] =>
+            cardCollectionIds(item)
+                .map((id) => collectionNameById.get(id))
+                .filter((name): name is string => Boolean(name)),
+        [collectionNameById],
+    )
+
     const primaryAction = (item: GalleryItem) => {
         if (selectionMode) toggleSelected(item)
         else actions.primaryAction(item)
@@ -594,12 +757,20 @@ export function LibraryPage() {
     const notice = actions.notice ?? importHook.actionNotice
     const closeNotice = () => (actions.notice ? setNotice(null) : importHook.setActionNotice(null))
     const showCounts = !cards.loading && !cards.error
+    const showEmptyCollectionsPrompt =
+        !inCollection &&
+        !readOnly &&
+        !filtersActive &&
+        !collectionsState.loading &&
+        !collectionsState.error &&
+        collections.length === 0
 
     return (
         <div className="mx-auto flex w-full max-w-[1160px] flex-col gap-6 px-5 py-8 sm:px-8 sm:py-10">
             <PageHeader
                 eyebrow={selectedWorkspace?.name ?? t('library.eyebrow')}
                 title={currentCollection?.name ?? t('library.title')}
+                subtitle={currentCollection?.description ?? undefined}
                 size="lg"
                 actions={
                     <div className="flex flex-wrap items-center gap-3">
@@ -612,6 +783,15 @@ export function LibraryPage() {
                             >
                                 {t('library.groupChat')}
                             </Button>
+                        )}
+                        {inCollection && currentCollection && !readOnly && (
+                            <CardOptions
+                                options={folderOptions(currentCollection)}
+                                forceMenu
+                                aria-label={t('library.folder.menu', { name: currentCollection.name })}
+                                className="shrink-0"
+                                triggerTestId="collection-header-options-button"
+                            />
                         )}
                         {!readOnly && (
                             <LibraryNewMenu
@@ -647,6 +827,56 @@ export function LibraryPage() {
                     <span aria-current="location" className="font-semibold text-fg">{t('library.location.root')}</span>
                 )}
             </nav>
+
+            {inCollection && collections.length > 0 && (
+                <div
+                    role="region"
+                    aria-label={t('library.sections.shelfLabel')}
+                    data-testid="library-collection-shelf"
+                    className="-mt-2 flex items-center gap-2 overflow-x-auto pb-1"
+                >
+                    {!readOnly && currentCollection && (
+                        <div
+                            data-testid="library-drop-remove"
+                            data-drop-state={dragOverTargetId === 'remove' ? 'over' : draggingItems ? 'ready' : 'idle'}
+                            onDragOver={handleRemoveDragOver}
+                            onDragEnter={handleRemoveDragOver}
+                            onDragLeave={handleRemoveDragLeave}
+                            onDrop={handleRemoveDrop}
+                            className={cx(
+                                'inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 font-ui text-xs font-semibold transition-all',
+                                dragOverTargetId === 'remove'
+                                    ? 'border-blood-500 bg-blood-500/15 text-blood-300 shadow-glow-blood scale-[1.01]'
+                                    : draggingItems
+                                      ? 'border-dashed border-ember-500/50 bg-surface-raised/90 text-ember-300'
+                                      : 'border-line-faint bg-surface-raised/40 text-fg-muted',
+                            )}
+                        >
+                            <Icon icon={FolderMinus} size={14} className="shrink-0" />
+                            <span>
+                                {dragOverTargetId === 'remove'
+                                    ? t('library.drag.dropRemoveHint', { name: currentCollection.name })
+                                    : t('library.drag.removeFrom', { name: currentCollection.name })}
+                            </span>
+                        </div>
+                    )}
+                    {collections.map((collection) => (
+                        <CollectionFolder
+                            key={collection.id}
+                            collection={collection}
+                            view="pill"
+                            active={collection.id === route.collectionId}
+                            dropState={folderDropState(collection)}
+                            dropLabel={folderDropLabel()}
+                            onOpen={() => openFolder(collection)}
+                            onDragOver={(event) => handleFolderDragOver(event, collection)}
+                            onDragEnter={(event) => handleFolderDragOver(event, collection)}
+                            onDragLeave={(event) => handleFolderDragLeave(event, collection)}
+                            onDrop={(event) => handleFolderDrop(event, collection)}
+                        />
+                    ))}
+                </div>
+            )}
 
             <div className="flex flex-wrap items-center gap-3 border-b border-line-faint pb-5">
                 <div className="relative flex w-full items-center sm:w-80 sm:max-w-full">
@@ -765,24 +995,59 @@ export function LibraryPage() {
                 onClose={closeNotice}
             />
 
-            <div className="flex flex-col gap-4" data-testid="library-browser">
-                {visibleFolders.length > 0 && (
-                    <ul
-                        className={cx('grid gap-3', layoutView === 'list' ? 'grid-cols-1' : 'grid-cols-[repeat(auto-fill,minmax(220px,1fr))]')}
-                        aria-label={t('library.counts.collections', { count: visibleFolders.length })}
-                        data-testid="library-folders"
-                    >
-                        {visibleFolders.map((collection) => (
-                            <li key={collection.id}>
-                                <CollectionFolder
-                                    collection={collection}
-                                    view={layoutView === 'list' ? 'row' : 'card'}
-                                    onOpen={() => openFolder(collection)}
-                                    options={folderOptions(collection)}
-                                />
-                            </li>
-                        ))}
-                    </ul>
+            <div className="flex flex-col gap-5" data-testid="library-browser">
+                {!inCollection && (visibleFolders.length > 0 || showEmptyCollectionsPrompt) && (
+                    <section className="flex flex-col gap-3" aria-label={t('library.sections.collections')}>
+                        <SectionHeader
+                            icon={Folder}
+                            title={t('library.sections.collections')}
+                            right={
+                                !readOnly ? (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        iconLeft={<Icon icon={FolderPlus} size={15} />}
+                                        onClick={() => setCollectionForm({ mode: 'create' })}
+                                        data-testid="library-quick-new-collection"
+                                    >
+                                        {t('library.newMenu.collection')}
+                                    </Button>
+                                ) : undefined
+                            }
+                        />
+                        {visibleFolders.length > 0 ? (
+                            <ul
+                                className={cx('grid gap-3', layoutView === 'list' ? 'grid-cols-1' : 'grid-cols-[repeat(auto-fill,minmax(240px,1fr))]')}
+                                aria-label={t('library.counts.collections', { count: visibleFolders.length })}
+                                data-testid="library-folders"
+                            >
+                                {visibleFolders.map((collection) => (
+                                    <li key={collection.id}>
+                                        <CollectionFolder
+                                            collection={collection}
+                                            view={layoutView === 'list' ? 'row' : 'card'}
+                                            dropState={folderDropState(collection)}
+                                            dropLabel={folderDropLabel()}
+                                            onOpen={() => openFolder(collection)}
+                                            options={folderOptions(collection)}
+                                            onDragOver={(event) => handleFolderDragOver(event, collection)}
+                                            onDragEnter={(event) => handleFolderDragOver(event, collection)}
+                                            onDragLeave={(event) => handleFolderDragLeave(event, collection)}
+                                            onDrop={(event) => handleFolderDrop(event, collection)}
+                                        />
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : (
+                            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-line bg-surface-raised/30 px-4 py-3">
+                                <p className="font-ui text-sm text-fg-muted">{t('library.sections.emptyCollectionsHint')}</p>
+                            </div>
+                        )}
+                    </section>
+                )}
+
+                {!inCollection && (visibleFolders.length > 0 || showEmptyCollectionsPrompt) && (
+                    <SectionHeader icon={Sparkles} title={t('library.sections.cards')} />
                 )}
 
                 <CardGrid
@@ -803,7 +1068,9 @@ export function LibraryPage() {
                     renderCard={(item) => {
                         const key = libraryItemKey(item)
                         const isSelected = selected.has(key)
+                        const isDragging = draggingKeys.has(key)
                         const usageType = versionableCardTypeFor(item.galleryType)
+                        const itemCollections = !inCollection ? cardCollectionNames(item) : undefined
                         return (
                             <GalleryCard
                                 id={item.id}
@@ -822,6 +1089,11 @@ export function LibraryPage() {
                                 hasDraft={item.hasDraft}
                                 usageCardType={usageType ?? undefined}
                                 usageEnabled={usageType !== null}
+                                collectionNames={itemCollections}
+                                draggable={!readOnly}
+                                isDragging={isDragging}
+                                onDragStart={(event) => startCardDrag(event, item)}
+                                onDragEnd={endCardDrag}
                                 shareOptions={selectionMode ? undefined : actions.shareOptionsFor(item)}
                                 deleting={actions.deletingId === item.id}
                                 onClick={() => primaryAction(item)}
@@ -866,6 +1138,8 @@ export function LibraryPage() {
                 loading={collectionsState.loading}
                 cardCount={pickerFor?.length ?? 0}
                 excludeId={route.collectionId}
+                memberCollectionIds={pickerMemberships.allIn}
+                partialCollectionIds={pickerMemberships.someIn}
                 onClose={() => setPickerFor(null)}
                 onCreateCollection={() => setCollectionForm({ mode: 'create', thenAddTo: pickerFor ?? undefined })}
                 onConfirm={(ids) => addToCollections(pickerFor ?? [], ids)}

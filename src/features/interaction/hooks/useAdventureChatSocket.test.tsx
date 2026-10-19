@@ -230,14 +230,14 @@ describe('useAdventureChatSocket image lifecycle dispatch', () => {
 
     socketHandlers?.onMessage({
       type: 'segments',
-      responseFormat: 'mw_xml_v1',
+      responseFormat: 'mw_json_segments_v1',
       displayText: 'Lyra: The door listens.',
       segments: [{ kind: 'speech', speaker_id: 'lyra', speaker_name: 'Lyra', content: 'The door listens.' }],
     })
 
     expect(onSegments).toHaveBeenCalledWith({
       type: 'segments',
-      responseFormat: 'mw_xml_v1',
+      responseFormat: 'mw_json_segments_v1',
       displayText: 'Lyra: The door listens.',
       segments: [{ kind: 'speech', speaker_id: 'lyra', speaker_name: 'Lyra', content: 'The door listens.' }],
     })

@@ -34,7 +34,7 @@ import {mergeHydratedChatTurns} from '../utils/chatTurnMerge'
 import {isUnsavedReply, lastUserIndex, latestExchangeReply, transcriptItems, unsavedReplyReason} from '../utils/chatTurnVisibility'
 import {isCallReply, isCallTurn, turnVoiceSessionId} from '../utils/callTurnMarkup'
 import {buildCallTranscriptHash} from '@/features/call/callLinks'
-import {finalizeResponseSegments, resolveSegmentIdentity, segmentsToPlainText, streamingXmlToPlainText, streamingXmlToSegments} from '@/utils/chatSegments'
+import {ChatJsonPreview, finalizeResponseSegments, resolveSegmentIdentity, segmentsToPlainText} from '@/utils/chatSegments'
 import { scrollBehavior } from '@/utils/motion'
 import { isSessionPersonaError } from '@/utils/characterRoles'
 import type { LlmFeature } from '@/shared/types/llm.types'
@@ -128,8 +128,10 @@ const TTS_PENDING_WATCHDOG_MS = 15_000
 // Recover from a generation whose `done`/`error` frame never arrives (server
 // stall, half-open or torn-down socket): without this the composer is stuck on
 // "Stop" forever. Every streaming frame re-arms the timer, so it only measures
-// silence — the window sits above the backend's 120s agent-graph timeout.
-const GENERATION_WATCHDOG_MS = 130_000
+// silence. BFF chat roles are bounded to 30s preflight + 120s primary + 120s
+// metadata. Allow that whole interval plus 30s for transport, including filtered
+// provider output; socket loss and server deadlines still apply.
+const GENERATION_WATCHDOG_MS = 300_000
 // Stable request key per (assistantMessageId, turnId), stored server-side for
 // tracing. Dedupe itself is content-hash based on the server (an in-flight or
 // completed job for the same turn + text + voice is reused).
@@ -260,7 +262,7 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
     // the in-flight AI turn without being recreated every render.
     const turnsRef = useRef<TurnEntry[]>(turns)
     const streamingIdRef = useRef<string | null>(null)
-    const rawResponseRef = useRef('')
+    const jsonPreviewRef = useRef<ChatJsonPreview | null>(null)
     const recoveryRef = useRef<{ assistantMessageId?: number; turnId?: string; requestId?: string; until: number } | null>(null)
     // The last request this panel sent, kept until it settles so Retry can resume
     // it by the same request ID (and frame) instead of running the turn twice.
@@ -422,7 +424,7 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
             setTurnState(turnsRef.current.map((t) => (t.id === id ? unsavedReply(t as ExtendedTurnEntry) : t)))
         }
         streamingIdRef.current = null
-        rawResponseRef.current = ''
+        jsonPreviewRef.current = null
         setIsLoading(false)
         setError(retryable ? message : null, retryable)
     }, [clearGenerationWatchdog, setError, setTurnState])
@@ -610,19 +612,13 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
                 if (!deltaBatchRef.current) deltaBatchRef.current = frameBatch<string>((chunks) => {
                     if (!streamingIdRef.current) return
                     const content = chunks.join('')
-                rawResponseRef.current += content
-                const raw = rawResponseRef.current
-                // Paint live per-speaker segments when the XML voice markup is present;
-                // otherwise fall back to flattened prose (no regression). The
-                // authoritative `segments` frame replaces these once the turn finishes.
-                const { segments } = streamingXmlToSegments(raw)
-                const plain = streamingXmlToPlainText(raw)
-                if (segments.length) {
-                    const resolved = resolveSegmentIdentity(segments, rosterRef.current.map)
-                    updateStreamingTurn((t) => ({ ...t, segments: resolved, content: plain }))
-                } else {
-                    updateStreamingTurn((t) => ({ ...t, segments: undefined, content: plain }))
-                }
+                    try {
+                        jsonPreviewRef.current ??= new ChatJsonPreview(rosterRef.current.map)
+                        const segments = jsonPreviewRef.current.feed(content)
+                        updateStreamingTurn((turn) => ({ ...turn, segments, content: segmentsToPlainText(segments, t) }))
+                    } catch {
+                        failStreamingTurn(t('interaction.center.generateFailed'))
+                    }
                 })
                 deltaBatchRef.current.push(content)
             },
@@ -633,11 +629,11 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
                     ...(imagePrompt !== undefined ? { imagePrompt } : {}),
                 }))
             },
-            onSegments: ({ segments, displayText }) => {
+            onSegments: ({ segments }) => {
                 deltaBatchRef.current?.flush()
                 armGenerationWatchdog()
                 const resolved = resolveSegmentIdentity(segments, rosterRef.current.map)
-                const content = displayText?.trim() || segmentsToPlainText(resolved)
+                const content = segmentsToPlainText(resolved, t)
                 updateStreamingTurn((t) => ({ ...t, segments: resolved, content: content || t.content }))
             },
             onDone: ({ interrupted, userMessageId, assistantMessageId, turnId, imageScheduled }) => {
@@ -685,12 +681,12 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
                 const finished = next.find((turn) => turn.id === finishedId) as ExtendedTurnEntry | undefined
                 const announceText = finished && !interrupted
                     ? finished.segments?.length
-                        ? segmentsToPlainText(finished.segments)
+                        ? segmentsToPlainText(finished.segments, t)
                         : finished.content ?? ''
                     : ''
                 if (announceText.trim()) setLiveAnnouncement(announceText.trim())
                 streamingIdRef.current = null
-                rawResponseRef.current = ''
+                jsonPreviewRef.current = null
                 setIsLoading(false)
                 if (isPageFocused()) void hydrateTurnsFromApi()
                 // Auto-narrate: request TTS for the just-finished GM turn. The audio
@@ -1006,7 +1002,7 @@ export function InteractionCenterPanel({sessionId: initialSessionId, ensureSessi
         deltaBatchRef.current?.cancel()
         recoveryRef.current = null
         streamingIdRef.current = aiTurn.id
-        rawResponseRef.current = ''
+        jsonPreviewRef.current = null
         rosterRef.current = { map: seededRosterMap(), narrator: null }
 
         const requestId = resume?.requestId ?? generateUUID()

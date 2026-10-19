@@ -141,6 +141,7 @@ export const TYPE_SCALE: TypeToken[] = [
   { token: '--text-h2', label: 'h2', family: '--font-display', sample: 'Featured worlds' },
   { token: '--text-h3', label: 'h3', family: '--font-display', sample: 'Your characters' },
   { token: '--text-narrative', label: 'narrative', family: '--font-narrative', sample: 'She looks up — and recognizes you.' },
+  { token: '--text-roleplay', label: 'roleplay', family: '--font-narrative', sample: 'Come in. I kept the lantern lit.' },
   { token: '--text-manuscript-small', label: 'manuscript · small', family: '--font-narrative', sample: 'The letter waited by the window.' },
   { token: '--text-manuscript-standard', label: 'manuscript · standard', family: '--font-narrative', sample: 'The letter waited by the window.' },
   { token: '--text-manuscript-large', label: 'manuscript · large', family: '--font-narrative', sample: 'The letter waited by the window.' },

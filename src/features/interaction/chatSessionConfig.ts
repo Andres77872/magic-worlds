@@ -13,7 +13,7 @@ import type {
     ForwardOption,
     TurnEntry,
 } from '../../shared'
-import { finalizeResponseSegments, streamingXmlToPlainText, streamingXmlToSegments } from '@/utils/chatSegments'
+import { segmentsToPlainText } from '@/utils/chatSegments'
 import type { ApiService } from '../../infrastructure/api'
 import { legacyGenerationFromMetadata, parseGenerations } from './utils/chatImageStore'
 
@@ -118,17 +118,16 @@ export function storedMessagesToTurns(messages: StoredConversationMessage[]): Tu
                     : [legacyGenerationFromMetadata(metadata, message.message_id)].filter((generation) => generation !== null)
 
             const interrupted = message.role === 'assistant' && (message.status === 'interrupted' || message.status === 'failed')
-            const partialSegments = interrupted && !segments?.length ? finalizeResponseSegments(streamingXmlToSegments(message.content).segments) : undefined
             return {
                 id: String(message.message_id),
                 type: message.role === 'assistant' ? 'ai' : message.role,
-                content: displayText || (interrupted ? streamingXmlToPlainText(message.content) : message.content),
+                content: metadata.response_format === 'mw_json_segments_v1' ? segmentsToPlainText(segments) : displayText || message.content,
                 timestamp: message.completed_at ?? message.updated_at ?? message.created_at,
                 metadata: interrupted ? { ...metadata, interrupted: true } : metadata,
                 isStreaming: message.status === 'pending' || message.status === 'streaming',
                 turnId: message.turn_id,
                 ...(message.role === 'assistant' ? { assistantMessageId: message.message_id } : {}),
-                ...(segments?.length ? { segments } : partialSegments?.length ? { segments: partialSegments } : {}),
+                ...(segments?.length ? { segments } : {}),
                 ...(forwardOptions?.length ? { forwardOptions } : {}),
                 ...(imagePrompt ? { imagePrompt } : {}),
                 ...(imageGenerations?.length ? { imageGenerations } : {}),

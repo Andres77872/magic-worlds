@@ -221,4 +221,29 @@ describe('GalleryCard', () => {
             expect(onCardClick).not.toHaveBeenCalled()
         })
     })
+
+    it('renders a compact collection membership badge and wires drag handlers', () => {
+        const onDragStart = vi.fn()
+        const onDragEnd = vi.fn()
+        renderWithPlaylist(
+            <GalleryCard
+                title="Lyra"
+                collectionNames={['Sketches', 'Ashfall cast']}
+                draggable
+                onDragStart={onDragStart}
+                onDragEnd={onDragEnd}
+            />,
+        )
+        const badge = screen.getByTestId('card-collection-badge')
+        expect(badge).toHaveTextContent('Sketches +1')
+        expect(badge).toHaveAttribute('title', 'Sketches, Ashfall cast')
+
+        const card = screen.getByTestId('gallery-card')
+        expect(card).toHaveAttribute('draggable', 'true')
+        fireEvent.dragStart(card)
+        fireEvent.dragEnd(card)
+        expect(onDragStart).toHaveBeenCalledTimes(1)
+        expect(onDragEnd).toHaveBeenCalledTimes(1)
+    })
 })
+

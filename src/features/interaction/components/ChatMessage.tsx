@@ -1,8 +1,9 @@
-import { Fragment, memo, useContext, type ReactNode } from 'react'
+import { createContext, Fragment, memo, useContext, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { streamingMarkdown } from '../utils/roleplayMarkdown'
 import type { ChatNarratorIdentity, ChatResponseSegment } from '../../../shared'
 import { Avatar, cx, Eyebrow } from '../../../ui/primitives'
 import {
@@ -68,140 +69,97 @@ function TildeSpan({ source, node, children }: { source: string; node?: any; chi
     return single ? <em className="rp-action">{children}</em> : <del>{children}</del>
 }
 
-// Process text nodes to handle dialogue formatting
-function processTextContent(content: string): ReactNode[] {
-    const parts = content.split(/("([^"]+)")/g);
-    const result: ReactNode[] = [];
+const RoleplayRenderContext = createContext({ content: '', narrator: false, thought: false })
 
-    for (let i = 0; i < parts.length; i++) {
-        const part = parts[i];
-        if (part.startsWith('"') && part.endsWith('"')) {
-            // This is dialogue
-            result.push(
-                <span key={i} className="rp-dialogue">
-                    {part}
-                </span>
-            );
-        } else if (part.trim()) {
-            // Regular text
-            result.push(part);
-        }
-    }
+// Stable component types keep active paragraphs mounted as their text grows.
+const markdownComponents = {
+    [LORE_TRIGGER_TAG]: LoreTriggerComponent,
+    p: function Paragraph({ children }: { children?: ReactNode }) {
+        const { narrator, thought } = useContext(RoleplayRenderContext)
+        return <p className={cx('markdown-paragraph', !narrator && 'm-0 mb-3 last:mb-0', thought && 'italic')}>{children}</p>
+    },
+    h2: ({ children }) => <h2 className="markdown-h2">{children}</h2>,
+    h3: ({ children }) => <h3 className="markdown-h3">{children}</h3>,
+    ul: ({ children }) => <ul className="markdown-list">{children}</ul>,
+    ol: ({ children }) => <ol className="markdown-list markdown-list-ordered">{children}</ol>,
+    li: ({ children }) => <li className="markdown-list-item">{children}</li>,
+    blockquote: ({ children }) => <blockquote className="markdown-blockquote">{children}</blockquote>,
+    code: ({ children }) => <code className="markdown-code-inline">{children}</code>,
+    pre: ({ children }) => <span className="whitespace-pre-wrap">{children}</span>,
+    em: function Emphasis({ children }: { children?: ReactNode }) {
+        const { thought } = useContext(RoleplayRenderContext)
+        return <em className={thought ? undefined : 'rp-action'}>{children}</em>
+    },
+    del: function Deletion({ node, children }) {
+        const { content } = useContext(RoleplayRenderContext)
+        return <TildeSpan source={content} node={node}>{children}</TildeSpan>
+    },
+    strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+    // Owned media and lore are separate components. Model Markdown cannot load/navigate.
+    a: ({ children }) => <>{children}</>,
+    img: ({ alt }) => <>{alt}</>,
+} satisfies Components & Record<typeof LORE_TRIGGER_TAG, typeof LoreTriggerComponent>
 
-    return result.length > 0 ? result : [content];
-}
-
-function ProseMarkdown({ content }: { content: string }) {
+const RoleplayMarkdown = memo(function RoleplayMarkdown({ content, narrator = false, thought = false, isStreaming = false }: {
+    content: string; narrator?: boolean; thought?: boolean; isStreaming?: boolean
+}) {
     const matcher = useContext(LoreTriggerContext)
     return (
+        <RoleplayRenderContext.Provider value={{ content, narrator, thought }}>
         <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             rehypePlugins={matcher ? [[rehypeLoreTriggers, { matcher }]] : undefined}
-            components={{
-                [LORE_TRIGGER_TAG]: LoreTriggerComponent,
-                p: ({children}) => <p className="markdown-paragraph">{children}</p>,
-                h1: ({children}) => <h1 className="markdown-h1">{children}</h1>,
-                h2: ({children}) => <h2 className="markdown-h2">{children}</h2>,
-                h3: ({children}) => <h3 className="markdown-h3">{children}</h3>,
-                ul: ({children}) => <ul className="markdown-list">{children}</ul>,
-                ol: ({children}) => <ol className="markdown-list markdown-list-ordered">{children}</ol>,
-                li: ({children}) => <li className="markdown-list-item">{children}</li>,
-                blockquote: ({children}) => <blockquote className="markdown-blockquote">{children}</blockquote>,
-                code: ({inline, className, children}: any) => {
-                    return inline ? (
-                        <code className="markdown-code-inline">{children}</code>
-                    ) : (
-                        <code className={`markdown-code-block ${className || ''}`}>
-                            {children}
-                        </code>
-                    )
-                },
-                em: ({children}) => <em className="rp-action">{children}</em>,
-                del: ({node, children}) => <TildeSpan source={content} node={node}>{children}</TildeSpan>,
-                strong: ({children}) => <strong className="rp-thought">{children}</strong>,
-                hr: () => <hr className="markdown-divider" />,
-                text: ({value}: any) => {
-                    const processed = processTextContent(value);
-                    return <>{processed}</>;
-                },
-            } as Components}
+            allowedElements={[
+                'p', 'em', 'strong', 'del', 'br', 'a', 'img', LORE_TRIGGER_TAG,
+                ...(narrator ? ['h2', 'h3', 'ul', 'ol', 'li', 'blockquote', 'code', 'pre'] : []),
+            ]}
+            unwrapDisallowed
+            components={markdownComponents}
         >
-            {content}
+            {isStreaming ? streamingMarkdown(content) : content}
         </ReactMarkdown>
+        </RoleplayRenderContext.Provider>
     )
-}
+})
 
-function SegmentMarkdown({ content, thought = false }: { content: string; thought?: boolean }) {
-    const matcher = useContext(LoreTriggerContext)
-    return (
-        <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            rehypePlugins={matcher ? [[rehypeLoreTriggers, { matcher }]] : undefined}
-            components={{
-                [LORE_TRIGGER_TAG]: LoreTriggerComponent,
-                p: ({children}) => <p className={cx('m-0', thought && 'italic')}>{children}</p>,
-                em: ({children}) => <em className={thought ? undefined : 'rp-action'}>{children}</em>,
-                del: ({node, children}) => <TildeSpan source={content} node={node}>{children}</TildeSpan>,
-                strong: ({children}) => <strong className="rp-thought">{children}</strong>,
-                text: ({value}: any) => <>{processTextContent(value)}</>,
-            } as Components}
-        >
-            {content}
-        </ReactMarkdown>
-    )
-}
-
-function ChatSegments({ segments, soloSpeakerId }: { segments: ChatResponseSegment[]; soloSpeakerId?: string }) {
+const ChatSegment = memo(function ChatSegment({ segment, soloSpeakerId, continuesSpeaker = false }: {
+    segment: ChatResponseSegment; soloSpeakerId?: string; continuesSpeaker?: boolean
+}) {
     const { t } = useTranslation()
+    if (segment.kind === 'narrator') {
+        return <div className="chat-prose roleplay-prose roleplay-narration"><RoleplayMarkdown content={segment.content} narrator isStreaming={segment.streaming} /></div>
+    }
+    const isThought = segment.kind === 'thought'
+    const speakerName = segment.speaker_name || segment.speaker_id || t('interaction.chat.fallbackCharacter')
+    const showSpeaker = !continuesSpeaker && (isThought || !soloSpeakerId || segment.speaker_id !== soloSpeakerId)
     return (
-        <div className="flex w-full flex-col gap-5">
-            {segments.map((segment, index) => {
-                if (segment.kind === 'narrator') {
-                    return (
-                        <div key={`${segment.kind}-${index}`} className="chat-prose">
-                            <ProseMarkdown content={segment.content} />
-                        </div>
-                    )
-                }
-
-                const isThought = segment.kind === 'thought'
-                const speakerName = segment.speaker_name || segment.speaker_id || t('interaction.chat.fallbackCharacter')
-                // Thoughts keep their "{name} thinks" label: it marks them as unspoken.
-                const showSpeaker = isThought || !soloSpeakerId || segment.speaker_id !== soloSpeakerId
-                return (
-                    <div
-                        key={`${segment.kind}-${segment.speaker_id || speakerName}-${index}`}
-                        className={cx(
-                            'w-full border-l-2 pl-4',
-                            isThought
-                                ? 'border-arcane-500/30 text-parchment-200'
-                                : 'border-parchment-50/15 text-parchment-100',
-                        )}
-                    >
-                        {showSpeaker && <div className="mb-1.5 flex items-center gap-2">
-                            <Avatar
-                                name={speakerName}
-                                src={segment.image_url ?? undefined}
-                                size={24}
-                                ring={isThought ? 'arcane' : 'none'}
-                                // Only the segment being generated pulses. `animate-think`
-                                // is an infinite box-shadow keyframe (a blur re-raster every
-                                // frame); gating on isThought alone left one running per
-                                // thought in the whole log, on-screen or not.
-                                status={segment.streaming ? (isThought ? 'think' : 'live') : 'none'}
-                            />
-                            <Eyebrow tone={isThought ? 'arcane' : 'muted'} className="text-caption">
-                                {isThought ? t('interaction.chat.speakerThinks', { name: speakerName }) : speakerName}
-                            </Eyebrow>
-                        </div>}
-                        <div className="chat-segment font-narrative text-narrative break-words">
-                            <SegmentMarkdown content={segment.content} thought={isThought} />
-                        </div>
-                    </div>
-                )
-            })}
+        <div className="w-full min-w-0">
+            {showSpeaker && <div className="mb-1.5 flex items-center gap-2">
+                <Avatar name={speakerName} src={segment.image_url ?? undefined} size={24}
+                    ring={isThought ? 'arcane' : 'none'} status={segment.streaming ? (isThought ? 'think' : 'live') : 'none'} />
+                <Eyebrow tone={isThought ? 'arcane' : 'muted'} className="text-caption">
+                    {isThought ? t('interaction.chat.speakerThinks', { name: speakerName }) : speakerName}
+                </Eyebrow>
+            </div>}
+            <div className={cx('chat-segment break-words', isThought ? 'roleplay-thought' : 'roleplay-speech')}>
+                <RoleplayMarkdown content={segment.content} thought={isThought} isStreaming={segment.streaming} />
+            </div>
         </div>
     )
+})
+
+function ChatSegments({ segments, soloSpeakerId }: { segments: ChatResponseSegment[]; soloSpeakerId?: string }) {
+    return <div className="flex w-full flex-col gap-3">
+        {segments.map((segment, index) => {
+            const previous = segments[index - 1]
+            const continuesSpeaker = segment.kind !== 'narrator'
+                && Boolean(segment.speaker_id)
+                && previous?.kind === segment.kind
+                && previous.speaker_id === segment.speaker_id
+            return <ChatSegment key={`${index}-${segment.kind}-${segment.speaker_id ?? ''}`}
+                segment={segment} soloSpeakerId={soloSpeakerId} continuesSpeaker={continuesSpeaker} />
+        })}
+    </div>
 }
 
 function StreamingDots() {
@@ -261,8 +219,8 @@ export const ChatMessage = memo(function ChatMessage({ content, isUser, isStream
     // nested markdown renderers can wire up rehypeLoreTriggers without prop-drilling.
     return (
         <LoreTriggerContext.Provider value={loreMatcher ?? null}>
-        <div className={hasSegments ? 'w-full' : 'chat-prose'}>
-            {hasSegments ? <ChatSegments segments={segments!} soloSpeakerId={soloSpeakerId} /> : <ProseMarkdown content={content} />}
+        <div className={cx('roleplay-message font-narrative text-roleplay', hasSegments ? 'w-full' : 'chat-prose roleplay-prose')}>
+            {hasSegments ? <ChatSegments segments={segments!} soloSpeakerId={soloSpeakerId} /> : <RoleplayMarkdown content={content} narrator isStreaming={isStreaming} />}
             {/* With segments, paint the live "{who} is …" status; otherwise the plain dots. */}
             {isStreaming &&
                 (hasSegments ? (

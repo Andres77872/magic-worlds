@@ -88,7 +88,7 @@ export const GameMasterTurn: Story = {}
 /** Player turn — ember bubble, right-aligned. */
 export const PlayerTurn: Story = { args: { turn: userTurn } }
 
-/** Parsed XML segments with narrator, speech, and visible thought blocks. */
+/** Validated JSON segments with narrator, speech, and visible thought blocks. */
 export const StructuredSegments: Story = { args: { turn: structuredTurn } }
 
 /** Streaming — actions are hidden and the thinking dots show. */

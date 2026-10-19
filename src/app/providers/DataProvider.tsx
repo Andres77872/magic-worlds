@@ -650,7 +650,13 @@ export function DataProvider({ children }: DataProviderProps) {
                 createdDraftsRef.current.set(key, adventure)
             }
             if (draft.draft?.snapshotEdited && draft.snapshot) {
-                const response = await api.updateAdventureSnapshot(Number(adventure.id), writableAdventureSnapshot(draft.snapshot))
+                // Local setup carries the scenario but not always the template's
+                // required name. Keep the name from the newly created server clone.
+                const snapshotToSave = { ...draft.snapshot, template: {
+                    ...draft.snapshot.template,
+                    name: draft.snapshot.template.name ?? adventure.snapshot?.template.name,
+                } }
+                const response = await api.updateAdventureSnapshot(Number(adventure.id), writableAdventureSnapshot(snapshotToSave))
                 const snapshot = resolveAdventureSnapshot(response?.template_snapshot) ?? draft.snapshot
                 adventure = { ...adventure, ...adventureFieldsFromSnapshot(snapshot), snapshot }
                 createdDraftsRef.current.set(key, adventure)

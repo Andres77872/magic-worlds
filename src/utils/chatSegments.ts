@@ -1,202 +1,204 @@
+import type { TFunction } from 'i18next'
 import type { ChatResponseSegment, ChatResponseSegmentKind, ChatSpeakerRosterEntry } from '@/shared'
 
-const PRIVATE_THINK_BLOCK_RE = /<think>\s*[\s\S]*?<\/think>/gi
-const PRIVATE_THINK_TAIL_RE = /<think>\s*[\s\S]*$/i
-const CLOSE_VISIBLE_TAG_RE = /<\/(?:response|narrator|say|think)>/gi
-const OPEN_VISIBLE_TAG_RE = /<(?:response|narrator|say|think)(?:\s+[^>]*)?>/gi
-const PARTIAL_TAG_RE = /<[^>]*$/g
-const TAG_RE = /<[^>]+>/g
-/** Matches a visible-segment open tag (with optional attrs) OR its close tag. */
-const CHILD_TAG_RE = /<(narrator|say|think)((?:\s+[^>]*?)?)>|<\/(narrator|say|think)\s*>/gi
-const SPEAKER_ID_ATTR_RE = /speaker_id\s*=\s*(?:"([^"]*)"|'([^']*)')/i
+/** Consume the BFF's clean JSON prefix; no raw-text or XML fallback. */
+export class ChatJsonPreview {
+    private state = 'root'
+    private inString = false
+    private tokenRole = ''
+    private token = ''
+    private escaped = false
+    private unicode: string | null = null
+    private highSurrogate: number | null = null
+    private field = ''
+    private entry: Record<string, string> = {}
+    private keys = new Set<string>()
+    private bodyStarted = false
+    private rawChars = 0
+    private settled: ChatResponseSegment[] = []
+    private active: ChatResponseSegment | undefined
 
-export function stripPrivateThink(value: string): string {
-    return value.replace(PRIVATE_THINK_BLOCK_RE, '').replace(PRIVATE_THINK_TAIL_RE, '')
-}
+    private readonly roster: ReadonlyMap<string, ChatSpeakerRosterEntry>
 
-export function streamingXmlToPlainText(value: string): string {
-    const flattened = stripPrivateThink(value)
-        .replace(CLOSE_VISIBLE_TAG_RE, '\n')
-        .replace(OPEN_VISIBLE_TAG_RE, '')
-        .replace(PARTIAL_TAG_RE, '')
-        .replace(TAG_RE, '')
+    constructor(roster: ReadonlyMap<string, ChatSpeakerRosterEntry>) { this.roster = roster }
 
-    return decodeXmlEntities(flattened)
-        .split('\n')
-        .map((line) => line.replace(/[ \t]+/g, ' ').trim())
-        .filter(Boolean)
-        .join('\n')
-}
+    private fail(): never { throw new Error('Invalid roleplay JSON preview') }
 
-/**
- * Incrementally parse the partial XML voice stream into ordered display segments.
- *
- * Unlike the backend's `ET.fromstring` (which needs complete, well-formed XML),
- * this tolerates a mid-stream buffer: the last unclosed tag becomes a
- * `streaming: true` segment so the UI can paint who is currently speaking /
- * thinking / narrating. The authoritative `segments` frame (sent after the turn
- * finishes) is the source of truth and *replaces* these. When no structured
- * segments are present yet (plain prose / malformed markup), `fallbackText` is
- * set to today's flattened plain text so the caller never regresses.
- *
- * Edge cases handled by construction:
- *  - An attribute split across chunks (`<say speaker_id="ly`) has no closing `>`,
- *    so the open-tag regex doesn't match and no spurious segment opens.
- *  - Private `<think>…</think>` (no attribute) is stripped; visible
- *    `<think speaker_id="…">` is kept.
- */
-export function streamingXmlToSegments(value: string): {
-    segments: ChatResponseSegment[]
-    fallbackText?: string
-} {
-    const cleaned = stripPrivateThink(value)
-    const segments: ChatResponseSegment[] = []
-    let open: { kind: ChatResponseSegmentKind; speakerId?: string; start: number } | null = null
-
-    CHILD_TAG_RE.lastIndex = 0
-    let match: RegExpExecArray | null
-    while ((match = CHILD_TAG_RE.exec(cleaned)) !== null) {
-        const openTag = match[1]
-        if (openTag !== undefined) {
-            // A new tag opened — defensively close any dangling open segment first
-            // (a missing close tag from earlier in the stream).
-            if (open) {
-                const content = cleanSegmentContent(cleaned.slice(open.start, match.index))
-                if (content) segments.push(buildStreamingSegment(open, content, false))
-            }
-            const attrMatch = SPEAKER_ID_ATTR_RE.exec(match[2] || '')
-            const speakerId = (attrMatch?.[1] ?? attrMatch?.[2] ?? '').trim() || undefined
-            open = { kind: kindForTag(openTag), speakerId, start: match.index + match[0].length }
-        } else {
-            // A close tag.
-            if (open) {
-                const content = cleanSegmentContent(cleaned.slice(open.start, match.index))
-                if (content) segments.push(buildStreamingSegment(open, content, false))
-                open = null
-            }
+    private beginString(role: string) {
+        this.inString = true
+        this.tokenRole = role
+        this.token = ''
+        this.escaped = false
+        this.unicode = null
+        this.highSurrogate = null
+        if (role === 'value' && this.field === 'content') {
+            this.bodyStarted = true
+            this.entry.content = ''
         }
     }
 
-    if (open) {
-        // The final tag is still open → the live, streaming segment. Trim a
-        // trailing partial tag (`… <sa`) so half-arrived markup isn't shown.
-        const content = cleanSegmentContent(cleaned.slice(open.start).replace(PARTIAL_TAG_RE, ''))
-        segments.push(buildStreamingSegment(open, content, true))
+    private decoded(character: string) {
+        const code = character.charCodeAt(0)
+        if (this.highSurrogate !== null) {
+            if (code < 0xdc00 || code > 0xdfff) this.fail()
+            character = String.fromCodePoint(0x10000 + ((this.highSurrogate - 0xd800) << 10) + code - 0xdc00)
+            this.highSurrogate = null
+        } else if (code >= 0xd800 && code <= 0xdbff) {
+            this.highSurrogate = code
+            return
+        } else if (code >= 0xdc00 && code <= 0xdfff) this.fail()
+        if (this.tokenRole === 'value' && this.field === 'content') this.entry.content += character
+        else {
+            this.token += character
+            if (this.token.length > 160) this.fail()
+        }
     }
 
-    if (!segments.length) {
-        const fallbackText = streamingXmlToPlainText(value)
-        return fallbackText ? { segments, fallbackText } : { segments }
+    private stringCharacter(character: string) {
+        if (this.unicode !== null) {
+            if (!/^[0-9a-f]$/i.test(character)) this.fail()
+            this.unicode += character
+            if (this.unicode.length === 4) {
+                this.decoded(String.fromCharCode(parseInt(this.unicode, 16)))
+                this.unicode = null
+            }
+        } else if (this.escaped) {
+            this.escaped = false
+            if (character === 'u') this.unicode = ''
+            else if ('"\\/bfnrt'.includes(character)) {
+                this.decoded(({ b: '\b', f: '\f', n: '\n', r: '\r', t: '\t' } as Record<string, string>)[character] ?? character)
+            } else this.fail()
+        } else if (character === '\\') this.escaped = true
+        else if (character === '"') {
+            if (this.highSurrogate !== null) this.fail()
+            this.inString = false
+            this.endString()
+        } else if (character.charCodeAt(0) < 32) this.fail()
+        else this.decoded(character)
     }
-    return { segments }
+
+    private endString() {
+        if (this.tokenRole === 'rootKey') {
+            if (this.token !== 'segments') this.fail()
+            this.state = 'rootColon'
+        } else if (this.tokenRole === 'key') {
+            if (!['kind', 'speaker_id', 'content'].includes(this.token) || this.keys.has(this.token)) this.fail()
+            this.keys.add(this.token)
+            this.field = this.token
+            this.state = 'colon'
+        } else {
+            if (this.field !== 'content') this.entry[this.field] = this.token
+            this.identityReady()
+            this.state = 'afterValue'
+        }
+    }
+
+    private identityReady() {
+        const { kind, speaker_id: id } = this.entry
+        if (kind !== undefined && !['narrator', 'speech', 'thought'].includes(kind)) this.fail()
+        if (id !== undefined && !this.roster.has(id)) this.fail()
+        if (kind === 'narrator' && id !== undefined) this.fail()
+        return kind !== undefined && (kind === 'narrator' || id !== undefined)
+    }
+
+    private segment(streaming: boolean): ChatResponseSegment {
+        const { kind, content, speaker_id: id } = this.entry
+        const body = (content ?? '').trim()
+        if (Array.from(body).length > 4_000) this.fail()
+        const candidate: ChatResponseSegment = kind === 'narrator'
+            ? { kind, content: body, ...(streaming ? { streaming: true } : {}) }
+            : { kind: kind as ChatResponseSegmentKind, speaker_id: id, speaker_name: this.roster.get(id)?.name,
+                image_url: this.roster.get(id)?.image_url ?? null, content: body, ...(streaming ? { streaming: true } : {}) }
+        if (this.active && this.active.kind === candidate.kind && this.active.content === body
+            && this.active.speaker_id === candidate.speaker_id && Boolean(this.active.streaming) === streaming) return this.active
+        return candidate
+    }
+
+    private character(character: string) {
+        if (this.inString) { this.stringCharacter(character); return }
+        if (' \t\r\n'.includes(character)) return
+        const state = this.state
+        if (state === 'root' && character === '{') this.state = 'rootKey'
+        else if (state === 'rootKey' && character === '"') this.beginString('rootKey')
+        else if (state === 'rootColon' && character === ':') this.state = 'array'
+        else if (state === 'array' && character === '[') this.state = 'entry'
+        else if (state === 'entry' && character === '{') {
+            if (this.settled.length >= 32) this.fail()
+            this.entry = {}; this.keys = new Set(); this.bodyStarted = false; this.active = undefined
+            this.state = 'key'
+        } else if (state === 'key' && character === '"') this.beginString('key')
+        else if (state === 'colon' && character === ':') this.state = 'value'
+        else if (state === 'value' && character === '"') this.beginString('value')
+        else if (state === 'afterValue' && character === ',') this.state = 'key'
+        else if (state === 'afterValue' && character === '}') {
+            if (!this.identityReady() || !this.entry.content?.trim()
+                || this.keys.size !== (this.entry.kind === 'narrator' ? 2 : 3)) this.fail()
+            this.settled.push(this.segment(false))
+            this.active = undefined
+            this.bodyStarted = false
+            this.state = 'afterEntry'
+        } else if (state === 'afterEntry' && character === ',') this.state = 'entry'
+        else if (state === 'afterEntry' && character === ']') this.state = 'afterArray'
+        else if (state === 'afterArray' && character === '}') this.state = 'done'
+        else this.fail()
+    }
+
+    feed(chunk: string): ChatResponseSegment[] {
+        this.rawChars += chunk.length
+        if (this.rawChars > 128_000) this.fail()
+        // Iterate code units so a literal surrogate pair split between frames is held too.
+        for (let index = 0; index < chunk.length; index++) this.character(chunk[index])
+        if (!['afterEntry', 'afterArray', 'done'].includes(this.state) && this.bodyStarted && this.identityReady()) {
+            this.active = this.segment(this.inString && this.field === 'content')
+        }
+        const segments = this.active ? [...this.settled, this.active] : [...this.settled]
+        if (Array.from(segmentsToPlainText(segments)).length > 20_000) this.fail()
+        return segments
+    }
 }
 
-/**
- * Enrich segments with `speaker_name` + portrait `image_url` from the `speakers`
- * roster. Works for both live (no speaker_name yet) and authoritative segments
- * (already have speaker_name — kept, only image_url is added). Narrator segments
- * pass through untouched.
- */
-export function resolveSegmentIdentity(
-    segments: ChatResponseSegment[],
-    roster: Map<string, ChatSpeakerRosterEntry>,
-): ChatResponseSegment[] {
+/** Preserve settled identities; only enrich records whose roster fields changed. */
+export function resolveSegmentIdentity(segments: ChatResponseSegment[], roster: Map<string, ChatSpeakerRosterEntry>): ChatResponseSegment[] {
     return segments.map((segment) => {
         if (segment.kind === 'narrator') return segment
         const entry = segment.speaker_id ? roster.get(segment.speaker_id) : undefined
-        return {
-            ...segment,
-            speaker_name: segment.speaker_name || entry?.name || segment.speaker_id,
-            image_url: segment.image_url ?? entry?.image_url ?? null,
-        }
+        const name = segment.speaker_name || entry?.name || segment.speaker_id
+        const portrait = segment.image_url ?? entry?.image_url ?? null
+        return segment.speaker_name === name && segment.image_url === portrait ? segment
+            : { ...segment, speaker_name: name, image_url: portrait }
     })
 }
 
-function kindForTag(tag: string): ChatResponseSegmentKind {
-    const lowered = tag.toLowerCase()
-    if (lowered === 'say') return 'speech'
-    if (lowered === 'think') return 'thought'
-    return 'narrator'
-}
-
-function cleanSegmentContent(value: string): string {
-    return decodeXmlEntities(value)
-        .split('\n')
-        .map((line) => line.replace(/[ \t]+/g, ' ').trim())
-        .filter(Boolean)
-        .join('\n')
-}
-
-function buildStreamingSegment(
-    open: { kind: ChatResponseSegmentKind; speakerId?: string },
-    content: string,
-    streaming: boolean,
-): ChatResponseSegment {
-    if (open.kind === 'narrator') {
-        return streaming ? { kind: 'narrator', content, streaming } : { kind: 'narrator', content }
-    }
-    return {
-        kind: open.kind,
-        content,
-        speaker_id: open.speakerId,
-        ...(streaming ? { streaming } : {}),
-    }
-}
-
-export function segmentsToPlainText(segments: ChatResponseSegment[] | undefined): string {
+export function segmentsToPlainText(segments: ChatResponseSegment[] | undefined, t?: TFunction): string {
     if (!segments?.length) return ''
-    return segments
-        .map((segment) => {
-            if (segment.kind === 'narrator') return segment.content
-            const speaker = segment.speaker_name || segment.speaker_id || 'Character'
-            return segment.kind === 'thought'
-                ? `${speaker} thinks: ${segment.content}`
-                : `${speaker}: ${segment.content}`
-        })
-        .filter(Boolean)
-        .join('\n')
+    return segments.map((segment) => {
+        if (segment.kind === 'narrator') return segment.content
+        const speaker = segment.speaker_name || segment.speaker_id || t?.('interaction.chat.fallbackCharacter') || 'Character'
+        return segment.kind === 'thought'
+            ? `${t ? t('interaction.chat.speakerThinks', { name: speaker }) : `${speaker} thinks`}: ${segment.content}`
+            : `${speaker}: ${segment.content}`
+    }).filter(Boolean).join('\n\n')
 }
 
 export function finalizeResponseSegments(segments: ChatResponseSegment[] | undefined): ChatResponseSegment[] | undefined {
     if (!segments?.length) return undefined
-    return segments.map(({ streaming: _streaming, ...segment }) => segment as ChatResponseSegment)
+    return segments.map((segment) => segment.streaming ? (({ streaming: _streaming, ...settled }) => settled)(segment) : segment)
 }
 
 export function safeResponseSegments(value: unknown): ChatResponseSegment[] {
     if (!Array.isArray(value)) return []
-    return value
-        .map((segment): ChatResponseSegment | null => {
-            if (!segment || typeof segment !== 'object') return null
-            const source = segment as Record<string, unknown>
-            const kind = source.kind
-            const content = safeText(source.content, 4_000)
-            if ((kind !== 'narrator' && kind !== 'speech' && kind !== 'thought') || !content) return null
-            if (kind === 'narrator') return { kind, content }
-            const speakerId = safeText(source.speaker_id, 160)
-            if (!speakerId) return null
-            const speakerName = safeText(source.speaker_name, 160)
-            return {
-                kind,
-                content,
-                speaker_id: speakerId,
-                speaker_name: speakerName || speakerId,
-            }
-        })
-        .filter((segment): segment is ChatResponseSegment => segment !== null)
-        .slice(0, 32)
+    return value.flatMap((segment): ChatResponseSegment[] => {
+        if (!segment || typeof segment !== 'object') return []
+        const source = segment as Record<string, unknown>
+        const kind = source.kind
+        const content = safeText(source.content, 4_000)
+        if (!['narrator', 'speech', 'thought'].includes(String(kind)) || !content) return []
+        if (kind === 'narrator') return [{ kind, content }]
+        const id = safeText(source.speaker_id, 160)
+        return id ? [{ kind: kind as ChatResponseSegmentKind, content, speaker_id: id, speaker_name: safeText(source.speaker_name, 160) || id }] : []
+    }).slice(0, 32)
 }
 
-// Narrative is ordinary model content. Credential validation belongs to the
-// request/configuration boundary; only type and display length are checked here.
 function safeText(value: unknown, max: number): string {
-    return typeof value === 'string' ? value.trim().slice(0, max) : ''
-}
-
-function decodeXmlEntities(value: string): string {
-    return value
-        .replace(/&quot;/g, '"')
-        .replace(/&apos;/g, "'")
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&amp;/g, '&')
+    return typeof value === 'string' ? Array.from(value.trim()).slice(0, max).join('') : ''
 }

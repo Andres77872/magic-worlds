@@ -276,6 +276,24 @@ describe('InteractionCenterPanel message deletion', () => {
         expect(screen.getByText('No turns')).toBeInTheDocument()
     })
 
+    it('keeps Stop usable during filtered silence and still expires a stalled generation', async () => {
+        const sendChat = vi.fn()
+        hookMocks.useAdventureChatSocket.mockReturnValue({ status: 'open', sendChat, sendTts: vi.fn(), cancel: vi.fn() })
+        renderPanel(makeConfig(), [])
+        await act(async () => {})
+        vi.useFakeTimers()
+        try {
+            fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Look around' } })
+            fireEvent.click(screen.getByLabelText('Send message'))
+            await act(async () => { await vi.advanceTimersByTimeAsync(130_001) })
+            expect(screen.getByLabelText('Stop response')).toBeEnabled()
+            expect(screen.queryByText(/timed out/i)).toBeNull()
+            await act(async () => { await vi.advanceTimersByTimeAsync(170_000) })
+            expect(screen.queryByLabelText('Stop response')).toBeNull()
+            expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument()
+        } finally { vi.useRealTimers() }
+    })
+
     it('paints live speaker attribution from speakers + delta frames, then reconciles with authoritative segments', async () => {
         let handlers: { onSpeakers: Function; onDelta: Function; onSegments: Function; onDone: Function } | undefined
         const sendChat = vi.fn()
@@ -285,6 +303,7 @@ describe('InteractionCenterPanel message deletion', () => {
         })
 
         const loadTurns = vi.fn()
+            .mockResolvedValueOnce([])
             .mockResolvedValueOnce([])
             .mockResolvedValue([
                 { id: '100', type: 'user', content: 'Look around', timestamp: '', turnId: 'turn-9' },
@@ -299,20 +318,20 @@ describe('InteractionCenterPanel message deletion', () => {
                 },
             ])
         renderPanel(makeConfig({ loadTurns }), [])
-        await waitFor(() => expect(loadTurns).toHaveBeenCalledTimes(1))
+        await waitFor(() => expect(loadTurns).toHaveBeenCalledTimes(2))
 
         // Start a generation so there is a streaming AI turn to paint into.
         fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Look around' } })
         fireEvent.click(screen.getByLabelText('Send message'))
         await waitFor(() => expect(sendChat).toHaveBeenCalled())
 
-        // Roster + partial XML → live "Aria is speaking…" with her portrait.
+        // Roster + partial JSON → live "Aria is speaking…" with her portrait.
         act(() => {
             handlers!.onSpeakers({
                 roster: [{ speaker_id: 'aria', name: 'Aria', image_url: '/portraits/aria.png', has_voice: true }],
                 narrator: { name: 'Game Master', image_url: null, kind: 'narrator' },
             })
-            handlers!.onDelta('<response><say speaker_id="aria">Who goes')
+            handlers!.onDelta('{"segments":[{"kind":"speech","speaker_id":"aria","content":"Who goes')
         })
 
         expect(await screen.findByText('Aria is speaking…')).toBeInTheDocument()
@@ -322,14 +341,14 @@ describe('InteractionCenterPanel message deletion', () => {
         // Authoritative segments arrive and replace the live ones.
         act(() => {
             handlers!.onSegments({
-                responseFormat: 'mw_xml_v1',
+                responseFormat: 'mw_json_segments_v1',
                 segments: [{ kind: 'speech', speaker_id: 'aria', speaker_name: 'Aria', content: 'Who goes there?' }],
                 displayText: 'Aria: Who goes there?',
             })
             handlers!.onDone({ interrupted: false, assistantMessageId: 999, turnId: 'turn-9' })
         })
 
-        await waitFor(() => expect(loadTurns).toHaveBeenCalledTimes(2))
+        await waitFor(() => expect(loadTurns).toHaveBeenCalledTimes(3))
         expect(screen.getByText('Aria: Who goes there?', { selector: '.sr-only' })).toBeInTheDocument()
         // Live status line is gone once streaming ends.
         expect(screen.queryByText('Aria is speaking…')).not.toBeInTheDocument()
@@ -355,9 +374,10 @@ describe('InteractionCenterPanel message deletion', () => {
         ]
         const loadTurns = vi.fn()
             .mockResolvedValueOnce([])
-            .mockResolvedValueOnce(hydratedPlainTurns)
+            .mockResolvedValueOnce([])
+            .mockResolvedValue(hydratedPlainTurns)
         renderPanel(makeConfig({ loadTurns }), [])
-        await waitFor(() => expect(loadTurns).toHaveBeenCalledTimes(1))
+        await waitFor(() => expect(loadTurns).toHaveBeenCalledTimes(2))
 
         fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Look around' } })
         fireEvent.click(screen.getByLabelText('Send message'))
@@ -369,14 +389,14 @@ describe('InteractionCenterPanel message deletion', () => {
                 narrator: { name: 'Game Master', image_url: null, kind: 'narrator' },
             })
             handlers!.onSegments({
-                responseFormat: 'mw_xml_v1',
+                responseFormat: 'mw_json_segments_v1',
                 segments: [{ kind: 'speech', speaker_id: 'aria', speaker_name: 'Aria', content: 'Who goes there?' }],
                 displayText: 'Aria: Who goes there?',
             })
             handlers!.onDone({ interrupted: false, userMessageId: 100, assistantMessageId: 999, turnId: 'turn-9' })
         })
 
-        await waitFor(() => expect(loadTurns).toHaveBeenCalledTimes(2))
+        await waitFor(() => expect(loadTurns).toHaveBeenCalledTimes(3))
         expect(screen.getByText('Aria')).toBeInTheDocument()
         expect(screen.getByText('Who goes there?')).toBeInTheDocument()
         expect(screen.queryByText('Aria: Who goes there?', { selector: '.chat-prose *' })).not.toBeInTheDocument()
@@ -402,10 +422,11 @@ describe('InteractionCenterPanel message deletion', () => {
         ]
         const loadTurns = vi.fn()
             .mockResolvedValueOnce([])
-            .mockResolvedValueOnce(hydratedPlainTurns)
+            .mockResolvedValueOnce([])
+            .mockResolvedValue(hydratedPlainTurns)
 
         renderPanel(makeConfig({ loadTurns }), [])
-        await waitFor(() => expect(loadTurns).toHaveBeenCalledTimes(1))
+        await waitFor(() => expect(loadTurns).toHaveBeenCalledTimes(2))
 
         fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Look around' } })
         fireEvent.click(screen.getByLabelText('Send message'))
@@ -416,7 +437,7 @@ describe('InteractionCenterPanel message deletion', () => {
                 roster: [{ speaker_id: 'aria', name: 'Aria', image_url: null, has_voice: true }],
                 narrator: { name: 'Game Master', image_url: null, kind: 'narrator' },
             })
-            handlers!.onDelta('<response><say speaker_id="aria">Who goes there?')
+            handlers!.onDelta('{"segments":[{"kind":"speech","speaker_id":"aria","content":"Who goes there?')
         })
 
         expect(await screen.findByText('Aria is speaking…')).toBeInTheDocument()
@@ -425,7 +446,7 @@ describe('InteractionCenterPanel message deletion', () => {
             handlers!.onDone({ interrupted: false, userMessageId: 100, assistantMessageId: 999, turnId: 'turn-9' })
         })
 
-        await waitFor(() => expect(loadTurns).toHaveBeenCalledTimes(2))
+        await waitFor(() => expect(loadTurns).toHaveBeenCalledTimes(3))
         expect(screen.getByText('Aria')).toBeInTheDocument()
         expect(screen.getByText('Who goes there?')).toBeInTheDocument()
         expect(screen.queryByText('Aria is speaking…')).not.toBeInTheDocument()
@@ -456,7 +477,7 @@ describe('InteractionCenterPanel message deletion', () => {
         scrollIntoView.mockClear()
 
         act(() => {
-            handlers!.onDelta('The gate creaks open…')
+            handlers!.onDelta(JSON.stringify({ segments: [{ kind: 'narrator', content: 'The gate creaks open…' }] }))
         })
 
         expect(scrollIntoView).not.toHaveBeenCalled()
@@ -490,7 +511,7 @@ describe('InteractionCenterPanel message deletion', () => {
         scrollIntoView.mockClear()
 
         act(() => {
-            handlers!.onDelta('The gate creaks open…')
+            handlers!.onDelta(JSON.stringify({ segments: [{ kind: 'narrator', content: 'The gate creaks open…' }] }))
         })
 
         await waitFor(() => expect(scrollIntoView).toHaveBeenCalled())
@@ -517,7 +538,7 @@ describe('InteractionCenterPanel message deletion', () => {
         expect(screen.getByLabelText('Next version')).toBeDisabled()
         act(() => {
             handlers.onTurnStarted?.({ type: 'turn_started', user_message_id: 100, assistant_message_id: 102, turn_id: 'turn-2' })
-            handlers.onDelta?.('The door is locked.')
+            handlers.onDelta?.(JSON.stringify({ segments: [{ kind: 'narrator', content: 'The door is locked.' }] }))
             handlers.onDone?.({ interrupted: false, userMessageId: 100, assistantMessageId: 102, turnId: 'turn-2' })
         })
 
@@ -649,7 +670,7 @@ describe('InteractionCenterPanel message deletion', () => {
             }),
         })
         const view = renderPanel(config, [])
-        await waitFor(() => expect(config.loadTurns).toHaveBeenCalledOnce())
+        await waitFor(() => expect(config.loadTurns).toHaveBeenCalledTimes(2))
         fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Open the door' } })
         fireEvent.click(screen.getByLabelText('Send message'))
         act(() => {
@@ -666,17 +687,17 @@ describe('InteractionCenterPanel message deletion', () => {
             const assistant = stored[stored.length - 1]
             assistant.content = 'The door opens.'
             assistant.isStreaming = false
-            handlers.onDelta?.(assistant.content)
+            handlers.onDelta?.(JSON.stringify({ segments: [{ kind: 'narrator', content: assistant.content }] }))
             handlers.onDone?.({
                 interrupted: false, userMessageId: 100,
                 assistantMessageId: Number(assistant.id), turnId: assistant.turnId,
             })
         })
-        // Mount, the pre-regenerate sync, then the post-done reconciliation.
-        await waitFor(() => expect(config.loadTurns).toHaveBeenCalledTimes(3))
+        // Mount + connection, the pre-regenerate sync, then post-done reconciliation.
+        await waitFor(() => expect(config.loadTurns).toHaveBeenCalledTimes(4))
         view.unmount()
         renderPanel(config, stored.map((turn) => ({ ...turn })))
-        await waitFor(() => expect(config.loadTurns).toHaveBeenCalledTimes(4))
+        await waitFor(() => expect(config.loadTurns).toHaveBeenCalledTimes(6))
         expect(screen.getAllByText('Open the door')).toHaveLength(1)
         expect(screen.getByText('The door opens.')).toBeInTheDocument()
         expect(screen.queryByTestId('unsaved-reply')).toBeNull()
@@ -764,12 +785,13 @@ describe('InteractionCenterPanel message deletion', () => {
         ]
         const loadTurns = vi.fn()
             .mockResolvedValueOnce([])
-            .mockResolvedValueOnce(hydratedTurns)
+            .mockResolvedValueOnce([])
+            .mockResolvedValue(hydratedTurns)
 
         renderPanel(makeConfig({ loadTurns }), [], 7, [
             { speaker_id: 'aria', name: 'Aria', image_url: '/portraits/aria.png', has_voice: true },
         ])
-        await waitFor(() => expect(loadTurns).toHaveBeenCalledTimes(1))
+        await waitFor(() => expect(loadTurns).toHaveBeenCalledTimes(2))
 
         fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Look around' } })
         fireEvent.click(screen.getByLabelText('Send message'))
@@ -781,14 +803,14 @@ describe('InteractionCenterPanel message deletion', () => {
                 narrator: { name: 'Game Master', image_url: null, kind: 'narrator' },
             })
             handlers!.onSegments({
-                responseFormat: 'mw_xml_v1',
+                responseFormat: 'mw_json_segments_v1',
                 segments: [{ kind: 'speech', speaker_id: 'aria', speaker_name: 'Aria', content: 'Who goes there?' }],
                 displayText: 'Aria: Who goes there?',
             })
             handlers!.onDone({ interrupted: false, userMessageId: 100, assistantMessageId: 999, turnId: 'turn-9' })
         })
 
-        await waitFor(() => expect(loadTurns).toHaveBeenCalledTimes(2))
+        await waitFor(() => expect(loadTurns).toHaveBeenCalledTimes(3))
         expect(screen.getByText('Who goes there?')).toBeInTheDocument()
         expect(screen.getByRole('img', { name: 'Aria' })).toHaveAttribute('src', '/portraits/aria.png')
     })
@@ -1013,7 +1035,7 @@ describe('InteractionCenterPanel message deletion', () => {
         await waitFor(() => expect(sendChat).toHaveBeenCalled())
         act(() => {
             handlers!.onTurnStarted({ type: 'turn_started', user_message_id: 102, assistant_message_id: 103, turn_id: 'turn-2' })
-            handlers!.onDelta('The hall glows.')
+            handlers!.onDelta(JSON.stringify({ segments: [{ kind: 'narrator', content: 'The hall glows.' }] }))
             handlers!.onDone({ interrupted: false, userMessageId: 102, assistantMessageId: 103, turnId: 'turn-2', imageScheduled: true })
         })
         // The placeholder appears as the reply finishes, before any image frame.
@@ -1291,7 +1313,7 @@ describe('InteractionCenterPanel message deletion', () => {
         it('shows a stopped reply as a notice without a connection error', async () => {
             const { handlers } = sendFirstTurn()
             act(() => {
-                handlers().onDelta?.('The door creaks')
+                handlers().onDelta?.(JSON.stringify({ segments: [{ kind: 'narrator', content: 'The door creaks' }] }))
                 handlers().onDone?.({ interrupted: true, userMessageId: 100, assistantMessageId: 201, turnId: 'turn-1' })
             })
             const notice = await screen.findByTestId('unsaved-reply')
@@ -1502,7 +1524,7 @@ describe('InteractionCenterPanel auto-narration pause (D37)', () => {
         await waitFor(() => expect(socket.sendChat).toHaveBeenCalledOnce())
         act(() => {
             socket.handlers.current.onTurnStarted?.({ type: 'turn_started', user_message_id: 200, assistant_message_id: 201, turn_id: 'turn-2' })
-            socket.handlers.current.onDelta?.('The gate creaks.')
+            socket.handlers.current.onDelta?.(JSON.stringify({ segments: [{ kind: 'narrator', content: 'The gate creaks.' }] }))
             socket.handlers.current.onDone?.({ interrupted: false, userMessageId: 200, assistantMessageId: 201, turnId: 'turn-2' })
         })
     }

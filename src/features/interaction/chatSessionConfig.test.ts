@@ -25,8 +25,9 @@ describe('storedMessagesToTurns', () => {
                 message_id: 2,
                 sequence_no: 2,
                 role: 'assistant',
-                content: '<response><narrator>The gate opens.</narrator></response>',
+                content: JSON.stringify({ segments: [{ kind: 'narrator', content: 'The gate opens.' }] }),
                 metadata: {
+                    response_format: 'mw_json_segments_v1',
                     response_display_text: 'The gate opens.',
                     response_segments: [{ kind: 'narrator', content: 'The gate opens.' }],
                     turn_metadata: {
@@ -130,11 +131,22 @@ describe('storedMessagesToTurns', () => {
 })
 
 
-it('restores interrupted narrative without exposing incomplete XML or restarting its spinner', () => {
+it('keeps a stopped JSON generation unsaved and never exposes its prefix', () => {
     const [turn] = storedMessagesToTurns([message({ role: 'assistant', status: 'interrupted',
-        content: '<response><say speaker_id="aria">The door listens', metadata: { partial: true } })])
-    expect(turn.content).toBe('The door listens')
+        content: '', metadata: { partial: false, interrupted: true } })])
+    expect(turn.content).toBe('')
     expect(turn.isStreaming).toBe(false)
     expect(turn.metadata?.interrupted).toBe(true)
-    expect(turn.segments?.[0].content).toBe('The door listens')
+    expect(turn.segments).toBeUndefined()
+})
+
+it('reloads edited free text and clears derived structure', () => {
+    const [turn] = storedMessagesToTurns([message({ role: 'assistant', content: 'An edited reply.\n\nStill readable.', metadata: { edited: true } })])
+    expect(turn.content).toBe('An edited reply.\n\nStill readable.')
+    expect(turn.segments).toBeUndefined()
+})
+
+it('never renders stored JSON as prose if its structured sidecar is missing', () => {
+    const [turn] = storedMessagesToTurns([message({ role: 'assistant', content: '{"segments":[', metadata: { response_format: 'mw_json_segments_v1' } })])
+    expect(turn.content).toBe('')
 })

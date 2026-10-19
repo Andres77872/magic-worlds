@@ -1,175 +1,109 @@
 import { describe, expect, it } from 'vitest'
-import {
-    finalizeResponseSegments,
-    resolveSegmentIdentity,
-    safeResponseSegments,
-    segmentsToPlainText,
-    streamingXmlToPlainText,
-    streamingXmlToSegments,
-} from './chatSegments'
-import type { ChatResponseSegment, ChatSpeakerRosterEntry } from '@/shared'
+import type { TFunction } from 'i18next'
+import type { ChatSpeakerRosterEntry } from '@/shared'
+import { ChatJsonPreview, finalizeResponseSegments, resolveSegmentIdentity, safeResponseSegments, segmentsToPlainText } from './chatSegments'
 
-describe('streamingXmlToSegments', () => {
-    it('parses a complete response into ordered segments with none streaming', () => {
-        const raw =
-            '<response><narrator>The door creaks open.</narrator>' +
-            '<say speaker_id="aria">Who\'s there?</say>' +
-            '<think speaker_id="borin">Stay alert.</think></response>'
-        const { segments, fallbackText } = streamingXmlToSegments(raw)
-        expect(fallbackText).toBeUndefined()
-        expect(segments).toEqual([
-            { kind: 'narrator', content: 'The door creaks open.' },
-            { kind: 'speech', content: "Who's there?", speaker_id: 'aria' },
-            { kind: 'thought', content: 'Stay alert.', speaker_id: 'borin' },
-        ])
-        expect(segments.every((s) => !s.streaming)).toBe(true)
+const roster = new Map<string, ChatSpeakerRosterEntry>([
+    ['aria', { speaker_id: 'aria', name: 'Aria', image_url: '/images/aria.webp' }],
+    ['bram', { speaker_id: 'bram', name: 'Bram', image_url: null }],
+])
+const entries = [
+    { kind: 'narrator', content: 'The lantern flickers.\n\nFootsteps stop.' },
+    { kind: 'speech', speaker_id: 'aria', content: 'Wait. **Listen.** "Who?" \\ 😀' },
+    { kind: 'thought', speaker_id: 'bram', content: 'That sound again.' },
+]
+
+describe('ChatJsonPreview', () => {
+    it('releases an unfinished body with complete identity and preserves pending word/paragraph spaces', () => {
+        const parser = new ChatJsonPreview(roster)
+        let segments = parser.feed('{"segments":[{"kind":"speech","speaker_id":"aria","content":"Hello ')
+        expect(segments).toEqual([{ kind: 'speech', speaker_id: 'aria', speaker_name: 'Aria', image_url: '/images/aria.webp', content: 'Hello', streaming: true }])
+        segments = parser.feed('there.\\n\\nSecond ')
+        expect(segments[0].content).toBe('Hello there.\n\nSecond')
+        segments = parser.feed('paragraph."}]}')
+        expect(segments[0].content).toBe('Hello there.\n\nSecond paragraph.')
+        expect(segments[0].streaming).toBeUndefined()
     })
 
-    it('marks the final unclosed tag as the streaming segment', () => {
-        const raw =
-            '<response><narrator>The door creaks open.</narrator>' +
-            '<say speaker_id="aria">Who\'s the'
-        const { segments } = streamingXmlToSegments(raw)
-        expect(segments).toEqual([
-            { kind: 'narrator', content: 'The door creaks open.' },
-            { kind: 'speech', content: "Who's the", speaker_id: 'aria', streaming: true },
-        ])
+    it.each([false, true])('agrees at every split boundary (escaped Unicode=%s)', (ascii) => {
+        const original = JSON.stringify({ segments: entries })
+        const source = ascii ? original.replace('😀', '\\ud83d\\ude00') : original
+        const expected = new ChatJsonPreview(roster).feed(source)
+        for (let split = 0; split <= source.length; split++) {
+            const parser = new ChatJsonPreview(roster)
+            parser.feed(source.slice(0, split))
+            expect(parser.feed(source.slice(split))).toEqual(expected)
+        }
+        expect(expected.map((entry) => entry.content)).toEqual(entries.map((entry) => entry.content))
     })
 
-    it('accepts single-quoted speaker_id attributes while streaming', () => {
-        const raw = "<response><say speaker_id='aria'>Who goes there?</say></response>"
-        const { segments } = streamingXmlToSegments(raw)
-        expect(segments).toEqual([
-            { kind: 'speech', content: 'Who goes there?', speaker_id: 'aria' },
-        ])
+    it('holds body-first entries until both identity strings have closed', () => {
+        const parser = new ChatJsonPreview(roster)
+        expect(parser.feed('{"segments":[{"content":"Hello","kind":"speech","speaker_id":"aria')).toEqual([])
+        expect(parser.feed('"').map((s) => s.speaker_name)).toEqual(['Aria'])
+        expect(parser.feed('}]}')[0].content).toBe('Hello')
     })
 
-    it('does not open a segment when an attribute is split across chunks', () => {
-        const raw = '<response><narrator>Hi.</narrator><say speaker_id="ar'
-        const { segments } = streamingXmlToSegments(raw)
-        // Only the closed narrator; the half-arrived <say has no closing '>'.
-        expect(segments).toEqual([{ kind: 'narrator', content: 'Hi.' }])
+    it('does not confuse an unfinished ID prefix with an allowed ID', () => {
+        const parser = new ChatJsonPreview(roster)
+        expect(parser.feed('{"segments":[{"kind":"speech","content":"Private","speaker_id":"aria')).toEqual([])
+        expect(() => parser.feed('nne"}]}')).toThrow()
     })
 
-    it('trims a trailing partial tag from the streaming segment content', () => {
-        const raw = '<response><say speaker_id="aria">Hello there <'
-        const { segments } = streamingXmlToSegments(raw)
-        expect(segments).toEqual([
-            { kind: 'speech', content: 'Hello there', speaker_id: 'aria', streaming: true },
-        ])
+    it('keeps completed segment identity stable and does not duplicate it at a comma', () => {
+        const parser = new ChatJsonPreview(roster)
+        const first = parser.feed('{"segments":[{"kind":"narrator","content":"First."}')[0]
+        expect(parser.feed(',')).toEqual([first])
+        const next = parser.feed('{"kind":"speech","speaker_id":"bram","content":"Second')
+        expect(next).toHaveLength(2)
+        expect(next[0]).toBe(first)
+        expect(parser.feed(' word"}]}')[0]).toBe(first)
     })
 
-    it('strips private <think> (no attr) but keeps visible <think speaker_id>', () => {
-        const raw =
-            '<response><think>secret chain of thought</think>' +
-            '<say speaker_id="aria">Hi.</say>' +
-            '<think speaker_id="aria">I wonder.</think></response>'
-        const { segments } = streamingXmlToSegments(raw)
-        expect(segments).toEqual([
-            { kind: 'speech', content: 'Hi.', speaker_id: 'aria' },
-            { kind: 'thought', content: 'I wonder.', speaker_id: 'aria' },
-        ])
+    it('never displays unfinished Unicode escapes or a half surrogate', () => {
+        const parser = new ChatJsonPreview(roster)
+        expect(parser.feed('{"segments":[{"kind":"narrator","content":"Moon \\uD83D')[0].content).toBe('Moon')
+        expect(parser.feed('\\uDE00"}]}')[0].content).toBe('Moon 😀')
     })
 
-    it('decodes XML entities in segment content', () => {
-        const raw = '<response><say speaker_id="aria">&quot;Run&quot; &amp; hide &lt;now&gt;</say></response>'
-        const { segments } = streamingXmlToSegments(raw)
-        expect(segments[0].content).toBe('"Run" & hide <now>')
+    it.each([
+        'ordinary prose',
+        '{"segments":[{"kind":"speech","speaker_id":"persona","content":"No"}]}',
+        '{"segments":[{"kind":"speech","speaker_id":"unknown","content":"No"}]}',
+        '{"segments":[{"kind":"other","content":"No"}]}',
+        '{"segments":[{"kind":"narrator","content":5}]}',
+        '{"segments":[{"kind":"narrator","content":"Hi","content":"No"}]}',
+        '{"segments":[{"kind":"narrator","content":"Hi","extra":"No"}]}',
+        '{"segments":[{"kind":"narrator","content":"\\ud800x"}]}',
+        '{"segments":[{"kind":"narrator","content":"Hi"},]}',
+    ])('rejects invalid content without a prose fallback: %s', (text) => {
+        expect(() => new ChatJsonPreview(roster).feed(text)).toThrow()
     })
 
-    it('falls back to flattened plain text when there are no structured segments', () => {
-        const raw = 'Just some prose with no tags yet'
-        const { segments, fallbackText } = streamingXmlToSegments(raw)
-        expect(segments).toEqual([])
-        expect(fallbackText).toBe(streamingXmlToPlainText(raw))
-        expect(fallbackText).toBe('Just some prose with no tags yet')
-    })
-
-    it('parity: a complete stream yields the same kinds/speakers/order as the authoritative parse', () => {
-        const raw =
-            '<response><narrator>Scene.</narrator>' +
-            '<say speaker_id="aria">Line one.</say>' +
-            '<say speaker_id="borin">Line two.</say></response>'
-        const { segments } = streamingXmlToSegments(raw)
-        // Authoritative-shaped segments (speaker_name present) for comparison.
-        const authoritative = safeResponseSegments([
-            { kind: 'narrator', content: 'Scene.' },
-            { kind: 'speech', content: 'Line one.', speaker_id: 'aria', speaker_name: 'Aria' },
-            { kind: 'speech', content: 'Line two.', speaker_id: 'borin', speaker_name: 'Borin' },
-        ])
-        expect(segments.map((s) => [s.kind, s.speaker_id, s.content])).toEqual(
-            authoritative.map((s) => [s.kind, s.speaker_id, s.content]),
-        )
+    it('applies decoded point and entry budgets', () => {
+        expect(() => new ChatJsonPreview(roster).feed(JSON.stringify({ segments: [{ kind: 'narrator', content: 'x'.repeat(4_001) }] }))).toThrow()
+        expect(() => new ChatJsonPreview(roster).feed(JSON.stringify({ segments: Array.from({ length: 33 }, () => ({ kind: 'narrator', content: 'x' })) }))).toThrow()
+        expect(new ChatJsonPreview(roster).feed(JSON.stringify({ segments: [{ kind: 'narrator', content: '😀'.repeat(3_000) }] }))[0].content).toHaveLength(6_000)
     })
 })
 
-describe('safeResponseSegments credential scrubbing', () => {
-    it('preserves model content without credential filtering', () => {
-        const segments = safeResponseSegments([
-            { kind: 'speech', speaker_id: 'v1', speaker_name: 'Vesper', content: 'narradora de secretos olvidados' },
-            { kind: 'speech', speaker_id: 'v1', speaker_name: 'Vesper', content: 'the bearer of bad news arrives' },
-            { kind: 'speech', speaker_id: 'v1', speaker_name: 'Vesper', content: 'here: secret_key=abc123 for you' },
-            { kind: 'speech', speaker_id: 'v1', speaker_name: 'Vesper', content: 'use bearer abcdefabcdefabcdef99 now' },
-        ])
-        expect(segments.map((segment) => segment.content)).toEqual([
-            'narradora de secretos olvidados',
-            'the bearer of bad news arrives',
-            'here: secret_key=abc123 for you',
-            'use bearer abcdefabcdefabcdef99 now',
-        ])
-    })
-})
-
-describe('resolveSegmentIdentity', () => {
-    const roster = new Map<string, ChatSpeakerRosterEntry>([
-        ['aria', { speaker_id: 'aria', name: 'Aria', image_url: 'https://x/aria.png', has_voice: true }],
-    ])
-
-    it('adds speaker_name + portrait from the roster and leaves narrator untouched', () => {
-        const segments: ChatResponseSegment[] = [
-            { kind: 'narrator', content: 'Scene.' },
-            { kind: 'speech', content: 'Hi.', speaker_id: 'aria', streaming: true },
-            { kind: 'thought', content: 'Hmm.', speaker_id: 'unknown' },
-        ]
-        const resolved = resolveSegmentIdentity(segments, roster)
-        expect(resolved[0]).toEqual({ kind: 'narrator', content: 'Scene.' })
-        expect(resolved[1]).toMatchObject({ speaker_name: 'Aria', image_url: 'https://x/aria.png', streaming: true })
-        // Unknown speaker falls back to the id and a null portrait.
-        expect(resolved[2]).toMatchObject({ speaker_name: 'unknown', image_url: null })
+describe('readable chat projections', () => {
+    it('preserves paragraphs and uses the current localization for thoughts', () => {
+        const t = ((_key: string, options: { name: string }) => `${options.name} piensa`) as unknown as TFunction
+        expect(segmentsToPlainText([{ kind: 'narrator', content: 'One\n\nTwo' }, { kind: 'thought', speaker_id: 'aria', speaker_name: 'Aria', content: 'Otra vez.' }], t))
+            .toBe('One\n\nTwo\n\nAria piensa: Otra vez.')
     })
 
-    it('keeps an existing authoritative speaker_name and only adds the portrait', () => {
-        const segments: ChatResponseSegment[] = [
-            { kind: 'speech', content: 'Hi.', speaker_id: 'aria', speaker_name: 'Aria the Bold' },
-        ]
-        const [resolved] = resolveSegmentIdentity(segments, roster)
-        expect(resolved.speaker_name).toBe('Aria the Bold')
-        expect(resolved.image_url).toBe('https://x/aria.png')
+    it('resolves roster identity once and keeps stable records stable', () => {
+        const initial = [{ kind: 'speech' as const, speaker_id: 'aria', content: 'Hi' }]
+        const resolved = resolveSegmentIdentity(initial, roster)
+        expect(resolved[0]).toMatchObject({ speaker_name: 'Aria', image_url: '/images/aria.webp' })
+        expect(resolveSegmentIdentity(resolved, roster)[0]).toBe(resolved[0])
+        expect(finalizeResponseSegments(resolved)?.[0]).toBe(resolved[0])
     })
-})
 
-describe('segmentsToPlainText (regression)', () => {
-    it('formats speech and thought with speaker prefixes', () => {
-        expect(
-            segmentsToPlainText([
-                { kind: 'narrator', content: 'Scene.' },
-                { kind: 'speech', content: 'Hi.', speaker_id: 'aria', speaker_name: 'Aria' },
-                { kind: 'thought', content: 'Hmm.', speaker_id: 'aria', speaker_name: 'Aria' },
-            ]),
-        ).toBe('Scene.\nAria: Hi.\nAria thinks: Hmm.')
-    })
-})
-
-describe('finalizeResponseSegments', () => {
-    it('removes live streaming markers without changing segment content', () => {
-        expect(
-            finalizeResponseSegments([
-                { kind: 'narrator', content: 'Scene.', streaming: true },
-                { kind: 'speech', speaker_id: 'aria', speaker_name: 'Aria', content: 'Hi.', streaming: true },
-            ]),
-        ).toEqual([
-            { kind: 'narrator', content: 'Scene.' },
-            { kind: 'speech', speaker_id: 'aria', speaker_name: 'Aria', content: 'Hi.' },
-        ])
+    it('removes streaming only and preserves complete Unicode content', () => {
+        expect(finalizeResponseSegments([{ kind: 'narrator', content: 'Hi', streaming: true }])).toEqual([{ kind: 'narrator', content: 'Hi' }])
+        expect(safeResponseSegments([{ kind: 'narrator', content: '😀'.repeat(4_001) }])[0].content).toBe('😀'.repeat(4_000))
     })
 })

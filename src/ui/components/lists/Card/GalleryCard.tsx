@@ -5,9 +5,9 @@
  * in a hover-revealed menu so a wall of cards stays calm until pointed at.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Download, ListMusic, Loader2, Pause, Play, Share2 } from 'lucide-react'
+import { Download, Folder, ListMusic, Loader2, Pause, Play, Share2 } from 'lucide-react'
 import { usePlaylist } from '@/app/hooks/usePlaylist'
 import { themeTrack, type PlaylistTrack } from '@/app/providers/audioPlaylistContext'
 import { useCardUsage } from '@/shared/hooks/useCardUsage'
@@ -49,6 +49,14 @@ export interface GalleryCardProps {
     shareLabel?: string
     highlighted?: boolean
     deleting?: boolean
+    /** Whether the card can be dragged onto a collection folder. */
+    draggable?: boolean
+    /** True while this card (or a selection containing it) is actively being dragged. */
+    isDragging?: boolean
+    onDragStart?: (event: DragEvent<HTMLDivElement>) => void
+    onDragEnd?: (event: DragEvent<HTMLDivElement>) => void
+    /** Names of collections this card belongs to (renders a compact folder badge when non-empty). */
+    collectionNames?: readonly string[]
     /**
      * `default` — gallery pages. `compact` — dashboard rails: smaller title,
      * tighter vignette, tags capped at 2 so narrow cards stay legible.
@@ -103,6 +111,11 @@ export function GalleryCard({
     shareLabel,
     highlighted = false,
     deleting = false,
+    draggable = false,
+    isDragging = false,
+    onDragStart,
+    onDragEnd,
+    collectionNames,
     size = 'default',
     view = 'card',
     eyebrow,
@@ -119,6 +132,13 @@ export function GalleryCard({
 }: GalleryCardProps) {
     const { t } = useTranslation()
     const interactive = Boolean(onClick) && !deleting
+    const canDrag = draggable && !deleting && !staticCard
+    const primaryCollectionName = collectionNames && collectionNames.length > 0 ? collectionNames[0] : null
+    const extraCollectionCount = collectionNames && collectionNames.length > 1 ? collectionNames.length - 1 : 0
+    const collectionBadgeLabel = primaryCollectionName
+        ? (extraCollectionCount > 0 ? `${primaryCollectionName} +${extraCollectionCount}` : primaryCollectionName)
+        : null
+    const collectionBadgeTitle = collectionNames && collectionNames.length > 0 ? collectionNames.join(', ') : undefined
     const cardRef = useRef<HTMLDivElement>(null!)
     const [menuOpen, setMenuOpen] = useState(false)
     const [themeDownloadState, setThemeDownloadState] = useState<{
@@ -265,6 +285,9 @@ export function GalleryCard({
         onPointerCancel: contextMenu.pointerHandlers.onPointerCancel,
         onPointerLeave: contextMenu.pointerHandlers.onPointerLeave,
         onPointerUp: contextMenu.pointerHandlers.onPointerUp,
+        draggable: canDrag || undefined,
+        onDragStart: canDrag ? onDragStart : undefined,
+        onDragEnd: canDrag ? onDragEnd : undefined,
     }
 
     // The list row's trailing action affordance: a single overflow menu carrying
@@ -292,6 +315,7 @@ export function GalleryCard({
                 className={cx(
                     'group relative flex w-full items-center gap-3 p-2.5 sm:gap-4 sm:p-3',
                     (highlighted || menuOpen) && cx(SELECTED_CARD_CLASS, 'shadow-card-hover'),
+                    isDragging && 'scale-[0.98] opacity-60 ring-1 ring-ember-500/40',
                     deleting && 'pointer-events-none opacity-60',
                 )}
                 data-gallery-card-id={id}
@@ -314,6 +338,17 @@ export function GalleryCard({
                         </h3>
                         {markerBadge && <span className="shrink-0">{markerBadge}</span>}
                         {badge && <span className="hidden shrink-0 sm:inline-flex"><Badge tone="glass">{badge}</Badge></span>}
+                        {collectionBadgeLabel && (
+                            <Badge
+                                tone="glass"
+                                icon={<Icon icon={Folder} size={11} className="text-ember-400" />}
+                                title={collectionBadgeTitle}
+                                className="hidden max-w-44 shrink-0 truncate sm:inline-flex"
+                                data-testid="card-collection-badge"
+                            >
+                                <span className="truncate">{collectionBadgeLabel}</span>
+                            </Badge>
+                        )}
                         {showVersion && (
                             <span className="hidden shrink-0 sm:inline-flex">
                                 <Badge tone="glass" className="font-mono">
@@ -388,6 +423,7 @@ export function GalleryCard({
             className={cx(
                 'group relative flex h-full flex-col',
                 (highlighted || menuOpen) && cx(SELECTED_CARD_CLASS, 'shadow-card-hover'),
+                isDragging && 'scale-[0.98] opacity-60 ring-1 ring-ember-500/40',
                 deleting && 'pointer-events-none opacity-60',
             )}
             data-gallery-card-id={id}
@@ -407,10 +443,21 @@ export function GalleryCard({
                 {/* Candlelit bottom gradient: lifts the name/description/CTA off the art.
                     Graceful (depth by softness), not a heavy slab. */}
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-[62%] bg-gradient-to-t from-ink-900 via-ink-900/70 to-transparent" />
-                {(markerBadge || badge || showVersion || hasDraft) && (
+                {(markerBadge || badge || collectionBadgeLabel || showVersion || hasDraft) && (
                     <div className="absolute left-3 top-3 z-[3] flex max-w-[65%] flex-col items-start gap-1">
                         {markerBadge}
                         {badge && <Badge tone="glass" className="max-w-full truncate">{badge}</Badge>}
+                        {collectionBadgeLabel && (
+                            <Badge
+                                tone="glass"
+                                icon={<Icon icon={Folder} size={11} className="text-ember-400" />}
+                                title={collectionBadgeTitle}
+                                className="max-w-full truncate"
+                                data-testid="card-collection-badge"
+                            >
+                                <span className="truncate">{collectionBadgeLabel}</span>
+                            </Badge>
+                        )}
                         {showVersion && (
                             <Badge tone="glass" className="font-mono">
                                 {t('cardVersions.drawer.versionLabel', { number: versionNumber })}

@@ -5,7 +5,7 @@ const GM_PROSE = `The tavern door groans shut behind you. *Rain drips from your 
 
 "You're late," she says, not unkindly. "Sit. We have little time."
 
-**She's measuring you — every word a test.**`
+Her gaze returns to the **sealed envelope**.`
 
 const GM_MARKDOWN = `## The Sunken Library
 
@@ -27,7 +27,7 @@ const meta = {
     docs: {
       description: {
         component:
-          'A single chat turn. The **player** turn is an ember candlelit bubble (UI sans). The **Game Master** turn is literary narrative prose (`.chat-prose`, Spectral serif) rendered from markdown, where `"quotes"` become bright dialogue, *italics* become muted action, and **bold** becomes arcane-tinted thought. See Design System → Foundations → Narrative Prose.',
+          'A single chat turn. The **player** turn is an ember candlelit bubble (UI sans). Roleplay JSON segments use Spectral serif: narration is muted and italic, dialogue is brighter and medium weight, and fictional thoughts carry an explicit label. Speech aligns with the prose without quote borders. Group replies retain roster identity; solo replies share the turn header. **Bold** stays emphasis. See Design System → Foundations → Narrative Prose.',
       },
     },
   },
@@ -54,13 +54,13 @@ export const GameMasterProse: Story = {}
 /** Markdown support: headings, lists, blockquotes, and inline code. */
 export const Markdown: Story = { args: { content: GM_MARKDOWN } }
 
-/** XML-derived response segments: narrator, spoken dialogue, and visible thought. */
+/** JSON-derived response segments: narrator, spoken dialogue, and visible thought. */
 export const StructuredSegments: Story = {
   args: {
     content: 'Lyra: The door listens.',
     segments: [
-      { kind: 'narrator', content: 'The tavern hushes as rain taps against the leaded glass.' },
-      { kind: 'speech', speaker_id: 'lyra', speaker_name: 'Lyra', content: '"The door listens," she says. "Ask it gently."' },
+      { kind: 'narrator', content: 'The tavern hushes.\n\nRain taps against the leaded glass.' },
+      { kind: 'speech', speaker_id: 'lyra', speaker_name: 'Lyra', content: 'The door listens.\n\nAsk it **gently**.' },
       { kind: 'thought', speaker_id: 'morrow', speaker_name: 'Morrow', content: 'It remembers my hands on the old lock.' },
     ],
   },
@@ -87,3 +87,14 @@ export const OneOnOneCharacter: Story = {
     ],
   },
 }
+
+/** Active body text is visible before its JSON string closes. */
+export const StreamingGroup: Story = {
+  args: { content: '', isStreaming: true, segments: [
+    { kind: 'speech', speaker_id: 'lyra', speaker_name: 'Lyra', content: 'El puente es más rápido.' },
+    { kind: 'narrator', content: 'Morrow studies the water.\n\nThe lantern flickers.' },
+    { kind: 'thought', speaker_id: 'morrow', speaker_name: 'Morrow', content: 'The old path might still be **safe', streaming: true },
+  ] },
+}
+
+export const NarrowGroup: Story = { ...StreamingGroup, decorators: [(Story) => <div className="w-80 max-w-full"><Story /></div>] }

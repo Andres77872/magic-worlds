@@ -2,6 +2,8 @@ import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { formatApiTime } from '@/utils/time'
+import { I18nextProvider } from 'react-i18next'
+import { i18n } from '@/app/i18n'
 import type { ChatImageGeneration } from '../../../shared'
 import type { ChatTurnImagesView } from '../hooks/useChatImages'
 import { ChatTurn } from './ChatTurn'
@@ -73,6 +75,28 @@ Choose carefully.`
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(rawContent))
     expect(writeText).toHaveBeenCalledTimes(1)
     expect(screen.getByRole('button', { name: 'Message copied' })).toBeInTheDocument()
+  })
+
+  it('copies and edits localized readable segments without exposing JSON or changing an untouched reply', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    const onEditClick = vi.fn()
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    const localized = i18n.cloneInstance({ lng: 'es' })
+    const segments = [{ kind: 'narrator' as const, content: 'Uno.\n\nDos.' },
+      { kind: 'thought' as const, speaker_id: 'lyra', speaker_name: 'Lyra', content: '**Otra vez.**' }]
+    const expected = 'Uno.\n\nDos.\n\nLyra piensa: **Otra vez.**'
+    render(<I18nextProvider i18n={localized}><ChatTurn {...baseProps} onEditClick={onEditClick}
+      turn={{ id: 'localized', type: 'ai', timestamp: '', content: JSON.stringify({ segments }), segments }}
+    /></I18nextProvider>)
+    fireEvent.click(screen.getByRole('button', { name: localized.t('common.copyMessage') }))
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(expected))
+    fireEvent.click(screen.getByRole('button', { name: localized.t('interaction.actions.editMessage') }))
+    const editor = screen.getByRole('textbox')
+    expect(editor).toHaveValue(expected)
+    fireEvent.click(screen.getByRole('button', { name: localized.t('common.save') }))
+    expect(screen.queryByRole('textbox')).toBeNull()
+    expect(onEditClick).not.toHaveBeenCalled()
+    expect(document.body).not.toHaveTextContent('"segments"')
   })
 
   it('keeps copy available when only mutating actions are disabled', async () => {

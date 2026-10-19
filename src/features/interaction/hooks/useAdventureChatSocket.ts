@@ -37,7 +37,7 @@ export interface AdventureChatHandlers {
     onDelta?: (content: string) => void
     /** Validated turn metadata (suggested actions + image prompt) arrived. */
     onMetadata?: (meta: { forwardOptions?: ForwardOption[]; imagePrompt?: string }) => void
-    /** Parsed XML response segments arrived after the narrative stream completed. */
+    /** Validated roleplay response segments arrived after the narrative stream completed. */
     onSegments?: (frame: Extract<ChatSocketServerMessage, { type: 'segments' }>) => void
     /**
      * The turn finished streaming (`interrupted` when stopped early).

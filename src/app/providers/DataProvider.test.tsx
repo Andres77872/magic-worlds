@@ -765,6 +765,32 @@ describe('DataProvider session persona boundaries and adventure recovery', () =>
         expect(context.current.editingInProgress?.persona).toBeUndefined()
     })
 
+    it('keeps the server template name when saving cast edits made before the first adventure message', async () => {
+        const namedSnapshot = { ...savedSnapshot, template: { ...savedSnapshot.template, name: 'Gathering of wizards' } }
+        vi.mocked(apiService.createAdventureSession).mockResolvedValue({ ...savedSession, template_snapshot: namedSnapshot })
+        vi.mocked(apiService.updateAdventureSnapshot).mockImplementation(async (_id, snapshot) => {
+            if (!snapshot.template.name) throw new Error('template.name is required')
+            return { template_snapshot: snapshot }
+        })
+        await mount()
+        await act(async () => { await context.current.startTemplate(TEMPLATE, CHAT_PERSONA) })
+        const draft = context.current.editingInProgress!
+        expect(draft.snapshot?.template.name).toBeUndefined()
+        const edited = { ...draft.snapshot!, template: {
+            ...draft.snapshot!.template,
+            description: 'The river has fallen silent.',
+            characters: [{ ...CHAT_CHARACTER, source_card_id: CHAT_CHARACTER.id }],
+        } }
+        await act(async () => { await context.current.saveInProgressSnapshot(draft.id, edited) })
+        await act(async () => { await context.current.ensureAdventureSession(context.current.editingInProgress!) })
+        expect(apiService.createAdventureSession).toHaveBeenCalledExactlyOnceWith('t1', 'p1')
+        expect(apiService.updateAdventureSnapshot).toHaveBeenCalledWith(11, expect.objectContaining({ template: expect.objectContaining({
+            name: 'Gathering of wizards', description: 'The river has fallen silent.',
+            characters: [expect.objectContaining({ id: CHAT_CHARACTER.id })],
+        }) }))
+        expect(context.current.editingInProgress?.snapshot?.template.name).toBe('Gathering of wizards')
+    })
+
     it('rejects non-persona snapshot additions for both local drafts and saved sessions', async () => {
         await mount()
         await act(async () => { await context.current.startTemplate(TEMPLATE, CHAT_PERSONA) })

@@ -6,13 +6,12 @@ import { Stage } from '../Swatch'
 
 # Narrative Prose
 
-This is the surface where the story actually happens — the `.chat-prose` layer in
+This is the surface where the story actually happens — the roleplay-scoped prose layer in
 `theme.css`, rendered by `ChatMessage` for every Game Master turn. It is the clearest
 expression of **"serif for story, sans for system":** the UI recedes, and the prose
 glows in Spectral.
 
-Markdown is parsed and re-styled into a small **roleplay vocabulary** so a turn reads
-like a page from a book, not a chat log.
+JSON segments carry narration, speech and fictional thoughts. Their bodies support bounded Markdown; formatting does not determine the speaker or segment kind.
 
 ## The roleplay vocabulary
 
@@ -24,15 +23,16 @@ like a page from a book, not a chat log.
 
 "You're late," she says, not unkindly. "Sit. We have little time."
 
-**She's measuring you — every word a test.**`}
+Her gaze returns to the **sealed envelope**.`}
     />
   </div>
 </Stage>
 
-- **`"Dialogue"`** → quoted text becomes bright `rp-dialogue` (parchment-50) — spoken words stand out.
-- **`*Action*`** → italics become muted `rp-action` (parchment-300) — stage directions recede.
-- **`**Thought**`** → bold becomes arcane-tinted `rp-thought` (arcane-300), wrapped in parentheses — the unspoken.
-- Everything else is narrative body in **Spectral** at a comfortable reading measure.
+- **Narrator segments** use muted italic prose so actions stay distinct from spoken words.
+- **Speech segments** use brighter, medium-weight prose aligned with the narration. Group replies show roster identity; solo replies share the turn header. Quotation marks remain ordinary prose.
+- **`*Action*`** and single-tilde actions use muted italics; double tildes remain deletion.
+- **Thought segments** explicitly label fictional, unspoken text. **Bold stays emphasis**, with no generated parentheses.
+- Roleplay body text uses the dedicated **Spectral** roleplay type token at a comfortable reading measure.
 
 ## Player vs. Game Master
 
@@ -75,6 +75,4 @@ You could:
   </div>
 </Stage>
 
-> Implementation: `ChatMessage` maps each markdown node to a `.markdown-*` / `.rp-*`
-> class and splits `"quoted"` spans into `rp-dialogue`. The classes live in the
-> `@layer components` block of `src/ui/styles/theme.css`.
+> Implementation: `ChatMessage` maps decoded segments to narration, attributed speech and labeled thought treatments. Its chat-only Markdown allowlist preserves lore marks and readable labels while preventing generated media/network elements. Inline code stays inline. Styles use existing Reverie tokens; shared assistant Markdown defaults are unchanged.

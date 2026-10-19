@@ -7,6 +7,7 @@ import type { ChatNarratorIdentity, ChatResponseSegment, ForwardOption, TurnEntr
 import { Badge, cx, Eyebrow, Icon } from '../../../ui/primitives'
 import type { TriggerMatcher } from '@/features/lorebook'
 import { formatApiTime } from '@/utils/time'
+import { segmentsToPlainText } from '@/utils/chatSegments'
 import { callTurnDisplay, isCallReply, isCallTurn, turnVoiceSessionId } from '../utils/callTurnMarkup'
 import { ChatAvatar } from './ChatAvatar'
 import { ChatMessage } from './ChatMessage'
@@ -96,7 +97,7 @@ export const ChatTurn = memo(function ChatTurn({ turn, onForwardOptionClick, onR
     }
 
     const handleEditSave = (content: string) => {
-        if (onEditClick && content.trim() !== turn.content) {
+        if (onEditClick && content.trim() !== readableContent.trim()) {
             onEditClick(turn.id, content.trim())
         }
         setIsEditing(false)
@@ -108,8 +109,9 @@ export const ChatTurn = memo(function ChatTurn({ turn, onForwardOptionClick, onR
 
     const hasNarration = Boolean(turn.ttsUrl || turn.ttsAssets?.length || turn.ttsSegments?.length)
     // D23: a call reply shows, and copies, without speech markup; any other turn passes its own content and segments.
-    // Editing still starts from the stored text.
+    // Structured roleplay uses the same localized projection for copy and edit.
     const display = useMemo(() => callTurnDisplay(turn), [turn])
+    const readableContent = display.segments?.length ? segmentsToPlainText(display.segments, t) : display.content
 
     return (
         <article className={cx('mb-8 flex gap-3', isUser && 'flex-row-reverse')}>
@@ -147,13 +149,13 @@ export const ChatTurn = memo(function ChatTurn({ turn, onForwardOptionClick, onR
                 <div className={cx('w-full min-w-0', isUser && 'flex flex-col items-end')}>
                     {isEditing ? (
                         <EditMode
-                            initialContent={turn.content}
+                            initialContent={readableContent}
                             isUser={isUser}
                             onSave={handleEditSave}
                             onCancel={handleEditCancel}
                         />
                     ) : (
-                        <ChatMessage content={display.content} isUser={isUser} isStreaming={turn.isStreaming} segments={display.segments} narratorIdentity={turn.narratorIdentity} aiLabel={resolvedAiLabel} loreMatcher={loreMatcher} soloSpeakerId={aiSpeaker?.id} />
+                        <ChatMessage content={readableContent} isUser={isUser} isStreaming={turn.isStreaming} segments={display.segments} narratorIdentity={turn.narratorIdentity} aiLabel={resolvedAiLabel} loreMatcher={loreMatcher} soloSpeakerId={aiSpeaker?.id} />
                     )}
                     {!isUser && !isEditing && showImage && (
                         <ChatTurnImages
@@ -200,7 +202,7 @@ export const ChatTurn = memo(function ChatTurn({ turn, onForwardOptionClick, onR
                             isEditing={isEditing}
                             isStreaming={turn.isStreaming}
                             actionsDisabled={actionsDisabled}
-                            messageContent={display.content}
+                            messageContent={readableContent}
                             onEditClick={!callTurn && onEditClick ? handleEditStart : undefined}
                             onRegenerateClick={onRegenerateClick}
                             onDeleteClick={onDeleteClick}

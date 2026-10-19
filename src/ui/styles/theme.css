@@ -101,6 +101,8 @@
   --text-h3--line-height: 1.2;
   --text-narrative: 18px;
   --text-narrative--line-height: 1.62;
+  --text-roleplay: 17px;
+  --text-roleplay--line-height: 1.62;
   --text-body: 15px;
   --text-body--line-height: 1.55;
   --text-label: 13px;
@@ -514,6 +516,28 @@
   .chat-prose .rp-thought { font-style: italic; color: var(--color-arcane-300); }
   .chat-prose .rp-thought::before { content: '('; }
   .chat-prose .rp-thought::after { content: ')'; }
+
+  /* Roleplay overrides stay local; assistants retain shared prose defaults. */
+  .roleplay-message .roleplay-prose,
+  .roleplay-message.roleplay-prose {
+    font-size: var(--text-roleplay);
+    line-height: var(--text-roleplay--line-height);
+  }
+  .roleplay-message .roleplay-narration {
+    color: var(--color-parchment-200);
+    font-style: italic;
+  }
+  .roleplay-message .roleplay-narration :is(.markdown-h2, .markdown-h3, .markdown-code-inline) {
+    font-style: normal;
+  }
+  .roleplay-message .roleplay-speech {
+    color: var(--color-parchment-50);
+    font-weight: 500;
+  }
+  .roleplay-message .roleplay-thought {
+    color: var(--color-arcane-300);
+    font-style: italic;
+  }
 
   /* Lorebook trigger: a word that touches session lore. A quiet arcane dotted
      underline that brightens on hover (or while the composer is "armed" with
