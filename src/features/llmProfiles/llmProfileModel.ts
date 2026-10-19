@@ -4,6 +4,7 @@
  * validation (mirrors the server rules) and assignment-error mapping.
  */
 import { isLlmFeatureEnabled } from '@/shared/featureFlags'
+import { isCustomProviderBaseUrl } from '@/shared/llmCustomProvider'
 import type { TFunction } from 'i18next'
 import { ApiError } from '@/infrastructure/api'
 import type { LlmFeature } from '@/shared/types/llm.types'
@@ -32,6 +33,26 @@ export function roleFor(model: LlmCatalogModel): LlmProfileRole {
 /** A model a new profile can start from. */
 export function usableModels(models: LlmCatalogModel[]): LlmCatalogModel[] {
     return models.filter(model => model.status === 'active' && model.compatible_endpoints.length > 0)
+}
+
+export function customRole(modelId = '', endpoint: LlmProfileRole['endpoint'] = 'chat_completions'): LlmProfileRole {
+    return { catalog_model_key: 'custom/manual', provider_model_id: modelId, endpoint,
+        settings: { max_input_tokens: 32768, max_output_tokens: 4096, max_messages: 100,
+            timeout_seconds: 120, truncation_strategy: 'token_budget' } }
+}
+
+export function customProfileConfig(): LlmProfileConfig {
+    return { provider_target_key: 'custom', catalog_revision: 'custom', platform_connection_key: null,
+        custom_provider: { protocol: 'openai', base_url: '', endpoint: 'chat_completions' }, roles: { primary: customRole() } }
+}
+
+export function customProfileReady(config: LlmProfileConfig): boolean {
+    return !config.custom_provider || isCustomProviderBaseUrl(config.custom_provider.base_url)
+        && Object.values(config.roles).every(role => {
+            const id = role?.provider_model_id
+            return typeof id === 'string' && id.length > 0 && id.length <= 256 && id === id.trim()
+                && !/[\x00-\x1f\x7f]|\{\{|\}\}/.test(id)
+        })
 }
 
 export type FeatureGroupKey = 'roleplay' | 'voice' | 'creation' | 'writing' | 'media' | 'other'
@@ -109,7 +130,8 @@ const SERVER_RESERVED = ['model', 'messages', 'stream', 'stream_options', 'tools
     'parallel_tool_calls', 'response_format', 'json_mode', 'json_output', 'max_tokens', 'max_completion_tokens',
     'temperature', 'top_p', 'reasoning_effort', 'reasoning', 'n', 'user', 'engine', 'endpoint', 'api_key',
     'private_key', 'base_url', 'headers', 'extra_headers', 'extra_body', 'callback', 'fallback', 'timeout',
-    'organization', 'project']
+    'organization', 'project', 'private_transport', 'private_limits', 'custom_provider', 'openai_adapter', 'stream_usage',
+    'input', 'instructions', 'previous_response_id', 'conversation', 'include', 'text', 'retries', 'credential_binding', 'request_credentials']
 // The client refuses to send these anywhere in a profile payload (see llmProfileContract).
 export const CLIENT_PRIVATE = ['credentials', 'api_key', 'provider_key', 'secret', 'secret_ref', 'secret_alias',
     'base_url', 'url', 'headers', 'authorization', 'api_info', 'env', 'graph', 'agt', '__proto__', 'constructor']

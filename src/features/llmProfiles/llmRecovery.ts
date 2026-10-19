@@ -5,11 +5,17 @@ const CODES = new Set([
     'LLM_EXECUTION_INTENT_CHANGED', 'PROFILE_REVISION_CHANGED', 'BYOK_CREDENTIAL_REQUIRED', 'PLATFORM_CREDITS_EXHAUSTED',
     'BYOK_CREDENTIAL_REJECTED', 'BYOK_CREDENTIAL_INVALID', 'PROVIDER_AUTHENTICATION_REJECTED',
     'PROVIDER_PERMISSION_DENIED', 'PROVIDER_RATE_LIMITED', 'PROVIDER_QUOTA_EXCEEDED',
-    'PROVIDER_UNAVAILABLE', 'BYOK_TRANSPORT_UNSUPPORTED',
+    'PROVIDER_UNAVAILABLE', 'BYOK_TRANSPORT_UNSUPPORTED', 'CUSTOM_PROVIDER_URL_FORBIDDEN', 'LLM_CREDENTIAL_HTTPS_REQUIRED',
 ])
+
+/** Only fixed, known codes may become user-facing errors. */
+export function llmRecoveryCode(error: unknown): string | null {
+    const code = error && typeof error === 'object' ? (error as { code?: unknown }).code : undefined
+    return typeof code === 'string' && CODES.has(code) ? code : null
+}
 
 /** Copy for request-recovery outcomes and refused admissions that tells the user what another try will do; null otherwise. */
 export function llmRecoveryMessage(error: unknown, t: TFunction): string | null {
-    const code = error && typeof error === 'object' ? (error as { code?: unknown }).code : undefined
-    return typeof code === 'string' && CODES.has(code) ? t(`llmProfiles.recovery.${code}`) : null
+    const code = llmRecoveryCode(error)
+    return code ? t(`llmProfiles.recovery.${code}`) : null
 }

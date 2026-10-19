@@ -1,5 +1,6 @@
 import { authSession } from '@/infrastructure/api/authSession'
 import { API_BASE_URL } from '@/infrastructure/api/baseUrl'
+import { assertLlmCredentialTransport } from '@/infrastructure/api/llmCredentialTransport'
 import type { EffectiveLlmProfile } from '@/shared/types/llmProfile.types'
 import type { LlmRequest } from '@/shared/types/llm.types'
 import type { LlmFeature } from '@/shared/types/llm.types'
@@ -94,7 +95,7 @@ export const credentialSession = {
         let owner: string
         try { owner = ownerScope() } catch { throw new Error('LLM_SESSION_CHANGED') }
         if (owner !== expectedOwner) throw new Error('LLM_SESSION_CHANGED')
-        if (!API_BASE_URL.startsWith('https://')) throw new Error('LLM_CREDENTIAL_HTTPS_REQUIRED')
+        assertLlmCredentialTransport()
         if (!key || key.length > 4096 || key !== key.trim() || /[\x00-\x1f\x7f]/.test(key)) throw new Error('LLM_CREDENTIAL_INVALID')
         credentials.set(slot(profile), { key, generation: ++credentialGeneration })
         changed()
@@ -103,7 +104,7 @@ export const credentialSession = {
         synchronize()
         const selection = { mode: 'profile' as const, profile_id: profile.profile_id }
         if (profile.credential_mode === 'platform') return { selection, expected_revision_id: profile.revision_id }
-        if (!API_BASE_URL.startsWith('https://')) throw new Error('LLM_CREDENTIAL_HTTPS_REQUIRED')
+        assertLlmCredentialTransport()
         const key = credentials.get(slot(profile))?.key
         if (!key) throw new Error('BYOK_CREDENTIAL_REQUIRED')
         return { selection, expected_revision_id: profile.revision_id, credentials: { api_key: key } }

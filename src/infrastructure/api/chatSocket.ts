@@ -15,6 +15,7 @@ import { featureFlagRuntime } from '@/shared/featureFlagRuntime'
 import type { LlmRequest } from '@/shared/types/llm.types'
 import type { ChatImageRequest, ChatSocketServerMessage } from '../../shared/types/interaction.types'
 import { API_BASE_URL } from './baseUrl'
+import { assertLlmCredentialTransport } from './llmCredentialTransport'
 import { authSession, type AuthSessionSnapshot } from './authSession'
 import { generateUUID } from '@/utils/uuid'
 import { isWorkspaceUuid } from './workspaceContract'
@@ -304,14 +305,16 @@ export class ChatSocket {
         const request = JSON.parse(frame)
         try {
             llm = materialize()
-            if (llm.credentials && !API_BASE_URL.startsWith('https://')) throw new Error('LLM_CREDENTIAL_HTTPS_REQUIRED')
+            if (llm.credentials) assertLlmCredentialTransport()
             image = materializeImage?.()
             if (image?.credentials && !API_BASE_URL.startsWith('https://')) delete image.credentials
             ws.send(JSON.stringify({ ...request, llm, ...(image ? { image } : {}) }))
             this.sentChat = true
             this.sentRequestId = request.request_id
-        } catch {
-            this.handlers.onMessage({ type: 'error', category: 'request', message: 'Chat profile or credential is unavailable.', request_id: request.request_id })
+        } catch (failure) {
+            const code = failure instanceof Error && failure.message === 'LLM_CREDENTIAL_HTTPS_REQUIRED' ? 'LLM_CREDENTIAL_HTTPS_REQUIRED' : undefined
+            this.handlers.onMessage({ type: 'error', category: 'request', message: 'Chat profile or credential is unavailable.', request_id: request.request_id,
+                ...(code ? { code } : {}) })
         } finally {
             if (llm) delete llm.credentials
             if (image) delete image.credentials

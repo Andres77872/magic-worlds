@@ -22,6 +22,19 @@ it('rejects keys returned by a configured preparation handler over HTTP', async 
     try { await expect(prepareLlmRequest('novel')).rejects.toThrow('LLM_CREDENTIAL_HTTPS_REQUIRED') }
     finally { unsubscribe() }
 })
+it('allows a transient key to the loopback API during local development', async () => {
+    vi.stubEnv('DEV', true)
+    const { prepareLlmRequest } = await preparation('http://localhost:8010')
+    const input = { selection: { mode: 'profile' as const, profile_id: 'fixture' },
+        expected_revision_id: 'fixture-revision', credentials: { api_key: 'FAKE_LOCAL_TRANSPORT_CANARY' } }
+    await expect(prepareLlmRequest('chat_character', input)).resolves.toEqual(input)
+})
+it('rejects a transient key to the loopback API in production', async () => {
+    vi.stubEnv('DEV', false)
+    const { prepareLlmRequest } = await preparation('http://localhost:8010')
+    await expect(prepareLlmRequest('chat_character', { credentials: { api_key: 'FAKE_LOCAL_TRANSPORT_CANARY' } }))
+        .rejects.toMatchObject({ code: 'LLM_CREDENTIAL_HTTPS_REQUIRED' })
+})
 it('allows platform selection on HTTP and copies transient credentials only on HTTPS', async () => {
     let module = await preparation('http://api.test.invalid')
     expect(await module.prepareLlmRequest('novel', { selection: { mode: 'inherit' } })).toEqual({ selection: { mode: 'inherit' } })

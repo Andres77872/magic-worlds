@@ -14,10 +14,11 @@ interface RoleSettingsFieldsProps {
     value: LlmProfileRole
     model: LlmCatalogModel | undefined
     disabled?: boolean
+    custom?: boolean
     onChange: (value: LlmProfileRole) => void
 }
 
-export function RoleSettingsFields({ value, model, disabled = false, onChange }: RoleSettingsFieldsProps) {
+export function RoleSettingsFields({ value, model, disabled = false, custom = false, onChange }: RoleSettingsFieldsProps) {
     const { t } = useTranslation()
     const settings = value.settings
     const set = (patch: Partial<LlmProfileRole['settings']>) => onChange({ ...value, settings: { ...settings, ...patch } })
@@ -31,18 +32,18 @@ export function RoleSettingsFields({ value, model, disabled = false, onChange }:
                 options={[{ value: 'token_budget', label: t('llmProfiles.tokenBudget') }, { value: 'tail', label: t('llmProfiles.tail') }]}
                 onChange={strategy => set({ truncation_strategy: strategy as LlmProfileRole['settings']['truncation_strategy'] })} />
         </Field>
-        <Field label={t('llmProfiles.endpoint')} helper={t('llmProfiles.settingHints.endpoint')}>
+        {!custom && <Field label={t('llmProfiles.endpoint')} helper={t('llmProfiles.settingHints.endpoint')}>
             <Select value={value.endpoint} disabled={disabled}
                 options={(model?.compatible_endpoints ?? [value.endpoint]).map(endpoint => ({ value: endpoint, label: endpoint }))}
                 onChange={endpoint => onChange({ ...value, endpoint: endpoint as LlmProfileRole['endpoint'] })} />
-        </Field>
-        {(['temperature', 'top_p'] as const).filter(setting => model?.supported_parameters.includes(setting)).map(setting =>
+        </Field>}
+        {(['temperature', 'top_p'] as const).filter(setting => custom || model?.supported_parameters.includes(setting)).map(setting =>
             <Field key={setting} label={t(`llmProfiles.settings.${setting}`)} helper={t(`llmProfiles.settingHints.${setting}`)}>
                 <Input type="number" step="0.1" min={0} max={setting === 'temperature' ? 2 : 1} inputMode="decimal"
                     value={settings[setting] ?? ''} placeholder={t('llmProfiles.modelDefault')} disabled={disabled}
                     onChange={event => set({ [setting]: event.target.value === '' ? null : Number(event.target.value) })} />
             </Field>)}
-        {model?.supported_parameters.includes('reasoning_effort') &&
+        {(custom || model?.supported_parameters.includes('reasoning_effort')) &&
             <Field label={t('llmProfiles.settings.reasoning_effort')} helper={t('llmProfiles.settingHints.reasoning_effort')}>
                 <Select value={settings.reasoning_effort ?? ''} disabled={disabled}
                     options={EFFORTS.map(effort => ({ value: effort, label: effort || t('llmProfiles.modelDefault') }))}

@@ -30,7 +30,8 @@ import { LlmProfileCompatibilityPanel, type LlmCompatibilityState } from './LlmP
 import { ModelFacts } from './ModelFacts'
 import { ProviderPropsField } from './ProviderPropsField'
 import { RoleSettingsFields } from './RoleSettingsFields'
-import { HELPER_ROLES, ROLE_ORDER, configKey, formatTokens, modelOptions, providerOptionCount, withProviderOptions } from './llmProfileModel'
+import { isCustomProviderBaseUrl } from '@/shared/llmCustomProvider'
+import { HELPER_ROLES, ROLE_ORDER, configKey, formatTokens, modelOptions, providerOptionCount, withProviderOptions, customProfileConfig, customProfileReady, customRole, usableModels } from './llmProfileModel'
 
 export type ProfileEditorMode = 'create' | 'edit' | 'view'
 
@@ -130,7 +131,7 @@ export function ProfileEditor(props: ProfileEditorProps) {
         if (next) window.requestAnimationFrame(() => testRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' }))
     }
 
-    const canSave = !readOnly && !busy && Boolean(draft.name.trim()) && !propsInvalid
+    const canSave = !readOnly && !busy && Boolean(draft.name.trim()) && !propsInvalid && customProfileReady(config)
     const editingSaved = mode === 'edit' && editing !== null
     const footer = <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p role="status" className={cx('font-ui text-label font-semibold', statusTone)}>{status}</p>
@@ -167,7 +168,40 @@ export function ProfileEditor(props: ProfileEditorProps) {
                     </Field>
                 </Section>
 
-                <Section title={t('llmProfiles.editor.responseModel')} hint={t('llmProfiles.editor.responseModelHint')}>
+                {!systemAdmin && <Field label={t('llmProfiles.custom.source')}>
+                    <Select value={config.custom_provider ? 'custom' : 'preset'} disabled={busy}
+                        options={[{ value: 'preset', label: t('llmProfiles.custom.preset'), disabled: usableModels(models).length === 0 },
+                            { value: 'custom', label: t('llmProfiles.custom.choice') }]}
+                        onChange={source => {
+                            if (source === 'custom') onChange({ ...draft, config: customProfileConfig() })
+                            else if (usableModels(models)[0]) onChooseModel('primary', usableModels(models)[0].catalog_model_key)
+                        }} />
+                </Field>}
+
+                {config.custom_provider ? <Section title={t('llmProfiles.custom.title')} hint={t('llmProfiles.custom.hint')}>
+                    <Field label={t('llmProfiles.custom.url')} helper={t('llmProfiles.custom.urlHint')}
+                        error={config.custom_provider.base_url && !isCustomProviderBaseUrl(config.custom_provider.base_url) ? t('llmProfiles.custom.invalidUrl') : undefined}>
+                        <Input type="url" maxLength={2048} value={config.custom_provider.base_url} disabled={busy}
+                            placeholder="https://provider.example/v1"
+                            onChange={event => onChange({ ...draft, config: { ...config,
+                                custom_provider: { ...config.custom_provider!, base_url: event.target.value } } })} />
+                    </Field>
+                    <Field label={t('llmProfiles.custom.model')} helper={t('llmProfiles.custom.modelHint')}>
+                        <Input value={config.roles.primary.provider_model_id ?? ''} maxLength={256} disabled={busy}
+                            onChange={event => setRole('primary', { ...config.roles.primary, provider_model_id: event.target.value })} />
+                    </Field>
+                    <Field label={t('llmProfiles.custom.api')}>
+                        <Select value={config.custom_provider.endpoint} disabled={busy}
+                            options={[{ value: 'chat_completions', label: 'Chat Completions' }, { value: 'responses', label: 'Responses' }]}
+                            onChange={value => {
+                                const endpoint = value as LlmProfileRole['endpoint']
+                                const roles = { ...config.roles }
+                                for (const role of ROLE_ORDER) if (roles[role]) roles[role] = { ...roles[role]!, endpoint }
+                                onChange({ ...draft, config: { ...config, roles, custom_provider: { ...config.custom_provider!, endpoint } } })
+                            }} />
+                    </Field>
+                    <Callout tone="info" role="note">{t('llmProfiles.custom.server')}</Callout>
+                </Section> : <Section title={t('llmProfiles.editor.responseModel')} hint={t('llmProfiles.editor.responseModelHint')}>
                     {noModelsMessage && <Callout tone="warning" role="note">{noModelsMessage}</Callout>}
                     <Field label={t('llmProfiles.editor.model')}>
                         <Select value={config.roles.primary.catalog_model_key} disabled={busy}
@@ -184,28 +218,37 @@ export function ProfileEditor(props: ProfileEditorProps) {
                                 .map(connection => ({ value: connection.connection_key, label: connection.connection_key, disabled: !connection.available }))}
                             onChange={value => onChange({ ...draft, config: { ...config, platform_connection_key: value } })} />
                     </Field>}
-                </Section>
+                </Section>}
 
-                <Disclosure title={t('llmProfiles.editor.separate')} hint={t('llmProfiles.editor.separateHint')} defaultOpen={helperCount > 0}
+                <Disclosure title={t(config.custom_provider ? 'llmProfiles.custom.separate' : 'llmProfiles.editor.separate')}
+                    hint={t(config.custom_provider ? 'llmProfiles.custom.separateHint' : 'llmProfiles.editor.separateHint')} defaultOpen={helperCount > 0}
                     trailing={helperCount > 0 ? <Badge tone="arcane">{helperCount}</Badge> : undefined}>
                     {HELPER_ROLES.map(role => {
                         const value = config.roles[role]
                         const options = [{ value: '', label: t('llmProfiles.samePrimary') }, ...modelOptions(helperChoices, t, locale, value?.catalog_model_key)]
                         return <div key={role} className="flex flex-col gap-2">
                             <Field label={t(`llmProfiles.roles.${role}`)} helper={t(`llmProfiles.editor.${role}Hint`)}>
-                                <Select value={value?.catalog_model_key ?? ''} disabled={busy} options={options} onChange={id => onChooseModel(role, id)} />
+                                {config.custom_provider ? <Input value={value?.provider_model_id ?? ''} maxLength={256} disabled={busy}
+                                    placeholder={t('llmProfiles.samePrimary')}
+                                    onChange={event => {
+                                        const roles = { ...config.roles }
+                                        if (event.target.value) roles[role] = { ...(value ?? customRole('', config.custom_provider!.endpoint)), provider_model_id: event.target.value }
+                                        else delete roles[role]
+                                        onChange({ ...draft, config: { ...config, roles } })
+                                    }} />
+                                    : <Select value={value?.catalog_model_key ?? ''} disabled={busy} options={options} onChange={id => onChooseModel(role, id)} />}
                             </Field>
-                            {value && <ModelFacts model={modelOf(value.catalog_model_key)} compact />}
+                            {value && !config.custom_provider && <ModelFacts model={modelOf(value.catalog_model_key)} compact />}
                         </div>
                     })}
-                    <p className="font-ui text-caption text-parchment-400">{t('llmProfiles.editor.sameProvider')}</p>
+                    <p className="font-ui text-caption text-parchment-400">{t(config.custom_provider ? 'llmProfiles.custom.sameProvider' : 'llmProfiles.editor.sameProvider')}</p>
                 </Disclosure>
 
                 <Disclosure title={t('llmProfiles.editor.advanced')} hint={t('llmProfiles.editor.advancedHint')}>
                     {configuredRoles.map(role => <div key={role} className="flex flex-col gap-3">
                         {configuredRoles.length > 1 && <h4 className="font-ui text-label font-semibold text-parchment-100">
                             {t('llmProfiles.editor.roleSettings', { role: t(`llmProfiles.roles.${role}`) })}</h4>}
-                        <RoleSettingsFields value={config.roles[role]!} model={modelOf(config.roles[role]!.catalog_model_key)} disabled={busy}
+                        <RoleSettingsFields value={config.roles[role]!} model={modelOf(config.roles[role]!.catalog_model_key)} disabled={busy} custom={Boolean(config.custom_provider)}
                             onChange={value => setRole(role, value)} />
                     </div>)}
                 </Disclosure>
@@ -217,7 +260,7 @@ export function ProfileEditor(props: ProfileEditorProps) {
                         onChange={value => onChange({ ...draft, config: withProviderOptions(config, value) })} />
                 </Disclosure>
 
-                {compatibility && <LlmProfileCompatibilityPanel state={compatibility} />}
+                {compatibility && <LlmProfileCompatibilityPanel state={compatibility} custom={Boolean(config.custom_provider)} />}
 
                 {editingSaved && editing && showTest && <div ref={testRef} className="flex flex-col gap-4 rounded-lg border border-line-faint bg-surface-raised/40 p-4">
                     <Section title={t('llmProfiles.editor.testTitle')} hint={t('llmProfiles.testExplanation')}>

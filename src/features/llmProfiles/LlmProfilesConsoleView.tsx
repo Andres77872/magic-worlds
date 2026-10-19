@@ -42,7 +42,7 @@ export function LlmProfilesConsoleView({ state, onManageAppProfiles }: LlmProfil
     const choices = profiles.filter(profile => profile.status === 'active')
     const noModels = !loading && !state.hasUsableModels
     const noModelsMessage = noModels ? t(systemAdmin ? 'llmProfiles.page.rootNoModels' : 'llmProfiles.page.noModels') : undefined
-    const createDisabled = loading || busy || noModels
+    const createDisabled = loading || busy || systemAdmin && noModels
     const appDefault = systemAdmin ? preferences?.default_profile_id ?? null : null
     const [defaultChoice, setDefaultChoice] = useState('')
     const noDefaultId = useId()
@@ -117,7 +117,7 @@ export function LlmProfilesConsoleView({ state, onManageAppProfiles }: LlmProfil
         </section> : <>
             <section className="flex flex-col gap-4">
                 {sectionHead(KeyRound, t('llmProfiles.page.yourProfiles'), t('llmProfiles.page.yourProfilesHint'), createButton)}
-                {noModels && <Callout tone="warning" role="note">
+                {noModels && <Callout tone="info" role="note">
                     <span className="block font-semibold text-parchment-50">{t('llmProfiles.page.noModelsTitle')}</span>
                     <span className="block">{noModelsMessage}</span>
                 </Callout>}

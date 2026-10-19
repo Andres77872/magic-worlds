@@ -28,6 +28,7 @@ Writers de media/callbot no ofrecen selección personal donde el registro la des
 | [10 Aceptación](10_implementation_plan_and_acceptance.md) | Entregables y criterios aún aplicables |
 | [14 Runbook](14_operations_runbook.md) | Referencia operativa del transporte actual |
 | [16 Ledger](16_current_status_and_roadmap.md) | Estado, riesgos y trabajo restante mantenidos |
+| [17 Custom providers](17_custom_provider_audit_and_plan.md) | Propuesta BYOK OpenAI para URL e ID manual, sin dependencia de catálogo ni prueba obligatoria; corrección local del routing y plan de integración |
 
 ## Evidencia y límites
 

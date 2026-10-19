@@ -79,7 +79,7 @@ export const RootRefusedAssignments: Story = {
 export const UserPage: Story = { args: { state: userConsole() } }
 /** The user page for a root user, with the link to the app-profile console. */
 export const UserPageAsRoot: Story = { args: { state: userConsole(), root: true } }
-/** A user whose groups have no models: creating is disabled with the reason; app profiles still show. */
+/** Custom profiles remain available when there are no built-in models. */
 export const UserWithoutModels: Story = { args: { state: userConsole({ models: [], modelsTotal: 0, hasUsableModels: false }) } }
 /** A user viewing an app profile read-only. */
 export const UserViewingAppProfile: Story = { args: { state: userConsole({ editor: editorFor(appStorytellerPublicDetail, false) }) } }

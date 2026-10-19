@@ -19,7 +19,7 @@ const KNOWN_REASONS = new Set(['PROFILE_INCOMPATIBLE', 'MODEL_CONTEXT_INSUFFICIE
  * "Works for: …" and "Not available for: … (reason)". Verdant marks what
  * works; blood names the role that blocks a feature.
  */
-export function LlmProfileCompatibilityPanel({ state }: { state: LlmCompatibilityState }) {
+export function LlmProfileCompatibilityPanel({ state, custom = false }: { state: LlmCompatibilityState; custom?: boolean }) {
     useFeatureFlags()
     const { t } = useTranslation()
     const id = useId()
@@ -33,8 +33,8 @@ export function LlmProfileCompatibilityPanel({ state }: { state: LlmCompatibilit
     const blocked = state.status === 'ready' ? state.report.features.filter(row => isLlmFeatureEnabled(row.feature) && !row.compatible) : []
     return <section className="flex flex-col gap-3" role="group" aria-labelledby={`${id}-title`}>
         <div className="flex flex-col gap-0.5">
-            <h3 id={`${id}-title`} className="font-ui text-sm font-semibold text-parchment-50">{t('llmProfiles.compatibility.title')}</h3>
-            <p className="font-ui text-caption text-parchment-300">{t('llmProfiles.compatibility.description')}</p>
+            <h3 id={`${id}-title`} className="font-ui text-sm font-semibold text-parchment-50">{t(custom ? 'llmProfiles.custom.availability' : 'llmProfiles.compatibility.title')}</h3>
+            <p className="font-ui text-caption text-parchment-300">{t(custom ? 'llmProfiles.custom.availabilityHint' : 'llmProfiles.compatibility.description')}</p>
         </div>
         {state.status === 'checking' && <p role="status" className="font-ui text-label text-parchment-300">{t('llmProfiles.compatibility.checking')}</p>}
         {state.status === 'unavailable' && <p role="status" className="font-ui text-label text-parchment-300">{t('llmProfiles.compatibility.unavailable')}</p>}
@@ -43,7 +43,7 @@ export function LlmProfileCompatibilityPanel({ state }: { state: LlmCompatibilit
         {state.status === 'ready' && (works.length > 0 || blocked.length > 0) && <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-1.5">
                 <h4 id={`${id}-works`} className="flex items-center gap-1.5 font-ui text-label font-semibold text-verdant-500">
-                    <Icon icon={CircleCheck} size={14} />{t('llmProfiles.compatibility.worksFor')}
+                    <Icon icon={CircleCheck} size={14} />{t(custom ? 'llmProfiles.custom.allowedFor' : 'llmProfiles.compatibility.worksFor')}
                 </h4>
                 {works.length === 0 ? <p className="font-ui text-caption text-parchment-300">{t('llmProfiles.compatibility.worksForNone')}</p>
                     : <ul aria-labelledby={`${id}-works`} className="flex flex-wrap gap-1.5">

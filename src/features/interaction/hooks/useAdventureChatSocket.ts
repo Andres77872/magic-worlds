@@ -13,6 +13,7 @@ import { i18n } from '@/app/i18n'
 import { useWorkspace } from '@/app/hooks/useWorkspace'
 import { imageCredentialSession } from '@/features/imageProfiles/imageCredentialSession'
 import { credentialSession } from '@/features/llmProfiles/credentialSession'
+import { llmRecoveryCode, llmRecoveryMessage } from '@/features/llmProfiles/llmRecovery'
 
 function bindPreparedTarget(materialize: () => LlmRequest, target: NonNullable<AdventureChatSocketErrorDetail['llmRetry']>): LlmRequest {
     const value = materialize()
@@ -171,7 +172,11 @@ export function useAdventureChatSocket(
             else if (failure instanceof Error && failure.message === 'LLM_EXECUTION_INTENT_CHANGED') {
                 llmIntents.settle(feature, intentKey(id))
                 handlersRef.current.onError?.(i18n.t('llmProfiles.recovery.LLM_EXECUTION_INTENT_CHANGED'), { category: 'conflict', code: 'LLM_EXECUTION_INTENT_CHANGED', requestId: id })
-            } else handlersRef.current.onError?.(i18n.t('llmProfiles.failed'), { category: 'request', requestId: id })
+            } else {
+                const code = llmRecoveryCode(failure)
+                handlersRef.current.onError?.(llmRecoveryMessage(failure, i18n.t) ?? i18n.t('llmProfiles.failed'), {
+                    category: 'request', ...(code ? { code } : {}), requestId: id })
+            }
         })
     }
 

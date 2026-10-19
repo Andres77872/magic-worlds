@@ -6,6 +6,18 @@ const profile = { project_hash: 'project-one', profile_id: '11111111-1111-4111-8
     resolution_source: 'explicit', catalog_revision: 'catalog-one', policy_revision: 'policy-one', roles: { primary: { catalog_model_key: 'writer', provider_model_id: 'writer-native', endpoint: 'chat_completions', settings: {
         max_input_tokens: 1024, max_output_tokens: 256, max_messages: 10, timeout_seconds: 30, truncation_strategy: 'token_budget' } } } }
 it('accepts a secret-free personal effective profile', () => expect(() => assertEffectiveLlmProfile(profile)).not.toThrow())
+const custom = { ...profile, provider_target_key: `custom:${profile.profile_id}`,
+    custom_provider: { protocol: 'openai', base_url: 'https://provider.example/v1', endpoint: 'chat_completions' } }
+it('allows the custom URL only inside the typed custom-provider descriptor', () => {
+    expect(() => assertEffectiveLlmProfile(custom)).not.toThrow()
+    expect(() => assertPublicLlmData({ config: { custom_provider: custom.custom_provider } })).not.toThrow()
+    expect(() => assertPublicLlmData({ provider_options: { custom_provider: custom.custom_provider } })).toThrow()
+    expect(() => assertPublicLlmData({ config: { custom_provider: { ...custom.custom_provider, api_key: 'FAKE_PRIVATE_CANARY' } } })).toThrow()
+})
+it.each(['https://localhost/v1', 'http://provider.example/v1', 'https://10.0.0.1/v1',
+    'https://provider.example/v1?key=secret', 'https://provider.example/v1/responses'])('rejects an unsupported custom URL %s', base_url => {
+    expect(() => assertEffectiveLlmProfile({ ...custom, custom_provider: { ...custom.custom_provider, base_url } })).toThrow()
+})
 it.each(['credentials', 'api_key', 'provider_key', 'headers', 'secret_ref', 'base_url', 'api_info'])('rejects nested private %s without echoing its value', key => {
     const check = () => assertPublicLlmData({ current: { config: { [key]: 'FAKE_PRIVATE_CANARY' } } })
     expect(check).toThrow('Invalid public LLM response.')

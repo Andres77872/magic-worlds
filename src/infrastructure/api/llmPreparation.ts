@@ -1,6 +1,6 @@
 import { assertLlmFeatureEnabled } from '@/shared/featureFlags'
 import type { LlmFeature, LlmRequest, LlmSelection } from '@/shared/types/llm.types'
-import { API_BASE_URL } from './baseUrl'
+import { assertLlmCredentialTransport } from './llmCredentialTransport'
 
 /**
  * `workspaceId` is the origin workspace of a content execution (Workspace R1):
@@ -24,7 +24,7 @@ export async function prepareLlmRequest(feature: LlmFeature, supplied?: LlmReque
         : supplied?.credentials || supplied?.expected_revision_id ? supplied : (await prepareLlmDispatch(feature, signal, supplied?.selection))()
     assertLlmFeatureEnabled(feature)
     signal?.throwIfAborted()
-    if (value.credentials && !API_BASE_URL.startsWith('https://')) throw new Error('LLM_CREDENTIAL_HTTPS_REQUIRED')
+    if (value.credentials) assertLlmCredentialTransport()
     return { ...(supplied?.retry_of_execution_id ? { retry_of_execution_id: supplied.retry_of_execution_id } : {}), selection: value.selection ? { ...value.selection } : { mode: 'inherit' },
         ...(value.expected_revision_id ? { expected_revision_id: value.expected_revision_id } : {}),
         ...(value.credentials ? { credentials: { ...value.credentials } } : {}) }

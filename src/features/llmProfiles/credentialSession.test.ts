@@ -3,7 +3,8 @@ import { authSession } from '@/infrastructure/api/authSession'
 import { credentialSession } from './credentialSession'
 import type { EffectiveLlmProfile } from '@/shared/types/llmProfile.types'
 
-vi.mock('@/infrastructure/api/baseUrl', () => ({ API_BASE_URL: 'https://api.test.invalid' }))
+const transport = vi.hoisted(() => ({ baseUrl: 'https://api.test.invalid' }))
+vi.mock('@/infrastructure/api/baseUrl', () => ({ get API_BASE_URL() { return transport.baseUrl } }))
 const KEY = 'FAKE_SESSION_CANARY'
 function token(project = 'project-one'): string {
     return `header.${btoa(JSON.stringify({ project_hash: project }))}.signature`
@@ -13,9 +14,22 @@ const profile = { project_hash: 'project-one', profile_id: '11111111-1111-4111-8
     resolution_source: 'explicit', catalog_revision: 'catalog-one', policy_revision: 'policy-one', roles: {} } as EffectiveLlmProfile
 
 describe('volatile provider credential session', () => {
-    beforeEach(() => { credentialSession.clear(); authSession.continueSignedOut(); authSession.authenticate('alice', token()); credentialSession.setProject('project-one', authSession.getSnapshot().accountKey) })
-    afterEach(() => { credentialSession.clear(); authSession.continueSignedOut() })
+    beforeEach(() => { transport.baseUrl = 'https://api.test.invalid'; credentialSession.clear(); authSession.continueSignedOut(); authSession.authenticate('alice', token()); credentialSession.setProject('project-one', authSession.getSnapshot().accountKey) })
+    afterEach(() => { credentialSession.clear(); authSession.continueSignedOut(); vi.unstubAllEnvs() })
     function remember(): void { credentialSession.remember(profile, KEY, credentialSession.ownerScope()) }
+    it('allows volatile keys on loopback during development and rechecks transport at materialization', () => {
+        transport.baseUrl = 'http://localhost:8010'
+        vi.stubEnv('DEV', true)
+        remember()
+        expect(credentialSession.materialize(profile).credentials?.api_key).toBe(KEY)
+        expect(JSON.stringify(localStorage)).not.toContain(KEY)
+        expect(JSON.stringify(sessionStorage)).not.toContain(KEY)
+        vi.stubEnv('DEV', false)
+        expect(() => credentialSession.materialize(profile)).toThrow('LLM_CREDENTIAL_HTTPS_REQUIRED')
+        credentialSession.clear()
+        expect(remember).toThrow('LLM_CREDENTIAL_HTTPS_REQUIRED')
+        expect(credentialSession.has(profile)).toBe(false)
+    })
     it('materializes only a matching approved target and never writes the key to browser storage', () => {
         remember()
         expect(credentialSession.materialize(profile)).toEqual({ selection: { mode: 'profile', profile_id: profile.profile_id }, expected_revision_id: profile.revision_id, credentials: { api_key: KEY } })

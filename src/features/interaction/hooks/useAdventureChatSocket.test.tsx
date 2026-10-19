@@ -326,6 +326,22 @@ describe('useAdventureChatSocket image lifecycle dispatch', () => {
     )
   })
 
+  it('shows an actionable transport error before admission without attempting reconciliation', async () => {
+    const stop = configureLlmPreparation(async () => {
+      throw Object.assign(new Error('LLM_CREDENTIAL_HTTPS_REQUIRED'), { code: 'LLM_CREDENTIAL_HTTPS_REQUIRED' })
+    })
+    const onError = vi.fn()
+    const { result, unmount } = renderHook(() => useAdventureChatSocket(89, { onError }, undefined, 'character-chats'))
+    try {
+      await act(async () => { result.current.sendChat('hello', 'local-blocked'); await Promise.resolve() })
+      expect(onError).toHaveBeenCalledWith(expect.stringContaining('HTTPS'), {
+        category: 'request', code: 'LLM_CREDENTIAL_HTTPS_REQUIRED', requestId: 'local-blocked',
+      })
+      expect(socketInstances[0].sendChat).not.toHaveBeenCalled()
+      expect(scopedApi.reconcileChatTurn).not.toHaveBeenCalled()
+    } finally { stop(); unmount() }
+  })
+
   it('forwards the stored user message id when regenerating', async () => {
     const { result } = renderHook(() => useAdventureChatSocket(7, {}))
     await act(async () => { result.current.sendChat('Look around', 'retry-7', 100); await Promise.resolve() })

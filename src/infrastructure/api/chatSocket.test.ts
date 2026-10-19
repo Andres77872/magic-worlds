@@ -5,6 +5,9 @@ import { setTestFeatureFlags } from '@/shared/hooks/testing/featureFlagTestUtils
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ChatSocket, configureChatSocketAuthRefresh } from './chatSocket'
 
+const transport = vi.hoisted(() => ({ baseUrl: 'http://localhost:8010' }))
+vi.mock('./baseUrl', () => ({ get API_BASE_URL() { return transport.baseUrl } }))
+
 const WORKSPACE_ID = '0f1e2d3c-4b5a-4978-8a6b-5c4d3e2f1a0b'
 
 type Protocols = string | string[] | undefined
@@ -70,6 +73,8 @@ function jwtWithExp(exp: number): string {
 
 describe('ChatSocket auth recovery', () => {
     beforeEach(() => {
+        transport.baseUrl = 'http://localhost:8010'
+        vi.stubEnv('DEV', true)
         vi.useRealTimers()
         vi.clearAllMocks()
         localStorage.clear()
@@ -545,6 +550,37 @@ describe('ChatSocket auth recovery', () => {
             content: 'hello',
             request_id: 'request-7',
         })
+    })
+
+    it.each(['http://localhost:8010', 'https://api.test.invalid'])('materializes a queued LLM key only when sending over %s and drops the copy afterward', baseUrl => {
+        transport.baseUrl = baseUrl
+        const onMessage = vi.fn()
+        const socket = new ChatSocket(7, WORKSPACE_ID, { onMessage }, 'character-chats')
+        const llm = { selection: { mode: 'profile' as const, profile_id: 'custom-profile' }, expected_revision_id: 'custom-revision',
+            credentials: { api_key: 'FAKE_LLM_SOCKET_CANARY' } }
+        const materialize = vi.fn(() => llm)
+        socket.sendChat('hello', 'custom-request', undefined, materialize)
+        expect(materialize).not.toHaveBeenCalled()
+        MockWebSocket.instances[0].emitOpen()
+        expect(materialize).toHaveBeenCalledOnce()
+        expect(JSON.parse(String(MockWebSocket.instances[0].send.mock.calls[0][0])).llm.credentials.api_key).toBe('FAKE_LLM_SOCKET_CANARY')
+        expect(llm).not.toHaveProperty('credentials')
+        expect(onMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }))
+        socket.close()
+    })
+
+    it('blocks a queued key when production transport is insecure and preserves the fixed reason', () => {
+        vi.stubEnv('DEV', false)
+        const onMessage = vi.fn()
+        const socket = new ChatSocket(7, WORKSPACE_ID, { onMessage })
+        const llm = { credentials: { api_key: 'FAKE_BLOCKED_SOCKET_CANARY' } }
+        socket.sendChat('hello', 'blocked-request', undefined, () => llm)
+        MockWebSocket.instances[0].emitOpen()
+        expect(MockWebSocket.instances[0].send).not.toHaveBeenCalled()
+        expect(onMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'error', category: 'request', code: 'LLM_CREDENTIAL_HTTPS_REQUIRED', request_id: 'blocked-request' }))
+        expect(JSON.stringify(onMessage.mock.calls)).not.toContain('FAKE_BLOCKED_SOCKET_CANARY')
+        expect(llm).not.toHaveProperty('credentials')
+        socket.close()
     })
 
     it('reads the image choice when a queued frame leaves and never sends its key without HTTPS', () => {

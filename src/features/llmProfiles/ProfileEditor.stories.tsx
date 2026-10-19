@@ -7,7 +7,7 @@ import {
     appStorytellerDetail, appStorytellerPublicDetail, appWriterDraftDetail, catalogModels, editorFor, fixtureConnections, newEditor,
     personalStorytellerDetail,
 } from './llmProfileFixtures'
-import { configKey, roleFor } from './llmProfileModel'
+import { configKey, roleFor, customProfileConfig, customRole } from './llmProfileModel'
 
 const base = editorFor(appStorytellerDetail, true)
 
@@ -77,11 +77,18 @@ export const ViewAppProfile: Story = {
     args: { mode: 'view', systemAdmin: false, draft: readOnly.draft, editing: readOnly.editing, compatibility: null, connections: [] },
 }
 
-/** A user with no models in their groups. */
+/** A personal profile with a manual model, independent of built-in models. */
 export const NoModelsForUser: Story = {
     args: { mode: 'create', systemAdmin: false, models: [], modelsTotal: 0, editing: null, connections: [],
-        draft: { ...created.draft, config: { ...created.draft.config, platform_connection_key: null } },
-        noModelsMessage: 'Your account has no models available yet. An administrator must add models to a group your account belongs to.' },
+        draft: { name: 'My custom storyteller', description: '', config: { ...customProfileConfig(),
+            custom_provider: { protocol: 'openai', base_url: 'https://provider.example/v1', endpoint: 'chat_completions' },
+            roles: { primary: customRole('my-manual-model') } } }, compatibility: null },
+}
+
+export const CustomResponses: Story = {
+    args: { ...NoModelsForUser.args, draft: { name: 'My Responses provider', description: '', config: {
+        ...customProfileConfig(), custom_provider: { protocol: 'openai', base_url: 'https://provider.example/api/v1', endpoint: 'responses' },
+        roles: { primary: customRole('org/reasoning-model', 'responses') } } } },
 }
 
 /** A server error after saving, with the custom provider props it points at. */

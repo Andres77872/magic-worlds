@@ -1,4 +1,5 @@
 /** Reject private configuration before any profile response reaches application state. */
+import { isCustomProvider } from '@/shared/llmCustomProvider'
 const PRIVATE_FIELDS = new Set([
     'credentials', 'api_key', 'provider_key', 'secret', 'secret_ref', 'secret_alias',
     'base_url', 'url', 'headers', 'authorization', 'api_info', 'env', 'graph', 'agt',
@@ -6,21 +7,28 @@ const PRIVATE_FIELDS = new Set([
 
 export function assertPublicLlmData(value: unknown): void {
     let nodes = 0
-    const visit = (item: unknown, depth: number): void => {
+    const visit = (item: unknown, depth: number, path: string[] = []): void => {
         if (++nodes > 30_000 || depth > 16) throw new Error('Invalid public LLM response.')
         if (item === null || typeof item === 'boolean') return
         if (typeof item === 'string' && item.length <= 16_384) return
         if (typeof item === 'number' && Number.isFinite(item)) return
         if (Array.isArray(item)) {
-            item.forEach(child => visit(child, depth + 1))
+            item.forEach((child, index) => visit(child, depth + 1, [...path, String(index)]))
             return
         }
         if (typeof item !== 'object' || item === null) throw new Error('Invalid public LLM response.')
         for (const [key, child] of Object.entries(item)) {
+            if (key === 'custom_provider') {
+                const location = path.join('.')
+                if (!['', 'config', 'current.config', 'draft_config'].includes(location) || !isCustomProvider(child)) {
+                    throw new Error('Invalid custom provider configuration.')
+                }
+                continue
+            }
             if (PRIVATE_FIELDS.has(key.toLowerCase()) || key === '__proto__' || key === 'constructor') {
                 throw new Error('Invalid public LLM response.')
             }
-            visit(child, depth + 1)
+            visit(child, depth + 1, [...path, key])
         }
     }
     visit(value, 0)
@@ -32,7 +40,7 @@ export function assertEffectiveLlmProfile(value: unknown): void {
     const data = value as Record<string, unknown>
     const required = ['project_hash', 'profile_id', 'revision_id', 'profile_scope', 'resolution_source', 'credential_mode',
         'provider_target_key', 'platform_connection_key', 'catalog_revision', 'policy_revision', 'roles']
-    if (Object.keys(data).length !== required.length || required.some(key => !(key in data))) {
+    if (Object.keys(data).length !== required.length + ('custom_provider' in data ? 1 : 0) || required.some(key => !(key in data))) {
         throw new Error('Invalid effective LLM profile.')
     }
     const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -48,6 +56,8 @@ export function assertEffectiveLlmProfile(value: unknown): void {
         throw new Error('Invalid effective LLM profile.')
     }
     const identifier = /^[A-Za-z0-9_.:@/-]{1,128}$/
+    if (data.custom_provider && (data.profile_scope !== 'user'
+        || data.provider_target_key !== `custom:${data.profile_id}`)) throw new Error('Invalid effective LLM profile.')
     if (![data.catalog_revision, data.policy_revision].every(item => typeof item === 'string' && identifier.test(item))
         || data.platform_connection_key !== null && (typeof data.platform_connection_key !== 'string' || !identifier.test(data.platform_connection_key))) {
         throw new Error('Invalid effective LLM profile.')
@@ -61,6 +71,8 @@ export function assertEffectiveLlmProfile(value: unknown): void {
             || role.price_quote != null && (typeof role.price_quote !== 'object' || Array.isArray(role.price_quote))
             || typeof role.catalog_model_key !== 'string' || !identifier.test(role.catalog_model_key)
             || typeof role.provider_model_id !== 'string' || role.provider_model_id.length < 1 || role.provider_model_id.length > 256
+            || role.provider_model_id !== role.provider_model_id.trim() || /[\x00-\x1f\x7f]|\{\{|\}\}/.test(role.provider_model_id)
+            || data.custom_provider && role.endpoint !== (data.custom_provider as Record<string, unknown>).endpoint
             || !['chat_completions', 'responses'].includes(String(role.endpoint))
             || !role.settings || typeof role.settings !== 'object' || Array.isArray(role.settings)) throw new Error('Invalid effective LLM profile.')
         const settings = role.settings as Record<string, unknown>
@@ -80,7 +92,7 @@ export function assertEffectiveLlmProfile(value: unknown): void {
     }
 }
 
-const LLM_FEATURES = new Set(['card_generation', 'card_assistant', 'novel', 'chat_adventure', 'chat_character', 'chat_group',
+const LLM_FEATURES = new Set(['card_generation', 'card_assistant', 'novel', 'novel_assistant', 'chat_adventure', 'chat_character', 'chat_group',
     'lorebook_assistant', 'lorebook_extraction', 'image_prompt', 'theme_song_writer', 'callbot', 'app_assistant', 'moderation'])
 const PAYER_COUNT_KEYS = ['platform', 'user_byok', 'unattributed']
 

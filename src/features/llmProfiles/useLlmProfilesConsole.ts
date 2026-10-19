@@ -31,7 +31,7 @@ import type {
 import { credentialSession } from './credentialSession'
 import type { LlmCompatibilityState } from './LlmProfileCompatibilityPanel'
 import type { ProfileEditorMode } from './ProfileEditor'
-import { assignmentIssuesFrom, configKey, roleFor, stableJson, usableModels, type AssignmentIssues } from './llmProfileModel'
+import { assignmentIssuesFrom, configKey, roleFor, stableJson, usableModels, customProfileConfig, customProfileReady, type AssignmentIssues } from './llmProfileModel'
 
 export const PROFILE_PAGE_SIZE = 25
 
@@ -165,10 +165,18 @@ export function useLlmProfilesConsole(systemAdmin: boolean): LlmProfilesConsole 
         const epoch = ++generation.current
         setLoading(true)
         setError(''); setErrorCode('')
+        // Model listing is independent: a slow or unavailable list never blocks custom profiles.
+        void apiService.getLlmModels({ credential_mode: systemAdmin ? 'platform' : 'user_byok', limit: 100 }).then(catalog => {
+            if (epoch === generation.current) { setModels(catalog.items); setModelsTotal(catalog.total) }
+        }, failure => {
+            if (epoch === generation.current) {
+                setModels([]); setModelsTotal(0)
+                if (systemAdmin) setError(message(failure))
+            }
+        })
         try {
-            const [page, catalog, featureList, prefs, connectionList, events, capacity] = await Promise.all([
+            const [page, featureList, prefs, connectionList, events, capacity] = await Promise.all([
                 apiService.getLlmProfiles('available', offset, systemAdmin),
-                apiService.getLlmModels({ credential_mode: systemAdmin ? 'platform' : 'user_byok', limit: 100 }),
                 apiService.getLlmFeatures(), apiService.getLlmPreferences(systemAdmin),
                 systemAdmin ? apiService.getLlmConnections() : Promise.resolve({ connections: [] }),
                 systemAdmin ? apiService.getLlmAudit() : Promise.resolve({ items: [] }),
@@ -176,7 +184,7 @@ export function useLlmProfilesConsole(systemAdmin: boolean): LlmProfilesConsole 
                     .then(usage => ({ usage, error: '' }), () => ({ usage: null, error: t('llmProfiles.usage.unavailable') })),
             ])
             if (epoch !== generation.current) return
-            setProfiles(page.items); setTotal(page.total); setModels(catalog.items); setModelsTotal(catalog.total)
+            setProfiles(page.items); setTotal(page.total)
             setFeatures(featureList.features.filter(feature => isLlmFeatureEnabled(feature.feature_key))); setPreferences(prefs); setAssignments(toAssignments(prefs)); setAssignmentIssues(null)
             setConnections(connectionList.connections); setAudit(events.items)
             setCapacityUsage(capacity.usage); setCapacityError(capacity.error)
@@ -198,7 +206,7 @@ export function useLlmProfilesConsole(systemAdmin: boolean): LlmProfilesConsole 
 
     // Server-side compatibility of the configuration being edited, debounced and
     // keyed so a slower answer for an earlier configuration is never shown.
-    const compatibilityKey = draft && !readOnly ? JSON.stringify(draft.config) : null
+    const compatibilityKey = draft && !readOnly && customProfileReady(draft.config) ? JSON.stringify(draft.config) : null
     useEffect(() => {
         if (!compatibilityKey) return
         let cancelled = false
@@ -251,8 +259,9 @@ export function useLlmProfilesConsole(systemAdmin: boolean): LlmProfilesConsole 
     const usable = usableModels(models)
     const create = () => {
         const model = usable[0]
-        if (!model) { setError(systemAdmin ? t('llmProfiles.catalogUnavailable') : t('llmProfiles.page.noModels')); return }
+        if (!model && systemAdmin) { setError(t('llmProfiles.catalogUnavailable')); return }
         setError(''); setErrorCode('')
+        if (!model) { startEditor({ name: '', description: '', config: customProfileConfig() }, null, false); return }
         startEditor({ name: '', description: '', config: { provider_target_key: model.provider_target_key, catalog_revision: model.catalog_revision,
             platform_connection_key: systemAdmin ? connections.find(value => value.available && value.provider_target_key === model.provider_target_key)?.connection_key ?? null : null,
             roles: { primary: roleFor(model) } } }, null, false)
@@ -291,7 +300,7 @@ export function useLlmProfilesConsole(systemAdmin: boolean): LlmProfilesConsole 
     }
 
     const save = () => void act(async () => {
-        if (!draft || readOnly || propsInvalid) return
+        if (!draft || readOnly || propsInvalid || !customProfileReady(draft.config)) return
         const detail = await apiService.saveLlmProfile(draft, systemAdmin, editing ? { id: editing.profile_id, version: editing.row_version } : undefined)
         startEditor({ name: detail.name, description: detail.description, config: structuredClone(systemAdmin ? detail.draft_config! : detail.current!.config) }, detail, false)
         setNotice(t('llmProfiles.saved')); await load()
@@ -453,7 +462,12 @@ export function useLlmProfilesConsole(systemAdmin: boolean): LlmProfilesConsole 
         confirm: confirming ? { kind: confirming, message: confirmMessage } : null,
         actions: {
             refresh: () => void load(), setOffset, create, open, closeEditor,
-            updateDraft: next => setDraft(next), chooseModel,
+            updateDraft: next => {
+                if (draft?.config.custom_provider?.protocol !== next.config.custom_provider?.protocol) {
+                    setPropsKey(key => key + 1); setPropsInvalid(false)
+                }
+                setDraft(next)
+            }, chooseModel,
             setPropsValidity: valid => setPropsInvalid(!valid), setTestFeature, save, validate, test, rollback, loadMoreModels, copyPersonal,
             requestPublish: () => setConfirming('publish'), requestArchive: () => setConfirming('archive'), cancelConfirm: () => setConfirming(null), confirm,
             setAssignments: updateAssignments, saveAssignments, setAppDefault,

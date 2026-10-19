@@ -66,8 +66,8 @@ export function ProfileCard({ profile, detail, models, usage, systemAdmin = fals
                 <dd className="min-w-0 text-parchment-100">
                     {detail === undefined ? <span className="text-parchment-400">{t('llmProfiles.card.loadingModel')}</span>
                         : primary ? <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-                            <span className="break-words font-semibold">{model?.display_name ?? primary.catalog_model_key}</span>
-                            <span className="break-all font-mono text-meta text-parchment-400">{config?.provider_target_key}</span>
+                            <span className="break-words font-semibold">{primary.provider_model_id ?? model?.display_name ?? primary.catalog_model_key}</span>
+                            <span className="break-all font-mono text-meta text-parchment-400">{config?.custom_provider?.base_url ?? config?.provider_target_key}</span>
                         </span> : <span className="text-parchment-400">—</span>}
                 </dd>
                 {helpers.length > 0 && <dd className="text-caption text-parchment-300">

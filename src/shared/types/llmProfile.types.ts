@@ -13,6 +13,7 @@ export interface LlmSettings {
 }
 export interface LlmProfileRole {
     catalog_model_key: string
+    provider_model_id?: string
     endpoint: 'chat_completions' | 'responses'
     settings: LlmSettings
 }
@@ -27,6 +28,7 @@ export interface LlmProfileConfig {
      * are rejected by the server). Omitted or `{}` when none.
      */
     provider_options?: Record<string, unknown>
+    custom_provider?: { protocol: 'openai'; base_url: string; endpoint: 'chat_completions' | 'responses' }
 }
 export interface LlmProfileMutation {
     name: string
@@ -133,6 +135,7 @@ export interface EffectiveLlmProfile {
     platform_connection_key: string | null
     catalog_revision: string
     policy_revision: string
+    custom_provider?: LlmProfileConfig['custom_provider']
     roles: Partial<Record<LlmRole, LlmProfileRole & { provider_model_id: string; price_quote: LlmPriceQuote | null }>> & { primary: LlmProfileRole & { provider_model_id: string; price_quote: LlmPriceQuote | null } }
 }
 /** A published revision, or (root only) the exact saved draft version of a system profile. */

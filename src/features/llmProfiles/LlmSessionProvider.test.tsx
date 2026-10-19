@@ -9,8 +9,8 @@ import { prepareLlmDispatch } from '@/infrastructure/api/llmPreparation'
 import { LlmSessionProvider } from './LlmSessionProvider'
 import { credentialSession } from './credentialSession'
 
-const mocks = vi.hoisted(() => ({ resolve: vi.fn(), retry: vi.fn(), recovery: vi.fn() }))
-vi.mock('@/infrastructure/api/baseUrl', () => ({ API_BASE_URL: 'https://api.test.invalid' }))
+const mocks = vi.hoisted(() => ({ resolve: vi.fn(), retry: vi.fn(), recovery: vi.fn(), baseUrl: 'https://api.test.invalid' }))
+vi.mock('@/infrastructure/api/baseUrl', () => ({ get API_BASE_URL() { return mocks.baseUrl } }))
 vi.mock('@/infrastructure', () => ({ apiService: { resolveLlmProfile: mocks.resolve, getLlmRetryProfile: mocks.retry, getLlmRecoveryProfile: mocks.recovery } }))
 vi.mock('@/app/hooks', () => ({ useAuth: () => authSession.getSnapshot() }))
 const profile = { project_hash: 'project-one', profile_id: '11111111-1111-4111-8111-111111111111', revision_id: '22222222-2222-4222-8222-222222222222',
@@ -18,10 +18,11 @@ const profile = { project_hash: 'project-one', profile_id: '11111111-1111-4111-8
     resolution_source: 'user_default', catalog_revision: 'catalog-one', policy_revision: 'policy-one', roles: { primary: {} } }
 const KEY = 'FAKE_DIALOG_CANARY'
 const token = `header.${btoa(JSON.stringify({ project_hash: 'project-one' }))}.signature`
-beforeEach(() => { credentialSession.clear(); authSession.continueSignedOut(); authSession.authenticate('alice', token); grantFixtureFeatures(true); credentialSession.setProject('project-one', authSession.getSnapshot().accountKey); mocks.resolve.mockResolvedValue(profile) })
-afterEach(() => { credentialSession.clear(); authSession.continueSignedOut(); vi.clearAllMocks() })
+beforeEach(() => { mocks.baseUrl = 'https://api.test.invalid'; vi.stubEnv('DEV', true); credentialSession.clear(); authSession.continueSignedOut(); authSession.authenticate('alice', token); grantFixtureFeatures(true); credentialSession.setProject('project-one', authSession.getSnapshot().accountKey); mocks.resolve.mockResolvedValue(profile) })
+afterEach(() => { credentialSession.clear(); authSession.continueSignedOut(); vi.clearAllMocks(); vi.unstubAllEnvs() })
 
-it('confirms a key once, clears the input and materializes it only at dispatch', async () => {
+it.each(['https://api.test.invalid', 'http://localhost:8010'])('confirms a key once and materializes it only at dispatch over %s', async baseUrl => {
+    mocks.baseUrl = baseUrl
     render(<LlmSessionProvider><span>Fixture</span></LlmSessionProvider>)
     let prepared!: Promise<() => ReturnType<typeof credentialSession.materialize>>
     act(() => { prepared = prepareLlmDispatch('novel') })
@@ -35,6 +36,15 @@ it('confirms a key once, clears the input and materializes it only at dispatch',
     expect(JSON.stringify(localStorage)).not.toContain(KEY); expect(JSON.stringify(sessionStorage)).not.toContain(KEY)
     credentialSession.clear()
     expect(materialize).toThrow('BYOK_CREDENTIAL_REQUIRED')
+})
+it('refuses production loopback HTTP before opening the key dialog', async () => {
+    mocks.baseUrl = 'http://localhost:8010'
+    vi.stubEnv('DEV', false)
+    render(<LlmSessionProvider><span>Fixture</span></LlmSessionProvider>)
+    await act(async () => {
+        await expect(prepareLlmDispatch('chat_character')).rejects.toMatchObject({ code: 'LLM_CREDENTIAL_HTTPS_REQUIRED' })
+    })
+    expect(screen.queryByLabelText('Provider API key')).not.toBeInTheDocument()
 })
 it('cancels credential entry without creating a request or retaining the input', async () => {
     render(<LlmSessionProvider><span>Fixture</span></LlmSessionProvider>)

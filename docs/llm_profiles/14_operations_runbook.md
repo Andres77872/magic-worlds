@@ -39,7 +39,9 @@ Los defaults/precios preparados el 2026-10-10 son históricos (ver [ledger 16](1
 
 ## 4. BYOK, fallos y reintentos
 
-La memoria de la pestaña y los controles HTTPS del frontend reducen retención del cliente, pero no certifican custodia del ejecutor. El transporte BFF permite HTTPS o HTTP de loopback hacia API LLM; esa excepción local no habilita BYOK en una SPA/API pública HTTP.
+La memoria de la pestaña y los controles HTTPS del frontend reducen retención del cliente, pero no certifican custodia del ejecutor. El transporte BFF permite HTTPS o HTTP de loopback hacia API LLM. La SPA permite HTTP hacia el BFF solo en desarrollo cuando tanto la página como la API usan exactamente `localhost`, `127.0.0.1` o `[::1]`; producción y HTTP público/LAN siguen bloqueados. Estas excepciones no habilitan proveedores personalizados locales o privados: la URL del proveedor debe ser HTTPS pública.
+
+Para probar BYOK en desarrollo local, abrir la SPA en `http://localhost:5173` y configurar `VITE_API_BASE_URL=http://{hostname}:8010` (o una URL de loopback explícita). Si la preparación falla antes del envío, no existe una ejecución que reconciliar: un `LLM_EXECUTION_NOT_FOUND` posterior no indica pérdida de un turno admitido. Un rechazo de transporte muestra `LLM_CREDENTIAL_HTTPS_REQUIRED` con instrucciones para HTTPS o desarrollo local, en lugar del error genérico.
 
 Una respuesta upstream perdida o inválida es terminal para el transporte actual; no hay recuperación upstream pendiente automática. El BFF conserva sus propios planes/recibos y puede ofrecer reconciliación o retry explícito según la feature. Distinguir replay de un resultado, nuevo intento y recuperación de un stream; no inferir que un retry usa el grafo corregido después de congelar el plan. Probar no duplicación de efectos y cargos, reentrada de credencial y cambios de cuenta/proyecto/workspace.
 

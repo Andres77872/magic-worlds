@@ -4,6 +4,7 @@ import { useAuth } from '@/app/hooks'
 import { apiService } from '@/infrastructure'
 import { authSession } from '@/infrastructure/api/authSession'
 import { API_BASE_URL } from '@/infrastructure/api/baseUrl'
+import { assertLlmCredentialTransport } from '@/infrastructure/api/llmCredentialTransport'
 import { configureLlmPreparation } from '@/infrastructure/api/llmPreparation'
 import type { EffectiveLlmProfile } from '@/shared/types/llmProfile.types'
 import type { LlmFeature, LlmSelection } from '@/shared/types/llm.types'
@@ -52,7 +53,7 @@ export function LlmSessionProvider({ children }: { children: ReactNode }) {
             credentialSession.select(feature, profile)
             if ((retryOfExecutionId || recoveryRequestId) && profile.credential_mode === 'user_byok') credentialSession.forget(profile)
             if (profile.credential_mode === 'user_byok' && !credentialSession.has(profile)) {
-                if (!API_BASE_URL.startsWith('https://')) throw new Error('LLM_CREDENTIAL_HTTPS_REQUIRED')
+                assertLlmCredentialTransport()
                 if (pendingRef.current) throw new Error('LLM_CREDENTIAL_ENTRY_BUSY')
                 await new Promise<void>((accept, reject) => {
                     const request: PendingKey = { feature, profile, owner: credentialSession.ownerScope(), accept, reject }
@@ -118,8 +119,10 @@ export function LlmSessionProvider({ children }: { children: ReactNode }) {
         {children}
         <Modal open={pending !== null} onClose={cancel} title={t('llmProfiles.key.title')} size="sm"
             footer={<><Button variant="ghost" onClick={cancel}>{t('llmProfiles.cancel')}</Button><Button onClick={confirm}>{t('llmProfiles.key.use')}</Button></>}>
-            <p className="mb-4 text-body text-parchment-200">{t('llmProfiles.key.explanation')}</p>
-            <p className="mb-4 text-label text-parchment-300">{pending?.profile.provider_target_key} · {t('llmProfiles.byokCost')}</p>
+            <p className="mb-4 text-body text-parchment-200">{t(API_BASE_URL.startsWith('http://') ? 'llmProfiles.key.explanationLocal' : 'llmProfiles.key.explanation')}</p>
+            <p className="mb-4 break-all text-label text-parchment-300">{pending?.profile.custom_provider?.base_url ?? pending?.profile.provider_target_key}
+                {pending?.profile.custom_provider && ` · ${pending.profile.custom_provider.endpoint === 'responses' ? 'Responses' : 'Chat Completions'}`}
+                {' · '}{t('llmProfiles.byokCost')}</p>
             <Field label={t('llmProfiles.key.label')} error={error ? t('llmProfiles.key.invalid') : undefined}>
                 <Input ref={input} type="password" autoComplete="off" maxLength={4096} data-private="true" />
             </Field>
