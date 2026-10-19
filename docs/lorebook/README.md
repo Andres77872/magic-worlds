@@ -2,6 +2,8 @@
 
 **Lifecycle: active reference and acceptance backlog. Reviewed 2026-10-15.** Authoring, attachments, resources, deterministic activation and assistant integration are implemented in source. Lorebooks and resources remain default-off product surfaces. Resource availability requires both `VITE_FEATURE_LOREBOOKS_ENABLED` and `VITE_FEATURE_LOREBOOK_RESOURCES_ENABLED`; local opt-in is not deployment acceptance. See [feature status](../FEATURE_STATUS.md) and [LORE-01 roadmap](../ROADMAP.md).
 
+**2026-10-19 audit supplement:** the [lorebook update dossier](../lorebook_update/README.md) records open activation, resource preview/snapshot, permission and editing defects, with reproductions, research and a proposed plan. No application fixes were made in that audit. Its findings qualify the older acceptance claims below; current feature access follows the [membership permission implementation](../feature_flag_on_membership/README.md), so the Vite-flag wording above is stale.
+
 <a id="current-implementation-and-gaps-2026-10-14"></a>
 
 ## Current implementation and gaps
