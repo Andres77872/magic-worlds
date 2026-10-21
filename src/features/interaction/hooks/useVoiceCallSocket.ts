@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { VoiceSocket, type VoiceSocketStatus } from '@/infrastructure/api'
 import { useWorkspace } from '@/app/hooks/useWorkspace'
-import type { VoiceSocketClientFrame, VoiceSocketServerFrame } from '@/shared/types/voice.types'
+import type { VoiceSocketClientFrame, VoiceSocketServerFrame, VoiceTurnClientMetricsFrame } from '@/shared/types/voice.types'
 
 type VoiceStartFrame = Extract<VoiceSocketClientFrame, { type: 'voice_start' }>
 type VoiceBargeInFrame = Extract<VoiceSocketClientFrame, { type: 'voice_barge_in' }>
@@ -43,6 +43,11 @@ export interface VoiceCallSocketApi {
     bargeIn: (frame: VoiceBargeInFrame) => boolean
     /** WS-C2 playback progress (R-32). Optional so test doubles without it stay valid. */
     playback?: (turnId: string, playedMs: number) => boolean
+    /**
+     * Protocol v2 `voice_turn_client_metrics` (best-effort, never queued; only to a server
+     * that advertised it). Optional so test doubles without it stay valid.
+     */
+    turnMetrics?: (frame: VoiceTurnClientMetricsFrame) => boolean
     /** Record the highest uploaded segment seq (sent in `voice_resume`). */
     noteSegmentSeq: (seq: number) => void
     end: () => boolean
@@ -160,6 +165,7 @@ export function useVoiceCallSocket(
 
     const bargeIn = useCallback((frame: VoiceBargeInFrame) => socketRef.current?.sendBargeIn(frame) ?? false, [])
     const playback = useCallback((turnId: string, playedMs: number) => socketRef.current?.sendPlayback(turnId, playedMs) ?? false, [])
+    const turnMetrics = useCallback((frame: VoiceTurnClientMetricsFrame) => socketRef.current?.sendTurnMetrics(frame) ?? false, [])
     const noteSegmentSeq = useCallback((seq: number) => socketRef.current?.noteSegmentSeq(seq), [])
     const end = useCallback(() => {
         pendingStartRef.current = null
@@ -170,5 +176,5 @@ export function useVoiceCallSocket(
         socketRef.current?.close()
     }, [])
 
-    return { socketStatus, start, bargeIn, playback, noteSegmentSeq, end, close }
+    return { socketStatus, start, bargeIn, playback, turnMetrics, noteSegmentSeq, end, close }
 }

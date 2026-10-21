@@ -2,14 +2,16 @@
  * Voice callbot transport contracts.
  *
  * These types intentionally live outside interaction.types.ts so the existing
- * text ChatSocket remains text/control-only. Client JSON frames carry lifecycle,
- * VAD, segment metadata, and barge-in controls only. Microphone bytes are sent
+ * text ChatSocket remains text/control-only. Client JSON frames carry the call
+ * lifecycle, barge-in, playback progress and per-turn client metrics only; VAD
+ * stays local. Microphone bytes (with their segment and VAD metadata) are sent
  * through the authenticated segment upload endpoint, never as VoiceSocket JSON
  * payloads and never through ChatSocket.
  */
 
 import type { EffectiveVoice, VoiceSubstitutionReason } from './voiceCatalog.types'
 import type { StoredCharacterVoice } from './voicePreset.types'
+import type { LlmRequest } from './llm.types'
 
 export type VoiceAudioEncoding = 'audio/wav;codec=pcm_s16le'
 
@@ -113,10 +115,14 @@ export type VoiceSocketClientFrame =
     | {
         type: 'voice_start'
         client_call_id: string
+        /** The highest call socket protocol the client speaks (protocol v2 §2.1); absent means 1. */
+        protocol_version?: number
         audio: VoiceAudioPreferences
         capabilities: VoiceClientCapabilities
         /** The voice picked for this call only (a stored catalog voice); absent: the chat's voice. */
         voice?: StoredCharacterVoice
+        /** App-profile intent pinned for this call; voice frames never carry provider credentials. */
+        llm?: Pick<LlmRequest, 'selection' | 'expected_revision_id'>
     }
     | { type: 'voice_resume'; voice_session_id: string; last_segment_seq: number }
     | {
@@ -136,6 +142,69 @@ export type VoiceSocketClientFrame =
     | { type: 'voice_playback'; turn_id: string; played_ms: number }
     | { type: 'voice_end'; reason: 'user' }
     | { type: 'voice_ping'; voice_session_id?: string }
+    | VoiceTurnClientMetricsFrame
+
+/** How a turn settled from the caller's point of view (protocol v2 §3.1). */
+export type VoiceTurnClientOutcome = 'played' | 'interrupted' | 'cancelled' | 'no_audio' | 'blocked' | 'unsupported'
+
+/** How a turn's audio played: MediaSource, ManagedMediaSource, Blob groups, or not at all. */
+export type VoiceTurnPlaybackPath = 'media_source' | 'managed_media_source' | 'blob' | 'none'
+
+/**
+ * `voice_turn_client_metrics` v1 (protocol v2 §3): the caller's view of one server turn, sent at
+ * most once, when the turn settles, and only to a server whose `voice_ready.protocol.client_metrics`
+ * is 1. Times are whole-ms intervals on the client's `performance.now()` clock, never absolute
+ * times. A missing field means "did not happen" or "not measurable on this browser". t0 is the
+ * opening segment's end of speech; a max-length cut has none, so it carries no `speech_end_*`
+ * field and no `v2v_ms`. Telemetry only: the server never answers it.
+ */
+export interface VoiceTurnClientMetricsFrame {
+    type: 'voice_turn_client_metrics'
+    v: 1
+    turn_id: string
+    /** The uploaded segment that opened the turn (`voice_turn_start.segment_seq`). */
+    segment_seq?: number
+    outcome: VoiceTurnClientOutcome
+    /** t0 → upload sent: the upload's `vad.speech_end_lag_ms` (hang-over included). */
+    speech_end_to_upload_ms?: number
+    /** Upload sent → `voice_segment_ack{status:"received"}`. */
+    upload_to_ack_ms?: number
+    speech_end_to_turn_start_ms?: number
+    speech_end_to_first_chunk_ms?: number
+    /** t0 → the element's first `playing` of the turn (`mw.voice.first_audible`). */
+    speech_end_to_playing_ms?: number
+    turn_start_to_first_chunk_ms?: number
+    /** First chunk → `playing`: MSE append, decode and element start-up. */
+    first_chunk_to_playing_ms?: number
+    /** The capture AudioContext's `outputLatency` (or `baseLatency`), 0..2000. */
+    output_latency_ms?: number
+    /** `speech_end_to_playing_ms + output_latency_ms`; just the former when no output latency is exposed. */
+    v2v_ms?: number
+    /** The turn's played audio when it settled. */
+    played_ms?: number
+    /** Audio chunks of the turn received. */
+    chunks: number
+    /** `waiting` and `stalled` element events after the turn became audible. */
+    stalls: number
+    /** Time stalled: `waiting` → next `playing`. */
+    stall_ms: number
+    /** VAD `speech_start` → playback cancelled, for an automatic barge-in. */
+    barge_in_onset_to_pause_ms?: number
+    playback_path?: VoiceTurnPlaybackPath
+    /** The capture track's `echoCancellation` (`off` covers the raw fallback). */
+    aec?: 'on' | 'off' | 'unknown'
+    autoplay_blocked?: boolean
+}
+
+/**
+ * `voice_ready.protocol` (protocol v2 §2.1): `{ version: 2, client_metrics: 1 }`. Untrusted on
+ * read: any other shape means a v1 server, which gets no frame newer than v1.
+ */
+export interface VoiceProtocolAdvertisement {
+    version: number
+    /** The `voice_turn_client_metrics` version the server accepts. */
+    client_metrics?: number
+}
 
 export interface VoiceCallLimits {
     max_call_seconds: number
@@ -176,6 +245,8 @@ export type VoiceSocketServerFrame =
         original_voice_name?: string | null
         /** WS-S1 provenance (R-5). The AI voice label never reads it (P-10). */
         ai_voice?: boolean
+        /** Protocol v2 (§2.1); absent from a v1 server. Optional on read and read defensively. */
+        protocol?: VoiceProtocolAdvertisement
     }
     | {
         type: 'voice_state_snapshot'

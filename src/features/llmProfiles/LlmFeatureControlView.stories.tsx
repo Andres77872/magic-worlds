@@ -6,9 +6,10 @@ import { applicationEffective, applicationProfile, personalEffective, personalPr
 
 const meta = {
     title: 'Creation/Models/Profile selection', component: LlmFeatureControlView, tags: ['autodocs'],
-    parameters: { layout: 'padded', docs: { description: { component: 'A compact model chip that fits a composer toolbar. Its popover shows effective model roles, profile inheritance and payer, and the profile choice. Credentials never enter its props.' } } },
+    parameters: { layout: 'padded', docs: { description: { component: 'A compact model chip that fits a composer toolbar, or a settings row (`variant="setting"`, the call setup) with the model, its source and one action. Its popover shows effective model roles, profile inheritance and payer, and the profile choice. Credentials never enter its props.' } } },
     decorators: [Story => <div className="max-w-lg"><Story /></div>],
-    argTypes: { feature: { control: 'inline-radio', options: ['card_generation', 'novel', 'chat_group', 'image_prompt'] },
+    argTypes: { feature: { control: 'inline-radio', options: ['card_generation', 'novel', 'chat_group', 'image_prompt', 'callbot'] },
+        variant: { control: 'inline-radio', options: ['chip', 'setting'], description: '`setting` is a settings row under a host label (the call setup).' },
         effective: { control: false }, selection: { control: false }, choices: { control: false },
         onOpen: { control: false }, onSelect: { control: false }, onMore: { control: false }, onRefresh: { control: false }, onForget: { control: false } },
     args: { feature: 'novel', selection: { mode: 'inherit' }, effective: applicationEffective, editable: true, defaultOpen: true,
@@ -27,6 +28,11 @@ export const Loading: Story = { args: { effective: null, loading: true } }
 export const Incompatible: Story = { args: { choicesOpen: true, more: true, choices: [
     { profile: applicationProfile, compatible: true }, { profile: personalProfile, compatible: false },
 ] } }
+/** The call setup's row: the model and its source beside one action; the popover opens on the profile choice. */
+export const SettingRow: Story = {
+    args: { variant: 'setting', feature: 'callbot', defaultOpen: false, choicesOpen: true, choices: [{ profile: applicationProfile, compatible: true }] },
+    decorators: [Story => <div className="rounded-lg border border-line bg-ink-700/60 p-4"><Story /></div>],
+}
 export const ChooseProfile: Story = {
     render: function Choose(args) {
         const [selection, select] = useState<LlmSelection>({ mode: 'inherit' })

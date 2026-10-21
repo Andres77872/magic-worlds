@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MockMediaSource } from '@/test-utils/mockMediaStream'
-import { type VoicePlaybackState, VoicePlaybackBuffer } from './voicePlaybackBuffer'
+import { type VoicePlaybackMediaEvent, type VoicePlaybackState, VoicePlaybackBuffer } from './voicePlaybackBuffer'
 
 function chunk(seq: number, data_b64: string, turn_id = 'turn-1') {
     return {
@@ -617,6 +617,80 @@ describe('VoicePlaybackBuffer', () => {
             expect(buffer.playedMs()).toBe(0)
             audio.dispatchEvent(new Event('playing'))
             expect(buffer.playedMs()).toBe(2000)
+            buffer.dispose()
+        })
+    })
+
+    describe('turn timeline signals (R01)', () => {
+        const event = (type: VoicePlaybackMediaEvent['type'], turnId = 'turn-1'): VoicePlaybackMediaEvent => ({ type, voiceSessionId: 'voice-1', turnId })
+
+        it('surfaces waiting, stalled and playing of the active turn only while it owns the element', () => {
+            const audio = document.createElement('audio')
+            const buffer = new VoicePlaybackBuffer({ audio, autoPlay: false })
+            const events: VoicePlaybackMediaEvent[] = []
+            const unsubscribe = buffer.addMediaEventListener((next) => events.push(next))
+
+            audio.dispatchEvent(new Event('waiting')) // no turn on the element yet
+            buffer.startTurn('voice-1', 'turn-1')
+            buffer.appendChunk(chunk(1, 'AQ=='))
+            audio.dispatchEvent(new Event('playing'))
+            audio.dispatchEvent(new Event('waiting'))
+            audio.dispatchEvent(new Event('stalled'))
+            // A stall is not a state change: the reply still reads as playing.
+            expect(buffer.state.status).toBe('playing')
+            audio.dispatchEvent(new Event('playing'))
+            expect(events).toEqual([event('playing'), event('waiting'), event('stalled'), event('playing')])
+
+            buffer.finalize(final(1))
+            audio.dispatchEvent(new Event('ended'))
+            expect(buffer.state.status).toBe('idle')
+            audio.dispatchEvent(new Event('waiting')) // the turn is over
+            expect(events).toHaveLength(4)
+
+            unsubscribe()
+            buffer.startTurn('voice-1', 'turn-2')
+            buffer.appendChunk(chunk(1, 'AQ==', 'turn-2'))
+            audio.dispatchEvent(new Event('waiting'))
+            expect(events).toHaveLength(4)
+            buffer.dispose()
+        })
+
+        it('keeps a throwing media listener away from playback', () => {
+            const audio = document.createElement('audio')
+            const buffer = new VoicePlaybackBuffer({ audio, autoPlay: false })
+            const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+            const later = vi.fn()
+            buffer.addMediaEventListener(() => { throw new Error('listener failed') })
+            buffer.addMediaEventListener(later)
+            buffer.startTurn('voice-1', 'turn-1')
+            buffer.appendChunk(chunk(1, 'AQ=='))
+            audio.dispatchEvent(new Event('playing'))
+            expect(buffer.state.status).toBe('playing')
+            expect(later).toHaveBeenCalledWith(event('playing'))
+            expect(error).toHaveBeenCalled()
+            buffer.dispose()
+        })
+
+        it('names the path each turn plays through', () => {
+            const audio = document.createElement('audio')
+            const buffer = new VoicePlaybackBuffer({ audio, autoPlay: false })
+            expect(buffer.playbackPath()).toBeNull()
+            buffer.startTurn('voice-1', 'turn-1')
+            expect(buffer.playbackPath('turn-1')).toBe('media_source')
+            expect(buffer.playbackPath('other-turn')).toBeNull()
+
+            class MockManagedMediaSource extends MockMediaSource {
+                static isTypeSupported = vi.fn((type: string) => type === 'audio/mpeg')
+                streaming = true
+            }
+            MockMediaSource.isTypeSupported.mockReturnValue(false)
+            Object.defineProperty(globalThis, 'ManagedMediaSource', { configurable: true, writable: true, value: MockManagedMediaSource })
+            buffer.startTurn('voice-1', 'turn-2')
+            expect(buffer.playbackPath()).toBe('managed_media_source')
+
+            delete (globalThis as { ManagedMediaSource?: unknown }).ManagedMediaSource
+            buffer.startTurn('voice-1', 'turn-3')
+            expect(buffer.playbackPath()).toBe('blob')
             buffer.dispose()
         })
     })

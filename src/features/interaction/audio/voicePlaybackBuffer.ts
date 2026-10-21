@@ -1,4 +1,4 @@
-import type { VoiceAudioFormat, VoiceSocketServerFrame } from '@/shared/types/voice.types'
+import type { VoiceAudioFormat, VoiceSocketServerFrame, VoiceTurnPlaybackPath } from '@/shared/types/voice.types'
 import { clipGainDb, clipVolume } from '@/shared/voice/clipVolume'
 import { claimAudioFocus, releaseAudioFocus } from '@/ui/components/audio'
 import { chooseCallAudioSink, isPlayableCallChunk, type CallAudioSink } from './audioFormat'
@@ -21,6 +21,22 @@ export interface VoicePlaybackState {
 }
 
 export type VoicePlaybackStateListener = (state: VoicePlaybackState) => void
+
+/** How the active turn reaches the element (R01 `playback_path`). */
+export type VoicePlaybackPath = Exclude<VoiceTurnPlaybackPath, 'none'>
+
+/**
+ * An element media event of the active turn, for the R01 turn timeline: `waiting` and
+ * `stalled` mark a stall, the next `playing` ends it. Reported only while the turn owns
+ * the element; the state listener already carries the first `playing`.
+ */
+export interface VoicePlaybackMediaEvent {
+    type: 'playing' | 'waiting' | 'stalled'
+    voiceSessionId: string
+    turnId: string
+}
+
+export type VoicePlaybackMediaListener = (event: VoicePlaybackMediaEvent) => void
 
 export interface VoicePlaybackBufferOptions {
     audio?: HTMLAudioElement
@@ -59,6 +75,7 @@ export class VoicePlaybackBuffer {
     readonly audio: HTMLAudioElement
     private readonly autoPlay: boolean
     private readonly listeners = new Set<VoicePlaybackStateListener>()
+    private readonly mediaListeners = new Set<VoicePlaybackMediaListener>()
     private currentState: VoicePlaybackState = { status: 'idle', voiceSessionId: null, turnId: null }
     private elementListenersAttached = false
     private unlocked = false
@@ -107,7 +124,12 @@ export class VoicePlaybackBuffer {
         if (this.elementOwner === 'turn') claimAudioFocus(this.audio)
     }
     private readonly onPause = () => releaseAudioFocus(this.audio)
-    private readonly onPlaying = () => this.handlePlaying()
+    private readonly onPlaying = () => {
+        this.handlePlaying()
+        this.emitMediaEvent('playing')
+    }
+    private readonly onWaiting = () => this.emitMediaEvent('waiting')
+    private readonly onStalled = () => this.emitMediaEvent('stalled')
     private readonly onEnded = () => this.handleEnded()
     private readonly onError = () => this.handleElementError()
 
@@ -129,6 +151,24 @@ export class VoicePlaybackBuffer {
         return () => {
             this.listeners.delete(listener)
         }
+    }
+
+    /** Subscribes to the active turn's element media events (stalls); returns the unsubscribe. */
+    addMediaEventListener(listener: VoicePlaybackMediaListener): () => void {
+        this.mediaListeners.add(listener)
+        return () => {
+            this.mediaListeners.delete(listener)
+        }
+    }
+
+    /**
+     * How `turnId` (default: the active turn) plays right now; null when that turn is not
+     * the active one. A turn can leave MediaSource for Blob groups mid-way.
+     */
+    playbackPath(turnId?: string): VoicePlaybackPath | null {
+        if (!this.activeTurnId || (turnId !== undefined && turnId !== this.activeTurnId)) return null
+        if (this.mode === 'fallback') return 'blob'
+        return this.managed ? 'managed_media_source' : 'media_source'
     }
 
     /**
@@ -635,6 +675,8 @@ export class VoicePlaybackBuffer {
         this.audio.addEventListener('play', this.onPlay)
         this.audio.addEventListener('pause', this.onPause)
         this.audio.addEventListener('playing', this.onPlaying)
+        this.audio.addEventListener('waiting', this.onWaiting)
+        this.audio.addEventListener('stalled', this.onStalled)
         this.audio.addEventListener('ended', this.onEnded)
         this.audio.addEventListener('error', this.onError)
     }
@@ -645,8 +687,25 @@ export class VoicePlaybackBuffer {
         this.audio.removeEventListener('play', this.onPlay)
         this.audio.removeEventListener('pause', this.onPause)
         this.audio.removeEventListener('playing', this.onPlaying)
+        this.audio.removeEventListener('waiting', this.onWaiting)
+        this.audio.removeEventListener('stalled', this.onStalled)
         this.audio.removeEventListener('ended', this.onEnded)
         this.audio.removeEventListener('error', this.onError)
+    }
+
+    private emitMediaEvent(type: VoicePlaybackMediaEvent['type']): void {
+        if (this.mediaListeners.size === 0 || this.elementOwner !== 'turn' || this.turnFinished) return
+        const voiceSessionId = this.activeVoiceSessionId
+        const turnId = this.activeTurnId
+        if (!voiceSessionId || !turnId) return
+        const event: VoicePlaybackMediaEvent = { type, voiceSessionId, turnId }
+        for (const listener of [...this.mediaListeners]) {
+            try {
+                listener(event)
+            } catch (error) {
+                console.error('[voice-call][PLAYBACK] media listener failed', error)
+            }
+        }
     }
 
     private setState(status: VoicePlaybackState['status'], voiceSessionId = this.activeVoiceSessionId, turnId = this.activeTurnId): void {

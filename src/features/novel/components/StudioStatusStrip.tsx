@@ -87,7 +87,7 @@ export function StudioStatusStrip({
             </div>
 
             {!readOnly && (
-                <div className="hidden shrink-0 items-center gap-2.5 font-ui text-[11px] text-parchment-500 sm:flex">
+                <div className="hidden shrink-0 items-center gap-2.5 font-ui text-[11px] text-parchment-400 sm:flex">
                     <span className="flex items-center gap-1.5">
                         <kbd className="font-mono text-parchment-300">/</kbd>
                         {t('novelEditor.slash.label')}

@@ -17,6 +17,7 @@ const integration = vi.hoisted(() => ({
         saveVoiceConsent: vi.fn(),
         uploadVoiceSegment: vi.fn(),
         endVoiceCall: vi.fn(),
+        getVoiceCallTranscript: vi.fn().mockResolvedValue({ segments: [] }),
         getImageJob: vi.fn(),
         getTtsJob: vi.fn(),
         fetchProtectedMediaBlob: vi.fn(),

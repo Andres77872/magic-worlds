@@ -36,7 +36,7 @@ no production-build performance run (see *Release gates*).
 
 | Phase | Done | Open catalog rows | Other open requirements |
 |---|---|---|---|
-| D1 — editor reliability | Ordered revision-checked saves, recovery and conflicts, checkpoints, explicit AI review with atomic accept and undo. Save → accept → undo → reload checked live 2026-10-17. | **Partial:** E05 (no clear-formatting command; the selection toolbar is not keyboard-reachable), E08 (no Unicode normalization in scene Find; word counts fixed to English segmentation), U05/U06 (no keyboard-only or screen-reader pass; 11 px status hints at about 2.1:1 contrast). **Bug:** a real Ctrl/⌘+Enter in the prose inserts a line break instead of opening the beat composer (E01). | Retention, storage ceilings and shared-device/logout policy (decisions 5, 6); release checks. |
+| D1 — editor reliability | Ordered revision-checked saves, recovery and conflicts, checkpoints, explicit AI review with atomic accept and undo. Save → accept → undo → reload checked live 2026-10-17. | **Partial:** E05 (no clear-formatting command; the selection toolbar is not keyboard-reachable), E08 (no Unicode normalization in scene Find; word counts fixed to English segmentation), U05/U06 (no keyboard-only or screen-reader pass; contrast unmeasured beyond the status hints fixed 2026-10-20). The Ctrl/⌘+Enter bug (E01) was fixed in code on 2026-10-20; its live check is pending. | Retention, storage ceilings and shared-device/logout policy (decisions 5, 6); release checks. |
 | D2 — structure and organization | Parts, chapters, scenes, organization history, templates, copies, notes, bookmarks, search, reading, snapshots, device recovery, library discovery. Large-manuscript performance fixed in a development build. | **Partial:** S07 (the merge review shows excerpts, not the merged text), E10 (language typography only for Spanish), U11 (no onboarding examples). **Built with known holes:** S04 (no drop at a chapter's end or into an empty or collapsed chapter; parts cannot be dragged; a drag applies with no review), N04/S05 (copies drop tasks, facts and stash), N11 (an edited outline cannot be saved as a reusable template). | Production-build and low-end-device performance (NE-018); the timeline and matrix render every scene; offline and retention acceptance. |
 | D3 — story-aware assistant | Runs on the shared `/v1/chat/completions` contract: Ask, Suggest → review → accept → undo, Stop, recovery, cited sources, named actions, revision-bound summaries and retrieval (K09), prompt presets (A19), reply style (A25). | **Partial:** A01, A03 (no length target for Expand/Condense), A05 (no draft-a-scene-from-its-plan), A08 (no narrative distance or voice), A11 (regenerate discards the previous take; no comparison), A20/K10 (inline AI has no context preview before sending), A21 (personal-key quota after dispatch; inline Stop has no receipt), K03 (no Codex priority control), R06 (no computed diff anywhere), R07 (no per-change accept), R12 (no passage-level AI provenance), S18 (no outline-to-new-novel), U02/U03 (no shared inspector, command palette or shortcut help), U04, U12. **Gap:** E19 (no `lang`/`dir`, RTL handling or IME audit). | **CL-04:** inline AI still has its own context compiler and accept path; doc 11's D3 step to unify them is not done. The *Known D3 gaps* below. Author AI-quality evaluation (decision 13). |
 | D4 — planning, continuity, personal review | Slices 1–19: views, tasks, stash, facts, extraction, continuity checks, appearances, critique notes, step plans, outline proposals, library updates, facts into the Codex and library, bulk scenes, grouped changesets, Write/Plan/Review. | **Partial:** K05/K06 (fact subjects are free text; `subjectCardId` is never set), K14 (canon-vs-fact conflicts appear only inside a library review), R08 (AI review notes are tasks, not anchored notes). **Gap:** N05 branches (decision 10), A28 research (decision 9). | Narrative-time and POV policy with temporal gate fixtures (NE-023, decision 10). |
@@ -52,7 +52,7 @@ R13, R15, K02, and the inline commands and actions with no live turn: A02, A04, 
 | Gate | Status on 2026-10-18 |
 |---|---|
 | Frontend tests | Full suite at 12:18: **5,848 passed, 75 failed**, 14 skipped (665 files). All 21 failing files are outside the novel feature (voice, narration, admin voices, explicit-test attempts): other sessions' work in progress. Production build, typecheck and lint of the edited novel files passed with slice 16. |
-| BFF tests | Novel scope (266 story/novel test files plus `tests/agent_graphs`): **1,622 passed, 36 failed**, 40 skipped. **26** are migration-chain tests: the novel migration modules cannot rebuild a predecessor past `2026_10_membership_feature_flags` (another session, 04:45) and `2026_10_novel_export_jobs` (ours, slice 13, 06:42). Slice 13's note that those failures came only from the membership revision was wrong: ours adds a second unhandled marker. **4** in `test_story_codex_unversioned_sources` fail with "MySQL pool is not initialized" (not yet triaged). **3** in `test_novel_assistant_output_limits` fail against the uncommitted `llm_execution_transport.py` change from other work (to confirm). The last full BFF run (15,068 passed / 22 failed) is from 2026-10-17; a later one stalled at 44 %. |
+| BFF tests | **2026-10-20: novel scope green, 1,661 passed, 0 failed** (see *P0 fixes — 2026-10-20*). Before, on 2026-10-18: novel scope (266 story/novel test files plus `tests/agent_graphs`): **1,622 passed, 36 failed**, 40 skipped. **26** are migration-chain tests: the novel migration modules cannot rebuild a predecessor past `2026_10_membership_feature_flags` (another session, 04:45) and `2026_10_novel_export_jobs` (ours, slice 13, 06:42). Slice 13's note that those failures came only from the membership revision was wrong: ours adds a second unhandled marker. **4** in `test_story_codex_unversioned_sources` fail with "MySQL pool is not initialized" (not yet triaged). **3** in `test_novel_assistant_output_limits` fail against the uncommitted `llm_execution_transport.py` change from other work (to confirm). The last full BFF run (15,068 passed / 22 failed) is from 2026-10-17; a later one stalled at 44 %. |
 | Accessibility | **Not met.** No screen-reader session, no keyboard-only journey, no 200 %/400 % zoom pass, contrast not measured (NE-017 open). |
 | Performance | Development build only (p95 key latency 40 ms on a 1,500-scene, 1.1-million-word novel). Production build, CPU throttling, low-end devices and phones not measured. |
 | Author acceptance | **None.** No study has run (UX-12, decision 13). |
@@ -63,14 +63,12 @@ R13, R15, K02, and the inline commands and actions with no live turn: A02, A04, 
 
 **P0 — fix before anything new.**
 
-1. **Make the novel BFF tests green.** Teach the novel migration modules to reverse the membership and export-job
-   deltas when they rebuild a predecessor (26 tests). Triage the 4 Codex route failures. Confirm the 3 output-limit
-   failures come from the outside transport change. Then run the full BFF suite. The 75 frontend failures belong to
-   other work: report them, don't fix them here.
-2. **Ctrl/⌘+Enter in the prose.** TipTap's hard-break `Mod-Enter` handles the key first, so the beat-composer
-   shortcut that the status strip advertises inserts a line break (E01/A05). A higher-priority keymap fixes it, as
-   `completionShortcut.ts` already does for Ctrl+Shift+Enter.
-3. **Contrast.** The 11 px status-strip hints use `text-parchment-500` (about 2.1:1, NE-017).
+1. ~~**Make the novel BFF tests green.**~~ **Done 2026-10-20** (see *P0 fixes — 2026-10-20* below): the novel
+   scope passes, 1,661 tests with 0 failures.
+2. ~~**Ctrl/⌘+Enter in the prose.**~~ **Fixed in code 2026-10-20; the live check waits for a browser sign-in.** A real
+   Ctrl/⌘+Enter in the prose now opens the beat composer instead of inserting a line break (E01/A05).
+3. ~~**Contrast.**~~ **Fixed 2026-10-20:** the status-strip hints and two novel placeholders now use `parchment-400`
+   (5.29:1 on ink-800, was 2.11:1). The rest of the contrast audit stays in P1 item 12.
 4. **Personal-key (BYOK) accounting after dispatch** (*Known D3 gaps* 1): it touches the user's quota and key.
 5. **The intermittent `LLM_EXECUTION_RESULT_INVALID`** (2 of 9 book-copy turns, cause unknown).
 6. **Export jobs survive a BFF restart** (X10): they run inside the BFF process today, and the interrupted state was
@@ -117,6 +115,66 @@ R13, R15, K02, and the inline commands and actions with no live turn: A02, A04, 
 22. **E06, E13, E15, E16, E20.**
 
 **P4 — D6.** Series canon, overrides, presets and publication handoff (N13, K13, U13, X12), after decision 8.
+
+### P0 fixes — 2026-10-20
+
+**Novel BFF tests (P0 item 1).** The novel scope (266 story/novel test files, `tests/agent_graphs` and the
+custom-provider migration test) went from 36 failures to **1,661 passed, 0 failed, 40 skipped**. Three causes:
+
+- **Migration chain (26 tests, ours).** Every older novel migration rebuilds its exact predecessor from today's
+  `db.sql` by reversing the newer deltas first, but the chain stopped at `2026_10_novel_import_formats`. Three later
+  revisions were never handled: `2026_10_membership_feature_flags` (another session), `2026_10_novel_export_jobs`
+  (ours, slice 13) and `2026_10_llm_custom_providers` (another session, 2026-10-19).
+  - `story_import_format_migration.py`, the head of the novel chain, now has `LATER` (those three revisions, oldest
+    first) and `revision_sql`/`revision_contracts`. It reverses custom providers and export jobs through the
+    export-job module, and the membership delta exactly: four columns, two tables and the plan-flag seed.
+  - The eight older modules check `carries(statements, …, *LATER)` instead of hand-written marker lists. The next
+    schema revision only needs adding to `LATER`.
+  - Seven tests had pinned today's revision to `import_formats`. They now assert that today's revision is one the
+    chain covers.
+  - **Checked against real data:** rebuilt from today's `db.sql`, the chain's schema at `2026_10_novel_presets` is
+    identical to the real database backup taken at that revision (`novel-retrieval-pre-20261018T083019Z`): 118
+    tables, with the same columns in the same order in every one.
+- **Codex helper tests (4).** Since the membership work, `_clone_card_ref` and `_library_snapshot` check the
+  *lorebooks* grant themselves. The tests now grant it explicitly with `grant_fake_repository_features`.
+- **Output-limit tests (3).** The shared transport changed on purpose on 2026-10-18 (committed in `7f7eac7`):
+  - model content is no longer filtered for credentials (`test_completion_preserves_decoded_model_content_without_credential_filtering`);
+  - a BYOK plan needs its request credential before any work.
+
+  The novel tests now follow that policy. The transport itself was not touched.
+
+Backups of every edited BFF file are in `magic-worlds-api/.dev/backups/novel-migration-chain-20261020/`.
+
+**Full BFF suite, 2026-10-20.** A serial run cannot finish: two Fish Audio test files (`test_fish_audio.py`,
+`test_fish_call_admission.py`, another session's voice work) hang forever, and pytest has no per-test timeout here.
+Every one of the 620 test files was therefore run on its own, ten at a time, each capped at 5 minutes:
+
+- **14,820 passed, 688 failed, 35 skipped**, 6 files that do not import, and 2 files killed at the cap.
+- **No failing file is a novel or story test.** The failures are in voice and voice presets, lorebook and assistant
+  routes (mostly "MySQL pool is not initialized" behind the new feature-flag checks), adventure sessions, chat and
+  billing: other sessions' work in progress.
+- **15 failures in the shared `test_schema_bootstrap.py` existed before today.** They pin values that went stale with
+  the membership, export-job and custom-provider revisions: 120 tables (now 124), 166 foreign keys (now 169) and the
+  revision `import_formats`.
+  - **Two of them concern novels.** Since the custom-provider gate in `bootstrap.py` answers first, a database at an
+    older novel revision is refused with the custom-provider message, which no longer names
+    `20261016_novel_annotations.py --backup` or "Whole-database resets are disabled".
+  - Fixing them means editing that shared gate, so it waits for coordination with that session.
+
+**Ctrl/⌘+Enter (P0 item 2).** `editor/extensions/writingShortcuts.ts` replaces `completionShortcut.ts`:
+
+- At priority 1000, ahead of StarterKit's hard break, `Mod-Enter` opens the beat composer at the cursor.
+- `Mod-Shift-Enter` asks for a completion while completions are on, and opens the composer otherwise.
+- Each handler declines outside the idle phase, so Regenerate under review keeps `Mod-Enter`, and a read-only or
+  offline editor keeps the line break.
+
+A new editor test uses a real Enter (key code 13), which the view cancels before the shell sees it. Novel frontend
+tests: 1,263 passed. Typecheck and lint are clean. **Not yet checked live:** the browser session had signed out,
+and signing in needs the owner.
+
+**Contrast (P0 item 3).** The status-strip hints (`/` and `Ctrl+↵` labels) and the scene-title and beat placeholders
+now use `parchment-400`, 5.29:1 on ink-800 (was `parchment-500` at 2.11:1). The design system already lists 400 as
+the faintest placeholder shade. The header's decorative `/` separator is `aria-hidden` and stays at 500.
 
 ### Decisions only you can make
 
@@ -3614,7 +3672,7 @@ capabilities or later phases is removed by this checkpoint.
 | WIP placeholder in product UI | Gap / product decision TBD | No WIP page is rendered by the current router. Documentation uses WIP status; changing the UI would require separate implementation |
 | Backend story domain | Current scene source and local API verified; release unverified | Current schema bootstrap, healthy API and provider-free MySQL smoke passed on 2026-10-16. The frontend flag remains independent of backend authorization |
 | Focused frontend verification | Full suite rerun by the 2026-10-18 audit | **5,848 passed, 75 failed, 14 skipped (665 files)** at 12:18; all 21 failing files are outside the novel feature (voice, narration, admin voices, explicit-test attempts). Earlier baselines (5,112 on 2026-10-16) are in [01](01_current_state_and_evidence.md#d2-open-scene-reconnect-and-reconciliation-evidence--2026-10-16) |
-| Focused BFF verification | **Not green** (2026-10-18 audit) | Novel scope (266 story/novel files plus agent graphs): **1,622 passed, 36 failed, 40 skipped**. 26 migration-chain failures (newer schema markers unhandled; ours to fix), 4 Codex route tests ("MySQL pool is not initialized"; to triage), 3 output-limit tests (outside transport change; to confirm). See *Release gates* at the top |
+| Focused BFF verification | **Novel scope green again (2026-10-20): 1,661 passed, 0 failed** | On the 2026-10-18 audit the novel scope (266 story/novel files plus agent graphs) had **1,622 passed, 36 failed, 40 skipped**. 26 migration-chain failures (newer schema markers unhandled; ours to fix), 4 Codex route tests ("MySQL pool is not initialized"; to triage), 3 output-limit tests (outside transport change; to confirm). See *Release gates* at the top |
 | Live product / release readiness | Partial local evidence; release unverified | 53 of 136 rows checked live in the signed-in app (2026-10-17/18); live database at `2026_10_novel_export_jobs`, 124 tables, 21 novels (read 2026-10-18 13:05). Author workflow, assistive technology, production-build performance and model-quality evaluation remain open |
 | Expanded refactor | D1–D2 installed; D3 running; D4 slices 1–19 and D5 slices 1–16 run; D6 not started (audited 2026-10-18) | See the current summary at the top of this document; release and acceptance gates above remain open |
 | Standalone UI demo | Prototype only; not integrated | [HTML reference](novel-studio-demo.html); 26 temporary jsdom assertions and limited browser inspection on 2026-10-15. AI/account/context fixtures and simplified local recovery do not establish product behavior |
@@ -3664,7 +3722,7 @@ The current policy is **preserve non-novel data and current novels; no whole-dat
 |---|---|
 | M1 · Current schema and code | **Scene contract installed; further phase extensions remain:** update `db.sql`, marker/seeds/bootstrap, services/contracts and frontend callers together. Prefer a clean target schema; remove obsolete writers/adapters |
 | M2 · Scoped database changes | **Done per upgrade through `2026_10_novel_export_jobs` (124 tables):** each additive upgrade (`scripts/migrations/20261016_*` to `20261018_*`) had a verified private backup and unchanged-row fingerprints. Future extensions require the same preservation procedure |
-| M3 · Short smoke and cleanup | **Partial:** DEV-01/02/03 ran for D1 and for each upgrade, but **26 migration-chain tests fail** (2026-10-18 audit): the older novel migration modules cannot rebuild a predecessor past `2026_10_membership_feature_flags` and `2026_10_novel_export_jobs`. Fix before the next schema change. Use relevant existing tests; no 18-case migration suite |
+| M3 · Short smoke and cleanup | **Done per upgrade:** DEV-01/02/03 ran for D1 and for each upgrade. The 26 migration-chain failures found by the 2026-10-18 audit were fixed on 2026-10-20: the chain reverses the later revisions listed in `LATER` (`story_import_format_migration.py`); the next revision must be added there. Use relevant existing tests; no 18-case migration suite |
 | CL-01/02 · Storage/API | **Current replacements implemented; later phases remain:** retire superseded writers/contracts when their replacement works. Preserve existing rows; any further schema change requires its own scoped preservation review |
 | CL-03/04/05 · Save/editor/AI | **CL-03 and CL-05 done:** ordered saves/CAS and canonical scene JSON/stable references replace `updatedAt` merges and raw Markdown. **CL-04 open:** inline AI still compiles its own context (`story_generation.py`) and accepts through its own route, apart from the assistant; Tab acceptance is gone |
 | CL-06/07/08 · Codex/browser/exposure | **CL-07 done** (obsolete draft/goal keys discarded). **CL-06 open:** the plan-item stash (R11) exists, but the generation `stashed` status is still written by the assistant's *Stash* button, so two stash paths remain. **CL-08 open:** exposure follows the per-plan grant; dead controls and exports not yet audited |

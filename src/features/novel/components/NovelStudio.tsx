@@ -856,7 +856,7 @@ export function NovelStudio() {
                             value={draft.title}
                             onChange={(event) => draft.setTitle(event.target.value)}
                             readOnly={sceneReadOnly||!activeScene}
-                            className="min-w-0 w-full border-0 bg-transparent font-display text-h3 font-semibold leading-tight text-parchment-50 placeholder:text-parchment-500"
+                            className="min-w-0 w-full border-0 bg-transparent font-display text-h3 font-semibold leading-tight text-parchment-50 placeholder:text-parchment-400"
                             aria-label={t('novelEditor.studio.sceneTitleLabel')}
                             placeholder={t('novelEditor.studio.sceneTitlePlaceholder')}
                             data-testid="novel-scene-title"

@@ -515,7 +515,9 @@ describe('NovelEditor keyboard ownership', () => {
         const press = () => fireEvent.keyDown(surface, { key: 'Enter', code: 'Enter', keyCode: 13, ctrlKey: true, shiftKey: true })
         act(() => { editor.commands.setTextSelection(editor.state.doc.content.size - 1) })
         press()
-        await act(async () => {})
+        // Off, the key opens the beat composer like Mod-Enter and generates nothing.
+        fireEvent.keyDown(await screen.findByTestId('beat-instruction'), { key: 'Escape' })
+        await waitFor(() => expect(screen.queryByTestId('beat-composer')).not.toBeInTheDocument())
         expect(onGenerate).not.toHaveBeenCalled(); expect(editor.getMarkdown()).toBe('The gate held.')
         view.rerender(<NovelEditor {...props({ initialBody: 'The gate held.', onGenerate, onRequestSaveFlush, completionInstruction: 'Write one or two sentences that continue from the cursor.' })} />)
         act(() => { editor.commands.setTextSelection(editor.state.doc.content.size - 1) })
@@ -529,6 +531,18 @@ describe('NovelEditor keyboard ownership', () => {
     it('opens the beat composer at the caret with Mod-Enter', async () => {
         await openComposer()
         expect(screen.getByTestId('beat-composer')).toBeInTheDocument()
+    })
+
+    it('opens the beat composer from a real Mod-Enter in the prose instead of inserting a line break', async () => {
+        const onGenerate = vi.fn()
+        render(<NovelEditor {...props({ initialBody: 'The gate held.', onGenerate })} />)
+        const surface = await screen.findByLabelText('Scene manuscript'), editor = (surface as HTMLElement & { editor: Editor }).editor
+        act(() => { editor.commands.setTextSelection(editor.state.doc.content.size - 1) })
+        // A real Enter (key code 13): the view cancels it, so only the prose keymap can answer, ahead of the hard break.
+        fireEvent.keyDown(surface, { key: 'Enter', code: 'Enter', keyCode: 13, ctrlKey: true })
+        expect(await screen.findByTestId('beat-composer')).toBeInTheDocument()
+        expect(editor.getMarkdown()).toBe('The gate held.')
+        expect(onGenerate).not.toHaveBeenCalled()
     })
 
     it('does not re-open (and wipe) itself when Mod-Enter fires from its own controls', async () => {

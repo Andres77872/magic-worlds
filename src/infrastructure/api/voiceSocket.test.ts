@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { VoiceSocket, configureVoiceSocketAuthRefresh } from './voiceSocket'
-import type { VoiceSocketClientFrame } from '@/shared/types/voice.types'
+import { VOICE_PROTOCOL_VERSION, VoiceSocket, configureVoiceSocketAuthRefresh, readClientMetricsVersion } from './voiceSocket'
+import type { VoiceSocketClientFrame, VoiceTurnClientMetricsFrame } from '@/shared/types/voice.types'
 
 const WORKSPACE_ID = '0f1e2d3c-4b5a-4978-8a6b-5c4d3e2f1a0b'
 
@@ -569,5 +569,110 @@ describe('VoiceSocket R1 client frames (WS-C1, WS-C2)', () => {
     it('sends nothing while closed', () => {
         const socket = new VoiceSocket(7, WORKSPACE_ID, { onMessage: vi.fn() })
         expect(socket.sendPlayback('turn-1', 10)).toBe(false)
+    })
+})
+
+describe('VoiceSocket protocol v2', () => {
+    const PROTOCOL_V2 = { version: 2, client_metrics: 1 }
+    const METRICS: VoiceTurnClientMetricsFrame = {
+        type: 'voice_turn_client_metrics', v: 1, turn_id: 'turn-1', segment_seq: 4, outcome: 'played',
+        speech_end_to_playing_ms: 3_042, v2v_ms: 3_063, output_latency_ms: 21, played_ms: 4_180,
+        chunks: 19, stalls: 0, stall_ms: 0, playback_path: 'media_source', aec: 'on', autoplay_blocked: false,
+    }
+
+    beforeEach(() => {
+        vi.useRealTimers()
+        localStorage.clear()
+        localStorage.setItem('magic_worlds:token', 'old-token')
+        MockWebSocket.instances = []
+        vi.stubGlobal('WebSocket', MockWebSocket)
+        vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    })
+
+    afterEach(() => {
+        vi.unstubAllGlobals()
+        vi.restoreAllMocks()
+        vi.useRealTimers()
+    })
+
+    function sentTypes(socket: MockWebSocket): string[] {
+        return socket.send.mock.calls.map(([raw]) => (JSON.parse(raw as string) as { type: string }).type)
+    }
+
+    it('reads voice_ready.protocol defensively: anything malformed is a v1 server', () => {
+        expect(readClientMetricsVersion({ protocol: PROTOCOL_V2 })).toBe(1)
+        expect(readClientMetricsVersion({ protocol: { version: 3, client_metrics: 1, extra: 'ignored' } })).toBe(1)
+        const malformed: unknown[] = [
+            undefined, null, 2, 'v2', true, [], [2, 1],
+            { version: 2 }, { client_metrics: 1 }, { version: '2', client_metrics: 1 }, { version: 2, client_metrics: '1' },
+            { version: 2.5, client_metrics: 1 }, { version: 2, client_metrics: 1.5 }, { version: 1, client_metrics: 1 },
+            { version: 2, client_metrics: 0 }, { version: Number.NaN, client_metrics: 1 }, { version: 2, client_metrics: null },
+        ]
+        for (const protocol of malformed) expect(readClientMetricsVersion({ protocol })).toBeNull()
+        expect(readClientMetricsVersion(null)).toBeNull()
+        expect(readClientMetricsVersion(undefined)).toBeNull()
+    })
+
+    it('sends the voice_start it is given, protocol_version included', () => {
+        const socket = new VoiceSocket(7, WORKSPACE_ID, { onMessage: vi.fn() })
+        socket.connect({ ...startFrame(), protocol_version: VOICE_PROTOCOL_VERSION })
+        MockWebSocket.instances[0].emitOpen()
+        const [raw] = MockWebSocket.instances[0].send.mock.calls[0]
+        expect(JSON.parse(raw as string)).toEqual({ ...startFrame(), protocol_version: 2 })
+    })
+
+    it('sends turn metrics only on a call whose voice_ready advertised them, reset per call', () => {
+        const onMessage = vi.fn()
+        const socket = new VoiceSocket(7, WORKSPACE_ID, { onMessage })
+        socket.connect(startFrame())
+        MockWebSocket.instances[0].emitOpen()
+        expect(socket.sendTurnMetrics(METRICS)).toBe(false) // before voice_ready
+        MockWebSocket.instances[0].emitMessage(READY_FRAME) // a v1 server
+        expect(socket.sendTurnMetrics(METRICS)).toBe(false)
+        expect(sentTypes(MockWebSocket.instances[0])).toEqual(['voice_start'])
+
+        socket.connect(startFrame())
+        MockWebSocket.instances[1].emitOpen()
+        MockWebSocket.instances[1].emitMessage({ ...READY_FRAME, protocol: PROTOCOL_V2 })
+        // The client tolerates the new field: the ready frame reaches the call unchanged.
+        expect(onMessage).toHaveBeenLastCalledWith(expect.objectContaining({ type: 'voice_ready', protocol: PROTOCOL_V2 }))
+        expect(socket.sendTurnMetrics(METRICS)).toBe(true)
+        expect(MockWebSocket.instances[1].send).toHaveBeenLastCalledWith(JSON.stringify(METRICS))
+        // Only the v1 frame this client knows how to build.
+        expect(socket.sendTurnMetrics({ ...METRICS, v: 2 } as unknown as VoiceTurnClientMetricsFrame)).toBe(false)
+        expect(socket.sendTurnMetrics({ ...METRICS, turn_id: '' })).toBe(false)
+
+        // The next call starts as v1 until its own voice_ready says otherwise.
+        socket.connect(startFrame())
+        MockWebSocket.instances[2].emitOpen()
+        expect(socket.sendTurnMetrics(METRICS)).toBe(false)
+        MockWebSocket.instances[2].emitMessage({ ...READY_FRAME, protocol: { version: 2, client_metrics: 'one' } })
+        expect(socket.sendTurnMetrics(METRICS)).toBe(false)
+        expect(sentTypes(MockWebSocket.instances[2])).toEqual(['voice_start'])
+        socket.close()
+    })
+
+    it('drops metrics while the call is resumed and never replays them', async () => {
+        vi.useFakeTimers()
+        const socket = new VoiceSocket(7, WORKSPACE_ID, { onMessage: vi.fn() })
+        socket.connect(startFrame())
+        MockWebSocket.instances[0].emitOpen()
+        MockWebSocket.instances[0].emitMessage({ ...READY_FRAME, protocol: PROTOCOL_V2 })
+
+        MockWebSocket.instances[0].emitClose(1006)
+        expect(socket.sendTurnMetrics(METRICS)).toBe(false)
+        await vi.advanceTimersByTimeAsync(500)
+        MockWebSocket.instances[1].emitOpen()
+        // Open again, but the call is not back until the snapshot.
+        expect(socket.sendTurnMetrics(METRICS)).toBe(false)
+        MockWebSocket.instances[1].emitMessage({
+            type: 'voice_state_snapshot', voice_session_id: 'voice-1', state: 'listening', status: 'active',
+            last_segment_seq: 0, last_audio_seq: 0, server_time_ms: 2,
+        })
+        expect(sentTypes(MockWebSocket.instances[1])).toEqual(['voice_resume'])
+        // The resumed call keeps its advertised protocol.
+        expect(socket.sendTurnMetrics(METRICS)).toBe(true)
+        socket.close()
+        expect(socket.sendTurnMetrics(METRICS)).toBe(false)
     })
 })

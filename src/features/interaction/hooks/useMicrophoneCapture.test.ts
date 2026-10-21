@@ -226,6 +226,31 @@ describe('useMicrophoneCapture — restarts, mute, tuning and level', () => {
         expect(result.current.errorCode).toBeNull()
     })
 
+    it('reads the capture context output latency (else its base latency) for the turn record', async () => {
+        const contexts: Array<MockAudioContext & { outputLatency?: number; baseLatency?: number }> = []
+        class LatencyAudioContext extends MockAudioContext {
+            outputLatency?: number = 0.0214
+            baseLatency?: number = 0.005
+
+            constructor() {
+                super()
+                contexts.push(this)
+            }
+        }
+        Object.defineProperty(globalThis, 'AudioContext', { configurable: true, writable: true, value: LatencyAudioContext })
+
+        const { result } = await startCapture()
+        expect(result.current.outputLatencyMs?.()).toBe(21)
+        // Not reported yet (0) or not exposed: the base latency stands in.
+        contexts[0].outputLatency = 0
+        expect(result.current.outputLatencyMs?.()).toBe(5)
+        contexts[0].outputLatency = undefined
+        contexts[0].baseLatency = undefined
+        expect(result.current.outputLatencyMs?.()).toBeNull()
+        act(() => result.current.stop())
+        expect(result.current.outputLatencyMs?.()).toBeNull()
+    })
+
     it('does not run the no-input watchdog while muted, and re-arms it on unmute', async () => {
         vi.useFakeTimers()
         const { result } = await startCapture()

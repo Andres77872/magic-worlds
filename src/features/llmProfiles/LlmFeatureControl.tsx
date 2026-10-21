@@ -23,15 +23,19 @@ const INCOMPATIBLE = new Set(['PROFILE_UNAVAILABLE', 'PROFILE_CREDENTIAL_MODE_IN
     'PROFILE_ENDPOINT_UNSUPPORTED', 'PROFILE_PARAMETER_UNSUPPORTED', 'FEATURE_BYOK_DISABLED', 'PROFILE_INCOMPATIBLE', 'MODEL_CONTEXT_INSUFFICIENT'])
 // Nothing (or only a default that cannot serve this feature) is assigned: offer an assignment in place.
 const UNASSIGNED = new Set(['SYSTEM_PROFILE_NOT_CONFIGURED', 'PROFILE_INCOMPATIBLE'])
+const canSelect = (contract: LlmFeatureView | null | undefined) =>
+    !!(contract?.user_selection_enabled || contract?.request_selection_enabled)
 
 /**
  * The preview is read-only. Dispatch resolves again and validates the resulting revision.
  * `onUnassignedChange` reports whether nothing can serve the feature yet (a host such as
  * the call setup holds its start until it is assigned).
  */
-export function LlmFeatureControl({ feature, disabled = false, onUnassignedChange, selection: controlledSelection, onSelectionChange, onEffectiveChange }: {
+export function LlmFeatureControl({ feature, disabled = false, variant, onUnassignedChange, selection: controlledSelection, onSelectionChange, onEffectiveChange }: {
     feature: LlmFeature
     disabled?: boolean
+    /** `setting` renders a settings row (the call setup); the default chip fits a composer toolbar. */
+    variant?: 'chip' | 'setting'
     onUnassignedChange?: (unassigned: boolean) => void
     /** A retained draft can own public intent while using the same resolver and chooser. */
     selection?: LlmSelection
@@ -60,11 +64,15 @@ export function LlmFeatureControl({ feature, disabled = false, onUnassignedChang
         if (!isLlmFeatureEnabled(feature) || !accountKey || authSession.getSnapshot().sessionPhase !== 'authenticated') return
         const ticket = ++generation.current
         operation.current = false
-        setState(before => ({ accountKey, feature, selectionKey, contract: null, effective: null, loading: true, error: '',
+        setState(before => {
+            // A choice resolved for exactly this selection stays shown while it is checked again (no flicker).
+            const kept = before?.accountKey === accountKey && before.feature === feature && before.selectionKey === selectionKey
+            return { accountKey, feature, selectionKey, contract: kept ? before.contract : null, effective: kept ? before.effective : null, loading: true, error: '',
             choices: before?.accountKey === accountKey && before.feature === feature ? before.choices : [],
             offset: before?.accountKey === accountKey && before.feature === feature ? before.offset : 0,
             total: before?.accountKey === accountKey && before.feature === feature ? before.total : 0,
-            open: before?.accountKey === accountKey && before.feature === feature ? before.open : false, unassigned: false }))
+            open: before?.accountKey === accountKey && before.feature === feature ? before.open : false, unassigned: false }
+        })
         try {
             const intent = JSON.parse(selectionKey) as LlmSelection
             const [features, resolved] = await Promise.all([apiService.getLlmFeatures(),
@@ -82,7 +90,7 @@ export function LlmFeatureControl({ feature, disabled = false, onUnassignedChang
             credentialSession.setProject(effective.project_hash, accountKey)
             credentialSession.select(feature, effective)
             setState(before => before && ({ ...before, contract, effective, loading: false }))
-        } catch { if (current(ticket)) setState(before => before && ({ ...before, loading: false, error: message })) }
+        } catch { if (current(ticket)) setState(before => before && ({ ...before, effective: null, loading: false, error: message })) }
     }, [accountKey, feature, selectionKey, current, message, featureFlagGeneration])
     useEffect(() => { void load(); return () => { generation.current++; operation.current = false } }, [load])
 
@@ -90,19 +98,23 @@ export function LlmFeatureControl({ feature, disabled = false, onUnassignedChang
     const canAssign = (contract: LlmFeatureView | null | undefined) => !!contract && isRoot
 
     const loadChoices = async () => {
-        if (!state || operation.current || !(state.contract?.user_selection_enabled || (state.unassigned && canAssign(state.contract)))) return
+        if (!state || operation.current || !(canSelect(state.contract) || (state.unassigned && canAssign(state.contract)))) return
         operation.current = true
         const ticket = generation.current
         setState(before => before && ({ ...before, loading: true, error: '', open: true }))
         try {
             const page = await apiService.getLlmProfiles('available', state.offset)
             if (!current(ticket)) return
-            const choices: LlmFeatureChoice[] = new Array(page.items.length)
+            // The resolver refuses personal profiles where saved choices or personal keys are off (calls):
+            // leave them out instead of listing them as incompatible.
+            const personal = !!state.contract?.user_selection_enabled && !!state.contract.byok_enabled
+            const items = personal ? page.items : page.items.filter(profile => profile.scope !== 'user')
+            const choices: LlmFeatureChoice[] = new Array(items.length)
             let cursor = 0
             // Bound catalog validation requests. Each role is checked by the server resolver.
-            const checks = await Promise.allSettled(Array.from({ length: Math.min(3, page.items.length) }, async () => {
-                while (cursor < page.items.length && current(ticket)) {
-                    const index = cursor++, profile = page.items[index]
+            const checks = await Promise.allSettled(Array.from({ length: Math.min(3, items.length) }, async () => {
+                while (cursor < items.length && current(ticket)) {
+                    const index = cursor++, profile = items[index]
                     let compatible = profile.status === 'active' && Boolean(profile.revision_id)
                     if (compatible) {
                         try { await apiService.resolveLlmProfile(feature, { mode: 'profile', profile_id: profile.profile_id }) }
@@ -124,7 +136,7 @@ export function LlmFeatureControl({ feature, disabled = false, onUnassignedChang
     }
 
     const choose = async (intent: LlmSelection) => {
-        if (!state?.contract?.user_selection_enabled || !context || operation.current || disabled) return
+        if (!canSelect(state?.contract) || !context || operation.current || disabled) return
         operation.current = true
         const ticket = generation.current
         setState(before => before && ({ ...before, loading: true, error: '' }))
@@ -133,7 +145,7 @@ export function LlmFeatureControl({ feature, disabled = false, onUnassignedChang
             if (!current(ticket)) return
             context.select(feature, intent, effective)
             onSelectionChange?.({ ...intent })
-            setState(before => before && ({ ...before, effective, loading: false }))
+            setState(before => before && ({ ...before, selectionKey: JSON.stringify(intent), effective, loading: false }))
         } catch { if (current(ticket)) setState(before => before && ({ ...before, loading: false, error: message })) }
         finally { if (current(ticket)) operation.current = false }
     }
@@ -171,8 +183,8 @@ export function LlmFeatureControl({ feature, disabled = false, onUnassignedChang
 
     if (!context || authSession.getSnapshot().sessionPhase !== 'authenticated') return null
     if (!isLlmFeatureEnabled(feature)) return null
-    return <LlmFeatureControlView feature={feature} selection={selection} effective={visible?.effective ?? null}
-        editable={visible?.contract?.user_selection_enabled ?? false} loading={visible?.loading ?? true} disabled={disabled}
+    return <LlmFeatureControlView feature={feature} variant={variant} selection={selection} effective={visible?.effective ?? null}
+        editable={canSelect(visible?.contract)} loading={visible?.loading ?? true} disabled={disabled}
         error={visible?.error} choicesOpen={visible?.open} choices={visible?.choices} more={!!visible && visible.offset < visible.total}
         unassigned={!!visible?.unassigned} canAssign={!!visible && canAssign(visible.contract)}
         onAssign={profileId => { void assign(profileId) }}

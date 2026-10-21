@@ -11,6 +11,7 @@ const socketInstances: Array<{
     connect: ReturnType<typeof vi.fn>
     close: ReturnType<typeof vi.fn>
     sendBargeIn: ReturnType<typeof vi.fn>
+    sendTurnMetrics: ReturnType<typeof vi.fn>
     noteSegmentSeq: ReturnType<typeof vi.fn>
     end: ReturnType<typeof vi.fn>
 }> = []
@@ -26,6 +27,7 @@ vi.mock('@/infrastructure/api', () => ({
         connect = vi.fn()
         close = vi.fn()
         sendBargeIn = vi.fn(() => true)
+        sendTurnMetrics = vi.fn(() => true)
         noteSegmentSeq = vi.fn()
         end = vi.fn(() => true)
 
@@ -199,6 +201,16 @@ describe('useVoiceCallSocket', () => {
         expect(socketInstances[0].noteSegmentSeq).toHaveBeenCalledWith(3)
         expect(socketInstances[0].sendBargeIn).toHaveBeenCalledWith({ type: 'voice_barge_in', reason: 'barge_in' })
         expect(socketInstances[0].sendBargeIn.mock.calls[0][0]).not.toHaveProperty('audio')
+    })
+
+    it('forwards a turn metrics frame and reports nothing sent without a socket', () => {
+        const frame = { type: 'voice_turn_client_metrics' as const, v: 1 as const, turn_id: 'turn-1', outcome: 'played' as const, chunks: 3, stalls: 0, stall_ms: 0 }
+        const { result } = renderHook(() => useVoiceCallSocket(7, {}, 'token-1'))
+        expect(result.current.turnMetrics?.(frame)).toBe(true)
+        expect(socketInstances[0].sendTurnMetrics).toHaveBeenCalledWith(frame)
+
+        const closed = renderHook(() => useVoiceCallSocket(null, {}, 'token-1'))
+        expect(closed.result.current.turnMetrics?.(frame)).toBe(false)
     })
 
     it('keeps the live call socket when the access token rotates', () => {

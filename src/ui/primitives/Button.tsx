@@ -7,7 +7,7 @@
  * `ButtonLink` is the same control as an `<a>`, for actions that navigate (open in a
  * new tab): the browser's own link affordances (middle-click, copy link) keep working.
  */
-import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from 'react'
+import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode, Ref } from 'react'
 import { cx } from './cx'
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'arcane' | 'danger' | 'danger-ghost'
@@ -21,7 +21,10 @@ interface ButtonLookProps {
     iconRight?: ReactNode
 }
 
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement>, ButtonLookProps {}
+interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement>, ButtonLookProps {
+    /** Anchors a popover or returns focus to the button (React 19 passes `ref` as a prop). */
+    ref?: Ref<HTMLButtonElement>
+}
 
 interface ButtonLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement>, ButtonLookProps {
     href: string

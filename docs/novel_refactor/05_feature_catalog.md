@@ -36,8 +36,8 @@ Author, device and assistive-technology acceptance is open for every row.
 
 Limits found in built rows, kept here so they are not lost:
 
-- **E01:** a real Ctrl/⌘+Enter in the prose inserts a line break instead of opening the beat composer (TipTap's
-  hard-break `Mod-Enter` runs first).
+- **E01:** a real Ctrl/⌘+Enter in the prose inserted a line break instead of opening the beat composer (TipTap's
+  hard-break `Mod-Enter` ran first). Fixed in code 2026-10-20 (`writingShortcuts.ts`); live check pending.
 - **E02:** the editor's undo stack belongs to the open scene and is lost on scene switch or reload.
 - **S04:** no drop at a chapter's end or into an empty or collapsed chapter; parts cannot be dragged; a drag applies
   with no review.
@@ -104,7 +104,7 @@ Bridge, Dialogue, Line edit and Brainstorm.
 
 | ID | Capability and expected outcome | Baseline | Phase |
 |---|---|---|---|
-| E01 | Fast caret, selection, paragraph, line-break, cut/copy/paste behavior | Present (typing measured live on a 1,500-scene novel, 2026-10-18); bug: a real Ctrl/⌘+Enter in the prose inserts a line break instead of opening the beat composer; cut/copy/paste not checked live | D1 |
+| E01 | Fast caret, selection, paragraph, line-break, cut/copy/paste behavior | Present (typing measured live on a 1,500-scene novel, 2026-10-18); a real Ctrl/⌘+Enter in the prose inserted a line break instead of opening the beat composer, fixed in code 2026-10-20 (live check pending); cut/copy/paste not checked live | D1 |
 | E02 | Predictable undo/redo for manual edits, AI commits, and replacement | Present (checked live 2026-10-17): accepting an AI proposal is one isolated undo step; find replace-all is one transaction; manuscript replacements, organization changes and changesets have reviewed undo/redo. The editor's undo stack belongs to the open scene and is lost on scene switch or reload | D1 |
 | E03 | Bold, italic, strike, headings, lists, quotes, scene breaks | Present | D1 |
 | E04 | Links and safe pasted references without silent URL loss | Present locally: guarded link create/edit/remove/inspect, explicit opening/copying, supported destination/title retention and unsupported paste destinations retained as text; broader paste/author acceptance remains | D1–D2 |
@@ -205,7 +205,7 @@ Bridge, Dialogue, Line edit and Brainstorm.
 | U03 | Progressive disclosure, command palette and shortcut help | Partial: the *More* menu (some items show shortcuts) and the `/` menu; no command palette (Ctrl/⌘+K opens the link dialog) and no shortcut help; the assistant is reachable only from *More* | D2–D3 |
 | U04 | Responsive layout with accessible drawers and visible prose | Partial: the layout follows the studio's container width (the inspector collapses before the outline; outline and Codex become drawers when narrow; 375 px checked live in D4 slice 19); no mobile-keyboard (`visualViewport`) handling; 320 px and 400 % zoom never checked in the app shell; the assistant drawer covers the prose | D1–D3 |
 | U05 | Full keyboard operation, focus return, labels and announcements | Partial: menus close on Escape and return focus, arrow keys in radio groups, focus returns after Plan/Review, a polite live region for save state; no recorded keyboard-only pass of the studio and no screen-reader session (NE-017) | D1 |
-| U06 | Contrast, zoom/reflow, touch, reduced-motion and screen-reader validation | Partial: a global reduced-motion rule and the Storybook accessibility add-on; no NVDA/VoiceOver, 200 %/400 % zoom, touch-target or contrast audit; 11 px status hints in `text-parchment-500` measure about 2.1:1 | D1 |
+| U06 | Contrast, zoom/reflow, touch, reduced-motion and screen-reader validation | Partial: a global reduced-motion rule and the Storybook accessibility add-on; no NVDA/VoiceOver, 200 %/400 % zoom, touch-target or contrast audit; the 11 px status hints were raised from 2.11:1 to 5.29:1 on 2026-10-20 (`parchment-400`), but nothing else was measured | D1 |
 | U07 | Novel/scene/session goals, optional streaks and deadline tracking | Present locally: novel, part, chapter and scene word goals, a daily target, deadline pace and an optional per-device streak of days with words added | D5 |
 | U08 | Lightweight writing-session statistics and task list | Present locally: a writing log of saved scene edits (15-minute UTC buckets, typing and accepted AI apart) read as local days, with today, the last 14 days and a 30-day total; the task list is *Tasks & stash* on the *Review* surface (R10/R11) | D5 |
 | U09 | Optional read-aloud proofreading using existing voice/media infrastructure | Gap: nothing in the novel feature; the BFF's TTS engine (`services/tts_generation`, ElevenLabs/Fish Audio providers) is bound to chat turns and would need a story-passage path and a player in the studio | D5 |

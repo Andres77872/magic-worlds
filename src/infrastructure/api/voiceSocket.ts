@@ -9,9 +9,13 @@
  * it alive for a short grace period, so the socket reconnects with
  * `voice_resume` until `voice_state_snapshot` confirms the call is back, and only
  * gives up once RESUME_WINDOW_MS has passed.
+ *
+ * Protocol v2 (docs/call_realtime/phase0/01_protocol_v2.md): `voice_start` names the
+ * protocol the client speaks, and a frame newer than v1 goes out only when this call's
+ * `voice_ready.protocol` advertised it, so an older BFF never receives one.
  */
 
-import type { VoiceErrorCategory, VoiceSocketClientFrame, VoiceSocketServerFrame } from '../../shared/types/voice.types'
+import type { VoiceErrorCategory, VoiceSocketClientFrame, VoiceSocketServerFrame, VoiceTurnClientMetricsFrame } from '../../shared/types/voice.types'
 import { API_BASE_URL } from './baseUrl'
 import { authSession, type AuthSessionSnapshot } from './authSession'
 import { isWorkspaceUuid } from './workspaceContract'
@@ -23,6 +27,25 @@ const MAX_RECONNECT_MS = 30_000
 /** Must stay below the server's VOICE_RESUME_GRACE_SECONDS (20 s). */
 const RESUME_WINDOW_MS = 15_000
 const MAX_RESUME_BACKOFF_MS = 4_000
+
+/** The call socket protocol this client speaks, sent as `voice_start.protocol_version` (v2 §2.1). */
+export const VOICE_PROTOCOL_VERSION = 2
+/** The `voice_turn_client_metrics` version this client sends (v2 §3). */
+export const VOICE_CLIENT_METRICS_VERSION = 1
+
+/**
+ * The `voice_turn_client_metrics` version a `voice_ready` advertises (`protocol.client_metrics`),
+ * or null for a v1 server. Read defensively (v2 §2.3): anything but an object whose `version`
+ * (≥ 2) and `client_metrics` (≥ 1) are integers means v1.
+ */
+export function readClientMetricsVersion(frame: { protocol?: unknown } | null | undefined): number | null {
+    const protocol: unknown = frame?.protocol
+    if (!isRecord(protocol) || Array.isArray(protocol)) return null
+    const version: unknown = protocol.version
+    const clientMetrics: unknown = protocol.client_metrics
+    if (typeof version !== 'number' || !Number.isSafeInteger(version) || version < 2) return null
+    return typeof clientMetrics === 'number' && Number.isSafeInteger(clientMetrics) && clientMetrics >= 1 ? clientMetrics : null
+}
 
 /** Stable, greppable code for a voice error category — mirrors the backend `VOICE_<CATEGORY>`. */
 export function voiceErrorCode(category: string): string {
@@ -162,6 +185,8 @@ export class VoiceSocket {
     private lastSegmentSeq = 0
     /** Set while a post-ready connection is being resumed; the deadline ends the call. */
     private resumeDeadline: number | null = null
+    /** This call's `voice_ready.protocol.client_metrics`; null for a v1 server or before ready. */
+    private clientMetricsVersion: number | null = null
     private readonly cancelledTurns = new Set<string>()
     private readonly highestAudioSeqByTurn = new Map<string, number>()
 
@@ -185,6 +210,7 @@ export class VoiceSocket {
             this.reconnectAttempts = 0
             this.authRecoveryAttempted = false
             this.terminalAuthReported = false
+            this.clientMetricsVersion = null
             this.cancelledTurns.clear()
             this.highestAudioSeqByTurn.clear()
         }
@@ -229,6 +255,17 @@ export class VoiceSocket {
         const played = wholeMs(playedMs)
         if (!turnId || played === null) return false
         return this.sendFrame({ type: 'voice_playback', turn_id: turnId, played_ms: played })
+    }
+
+    /**
+     * `voice_turn_client_metrics` for one settled turn (v2 §3), best-effort: sent only on an
+     * established call whose `voice_ready` advertised this frame version, never while the call
+     * is being resumed. A frame that cannot go out now is dropped, never queued.
+     */
+    sendTurnMetrics(frame: VoiceTurnClientMetricsFrame): boolean {
+        if (this.clientMetricsVersion !== VOICE_CLIENT_METRICS_VERSION || !this.voiceSessionId || this.isResuming) return false
+        if (frame?.type !== 'voice_turn_client_metrics' || frame.v !== VOICE_CLIENT_METRICS_VERSION || !frame.turn_id) return false
+        return this.sendFrame(frame)
     }
 
     end(): boolean {
@@ -467,6 +504,7 @@ export class VoiceSocket {
             case 'voice_ready':
                 this.voiceSessionId = message.voice_session_id
                 this.authRecoveryAttempted = false
+                this.clientMetricsVersion = readClientMetricsVersion(message)
                 break
             case 'voice_state_snapshot':
                 this.voiceSessionId = message.voice_session_id

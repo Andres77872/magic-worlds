@@ -114,6 +114,11 @@ const ALLOWLIST: readonly AllowRule[] = [
         line: /minimax_music_3|music_3_0|ACE-Step y MiniMax|aliases direct-MiniMax/i,
         reason: 'Theme-song writer and retired music-alias lines only',
     },
+    {
+        globs: ['docs/call_realtime/**'],
+        line: ANY_LINE,
+        reason: 'Dated (2026-10-20) call research and audit: MiniMax as a compared vendor and the MiniMax-era markup it records',
+    },
     { globs: ['.design/**'], line: ANY_LINE, reason: 'Design scratch (base64 false positives); not shipped' },
     SELF_ROW,
     // Q1 is closed (I-71, 2026-10-14): the Privacy page publishes the ElevenLabs variant, so the

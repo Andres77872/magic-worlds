@@ -14,13 +14,19 @@ import type { VoiceAudioEncoding, VoiceVadAggressiveness, VoiceVadSource } from 
 export const VOICE_VAD_PROCESSOR_NAME = 'voice-vad-processor'
 /** Sample rate of every segment the worklet posts (it resamples whatever the context runs at). */
 export const VOICE_VAD_SAMPLE_RATE = 16_000
-/** Worklet default for `maxSegmentMs` (pre-roll included); the server rejects segments over 8 s. */
+/**
+ * Worklet default for `maxSegmentMs` (pre-roll included). A call raises it to the server's
+ * advertised `max_segment_duration_ms` minus 500 ms (29.5 s with the 30 s default).
+ */
 export const VOICE_VAD_DEFAULT_MAX_SEGMENT_MS = 7_500
 /** Worklet default for `preRollMs`: audio kept from before the speech onset. */
 export const VOICE_VAD_DEFAULT_PRE_ROLL_MS = 300
 
 export interface VoiceVadTuning {
-    /** Silence (ms) before a turn ends. Default ~800ms (natural pause). */
+    /**
+     * Silence (ms) after the last voiced audio before a turn ends (the hang-over). The call
+     * screen sets 550; 800 is only the worklet fallback (450 for `strict`, which no caller sends).
+     */
     silenceMsToEnd?: number
     /** Minimum detected speech (ms) before a turn fires — ignores coughs/clicks. */
     minSpeechMs?: number

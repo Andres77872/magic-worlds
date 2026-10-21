@@ -60,7 +60,7 @@ import { MentionMenu } from './components/MentionMenu'
 import { ManuscriptReferenceDialog } from './components/ManuscriptReferenceDialog'
 import { referenceChoices, mentionChoices, type ManuscriptReferenceChoice } from './referenceChoices'
 import { createReferenceInspection } from './extensions/referenceInspection'
-import { createCompletionShortcut } from './extensions/completionShortcut'
+import { createWritingShortcuts } from './extensions/writingShortcuts'
 import { captureBlockMove, moveBlockAdjacent, type BlockMoveTarget } from './blockMovement'
 import { createBlockMovement } from './extensions/blockMovement'
 import { ManuscriptBlockMoveDialog } from './components/ManuscriptBlockMoveDialog'
@@ -132,6 +132,7 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
     })
     const submitSlashRef = useRef<(item: SlashItem) => void>(() => {})
     const requestCompletionRef = useRef<() => boolean>(() => false)
+    const requestBeatRef = useRef<() => boolean>(() => false)
     const editorRef = useRef<ReturnType<typeof useEditor> | null>(null)
     const [linkTarget,setLinkTarget]=useState<ManuscriptLinkTarget|null>(null)
     const [pasteAsText,setPasteAsText]=useState(0)
@@ -252,7 +253,7 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
             ManuscriptSearchHighlight,
             createManuscriptLinks({onOpen:(position)=>openLinkRef.current(position),onPasteAsText:(count)=>setPasteAsText(count)}),
             createReferenceInspection((position) => inspectReferencesRef.current(position)),
-            createCompletionShortcut(() => requestCompletionRef.current()),
+            createWritingShortcuts({ onBeat: () => requestBeatRef.current(), onCompletion: () => requestCompletionRef.current() }),
             createBlockMovement((direction) => moveAdjacentBlocksRef.current(direction)),
             AiBeat.configure({
                 getLabels: () => ({
@@ -502,6 +503,12 @@ export const NovelEditor = forwardRef<NovelEditorHandle, NovelEditorProps>(funct
         const instruction = propsRef.current.completionInstruction
         if (!instruction || phaseRef.current !== 'idle' || propsRef.current.readOnly || propsRef.current.aiDisabled) return false
         void inlineAI.submit('continue', instruction)
+        return true
+    }
+    // Mod-Enter in the prose opens the beat composer at the cursor; otherwise the key falls through (Regenerate under review).
+    requestBeatRef.current = () => {
+        if (phaseRef.current !== 'idle' || propsRef.current.readOnly || propsRef.current.aiDisabled || beat.open) return false
+        beat.openAt('')
         return true
     }
     submitSlashRef.current = (item) => {

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { ApiError } from '@/infrastructure/api'
 import { authSession } from '@/infrastructure/api/authSession'
 import { prepareLlmDispatch } from '@/infrastructure/api/llmPreparation'
+import { Modal } from '@/ui/primitives'
 import { credentialSession } from './credentialSession'
 import { LlmFeatureControl } from './LlmFeatureControl'
 import { LlmSessionProvider } from './LlmSessionProvider'
@@ -19,13 +20,13 @@ const token = `header.${btoa(JSON.stringify({ project_hash: 'fixture-project' })
 const KEY = 'FAKE_FEATURE_SESSION_CANARY'
 beforeEach(() => {
     vi.resetAllMocks(); credentialSession.clear(); authSession.continueSignedOut(); authSession.authenticate('alice', token); grantFixtureFeatures(true)
-    mocks.features.mockResolvedValue({ features: [featureFixture('novel'), featureFixture('card_assistant'), featureFixture('image_prompt', false)] })
+    mocks.features.mockResolvedValue({ features: [featureFixture('novel'), featureFixture('card_assistant'), featureFixture('image_prompt', false), { ...featureFixture('callbot', false), request_selection_enabled: true }] })
     mocks.profiles.mockResolvedValue({ items: [applicationProfile, personalProfile], total: 2, offset: 0, limit: 25 })
     mocks.resolve.mockImplementation(async (_feature, selection) => selection?.mode === 'profile' && selection.profile_id === personalProfile.profile_id ? personalEffective : applicationEffective)
 })
 afterEach(() => { credentialSession.clear(); authSession.continueSignedOut() })
-function mount(feature: 'novel' | 'image_prompt' = 'novel') {
-    return render(<LlmSessionProvider><LlmFeatureControl feature={feature} /></LlmSessionProvider>)
+function mount(feature: 'novel' | 'image_prompt' | 'callbot' = 'novel', variant?: 'chip' | 'setting') {
+    return render(<LlmSessionProvider><LlmFeatureControl feature={feature} variant={variant} /></LlmSessionProvider>)
 }
 /** The control is a compact chip; its details and profile choice live in a popover. */
 async function openChip() {
@@ -131,6 +132,58 @@ it('shows system-only writers without a personal selector or profile enumeration
     expect(screen.queryByRole('button', { name: 'Change profile' })).not.toBeInTheDocument()
     expect(screen.getByText(/Their media charges are separate/)).toBeInTheDocument()
     expect(mocks.profiles).not.toHaveBeenCalled()
+})
+it('lets a caller choose a compatible app profile for calls and uses it at dispatch', async () => {
+    mount('callbot'); await openChoices()
+    expect(screen.getByText(/Applies to new calls in this tab/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('combobox'))
+    // Calls refuse personal profiles: they are left out, not listed as incompatible (and never resolved).
+    expect(screen.queryByRole('option', { name: /My storyteller/ })).not.toBeInTheDocument()
+    expect(mocks.resolve).not.toHaveBeenCalledWith('callbot', { mode: 'profile', profile_id: personalProfile.profile_id })
+    fireEvent.click(screen.getByRole('option', { name: /Application storyteller/ }))
+    await waitFor(() => expect(screen.getByRole('combobox')).toBeEnabled())
+    const materialize = await prepareLlmDispatch('callbot')
+    expect(materialize()).toEqual({ selection: { mode: 'profile', profile_id: applicationProfile.profile_id }, expected_revision_id: applicationEffective.revision_id })
+    expect(screen.queryByLabelText('Provider API key')).not.toBeInTheDocument()
+})
+it('shows the call model as a setting row whose action opens straight onto the profile choice', async () => {
+    mocks.resolve.mockImplementation(async (_feature, selection) => selection?.mode === 'profile'
+        ? { ...applicationEffective, resolution_source: 'explicit' } : applicationEffective)
+    mount('callbot', 'setting')
+    const row = within(await screen.findByTestId('llm-feature-setting'))
+    expect(await row.findByText('Fixture writer')).toBeInTheDocument()
+    expect(row.getByText('Application recommendation for calls')).toBeInTheDocument()
+    expect(mocks.profiles).not.toHaveBeenCalled()
+
+    fireEvent.click(row.getByRole('button', { name: 'Change model' }))
+    await waitFor(() => expect(screen.getByRole('combobox')).toBeEnabled())
+    expect(screen.queryByRole('button', { name: 'Change profile' })).not.toBeInTheDocument()
+    choose('Application storyteller')
+    // The row names the chosen profile, then its response model and where the choice applies.
+    expect(await row.findByText('Application storyteller')).toBeInTheDocument()
+    expect(row.getByText('Fixture writer · Chosen for new calls in this tab')).toBeInTheDocument()
+})
+it('closes the setting popover alone on Escape inside a dialog', async () => {
+    const onClose = vi.fn()
+    render(<LlmSessionProvider><Modal open onClose={onClose} title="Start a voice call"><LlmFeatureControl feature="callbot" variant="setting" /></Modal></LlmSessionProvider>)
+    fireEvent.click(await screen.findByRole('button', { name: 'Change model' }))
+    expect(await screen.findByRole('dialog', { name: 'Profile for Voice conversation' })).toBeInTheDocument()
+
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Profile for Voice conversation' })).not.toBeInTheDocument())
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Change model' })).toHaveFocus()
+
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledTimes(1)
+})
+it('says what is missing in the setting row when nothing can answer calls', async () => {
+    mocks.resolve.mockRejectedValue(new ApiError(422, 'Not configured', { code: 'SYSTEM_PROFILE_NOT_CONFIGURED' }))
+    mount('callbot', 'setting')
+    const row = within(await screen.findByTestId('llm-feature-setting'))
+    expect(await row.findByText('No model')).toBeInTheDocument()
+    expect(row.getByRole('status')).toHaveTextContent('An administrator has to set the app default profile.')
+    expect(row.queryByRole('button')).not.toBeInTheDocument()
 })
 it('discards a pending preview after an account change', async () => {
     let complete!: (value: typeof personalEffective) => void

@@ -4,11 +4,13 @@ beforeEachGrantedFeatures(() => grantFixtureFeatures(true))
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { VoicePlaybackBuffer, VoicePlaybackState } from '../audio/voicePlaybackBuffer'
+import type { VoiceTurnClientMetricsFrame } from '@/shared/types/voice.types'
 import type { CapturedVoiceSegment } from '../audio/voiceVadWorklet'
 import type { MicrophoneCaptureApi, UseMicrophoneCaptureOptions } from './useMicrophoneCapture'
 import type { VoiceCallSocketApi, VoiceCallSocketHandlers } from './useVoiceCallSocket'
 import { deriveVoiceCallState, useVoiceCallController } from './useVoiceCallController'
 import { SessionPersonaError } from '@/utils/characterRoles'
+import { configureLlmPreparation } from '@/infrastructure/api/llmPreparation'
 import { activeVoiceCallWorkspaceId, endActiveVoiceCall, hasActiveVoiceCall } from '@/features/call/activeVoiceCall'
 import { createElement, type ReactNode } from 'react'
 import { AttestationContext, type AttestationContextValue } from '@/features/legal/attestation/attestationContext'
@@ -303,6 +305,49 @@ describe('useVoiceCallController', () => {
         const plain = renderController()
         await act(async () => { await plain.result.current.startCall() })
         expect(vi.mocked(mocks.socketApi!.start).mock.lastCall?.[0]).not.toHaveProperty('voice')
+    })
+
+    it('sends the caller-selected profile and its revision in the call handshake', async () => {
+        const selection = { mode: 'profile' as const, profile_id: '11111111-1111-4111-8111-111111111111' }
+        const expected_revision_id = '22222222-2222-4222-8222-222222222222'
+        const prepare = vi.fn(async () => () => ({ selection, expected_revision_id }))
+        const cleanup = configureLlmPreparation(prepare)
+        try {
+            const { result } = renderController()
+            await act(async () => { expect(await result.current.startCall()).toBe(true) })
+            expect(prepare).toHaveBeenCalledWith('callbot', expect.any(AbortSignal), undefined, undefined)
+            expect(mocks.socketApi!.start).toHaveBeenCalledWith(expect.objectContaining({ llm: { selection, expected_revision_id } }))
+        } finally { cleanup() }
+    })
+
+    it('stops microphone capture and keeps the socket closed when the call profile cannot be prepared', async () => {
+        const cleanup = configureLlmPreparation(async () => { throw new Error('PROFILE_UNAVAILABLE') })
+        try {
+            const { result } = renderController()
+            await act(async () => { expect(await result.current.startCall()).toBe(false) })
+            expect(mocks.socketApi!.start).not.toHaveBeenCalled()
+            expect(mocks.microphoneApi!.stop).toHaveBeenCalled()
+            expect(result.current.error?.code).toBe('call_model_unavailable')
+        } finally { cleanup() }
+    })
+
+    it('cancels pending profile preparation when the caller ends before the socket opens', async () => {
+        const prepare = vi.fn((_feature: unknown, signal?: AbortSignal) => new Promise<() => { selection: { mode: 'inherit' } }>((_resolve, reject) => {
+            signal?.addEventListener('abort', () => reject(new DOMException('Cancelled', 'AbortError')), { once: true })
+        }))
+        const cleanup = configureLlmPreparation(prepare)
+        try {
+            const { result } = renderController()
+            let pending!: Promise<boolean>
+            act(() => { pending = result.current.startCall() })
+            await waitFor(() => expect(prepare).toHaveBeenCalled())
+            await act(async () => {
+                await result.current.endCall()
+                expect(await pending).toBe(false)
+            })
+            expect(mocks.socketApi!.start).not.toHaveBeenCalled()
+            expect(mocks.microphoneApi!.stop).toHaveBeenCalled()
+        } finally { cleanup() }
     })
 
     it('caps VAD segments below the server limit (default until the server advertises one)', async () => {
@@ -1041,6 +1086,155 @@ describe('useVoiceCallController', () => {
             expect(result.current.audioUnsupported).toBe(true)
             act(() => mocks.socketHandlers?.onTurnStart?.(turnStart('turn-2')))
             expect(result.current.audioUnsupported).toBe(false)
+        })
+    })
+
+    describe('protocol v2 turn metrics (R01)', () => {
+        const PROTOCOL_V2 = { version: 2, client_metrics: 1 }
+        const v2Ready = (protocol: unknown = PROTOCOL_V2) => ({ ...readyFrame(), protocol }) as never
+        const turnEnd = (turnId = 'turn-1') => ({ type: 'voice_turn_end' as const, voice_session_id: 'voice-1', turn_id: turnId, status: 'completed' as const, partial: false, duration_ms: 900 })
+
+        function withMetricsTransport() {
+            const turnMetrics = vi.fn<(frame: VoiceTurnClientMetricsFrame) => boolean>(() => true)
+            mocks.socketApi!.turnMetrics = turnMetrics
+            Object.assign(mocks.playback!, { playedMs: vi.fn(() => 2_400.4), playbackPath: vi.fn(() => 'media_source') })
+            mocks.microphoneApi!.outputLatencyMs = () => 21
+            return turnMetrics
+        }
+
+        async function renderCall(protocol?: unknown) {
+            const rendered = renderController()
+            await act(async () => { await rendered.result.current.startCall() })
+            act(() => mocks.socketHandlers?.onReady?.(protocol === undefined ? readyFrame() : v2Ready(protocol)))
+            return rendered
+        }
+
+        function playTurnOut(turnId = 'turn-1') {
+            act(() => mocks.socketHandlers?.onTurnStart?.({ ...turnStart(turnId), segment_seq: 1 }))
+            act(() => mocks.socketHandlers?.onAudioChunk?.(chunk(turnId)))
+            emitPlayback('buffering', turnId)
+            emitPlayback('playing', turnId)
+            act(() => mocks.socketHandlers?.onTurnEnd?.(turnEnd(turnId)))
+            emitPlayback('idle', turnId)
+        }
+
+        it('speaks protocol v2 on voice_start', async () => {
+            await renderCall()
+            expect(mocks.socketApi!.start).toHaveBeenCalledWith(expect.objectContaining({ type: 'voice_start', protocol_version: 2 }))
+        })
+
+        it('reports a played turn once, with its upload, ack and playback timeline, to a v2 server', async () => {
+            const turnMetrics = withMetricsTransport()
+            await renderCall(PROTOCOL_V2)
+            act(() => mocks.microphoneOptions?.onSegment?.({ ...createSegment(1), speech_end_perf_ms: performance.now() - 600 }))
+            await waitFor(() => expect(mocks.apiService.uploadVoiceSegment).toHaveBeenCalledTimes(1))
+            act(() => mocks.socketHandlers?.onSegmentAck?.({ type: 'voice_segment_ack', voice_session_id: 'voice-1', seq: 1, status: 'received' }))
+            act(() => mocks.socketHandlers?.onTurnStart?.({ ...turnStart(), segment_seq: 1 }))
+            act(() => mocks.socketHandlers?.onAudioChunk?.(chunk()))
+            emitPlayback('buffering')
+            emitPlayback('playing')
+            act(() => mocks.socketHandlers?.onTurnEnd?.(turnEnd()))
+            // Still audible: it settles when playback goes idle.
+            expect(turnMetrics).not.toHaveBeenCalled()
+            emitPlayback('idle')
+
+            expect(turnMetrics).toHaveBeenCalledOnce()
+            const frame: Record<string, unknown> = { ...turnMetrics.mock.calls[0][0] }
+            expect(frame).toMatchObject({
+                type: 'voice_turn_client_metrics', v: 1, turn_id: 'turn-1', segment_seq: 1, outcome: 'played',
+                output_latency_ms: 21, played_ms: 2_400, chunks: 1, stalls: 0, stall_ms: 0,
+                playback_path: 'media_source', aec: 'on', autoplay_blocked: false,
+            })
+            for (const field of ['speech_end_to_upload_ms', 'upload_to_ack_ms', 'speech_end_to_turn_start_ms', 'speech_end_to_first_chunk_ms', 'speech_end_to_playing_ms', 'turn_start_to_first_chunk_ms', 'first_chunk_to_playing_ms', 'v2v_ms']) {
+                expect(frame[field], field).toEqual(expect.any(Number))
+            }
+            // The same number the upload carried as vad.speech_end_lag_ms.
+            expect(frame.speech_end_to_upload_ms).toBe(mocks.apiService.uploadVoiceSegment.mock.calls[0][1].vad.speech_end_lag_ms)
+            expect(frame.v2v_ms).toBe((frame.speech_end_to_playing_ms as number) + 21)
+            expect(frame).not.toHaveProperty('barge_in_onset_to_pause_ms')
+        })
+
+        it.each([
+            ['no protocol (a v1 server)', undefined],
+            ['a string version', { version: '2', client_metrics: 1 }],
+            ['no client_metrics', { version: 2 }],
+            ['a non-object', 'v2'],
+        ])('never sends metrics for %s', async (_label, protocol) => {
+            const turnMetrics = withMetricsTransport()
+            await renderCall(protocol === undefined ? undefined : protocol)
+            playTurnOut()
+            await act(async () => { await Promise.resolve() })
+            expect(turnMetrics).not.toHaveBeenCalled()
+        })
+
+        it('reports an automatic barge-in as interrupted, with its onset, before the cancel', async () => {
+            vi.useFakeTimers()
+            const turnMetrics = withMetricsTransport()
+            await renderCall(PROTOCOL_V2)
+            act(() => mocks.socketHandlers?.onTurnStart?.(turnStart()))
+            act(() => mocks.socketHandlers?.onAudioChunk?.(chunk()))
+            emitPlayback('playing')
+            await act(async () => { vi.advanceTimersByTime(3_000) })
+            act(() => mocks.microphoneOptions?.onVadState?.('speech_start'))
+
+            expect(mocks.socketApi!.bargeIn).toHaveBeenCalledWith({ type: 'voice_barge_in', reason: 'barge_in', turn_id: 'turn-1', played_ms: 2_400 })
+            expect(turnMetrics).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+                turn_id: 'turn-1', outcome: 'interrupted', played_ms: 2_400, barge_in_onset_to_pause_ms: expect.any(Number),
+            }))
+            const cancels = vi.mocked(mocks.playback!.cancel).mock.invocationCallOrder
+            expect(turnMetrics.mock.invocationCallOrder[0]).toBeLessThan(cancels[cancels.length - 1])
+            // The server's own cancel of the same turn reports nothing new.
+            act(() => mocks.socketHandlers?.onCancelled?.({ type: 'voice_cancelled', voice_session_id: 'voice-1', turn_id: 'turn-1', reason: 'barge_in' }))
+            expect(turnMetrics).toHaveBeenCalledOnce()
+        })
+
+        it('reports the Interrupt button without a barge-in onset', async () => {
+            const turnMetrics = withMetricsTransport()
+            const { result } = await renderCall(PROTOCOL_V2)
+            act(() => mocks.socketHandlers?.onTurnStart?.(turnStart()))
+            act(() => mocks.socketHandlers?.onAudioChunk?.(chunk()))
+            emitPlayback('playing')
+            act(() => { result.current.bargeIn() })
+            expect(turnMetrics).toHaveBeenCalledOnce()
+            expect(turnMetrics.mock.calls[0][0]).toMatchObject({ outcome: 'interrupted' })
+            expect(turnMetrics.mock.calls[0][0]).not.toHaveProperty('barge_in_onset_to_pause_ms')
+        })
+
+        it('reports a superseded turn as cancelled', async () => {
+            const turnMetrics = withMetricsTransport()
+            await renderCall(PROTOCOL_V2)
+            act(() => mocks.socketHandlers?.onTurnStart?.(turnStart()))
+            act(() => mocks.socketHandlers?.onCancelled?.({ type: 'voice_cancelled', voice_session_id: 'voice-1', turn_id: 'turn-1', reason: 'superseded' }))
+            expect(turnMetrics).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ turn_id: 'turn-1', outcome: 'cancelled', chunks: 0, playback_path: 'none' }))
+        })
+
+        it('reports a turn still open at call end before voice_end, and resets the capability per call', async () => {
+            const turnMetrics = withMetricsTransport()
+            const { result } = await renderCall(PROTOCOL_V2)
+            act(() => mocks.socketHandlers?.onTurnStart?.(turnStart()))
+            act(() => mocks.socketHandlers?.onAudioChunk?.(chunk()))
+            emitPlayback('playing')
+            await act(async () => { await result.current.endCall() })
+            expect(turnMetrics).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ turn_id: 'turn-1', outcome: 'cancelled' }))
+            expect(turnMetrics.mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(mocks.socketApi!.end).mock.invocationCallOrder[0])
+
+            // "Call again" reaches a v1 server: nothing is sent on that call.
+            await act(async () => { await result.current.startCall() })
+            act(() => mocks.socketHandlers?.onReady?.(readyFrame()))
+            playTurnOut('turn-2')
+            await act(async () => { await result.current.endCall() })
+            expect(turnMetrics).toHaveBeenCalledOnce()
+        })
+
+        it('keeps the call running when the metrics transport fails', async () => {
+            const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+            const turnMetrics = withMetricsTransport()
+            turnMetrics.mockImplementation(() => { throw new Error('socket gone') })
+            const { result } = await renderCall(PROTOCOL_V2)
+            playTurnOut()
+            expect(turnMetrics).toHaveBeenCalledOnce()
+            expect(result.current.state).toBe('listening')
+            warn.mockRestore()
         })
     })
 })

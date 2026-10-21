@@ -54,6 +54,11 @@ export interface MicrophoneCaptureApi {
     echoCancellation: boolean | null
     /** True once the no-input watchdog restarted capture with raw constraints (echo cancellation off). */
     rawFallbackActive: boolean
+    /**
+     * The capture AudioContext's `outputLatency` (else `baseLatency`) in whole ms; null when
+     * capture is off or the browser exposes neither. Optional so test doubles stay valid.
+     */
+    outputLatencyMs?: () => number | null
     start: () => Promise<boolean>
     stop: () => void
     mute: () => void
@@ -588,6 +593,15 @@ export function useMicrophoneCapture(options: UseMicrophoneCaptureOptions): Micr
         setMuted(false)
     }, [armLivenessWatchdog])
 
+    const outputLatencyMs = useCallback((): number | null => {
+        const context = audioContextRef.current as (AudioContext & { outputLatency?: number }) | null
+        if (!context) return null
+        for (const seconds of [context.outputLatency, context.baseLatency]) {
+            if (typeof seconds === 'number' && Number.isFinite(seconds) && seconds > 0) return Math.round(seconds * 1000)
+        }
+        return null
+    }, [])
+
     const configure = useCallback((tuning: Partial<VoiceVadTuning>) => {
         const next = definedTuning(tuning)
         tuningOverridesRef.current = { ...tuningOverridesRef.current, ...next }
@@ -612,6 +626,7 @@ export function useMicrophoneCapture(options: UseMicrophoneCaptureOptions): Micr
         nextSeq,
         echoCancellation,
         rawFallbackActive,
+        outputLatencyMs,
         start,
         stop,
         mute,

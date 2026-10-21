@@ -10,12 +10,12 @@
  * "Change voice" becomes the main action.
  *
  * Model: the callbot feature control, passed in as `model` (it reads the
- * profile context). With nothing assigned, root assigns the app default in
- * place; everyone else sees that calls wait for it.
+ * profile context). The caller can choose a compatible app profile for new
+ * calls in this tab. With nothing assigned, root can set the app default.
  */
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { AlertTriangle, Bot, Volume2 } from 'lucide-react'
+import { AlertTriangle, Bot, Undo2, Volume2, type LucideIcon } from 'lucide-react'
 import type { StoredCharacterVoice } from '@/shared/types'
 import { VoicePickerDialog } from '@/features/voices/components/VoicePickerDialog'
 import type { CatalogRecommendationTarget } from '@/features/voices/hooks/useCatalogBrowser'
@@ -34,7 +34,7 @@ export interface CallSetupProps {
     /** Card language for the picker's catalog filter and samples. */
     language?: string | null
     recommendedFor?: CatalogRecommendationTarget | null
-    /** The conversation-model control (callbot). */
+    /** The conversation-model control (callbot), as a setting row (`LlmFeatureControl variant="setting"`). */
     model?: ReactNode
     disabled?: boolean
     className?: string
@@ -65,16 +65,17 @@ export function CallSetup({
         >
             <Eyebrow tone="muted">{t('call.setup.title')}</Eyebrow>
 
-            <div className="flex flex-wrap items-start gap-3">
-                <span aria-hidden className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-arcane-500/15 text-arcane-300">
-                    <Icon icon={Volume2} size={16} />
-                </span>
-                <div className="min-w-0 flex-1">
-                    <p className="text-label text-parchment-300">{t('call.setup.voice')}</p>
-                    <p className="flex flex-wrap items-center gap-1.5 text-body text-parchment-50">
-                        <span className="min-w-0 break-words" data-testid="call-setup-voice">{voiceName}</span>
-                        {pick && <Badge tone="neutral">{t('call.setup.forCalls')}</Badge>}
-                    </p>
+            <div className="flex flex-col divide-y divide-parchment-50/[.08]">
+                <SetupRow icon={Volume2} label={t('call.setup.voice')}>
+                    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+                        <p className="flex min-w-0 flex-[1_1_10rem] flex-wrap items-center gap-x-2 gap-y-1 text-body text-parchment-50">
+                            <span className="min-w-0 break-words" data-testid="call-setup-voice">{voiceName}</span>
+                            {pick && <Badge tone="neutral">{t('call.setup.forCalls')}</Badge>}
+                        </p>
+                        <Button variant={voiceUnavailable ? 'primary' : 'secondary'} size="sm" onClick={() => setPickerOpen(true)} disabled={disabled}>
+                            {t('call.setup.change')}
+                        </Button>
+                    </div>
                     {voiceUnavailable ? (
                         <p role="status" className="mt-1 flex items-start gap-1.5 text-caption text-amber-500" data-testid="call-setup-voice-unavailable">
                             <Icon icon={AlertTriangle} size={13} className="mt-0.5 shrink-0" />
@@ -83,28 +84,19 @@ export function CallSetup({
                     ) : pick ? (
                         <p className="mt-1 text-caption text-parchment-400">{t('call.setup.pickHint', { name })}</p>
                     ) : null}
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
                     {pick && (
-                        <Button variant="ghost" size="sm" onClick={() => onPick(null)} disabled={disabled}>
+                        <Button variant="ghost" size="xs" className="-ml-2.5 mt-1" iconLeft={<Icon icon={Undo2} size={13} />} onClick={() => onPick(null)} disabled={disabled}>
                             {t('call.setup.useCharacterVoice')}
                         </Button>
                     )}
-                    <Button variant={voiceUnavailable ? 'primary' : 'secondary'} size="sm" onClick={() => setPickerOpen(true)} disabled={disabled}>
-                        {t('call.setup.change')}
-                    </Button>
-                </div>
-            </div>
+                </SetupRow>
 
-            {model && (
-                <div className="flex flex-wrap items-center gap-3">
-                    <span aria-hidden className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-arcane-500/15 text-arcane-300">
-                        <Icon icon={Bot} size={16} />
-                    </span>
-                    <p className="min-w-0 flex-1 text-label text-parchment-300">{t('call.setup.model')}</p>
-                    <div className="min-w-0">{model}</div>
-                </div>
-            )}
+                {model && (
+                    <SetupRow icon={Bot} label={t('call.setup.model')}>
+                        {model}
+                    </SetupRow>
+                )}
+            </div>
 
             <VoicePickerDialog
                 open={pickerOpen}
@@ -120,5 +112,20 @@ export function CallSetup({
                 onClose={() => setPickerOpen(false)}
             />
         </section>
+    )
+}
+
+/** One setting: an arcane glyph (the AI side), its label, then the host's value row. */
+function SetupRow({ icon, label, children }: { icon: LucideIcon; label: string; children: ReactNode }) {
+    return (
+        <div className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
+            <span aria-hidden className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-arcane-500/15 text-arcane-300">
+                <Icon icon={icon} size={16} />
+            </span>
+            <div className="min-w-0 flex-1">
+                <p className="mb-0.5 text-label text-parchment-300">{label}</p>
+                {children}
+            </div>
+        </div>
     )
 }

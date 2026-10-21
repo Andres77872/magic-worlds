@@ -20,7 +20,7 @@ const controller = vi.hoisted(() => ({
     startCall: vi.fn(async () => true),
     options: null as null | { callVoice?: unknown },
 }))
-const model = vi.hoisted(() => ({ unassigned: false }))
+const model = vi.hoisted(() => ({ unassigned: false, disabled: false }))
 const picker = vi.hoisted(() => ({ onSelect: null as null | ((voice: StoredCharacterVoice | null) => void) }))
 
 vi.mock('@/features/interaction/hooks/useVoiceCallController', () => ({
@@ -44,7 +44,8 @@ vi.mock('@/app/hooks', () => ({
 
 // The callbot control reports whether a conversation model is assigned.
 vi.mock('@/features/llmProfiles/LlmFeatureControl', () => ({
-    LlmFeatureControl: ({ onUnassignedChange }: { onUnassignedChange?: (unassigned: boolean) => void }) => {
+    LlmFeatureControl: ({ onUnassignedChange, disabled = false }: { onUnassignedChange?: (unassigned: boolean) => void; disabled?: boolean }) => {
+        model.disabled = disabled
         useEffect(() => onUnassignedChange?.(model.unassigned), [onUnassignedChange])
         return <span>{model.unassigned ? 'No model' : 'Haiku'}</span>
     },
@@ -89,6 +90,7 @@ beforeEach(() => {
     Object.assign(controller, { state: 'idle', error: null, options: null })
     controller.startCall.mockClear()
     model.unassigned = false
+    model.disabled = false
 })
 
 afterEach(() => {
@@ -134,6 +136,16 @@ describe('CallScreen call setup', () => {
         expect(await screen.findByText('No model')).toBeInTheDocument()
         await waitFor(() => expect(startButton()).toBeDisabled())
         expect(controller.startCall).not.toHaveBeenCalled()
+    })
+
+    it('locks profile changes while the call is starting', async () => {
+        let finish!: (started: boolean) => void
+        controller.startCall.mockImplementationOnce(() => new Promise<boolean>(resolve => { finish = resolve }))
+        renderCall(ELEVEN)
+        expect(model.disabled).toBe(false)
+        fireEvent.click(startButton())
+        await waitFor(() => expect(model.disabled).toBe(true))
+        await act(async () => { finish(true) })
     })
 
     it('reopens the setup from the end panel after a refusal it can fix, and "Not now" stays on the call screen', async () => {

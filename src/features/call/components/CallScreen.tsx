@@ -217,7 +217,7 @@ export function CallScreen({ character, sessionId, workspaceId, ensureSession, o
             voiceUnavailable={voiceUnavailable}
             recommendedFor={characterId && character?.role !== 'persona' ? { cardId: characterId, workspaceId: workspaceId ?? null } : null}
             disabled={isAccepting}
-            model={<LlmFeatureControl feature="callbot" onUnassignedChange={setModelUnassigned} />}
+            model={<LlmFeatureControl feature="callbot" variant="setting" disabled={isAccepting || !idle} onUnassignedChange={setModelUnassigned} />}
         />
     )
 

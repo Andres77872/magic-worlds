@@ -1,11 +1,12 @@
 import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
+import { prepareLlmDispatch } from '@/infrastructure/api/llmPreparation'
 import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react'
 import { makeRequestId } from '@/utils/uuid'
 import { isSessionPersonaError } from '@/utils/characterRoles'
 import { i18n } from '@/app/i18n'
 import { registerActiveVoiceCall } from '@/features/call/activeVoiceCall'
 import { reduceLiveTranscript, type LiveTranscriptLine } from '@/features/call/liveTranscript'
-import { voiceErrorCode } from '@/infrastructure/api/voiceSocket'
+import { VOICE_CLIENT_METRICS_VERSION, VOICE_PROTOCOL_VERSION, readClientMetricsVersion, voiceErrorCode } from '@/infrastructure/api/voiceSocket'
 import type {
     VoiceAudioFormat,
     VoiceCallLimits,
@@ -24,7 +25,7 @@ import { VoicePlaybackBuffer, type VoicePlaybackState } from '../audio/voicePlay
 import { DEFAULT_CALL_AUDIO_FORMAT, isPlayableCallChunk } from '../audio/audioFormat'
 import type { CapturedVoiceSegment } from '../audio/voiceVadWorklet'
 import { segmentUploadVad } from '../audio/speechEndLag'
-import { CallPlaybackTiming } from '../audio/callPlaybackTiming'
+import { CallPlaybackTiming, type CallTimelineContext } from '../audio/callPlaybackTiming'
 import { isCallsFeatureEnabled } from '@/shared/featureFlags'
 import { type MicrophoneCaptureApi, type MicrophoneCaptureStatus, type VoiceVadTuning, useMicrophoneCapture } from './useMicrophoneCapture'
 import { type VoiceCallSocketApi, useVoiceCallSocket } from './useVoiceCallSocket'
@@ -125,7 +126,10 @@ export interface VoiceCallControllerApi {
 
 /** How long to wait for the server's voice_ready after voice_start before surfacing an error. */
 const VOICE_READY_TIMEOUT_MS = 15_000
-/** Segment cap used until the server advertises its own (old servers reject > 8 s). */
+/**
+ * Segment cap until the server advertises its own (`max_segment_duration_ms`, 30 s by default,
+ * so 29.5 s after SEGMENT_LIMIT_MARGIN_MS); builds that advertise none reject > 8 s.
+ */
 const DEFAULT_MAX_SEGMENT_MS = 7_500
 /** Headroom below the server's max segment length (trailing silence, timing jitter). */
 const SEGMENT_LIMIT_MARGIN_MS = 500
@@ -272,7 +276,6 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
     const playbackTurnIdRef = useRef<string | null>(null)
     /** Turn whose audio has actually been heard; a later stall in that turn is still "speaking". */
     const audibleTurnIdRef = useRef<string | null>(null)
-    const playbackTimingRef = useRef(new CallPlaybackTiming())
     const bargingInRef = useRef(false)
     const reconnectingRef = useRef(false)
     const stateRef = useRef<VoiceCallState>(featureEnabled ? 'idle' : 'disabled')
@@ -309,6 +312,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
     const activeTurnIdRef = useRef<string | null>(null)
     const pendingSegmentsRef = useRef<CapturedVoiceSegment[]>([])
     const inFlightUploadsRef = useRef<Map<number, AbortController>>(new Map())
+    const profilePreparationRef = useRef<AbortController | null>(null)
     const handledRejectionsRef = useRef<Set<number>>(new Set())
     const serverTurnActiveRef = useRef(false)
     /** Turn id the server is currently working on (from transcript_final / turn_start). */
@@ -324,6 +328,25 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
     const wakeLockRef = useRef<WakeLockSentinel | null>(null)
     const firstPlaybackAtRef = useRef<number | null>(null)
     const playbackRef = useRef<VoicePlaybackBuffer | null>(null)
+    /** This call's `voice_ready` advertised `voice_turn_client_metrics` v1 (protocol v2); reset per call. */
+    const clientMetricsRef = useRef(false)
+    /** VAD `speech_start` (`performance.now()`) of the utterance in progress: an auto barge-in's onset. */
+    const speechStartAtRef = useRef<number | null>(null)
+    const playbackTimingRef = useRef(new CallPlaybackTiming())
+
+    // The turn timeline reads the live player, capture and socket, so it is wired once mounted.
+    useEffect(() => {
+        playbackTimingRef.current = new CallPlaybackTiming(undefined, {
+            // R01: one record per settled turn, best-effort, only to a server that advertised it
+            // and only on the call the turn belongs to.
+            onTurnMetrics: (frame, turnVoiceSessionId) => {
+                if (!clientMetricsRef.current || turnVoiceSessionId !== voiceSessionIdRef.current) return
+                socketRef.current?.turnMetrics?.(frame)
+            },
+            playedMs: (_voiceSessionId, turnId) => playbackRef.current?.playedMs?.(turnId),
+            callContext: () => readCallContext(captureRef.current),
+        })
+    }, [])
 
     // The buffer is owned per mount: unmount disposes it (detaching its audio events),
     // so a StrictMode re-mount must get a fresh one or "speaking" would never fire.
@@ -494,12 +517,21 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         stopPlaybackProgress()
         playbackProgressRef.current = setInterval(() => {
             const played = playbackRef.current?.playedMs?.(turnId)
-            if (typeof played === 'number') socketRef.current?.playback?.(turnId, played)
+            if (typeof played !== 'number') return
+            socketRef.current?.playback?.(turnId, played)
+            const currentVoiceSessionId = voiceSessionIdRef.current
+            if (currentVoiceSessionId) recordTimeline(() => playbackTimingRef.current.progress(currentVoiceSessionId, turnId, played))
         }, PLAYBACK_PROGRESS_MS)
     }, [stopPlaybackProgress])
 
     const stopLocalResources = useCallback((stopOptions?: { closeSocket?: boolean; cancelPlayback?: boolean }) => {
+        profilePreparationRef.current?.abort()
+        profilePreparationRef.current = null
+        // R01: turns still open are reported now, while the socket may still be open.
+        recordTimeline(() => playbackTimingRef.current.flush(performance.now()))
         playbackTimingRef.current.clear()
+        clientMetricsRef.current = false
+        speechStartAtRef.current = null
         stopPlaybackProgress()
         captureRef.current?.stop()
         abortUploads()
@@ -571,7 +603,8 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         }
 
         socketRef.current?.noteSegmentSeq(segment.seq)
-        playbackTimingRef.current.segmentSent(currentVoiceSessionId, segment.seq, segment.speech_end_perf_ms)
+        const sentAtMs = performance.now()
+        recordTimeline(() => playbackTimingRef.current.segmentSent(currentVoiceSessionId, segment.seq, segment.speech_end_perf_ms, sentAtMs))
         const controller = new AbortController()
         inFlightUploadsRef.current.set(segment.seq, controller)
         updateUploadQueueDepth()
@@ -587,7 +620,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
             channels: segment.channels,
             audio_sha256: segment.audio_sha256,
             // Measured at the first send; the one network resend below reuses this body.
-            vad: segmentUploadVad(segment, { sentAtMs: performance.now() }),
+            vad: segmentUploadVad(segment, { sentAtMs }),
             audio: segment.audio,
         }
 
@@ -641,21 +674,23 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         }
     }, [updateUploadQueueDepth, uploadSegment])
 
-    const sendBargeIn = useCallback((): boolean => {
+    /** `bargeInOnsetMs`: the VAD `speech_start` behind an automatic barge-in (none for the button). */
+    const sendBargeIn = useCallback((bargeInOnsetMs?: number): boolean => {
         const currentVoiceSessionId = voiceSessionIdRef.current
         if (!currentVoiceSessionId) return false
         // WS-C1: name the interrupted turn and how much of it played, read before the
         // cancel resets the player. With no turn playing the frame is the bare one.
         const interruptedTurnId = activeTurnIdRef.current
-        if (interruptedTurnId) {
-            playbackTimingRef.current.cancelled(currentVoiceSessionId, interruptedTurnId)
-            dispatchTranscript({ type: 'assistant_interrupted', turnId: interruptedTurnId })
-        }
         const frame: Extract<VoiceSocketClientFrame, { type: 'voice_barge_in' }> = { type: 'voice_barge_in', reason: 'barge_in' }
         if (interruptedTurnId) {
             frame.turn_id = interruptedTurnId
             const played = playbackRef.current?.playedMs?.(interruptedTurnId)
             if (typeof played === 'number' && Number.isFinite(played) && played >= 0) frame.played_ms = Math.round(played)
+            recordTimeline(() => playbackTimingRef.current.interrupted(currentVoiceSessionId, interruptedTurnId, performance.now(), {
+                playedMs: frame.played_ms,
+                bargeInOnsetMs,
+            }))
+            dispatchTranscript({ type: 'assistant_interrupted', turnId: interruptedTurnId })
         }
         stopPlaybackProgress()
         playbackRef.current?.cancel({ voice_session_id: currentVoiceSessionId, turn_id: activeTurnIdRef.current ?? undefined })
@@ -683,7 +718,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         if (audiblePlaybackStatus(playbackStatusRef.current, playbackTurnIdRef.current, audibleTurnIdRef.current) !== 'playing') return
         const firstPlaybackAt = firstPlaybackAtRef.current
         if (firstPlaybackAt !== null && Date.now() - firstPlaybackAt < AEC_WARMUP_MS) return
-        sendBargeIn()
+        sendBargeIn(speechStartAtRef.current ?? undefined)
     }, [sendBargeIn])
 
     const handlePlaybackState = useCallback((playbackState: VoicePlaybackState) => {
@@ -693,10 +728,15 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         if (playbackState.status === 'playing') audibleTurnIdRef.current = playbackState.turnId
         else if (playbackState.status === 'idle') audibleTurnIdRef.current = null
         if (mountedRef.current) setAutoplayBlocked(playbackState.status === 'blocked')
+        const stateTurnId = playbackState.turnId
+        if (stateTurnId) {
+            recordTimeline(() => playbackTimingRef.current.playbackState(
+                playbackState,
+                performance.now(),
+                playbackState.status === 'playing' ? playbackRef.current?.playbackPath?.(stateTurnId) : undefined,
+            ))
+        }
         if (playbackState.status === 'playing' && playbackState.turnId) {
-            if (playbackState.voiceSessionId) {
-                playbackTimingRef.current.playing(playbackState.voiceSessionId, playbackState.turnId, performance.now())
-            }
             if (previous !== 'playing' || !playbackProgressRef.current) startPlaybackProgress(playbackState.turnId)
         } else if (playbackState.status !== 'playing') {
             stopPlaybackProgress()
@@ -717,9 +757,15 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
     }, [maybeAutoBargeIn, recompute, startPlaybackProgress, stopPlaybackProgress])
 
     useEffect(() => playbackRef.current?.addStateListener(handlePlaybackState), [handlePlaybackState])
+    // R01: element stalls of the playing turn.
+    useEffect(() => playbackRef.current?.addMediaEventListener?.((event) => {
+        recordTimeline(() => playbackTimingRef.current.mediaEvent(event.type, event.voiceSessionId, event.turnId, performance.now()))
+    }), [])
 
     const handleReady = useCallback((frame: VoiceReadyFrame) => {
         clearReadyTimeout()
+        // Protocol v2: a frame newer than v1 goes only to a server that advertised it.
+        clientMetricsRef.current = readClientMetricsVersion(frame) === VOICE_CLIENT_METRICS_VERSION
         voiceSessionIdRef.current = frame.voice_session_id
         setVoiceSessionId(frame.voice_session_id)
         setLimits(frame.limits)
@@ -766,6 +812,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
     }, [recompute])
 
     const handleSegmentAck = useCallback((frame: VoiceSegmentAckFrame) => {
+        recordTimeline(() => playbackTimingRef.current.segmentAcked(frame.voice_session_id, frame.seq, frame.status, performance.now()))
         if (frame.status === 'rejected') {
             handleRejection(frame.seq, frame.reason)
             return
@@ -783,7 +830,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
     }, [clearNotice, setTurnPhase])
 
     const handleTurnStart = useCallback((frame: VoiceTurnStartFrame) => {
-        playbackTimingRef.current.turnStarted(frame.voice_session_id, frame.turn_id, frame.segment_seq, performance.now())
+        recordTimeline(() => playbackTimingRef.current.turnStarted(frame.voice_session_id, frame.turn_id, frame.segment_seq, performance.now()))
         serverTurnActiveRef.current = true
         serverTurnIdRef.current = frame.turn_id
         activeTurnIdRef.current = frame.turn_id
@@ -800,6 +847,8 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
     }, [setTurnPhase])
 
     const handleAudioChunk = useCallback((frame: VoiceAudioChunkFrame) => {
+        const playable = isPlayableCallChunk(frame)
+        recordTimeline(() => playbackTimingRef.current.audioChunk(frame.voice_session_id, frame.turn_id, performance.now(), playable))
         // Every chunk carries the key (WS-S2): an explicit null (or a missing key) clears an earlier reason.
         const reason = isSubstitutionReason(frame.substitution_reason) ? frame.substitution_reason : null
         setSubstitutionReason((current) => (current === reason ? current : reason))
@@ -808,7 +857,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         const voiceName = typeof rawName === 'string' && rawName.trim() ? rawName.trim() : null
         setReplacedVoiceName((current) => (current === voiceName ? current : voiceName))
         // A chunk the player cannot decode is dropped (by the buffer too): the reply stays as text.
-        if (!isPlayableCallChunk(frame)) {
+        if (!playable) {
             if (unsupportedTurnRef.current !== frame.turn_id) {
                 unsupportedTurnRef.current = frame.turn_id
                 setAudioUnsupported(true)
@@ -842,6 +891,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
     }, [])
 
     const handleTurnEnd = useCallback((frame: VoiceTurnEndFrame) => {
+        recordTimeline(() => playbackTimingRef.current.turnEnded(frame.voice_session_id, frame.turn_id, performance.now()))
         truncateCaption(frame.turn_id, frame.truncated, frame.kept_chars)
         dispatchTranscript({ type: 'assistant_end', turnId: frame.turn_id, status: frame.status })
         // The end of a turn that was already superseded must not settle the new one.
@@ -856,7 +906,8 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
     }, [clearBargeIn, setNoticeUnlessShowing, settleTurnPhase, truncateCaption])
 
     const handleCancelled = useCallback((frame: VoiceCancelledFrame) => {
-        if (frame.turn_id) playbackTimingRef.current.cancelled(frame.voice_session_id, frame.turn_id)
+        const cancelledTurnId = frame.turn_id
+        if (cancelledTurnId) recordTimeline(() => playbackTimingRef.current.cancelled(frame.voice_session_id, cancelledTurnId, frame.reason, performance.now()))
         truncateCaption(frame.turn_id, frame.truncated, frame.kept_chars)
         if (frame.turn_id && (frame.reason === 'barge_in' || frame.truncated === true)) dispatchTranscript({ type: 'assistant_interrupted', turnId: frame.turn_id })
         playbackRef.current?.cancel(frame)
@@ -910,6 +961,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         // uses the supported `voice_barge_in` frame. Keep local state only.
         if (vadState === 'speech_start') {
             userSpeakingRef.current = true
+            speechStartAtRef.current = performance.now()
             maybeAutoBargeIn()
         } else {
             userSpeakingRef.current = false
@@ -1068,14 +1120,35 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
             return false
         }
 
+        const preparation = new AbortController()
+        profilePreparationRef.current?.abort()
+        profilePreparationRef.current = preparation
+        let llm: VoiceStartFrame['llm']
+        try {
+            const materialize = await prepareLlmDispatch('callbot', preparation.signal)
+            if (!mountedRef.current || lifecycleRef.current !== 'requesting_permission') return false
+            const prepared = materialize()
+            if (prepared.credentials) throw new Error('FEATURE_BYOK_DISABLED')
+            llm = { selection: prepared.selection, expected_revision_id: prepared.expected_revision_id }
+        } catch (profileError) {
+            if (preparation.signal.aborted) return false
+            stopLocalResources({ closeSocket: true })
+            setControllerError(mapError(profileError, { category: 'provider_submission', code: 'call_model_unavailable', message: 'The call profile could not be verified.', fatal: true }))
+            setLifecycle('error')
+            return false
+        } finally {
+            if (profilePreparationRef.current === preparation) profilePreparationRef.current = null
+        }
+
         // A fresh client_call_id per start makes every "Call" an unambiguously new call
         // (the backend supersedes any leftover active session). A caller-pinned id wins.
         clientCallIdRef.current = options.clientCallId ?? createClientCallId()
         voiceSessionIdRef.current = null
         setVoiceSessionId(null)
+        clientMetricsRef.current = false
         console.info('[voice-call][CONNECTING] starting voice call', { sessionId: currentSessionId, clientCallId: clientCallIdRef.current })
         setLifecycle('connecting')
-        socketRef.current?.start(buildVoiceStartFrame({ clientCallId: clientCallIdRef.current, voice: optionsRef.current.callVoice ?? null }))
+        socketRef.current?.start(buildVoiceStartFrame({ clientCallId: clientCallIdRef.current, voice: optionsRef.current.callVoice ?? null, llm }))
         // If voice_ready never arrives, captured segments queue silently and the call sits
         // on "Connecting" forever — surface an error instead of waiting endlessly.
         clearReadyTimeout()
@@ -1098,6 +1171,8 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         if (currentSessionId !== null && currentVoiceSessionId) {
             pendingEndRef.current = { sessionId: currentSessionId, voiceSessionId: currentVoiceSessionId }
         }
+        // R01: open turns are reported before `voice_end`, while the call still takes them.
+        recordTimeline(() => playbackTimingRef.current.flush(performance.now()))
         socketRef.current?.end()
         stopLocalResources({ closeSocket: true })
         voiceSessionIdRef.current = null
@@ -1187,6 +1262,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
             const currentSessionId = sessionIdRef.current
             const currentVoiceSessionId = voiceSessionIdRef.current
             if (currentSessionId === null || !currentVoiceSessionId) return
+            recordTimeline(() => playbackTimingRef.current.flush(performance.now()))
             socketRef.current?.end()
             void apiRef.current?.endVoiceCall(currentSessionId, { voiceSessionId: currentVoiceSessionId, reason: 'user' }, { keepalive: true }).catch(() => undefined)
             voiceSessionIdRef.current = null
@@ -1252,12 +1328,14 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
     }
 }
 
-function buildVoiceStartFrame({ clientCallId, voice }: { clientCallId: string; voice: StoredCharacterVoice | null }): VoiceStartFrame {
+function buildVoiceStartFrame({ clientCallId, voice, llm }: { clientCallId: string; voice: StoredCharacterVoice | null; llm: VoiceStartFrame['llm'] }): VoiceStartFrame {
     const audioWorklet = canUseAudioWorklet()
     return {
         type: 'voice_start',
         client_call_id: clientCallId,
+        protocol_version: VOICE_PROTOCOL_VERSION,
         ...(voice ? { voice } : {}),
+        llm,
         audio: {
             preferred_encoding: 'audio/wav;codec=pcm_s16le',
             sample_rate: 16000,
@@ -1283,6 +1361,24 @@ function canUseAudioWorklet(): boolean {
 
 function createClientCallId(): string {
     return makeRequestId('voice')
+}
+
+/** The capture facts a turn record carries (R01): echo cancellation and output latency. */
+function readCallContext(capture: MicrophoneCaptureApi | null): CallTimelineContext {
+    if (!capture) return { aec: 'unknown' }
+    const aec = capture.rawFallbackActive || capture.echoCancellation === false
+        ? 'off'
+        : capture.echoCancellation === true ? 'on' : 'unknown'
+    return { aec, outputLatencyMs: capture.outputLatencyMs?.() ?? null }
+}
+
+/** Turn-timeline telemetry (R01) never breaks call handling. */
+function recordTimeline(record: () => void): void {
+    try {
+        record()
+    } catch (error) {
+        console.warn('[voice-call][METRICS] turn timeline update failed', error)
+    }
 }
 
 function delay(ms: number): Promise<void> {

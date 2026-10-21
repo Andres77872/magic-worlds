@@ -1,7 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { EFFECTIVE_BY_REASON, effectiveVoice } from '@/features/voices/fixtures'
 import { V2_VOICE } from '@/features/voices/fixtures'
-import { Badge } from '@/ui/primitives'
+import { LlmFeatureControlView } from '@/features/llmProfiles/LlmFeatureControlView'
+import { applicationEffective } from '@/features/llmProfiles/llmFeatureFixtures'
 import { callVoiceNote } from '../callVoiceNote'
 import type { LiveTranscriptLine } from '../liveTranscript'
 import { CallScreenView } from './CallScreen'
@@ -62,16 +63,21 @@ export const ConsentGate: Story = {
     args: { state: 'idle', consentOpen: true, elapsedSeconds: 0, inputLevel: 0 },
 }
 
-/** The call setup as the live container passes it (a stand-in replaces the callbot model control). */
-function setupFor(options: { voiceUnavailable?: boolean; model?: 'set' | 'missing' } = {}) {
+/** The call setup as the live container passes it (the callbot control's view stands in for the profile context). */
+function setupFor(options: { voiceUnavailable?: boolean; model?: 'set' | 'missing'; picked?: boolean } = {}) {
+    const missing = options.model === 'missing'
     return (
         <CallSetup
             name="Lyra Emberwick"
             characterVoice={V2_VOICE}
-            pick={null}
+            pick={options.picked ? { ...V2_VOICE, voice_key: 'vk_gabriel', voice_name: 'Gabriel · Spanish narrator' } : null}
             onPick={noop}
             voiceUnavailable={options.voiceUnavailable}
-            model={options.model === 'missing' ? <Badge tone="danger">Not set up</Badge> : <Badge tone="arcane">Claude Haiku 5.5</Badge>}
+            model={
+                <LlmFeatureControlView variant="setting" feature="callbot" selection={{ mode: 'inherit' }} editable unassigned={missing}
+                    effective={missing ? null : { ...applicationEffective, roles: { primary: { ...applicationEffective.roles.primary, provider_model_id: 'anthropic/claude-haiku-5.5' } } }}
+                    onOpen={noop} onSelect={noop} onMore={noop} onRefresh={noop} onForget={noop} />
+            }
         />
     )
 }
@@ -79,6 +85,11 @@ function setupFor(options: { voiceUnavailable?: boolean; model?: 'set' | 'missin
 export const ConsentWithSetup: Story = {
     name: 'Start dialog with the call setup',
     args: { state: 'idle', consentOpen: true, elapsedSeconds: 0, inputLevel: 0, setup: setupFor() },
+}
+
+export const ConsentWithPickedVoice: Story = {
+    name: 'Start dialog with a voice picked for calls',
+    args: { state: 'idle', consentOpen: true, elapsedSeconds: 0, inputLevel: 0, setup: setupFor({ picked: true }) },
 }
 
 export const SetupBlocksStart: Story = {

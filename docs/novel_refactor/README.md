@@ -9,7 +9,7 @@
 
 **Current progress and pending work:** [Read the audited status at the top of document 14](14_status_and_roadmap.md#current-progress-remaining-work-and-scope); the verdict for every capability is in [05 — Audit 2026-10-18](05_feature_catalog.md#audit-2026-10-18). **The full D1–D6 goal is unfinished.** The top priorities on 2026-10-18 are:
 
-1. **P0 fixes:** 36 failing novel BFF tests (26 migration-chain tests that are ours to fix), Ctrl/⌘+Enter inserting a line break instead of opening the beat composer, 11 px low-contrast status hints, personal-key accounting after dispatch, an intermittent invalid assistant result, and export jobs that a BFF restart interrupts.
+1. **P0 fixes:** done on 2026-10-20 — the novel BFF tests are green again, Ctrl/⌘+Enter opens the beat composer (live check pending), the status hints are readable. Still open: personal-key accounting after dispatch, an intermittent invalid assistant result, and export jobs that a BFF restart interrupts.
 2. **Finish D1–D3:** live checks of the 38 built rows, one context and review path for inline AI and the assistant (CL-04), drafting a scene from its plan, real diffs and per-change review, takes, accessibility and production-build performance.
 3. **Then** the rest of D4, D5 and D6. Branches (N05) and research (A28) wait on the owner's decisions.
 

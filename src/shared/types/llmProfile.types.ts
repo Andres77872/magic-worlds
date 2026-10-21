@@ -66,6 +66,8 @@ export interface LlmFeatureView {
     contract_revision: string
     roles: LlmRole[]
     user_selection_enabled: boolean
+    /** Allows a choice for new requests without changing saved feature defaults. */
+    request_selection_enabled?: boolean
     byok_enabled: boolean
     requirements: Partial<Record<LlmRole, { capabilities: string[]; max_input_tokens: number; max_output_tokens: number; max_messages: number; timeout_seconds: number }>>
 }

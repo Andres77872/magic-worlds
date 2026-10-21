@@ -203,7 +203,7 @@ export function BeatComposer({
                     onKeyDown={handleKeyDown}
                     placeholder={t(targetsSelection ? 'novelEditor.beat.placeholderSelection' : 'novelEditor.beat.placeholder')}
                     aria-label={t('novelEditor.beat.title')}
-                    className="w-full resize-none rounded-md border border-parchment-50/[.14] bg-ink-900/55 px-2.5 py-2 font-ui text-body text-parchment-100 outline-none transition-colors placeholder:text-parchment-500 focus-visible:border-arcane-500/65 focus-visible:shadow-input-focus-arcane"
+                    className="w-full resize-none rounded-md border border-parchment-50/[.14] bg-ink-900/55 px-2.5 py-2 font-ui text-body text-parchment-100 outline-none transition-colors placeholder:text-parchment-400 focus-visible:border-arcane-500/65 focus-visible:shadow-input-focus-arcane"
                     data-testid="beat-instruction"
                 />
             </div>

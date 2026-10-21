@@ -14,12 +14,12 @@ Which release gates have recorded evidence today. The detail is in [14 — Relea
 |---|---|---|
 | Availability (grant on/off) | Per-plan grant `novels`; live signed-in journeys 2026-10-17/18 | Auth-expiry, missing-profile and archived-workspace runs; any deployed evidence |
 | Defect regressions (NE) | D1 set passes in the checkout | NE-017 has none; NE-010, 016, 018, 020, 023 partial |
-| DEV-01–03 per upgrade | A verified backup and unchanged-row fingerprints for every schema upgrade through `2026_10_novel_export_jobs` | **26 failing migration-chain tests** (newer markers unhandled); isolated-copy rehearsal recorded only for statistics, bookmarks and erase |
-| Test suites | Frontend 5,848 passed (75 failures, all outside novels); BFF novel scope 1,622 passed | **36 failing novel BFF tests**; no full BFF run since 2026-10-17 |
+| DEV-01–03 per upgrade | A verified backup and unchanged-row fingerprints for every schema upgrade through `2026_10_novel_export_jobs` | Migration-chain tests green again on 2026-10-20 (the chain now reverses the later revisions); isolated-copy rehearsal recorded only for statistics, bookmarks and erase |
+| Test suites | Frontend 5,848 passed (75 failures, all outside novels); BFF novel scope 1,661 passed, 0 failed (2026-10-20) | A clean full BFF run (see [14](14_status_and_roadmap.md#p0-fixes--2026-10-20)) |
 | Performance | Development build: p95 key latency 40 ms, save about 76 ms, heap stable over 60 scene switches on 1,500 scenes | Production build, CPU throttling, low-end devices, phones, 500/2,000 Codex entries, large libraries; timeline and matrix render every scene |
 | Screen reader | **None** | Everything |
 | Keyboard-only journey | Per-feature checks only | Write → revise → undo → recover without a mouse |
-| Contrast, zoom, text spacing, forced colors | **None measured** | Everything; known 2.1:1 status hints |
+| Contrast, zoom, text spacing, forced colors | **None measured** | Everything (the 2.1:1 status hints were fixed on 2026-10-20) |
 | Device matrix | 320×720 dialogs, 375 px, 1,030 and 1,600 px windows | 768/1024/1440 px, a real phone, IME and mobile keyboard |
 | Offline | Cold offline app, reconnect, device lifecycle (controlled browsers) | Cross-browser and mobile eviction |
 | Retention | **None** | Needs decisions 5 and 6 |
