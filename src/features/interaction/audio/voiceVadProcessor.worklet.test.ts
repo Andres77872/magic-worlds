@@ -223,6 +223,20 @@ describe('voiceVadProcessor.worklet', () => {
         expect(Math.abs((end.silence_tail_ms as number) - 550)).toBeLessThanOrEqual(quantumMs + 1)
     })
 
+    it.each([[16_000, 0], [16_000, 300], [48_000, 300]])('dates speech_start back to the speech onset at %i Hz with %i ms of pre-roll', (rate, preRollMs) => {
+        // During playback a turn needs 500 ms of speech before it is announced.
+        const processor = createProcessor(rate, { preRollMs, minSpeechMs: 500 })
+        const lead = silence(rate, 0.5)
+        const posted = drive(processor, concat(lead, tone(rate, 1, 440), silence(rate, 1)))
+
+        const start = posted.find((entry) => entry.message.type === 'vad' && entry.message.state === 'speech_start')!
+        // The message comes ~500 ms after the onset, and says so; the pre-roll is not speech.
+        const quantumMs = (QUANTUM / rate) * 1_000
+        const heard = (start.frame - lead.length / QUANTUM + 1) * quantumMs
+        expect(Math.abs((start.message.onset_lag_ms as number) - 500)).toBeLessThanOrEqual(quantumMs + 1)
+        expect(Math.abs((start.message.onset_lag_ms as number) - heard)).toBeLessThanOrEqual(quantumMs + 1)
+    })
+
     it('marks the speech_end of a max-length cut as not ended by silence, with no hang-over (R0-BE-37)', () => {
         const processor = createProcessor(16_000, { preRollMs: 0, maxSegmentMs: 2_000 })
         const posted = drive(processor, concat(silence(16_000, 0.5), tone(16_000, 3, 440), silence(16_000, 1)))

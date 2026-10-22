@@ -64,6 +64,8 @@ interface TurnTiming {
     stallMs: number
     stallStartedMs?: number
     autoplayBlocked: boolean
+    /** Blocked before it first played: its `playing` waited for the caller's tap. */
+    waitedForTap: boolean
     unsupported: boolean
     lastPlayedMs?: number
     endedMs?: number
@@ -179,7 +181,7 @@ export class CallPlaybackTiming {
         boundedSet(this.turns, key, {
             voiceSessionId, turnId, segmentSeq: seq, segment, speechEndMs: segment?.speechEndMs, startedMs: now,
             marked: false, cancelled: false, settled: false, chunks: 0, playback: 'none', stalls: 0, stallMs: 0,
-            autoplayBlocked: false, unsupported: false,
+            autoplayBlocked: false, waitedForTap: false, unsupported: false,
         }, (evicted) => this.release(evicted))
     }
 
@@ -205,7 +207,10 @@ export class CallPlaybackTiming {
         const turn = this.openTurn(voiceSessionId, turnId)
         if (!turn) return
         turn.playback = state.status
-        if (state.status === 'blocked') turn.autoplayBlocked = true
+        if (state.status === 'blocked') {
+            turn.autoplayBlocked = true
+            if (turn.playingMs === undefined) turn.waitedForTap = true
+        }
         if (state.status !== 'idle') return
         this.closeStall(turn, now)
         // Idle is final for the turn's audio: a turn the server already ended settles now.
@@ -270,7 +275,7 @@ export class CallPlaybackTiming {
         }, SETTLE_CAP_MS)
     }
 
-    /** The caller barged in on the turn; `bargeInOnsetMs` is the VAD `speech_start` of an automatic one. */
+    /** The caller barged in on the turn; `bargeInOnsetMs` is the speech onset of an automatic one. */
     interrupted(voiceSessionId: string, turnId: string, now: number, details: SettleDetails = {}) {
         const turn = this.turns.get(`${voiceSessionId}:${turnId}`)
         if (!turn) return
@@ -359,8 +364,15 @@ export class CallPlaybackTiming {
         const latency = context.outputLatencyMs
         const outputLatencyMs = isTime(latency) && latency >= 0 ? clampWhole(latency, MAX_OUTPUT_LATENCY_MS) : undefined
         const sentMs = turn.segment?.sentMs
-        const speechEndToPlayingMs = span(t0, turn.playingMs)
-        const bargeIn = outcome === 'interrupted' ? span(details.bargeInOnsetMs, now, MAX_BARGE_IN_MS) : undefined
+        // A turn that waited for a tap has the caller's tap delay in its start-up: left out (v2 §3.2).
+        const playingMs = turn.waitedForTap ? undefined : turn.playingMs
+        const speechEndToPlayingMs = span(t0, playingMs)
+        // From the later of the speech onset and the turn becoming audible: a caller already
+        // talking when the audio started is reacted to from that start.
+        const onsetMs = isTime(details.bargeInOnsetMs) && isTime(turn.playingMs)
+            ? Math.max(details.bargeInOnsetMs, turn.playingMs)
+            : details.bargeInOnsetMs
+        const bargeIn = outcome === 'interrupted' ? span(onsetMs, now, MAX_BARGE_IN_MS) : undefined
         return {
             type: 'voice_turn_client_metrics',
             v: 1,
@@ -375,7 +387,7 @@ export class CallPlaybackTiming {
                 speech_end_to_first_chunk_ms: span(t0, turn.firstChunkMs),
                 speech_end_to_playing_ms: speechEndToPlayingMs,
                 turn_start_to_first_chunk_ms: span(turn.startedMs, turn.firstChunkMs),
-                first_chunk_to_playing_ms: span(turn.firstChunkMs, turn.playingMs),
+                first_chunk_to_playing_ms: span(turn.firstChunkMs, playingMs),
                 output_latency_ms: outputLatencyMs,
                 // R01's voice-to-voice number. Without an exposed output latency it is the
                 // `playing` time alone, and `output_latency_ms` is absent.

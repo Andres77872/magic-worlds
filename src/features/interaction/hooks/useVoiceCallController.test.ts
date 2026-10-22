@@ -690,26 +690,119 @@ describe('useVoiceCallController', () => {
         expect(attestation.requestAttestation).toHaveBeenCalledTimes(1)
     })
 
-    it('ends the call with a keepalive request when the page is torn down', async () => {
-        await renderLiveCall()
+    it.each([false, true])('hangs up and releases the call when the page is hidden (persisted: %s, S-4)', async (persisted) => {
+        const { result } = await renderLiveCall()
 
-        act(() => { window.dispatchEvent(Object.assign(new Event('pagehide'), { persisted: false })) })
+        act(() => { window.dispatchEvent(Object.assign(new Event('pagehide'), { persisted })) })
 
         expect(mocks.socketApi!.end).toHaveBeenCalled()
         expect(mocks.apiService.endVoiceCall).toHaveBeenCalledWith(7, { voiceSessionId: 'voice-1', reason: 'user' }, { keepalive: true })
+        expect(mocks.microphoneApi!.stop).toHaveBeenCalled()
+        expect(mocks.playback!.cancel).toHaveBeenCalled()
+        expect(mocks.socketApi!.close).toHaveBeenCalled()
+        await waitFor(() => expect(result.current.state).toBe('ended'))
+        expect(result.current.voiceSessionId).toBeNull()
     })
 
-    it('tears down on auth expiry and route-leave unmount', async () => {
+    it('ignores pagehide when no call is running', async () => {
+        const { result } = renderController()
+
+        act(() => { window.dispatchEvent(Object.assign(new Event('pagehide'), { persisted: false })) })
+
+        expect(result.current.state).toBe('idle')
+        expect(mocks.apiService.endVoiceCall).not.toHaveBeenCalled()
+    })
+
+    it('tears down on auth expiry and sends no second end at unmount (S-1)', async () => {
         const { result, unmount } = await renderLiveCall()
 
         act(() => window.dispatchEvent(new CustomEvent('auth:expired')))
         expect(result.current.error).toMatchObject({ category: 'auth' })
         expect(mocks.microphoneApi!.stop).toHaveBeenCalled()
         expect(mocks.socketApi!.close).toHaveBeenCalled()
+        expect(result.current.voiceSessionId).toBeNull()
 
         unmount()
-        await waitFor(() => expect(mocks.apiService.endVoiceCall).toHaveBeenCalledWith(7, { voiceSessionId: 'voice-1', reason: 'user' }, { keepalive: true }))
         expect(mocks.playback!.dispose).toHaveBeenCalled()
+        // The socket's clean close already ended the call; an HTTP end would ride an expired token.
+        expect(mocks.apiService.endVoiceCall).not.toHaveBeenCalled()
+    })
+
+    it.each([
+        ['voice_ended', () => mocks.socketHandlers?.onEnded?.({ type: 'voice_ended', voice_session_id: 'voice-1', reason: 'idle_timeout' })],
+        ['a fatal voice_error', () => mocks.socketHandlers?.onError?.({ type: 'voice_error', category: 'quota_exceeded', message: 'Daily limit reached.', fatal: true })],
+    ])('forgets the voice session after %s (S-1)', async (_name, endCall) => {
+        const { result, unmount } = await renderLiveCall()
+
+        act(() => endCall())
+        expect(result.current.voiceSessionId).toBeNull()
+
+        unmount()
+        expect(mocks.apiService.endVoiceCall).not.toHaveBeenCalled()
+    })
+
+    it('queues a "Call again" segment for the new call, never the ended one (S-1)', async () => {
+        const { result } = await renderLiveCall()
+        act(() => mocks.socketHandlers?.onEnded?.({ type: 'voice_ended', voice_session_id: 'voice-1', reason: 'idle_timeout' }))
+
+        // The mic is already capturing while the new call saves its consent.
+        let saveConsent!: () => void
+        const consentSaved = new Promise<void>((resolve) => { saveConsent = resolve })
+        const defaultConsent = mocks.apiService.saveVoiceConsent.getMockImplementation()
+        mocks.apiService.saveVoiceConsent.mockImplementationOnce(async (...args: unknown[]) => {
+            await consentSaved
+            return defaultConsent?.(...args)
+        })
+        let started!: Promise<boolean>
+        act(() => { started = result.current.startCall() })
+        await waitFor(() => expect(mocks.apiService.saveVoiceConsent).toHaveBeenCalledTimes(2))
+        act(() => mocks.microphoneOptions?.onSegment?.(createSegment(1)))
+        await act(async () => { await Promise.resolve() })
+        expect(mocks.apiService.uploadVoiceSegment).not.toHaveBeenCalled()
+
+        saveConsent()
+        await act(async () => { await started })
+        act(() => mocks.socketHandlers?.onReady?.({ ...readyFrame(), voice_session_id: 'voice-2' }))
+        await waitFor(() => expect(mocks.apiService.uploadVoiceSegment).toHaveBeenCalledWith(7, expect.objectContaining({ voice_session_id: 'voice-2' }), expect.anything()))
+        expect(mocks.apiService.uploadVoiceSegment).toHaveBeenCalledTimes(1)
+    })
+
+    it('ends the call when auth disappears without an auth:expired event (S-2)', async () => {
+        const { result, rerender } = renderHook(({ authKey }: { authKey: string | null }) => useVoiceCallController({
+            sessionId: 7,
+            authKey,
+            consentGranted: true,
+            enabled: true,
+            clientCallId: 'call-1',
+            playbackBuffer: mocks.playback as unknown as VoicePlaybackBuffer,
+        }), { initialProps: { authKey: 'token-1' as string | null } })
+        await act(async () => { await result.current.startCall() })
+        act(() => mocks.socketHandlers?.onReady?.(readyFrame()))
+        expect(result.current.state).toBe('listening')
+
+        rerender({ authKey: null })
+
+        expect(result.current.state).toBe('error')
+        expect(result.current.error).toMatchObject({ category: 'auth', fatal: true })
+        expect(mocks.microphoneApi!.stop).toHaveBeenCalled()
+        expect(mocks.socketApi!.close).toHaveBeenCalled()
+        expect(result.current.voiceSessionId).toBeNull()
+    })
+
+    it('leaves an idle controller alone when auth disappears', () => {
+        const { result, rerender } = renderHook(({ authKey }: { authKey: string | null }) => useVoiceCallController({
+            sessionId: 7,
+            authKey,
+            consentGranted: true,
+            enabled: true,
+            clientCallId: 'call-1',
+            playbackBuffer: mocks.playback as unknown as VoicePlaybackBuffer,
+        }), { initialProps: { authKey: 'token-1' as string | null } })
+
+        rerender({ authKey: null })
+
+        expect(result.current.state).toBe('idle')
+        expect(result.current.error).toBeNull()
     })
 
     describe('speech_end_lag_ms (R0-BE-37; always sent, I-68)', () => {
@@ -1186,6 +1279,45 @@ describe('useVoiceCallController', () => {
             // The server's own cancel of the same turn reports nothing new.
             act(() => mocks.socketHandlers?.onCancelled?.({ type: 'voice_cancelled', voice_session_id: 'voice-1', turn_id: 'turn-1', reason: 'barge_in' }))
             expect(turnMetrics).toHaveBeenCalledOnce()
+        })
+
+        it('dates an automatic barge-in back to the speech onset the VAD reports', async () => {
+            const turnMetrics = withMetricsTransport()
+            await renderCall(PROTOCOL_V2)
+            const clock = vi.spyOn(performance, 'now').mockReturnValue(1_000)
+            const wallClock = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+            try {
+                act(() => mocks.socketHandlers?.onTurnStart?.(turnStart()))
+                act(() => mocks.socketHandlers?.onAudioChunk?.(chunk()))
+                emitPlayback('playing')
+                // Past the AEC warm-up.
+                clock.mockReturnValue(4_000)
+                wallClock.mockReturnValue(4_000)
+                // speech_start lands after minSpeech: the caller began talking 500 ms earlier.
+                act(() => mocks.microphoneOptions?.onVadState?.('speech_start', { at_ms: 4_000, onset_lag_ms: 500 }))
+            } finally {
+                clock.mockRestore()
+                wallClock.mockRestore()
+            }
+            expect(turnMetrics).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ outcome: 'interrupted', barge_in_onset_to_pause_ms: 500 }))
+        })
+
+        it('reports open turns and ends as navigation over the socket when the call screen unmounts', async () => {
+            const turnMetrics = withMetricsTransport()
+            const { unmount } = await renderCall(PROTOCOL_V2)
+            act(() => mocks.socketHandlers?.onTurnStart?.(turnStart()))
+            act(() => mocks.socketHandlers?.onAudioChunk?.(chunk()))
+            emitPlayback('playing')
+
+            unmount()
+            expect(turnMetrics).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ turn_id: 'turn-1', outcome: 'cancelled' }))
+            expect(mocks.socketApi!.end).toHaveBeenCalledExactlyOnceWith('navigation')
+            const endOrder = vi.mocked(mocks.socketApi!.end).mock.invocationCallOrder[0]
+            expect(turnMetrics.mock.invocationCallOrder[0]).toBeLessThan(endOrder)
+            const closes = vi.mocked(mocks.socketApi!.close).mock.invocationCallOrder
+            expect(endOrder).toBeLessThan(closes[closes.length - 1])
+            // The HTTP end stays as the escape hatch; the server keeps whichever end lands first.
+            await waitFor(() => expect(mocks.apiService.endVoiceCall).toHaveBeenCalledWith(7, { voiceSessionId: 'voice-1', reason: 'user' }, { keepalive: true }))
         })
 
         it('reports the Interrupt button without a barge-in onset', async () => {

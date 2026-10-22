@@ -429,6 +429,17 @@ describe('useMicrophoneCapture — restarts, mute, tuning and level', () => {
         }
     })
 
+    it('forwards the speech onset lag of a speech_start, and drops a malformed one', async () => {
+        const onVadState = vi.fn()
+        await startCapture({ onVadState })
+        act(() => lastNode().emit({ type: 'vad', state: 'speech_start', at_ms: 2_000, rms: 0.2, onset_lag_ms: 512 }))
+        expect(onVadState).toHaveBeenLastCalledWith('speech_start', expect.objectContaining({ onset_lag_ms: 512 }))
+        for (const onset_lag_ms of [-1, Number.NaN, '512']) {
+            act(() => lastNode().emit({ type: 'vad', state: 'speech_start', at_ms: 2_100, rms: 0.2, onset_lag_ms }))
+            expect(onVadState.mock.lastCall?.[1]).not.toHaveProperty('onset_lag_ms')
+        }
+    })
+
     it('throttles onLevel to ~15 Hz and skips changes under 0.02', async () => {
         vi.useFakeTimers()
         const onLevel = vi.fn()

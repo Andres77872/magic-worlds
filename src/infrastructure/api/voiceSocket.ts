@@ -268,9 +268,13 @@ export class VoiceSocket {
         return this.sendFrame(frame)
     }
 
-    end(): boolean {
+    /**
+     * `voice_end`. `navigation` (the caller left the call screen) is a v2 reason: a server that
+     * did not advertise protocol v2 in `voice_ready` gets `user` instead (v2 §2.1).
+     */
+    end(reason: 'user' | 'navigation' = 'user'): boolean {
         if (!this.voiceSessionId) return false
-        const sent = this.sendFrame({ type: 'voice_end', reason: 'user' })
+        const sent = this.sendFrame({ type: 'voice_end', reason: reason === 'navigation' && this.clientMetricsVersion !== null ? reason : 'user' })
         this.closedByUser = true
         return sent
     }
@@ -409,6 +413,16 @@ export class VoiceSocket {
                 } else {
                     this.emitError('not_found', 'This conversation is not available in this workspace.', true, 'CHAT_SESSION_NOT_FOUND')
                 }
+                return
+            }
+
+            // A clean close the client did not ask for. A `voice_ended` or fatal `voice_error`
+            // before it would already have closed this socket and detached this handler, so
+            // the server dropped the call without saying why: end it rather than look live (S-3).
+            if (event.code === 1000 && !this.closedByUser) {
+                this.resumeDeadline = null
+                this.closedByUser = true
+                this.emitError('internal', 'The voice server closed the connection. Start a new call.', true, 'VOICE_CONNECTION_LOST')
                 return
             }
 

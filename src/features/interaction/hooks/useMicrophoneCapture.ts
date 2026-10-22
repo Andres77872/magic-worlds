@@ -35,7 +35,8 @@ export type MicrophoneCaptureErrorCode =
 export interface UseMicrophoneCaptureOptions {
     consentGranted: boolean
     onSegment?: (segment: CapturedVoiceSegment) => void
-    onVadState?: (state: 'speech_start' | 'speech_end' | 'silence', details?: { seq?: number; at_ms: number; rms?: number }) => void
+    /** `onset_lag_ms` (speech_start only): how long the utterance had been voiced when it was announced. */
+    onVadState?: (state: 'speech_start' | 'speech_end' | 'silence', details?: { seq?: number; at_ms: number; rms?: number; onset_lag_ms?: number }) => void
     /** Live input level (0..1) — at most ~15 Hz and only on changes ≥ 0.02, so it can drive React state. */
     onLevel?: (level: number) => void
     aggressiveness?: VoiceVadAggressiveness
@@ -379,7 +380,7 @@ export function useMicrophoneCapture(options: UseMicrophoneCaptureOptions): Micr
             startSeq: Math.max(seqCursorRef.current, nextSeqRef.current),
         })
         segmenterRef.current = segmenter
-        workletNode.port.onmessage = (event: MessageEvent<VoiceVadWorkletMessage | { type?: string; state?: string; seq?: number; rms?: number }>) => {
+        workletNode.port.onmessage = (event: MessageEvent<VoiceVadWorkletMessage | { type?: string; state?: string; seq?: number; rms?: number; onset_lag_ms?: number }>) => {
             const data = event.data
             if (data?.type === 'level') {
                 handleLevel((data as { rms?: number }).rms)
@@ -390,10 +391,12 @@ export function useMicrophoneCapture(options: UseMicrophoneCaptureOptions): Micr
                 // R0-BE-37: stamp the segment this speech_end closed with its end of speech
                 // (arrival minus the hang-over); its upload measures from there.
                 if (data.state === 'speech_end') segmenter.noteSpeechEnd(data as Partial<VoiceVadSpeechEndMessage>)
+                const onsetLagMs = 'onset_lag_ms' in data ? data.onset_lag_ms : undefined
                 optionsRef.current.onVadState?.(data.state as 'speech_start' | 'speech_end' | 'silence', {
                     seq: data.seq,
                     at_ms: Math.max(0, Math.round(performance.now() - captureStartedAtRef.current)),
                     rms: data.rms,
+                    ...(typeof onsetLagMs === 'number' && Number.isFinite(onsetLagMs) && onsetLagMs >= 0 ? { onset_lag_ms: onsetLagMs } : {}),
                 })
                 return
             }

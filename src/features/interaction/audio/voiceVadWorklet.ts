@@ -48,9 +48,12 @@ export interface VoiceVadProcessorOptions extends VoiceVadTuning {
 /** Main thread → worklet: retune a live processor; applies from the next render quantum. */
 export type VoiceVadConfigureMessage = { type: 'configure' } & VoiceVadTuning
 
-/** Worklet → main thread. */
+/**
+ * Worklet → main thread. `speech_start` comes once `minSpeechMs` of speech accumulated;
+ * `onset_lag_ms` is the audio since the utterance's first voiced frame (its onset).
+ */
 export type VoiceVadProcessorMessage =
-    | { type: 'vad'; state: 'speech_start'; at_ms: number; rms: number }
+    | { type: 'vad'; state: 'speech_start'; at_ms: number; rms: number; onset_lag_ms: number }
     | VoiceVadSpeechEndMessage
     | { type: 'level'; rms: number }
     | { type: 'segment'; samples: Int16Array; sample_rate: number; started_at_ms: number; speech_ms: number; silence_ms: number }

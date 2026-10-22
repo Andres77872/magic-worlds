@@ -213,6 +213,13 @@ describe('useVoiceCallSocket', () => {
         expect(closed.result.current.turnMetrics?.(frame)).toBe(false)
     })
 
+    it('forwards the voice_end reason', () => {
+        const { result } = renderHook(() => useVoiceCallSocket(7, {}, 'token-1'))
+        expect(result.current.end('navigation')).toBe(true)
+        expect(result.current.end()).toBe(true)
+        expect(socketInstances[0].end.mock.calls).toEqual([['navigation'], [undefined]])
+    })
+
     it('keeps the live call socket when the access token rotates', () => {
         const { result, rerender, unmount } = renderHook(
             ({ authKey }) => useVoiceCallSocket(7, {}, authKey),

@@ -285,6 +285,39 @@ describe('VoiceSocket', () => {
         expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('CLOSE_WORKSPACE_REQUIRED_4422'), expect.anything())
     })
 
+    it('ends the call when the server closes cleanly without voice_ended (S-3)', async () => {
+        vi.useFakeTimers()
+        const onMessage = vi.fn()
+        const socket = new VoiceSocket(7, WORKSPACE_ID, { onMessage })
+        socket.connect(startFrame())
+        MockWebSocket.instances[0].emitOpen()
+        MockWebSocket.instances[0].emitMessage(READY_FRAME)
+
+        MockWebSocket.instances[0].emitClose(1000)
+        await vi.advanceTimersByTimeAsync(30_000)
+
+        expect(MockWebSocket.instances).toHaveLength(1)
+        expect(socket.isResuming).toBe(false)
+        expect(onMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'voice_error', category: 'internal', code: 'VOICE_CONNECTION_LOST', fatal: true }))
+    })
+
+    it('stays quiet on the clean close that follows its own voice_end', async () => {
+        vi.useFakeTimers()
+        const onMessage = vi.fn()
+        const socket = new VoiceSocket(7, WORKSPACE_ID, { onMessage })
+        socket.connect(startFrame())
+        MockWebSocket.instances[0].emitOpen()
+        MockWebSocket.instances[0].emitMessage(READY_FRAME)
+        onMessage.mockClear()
+
+        expect(socket.end()).toBe(true)
+        MockWebSocket.instances[0].emitClose(1000)
+        await vi.advanceTimersByTimeAsync(30_000)
+
+        expect(MockWebSocket.instances).toHaveLength(1)
+        expect(onMessage).not.toHaveBeenCalled()
+    })
+
     it('reconnects transient closes with backoff', async () => {
         vi.useFakeTimers()
         const socket = new VoiceSocket(7, WORKSPACE_ID, { onMessage: vi.fn() })
@@ -649,6 +682,25 @@ describe('VoiceSocket protocol v2', () => {
         MockWebSocket.instances[2].emitMessage({ ...READY_FRAME, protocol: { version: 2, client_metrics: 'one' } })
         expect(socket.sendTurnMetrics(METRICS)).toBe(false)
         expect(sentTypes(MockWebSocket.instances[2])).toEqual(['voice_start'])
+        socket.close()
+    })
+
+    it('ends as navigation only on a call whose voice_ready advertised v2', () => {
+        const socket = new VoiceSocket(7, WORKSPACE_ID, { onMessage: vi.fn() })
+        socket.connect(startFrame())
+        MockWebSocket.instances[0].emitOpen()
+        expect(socket.end('navigation')).toBe(false) // no call yet
+        MockWebSocket.instances[0].emitMessage(READY_FRAME) // a v1 server
+        expect(socket.end('navigation')).toBe(true)
+        expect(MockWebSocket.instances[0].send).toHaveBeenLastCalledWith(JSON.stringify({ type: 'voice_end', reason: 'user' }))
+
+        socket.connect(startFrame())
+        MockWebSocket.instances[1].emitOpen()
+        MockWebSocket.instances[1].emitMessage({ ...READY_FRAME, protocol: PROTOCOL_V2 })
+        expect(socket.end('navigation')).toBe(true)
+        expect(MockWebSocket.instances[1].send).toHaveBeenLastCalledWith(JSON.stringify({ type: 'voice_end', reason: 'navigation' }))
+        expect(socket.end()).toBe(true)
+        expect(MockWebSocket.instances[1].send).toHaveBeenLastCalledWith(JSON.stringify({ type: 'voice_end', reason: 'user' }))
         socket.close()
     })
 

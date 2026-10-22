@@ -57,7 +57,6 @@ flowchart LR
 
 ## Still open in R02
 
-- **The SPA sends `voice_end.reason = "navigation"` when the caller leaves the call screen.** The BFF accepts and stores it; check the SPA side.
 - **Split close code 4408.** Today it covers both an idle timeout and a protocol conflict.
 - **Account for calls abandoned before `voice_ready`.**
 - **Re-check consent and flags on `voice_resume`.**
@@ -71,7 +70,7 @@ flowchart LR
 2. **BFF.** Protocol v2 and the writer. `VOICE_TURN_METRICS_ENABLED=false` stops the writes without a deploy. Older SPAs keep working: they never send `protocol_version`, so the server waits only 15 s before writing.
 3. **SPA.** It sends `protocol_version: 2`. It sends client metrics only when `voice_ready.protocol.client_metrics >= 1`.
 
-Steps 2 and 3 may ship in either order. An SPA that reaches an old BFF never sees `protocol`, so it sends no new frames.
+**Step 2 must ship before step 3. This is a hard rule.** The new SPA sends `protocol_version` (and `llm`, from the LLM-profile work) inside `voice_start` itself. The previous BFF parses `voice_start` with `extra="forbid"`, and an invalid handshake is fatal. So every call from the new SPA to the previous BFF closes with 4408 before `voice_ready`, and the client cannot learn the server's version any earlier. Once the BFF is out, an older SPA keeps working: it sends no `protocol_version` and ignores `protocol`.
 
 ## Configuration (BFF)
 
@@ -88,14 +87,14 @@ All four are documented in `magic-worlds-api/.env.example` and `docs/configurati
 
 | Check | Result |
 |---|---|
-| `tests/voice/test_voice_protocol_v2_turn_metrics.py` (new, 20 tests) | Pass |
-| <ul><li>Parser: binary, bad JSON, unknown type, invalid frame, disconnect, fatal handshake.</li><li>The socket survives malformed traffic, and a flood ends the call.</li><li>Row math on a fake clock.</li><li>STT floor.</li><li>Write policy: wait, client frame, late update, rate limit, unknown turn, duplicate.</li><li>The ContextVar reaches the runner's executor task.</li><li>A full engine turn writes one row with every mark, and no text.</li></ul> | |
+| `tests/voice/test_voice_protocol_v2_turn_metrics.py` (new, 24 tests) | Pass |
+| <ul><li>Parser: binary, bad JSON, unknown type, invalid frame, disconnect, fatal handshake.</li><li>The socket survives malformed traffic, and a flood ends the call.</li><li>Row math on a fake clock.</li><li>STT floor.</li><li>Write policy: wait, client frame, late update, rate limit, unknown turn, duplicate.</li><li>The ContextVar reaches the runner's executor task.</li><li>A full engine turn writes one row with every mark, and no text.</li><li>Frames with extra fields never end a call.</li><li>A retried upload keeps its index and never takes the written record.</li><li>An ended call takes late client frames from its own socket for 10 s, including after a server end.</li></ul> | |
 | `tests/services/test_llm_execution_text.py` | Pass. The new test covers `usage_details` read leniently onto the tracked exchange |
-| Whole `tests/voice` suite | The same 64 failures as pristine HEAD, none new. They need a MySQL pool or feature-flag fixtures that unit runs do not provide (`FEATURE_FLAG_UNAVAILABLE`, "MySQL pool is not initialized") |
+| Whole `tests/voice` suite | 1,060 pass. The same 59 failures, by name, as before the audit fixes, none new. They need a MySQL pool or feature-flag fixtures that unit runs do not provide (`FEATURE_FLAG_UNAVAILABLE`, "MySQL pool is not initialized") |
 | `tests/services` LLM and assistant tests | 600 pass. 3 `test_assistant_upstream_contract` tests also fail on HEAD (`request_credentials`, from an earlier change) |
 | All of `tests/services` and `tests/routes`, against pristine HEAD | The same 550 failures and 1 collection error (`test_turn_language.py`) on both trees, and one more pass (the `usage_details` test). Nothing new fails |
 | Schema revision `2026_10_voice_turn_metrics` | <ul><li>The migration, voice schema and earlier-revision chain tests pass (47 with the new file).</li><li>The store's columns are pinned to the DDL.</li><li>`tests/test_schema_bootstrap.py` has 11 failures, all present before (stale startup text, JSON-shape checks of earlier revisions); it had 15 before.</li><li>**Not run against a real MySQL.** The only configured database is the shared project one.</li></ul> |
-| SPA: touched test files (10) | 230 pass |
+| SPA: call-path test files (16: audio, hooks, `voiceSocket`, the call integration test, `features/call`) | 323 pass |
 | SPA: `pnpm build` | Exit 0 |
 | SPA: `minimaxGrepGate` | <ul><li>Passes.</li><li>`docs/call_realtime/**` is allow-listed as dated research. It compares MiniMax as a vendor and records the MiniMax-era markup.</li></ul> |
 

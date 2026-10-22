@@ -140,7 +140,8 @@ export type VoiceSocketClientFrame =
      * The server answers nothing.
      */
     | { type: 'voice_playback'; turn_id: string; played_ms: number }
-    | { type: 'voice_end'; reason: 'user' }
+    /** `navigation`: the caller left the call screen (protocol v2; stored as the end reason). */
+    | { type: 'voice_end'; reason: 'user' | 'navigation' }
     | { type: 'voice_ping'; voice_session_id?: string }
     | VoiceTurnClientMetricsFrame
 

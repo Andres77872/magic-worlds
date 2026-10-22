@@ -5,6 +5,7 @@ import type { VoiceSocketClientFrame, VoiceSocketServerFrame, VoiceTurnClientMet
 
 type VoiceStartFrame = Extract<VoiceSocketClientFrame, { type: 'voice_start' }>
 type VoiceBargeInFrame = Extract<VoiceSocketClientFrame, { type: 'voice_barge_in' }>
+type VoiceEndReason = Extract<VoiceSocketClientFrame, { type: 'voice_end' }>['reason']
 type VoiceReadyFrame = Extract<VoiceSocketServerFrame, { type: 'voice_ready' }>
 type VoiceStateSnapshotFrame = Extract<VoiceSocketServerFrame, { type: 'voice_state_snapshot' }>
 type VoiceStatusFrame = Extract<VoiceSocketServerFrame, { type: 'voice_status' }>
@@ -50,7 +51,8 @@ export interface VoiceCallSocketApi {
     turnMetrics?: (frame: VoiceTurnClientMetricsFrame) => boolean
     /** Record the highest uploaded segment seq (sent in `voice_resume`). */
     noteSegmentSeq: (seq: number) => void
-    end: () => boolean
+    /** `voice_end`; `navigation` (the caller left the call screen) only reaches a v2 server. */
+    end: (reason?: VoiceEndReason) => boolean
     close: () => void
 }
 
@@ -167,9 +169,9 @@ export function useVoiceCallSocket(
     const playback = useCallback((turnId: string, playedMs: number) => socketRef.current?.sendPlayback(turnId, playedMs) ?? false, [])
     const turnMetrics = useCallback((frame: VoiceTurnClientMetricsFrame) => socketRef.current?.sendTurnMetrics(frame) ?? false, [])
     const noteSegmentSeq = useCallback((seq: number) => socketRef.current?.noteSegmentSeq(seq), [])
-    const end = useCallback(() => {
+    const end = useCallback((reason?: VoiceEndReason) => {
         pendingStartRef.current = null
-        return socketRef.current?.end() ?? false
+        return socketRef.current?.end(reason) ?? false
     }, [])
     const close = useCallback(() => {
         pendingStartRef.current = null

@@ -95,7 +95,7 @@ Prices are not stored. Cost is computed in queries from these units and a versio
 | `deploy_env` | `DEPLOY_ENV`, default `dev` |
 | `region` | `DEPLOY_REGION`, null when unset |
 | `config_fingerprint` | First 16 hex characters of the SHA-256 of the latency-relevant settings: VAD gate, STT model and timeout, TTS lane and output format, LLM output cap, sentence buffer limits, build id (`APP_BUILD`) |
-| `call_turn_index` | 1-based segment index in the call. First turns pay cold connections, so they are reported apart |
+| `call_turn_index` | 1-based index of the distinct segment seq in the call. A retried upload of the same seq keeps its index. First turns pay cold connections, so they are reported apart |
 
 ## 6. Outcome taxonomy
 
@@ -117,6 +117,8 @@ Prices are not stored. Cost is computed in queries from these units and a versio
 - **Server part final:** set when `accept_segment` returns or raises, in its `finally` block.
 - **Client part:** set when `voice_turn_client_metrics` arrives, or marked "not expected" when the client did not advertise the frame or the turn never published.
 - **Flush:** the row is inserted once both parts are final, or 15 s after the server part became final, or when the call ends. A client frame that arrives after the flush updates only the `client_*` columns.
+- **After the call ends:** the call's records stay reachable for 10 s (`ENDED_CALL_FRAME_GRACE_SECONDS`), for frames from the same socket, because the SPA sends its open turns when `voice_ended` arrives. These late frames update the turn rows only; the call row's counters are already written.
+- **Retried uploads:** a second upload of a seq never replaces the first record. While the first is unwritten, the retry is not written. Once the first is written, it keeps its slot, so its client frame still lands, and the retry resolves as a duplicate.
 - **Call row:** `voice_call_metrics` is upserted when the call ends: in `end_call` and in the call's `_forget_call`.
 - **Writer:** a background task with strong references, the same way the engine's spend tasks work. `shutdown()` drains it within the engine's drain budget.
 

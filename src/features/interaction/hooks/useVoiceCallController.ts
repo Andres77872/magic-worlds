@@ -184,6 +184,8 @@ const SILENT_REJECTIONS = new Set(['no_speech', 'too_short'])
 
 /** Lifecycles in which the call holds (or may soon hold) a server call and its quota. */
 const REGISTERED_LIFECYCLES = new Set<string>(['requesting_permission', 'connecting', 'live', 'ending'])
+/** A call that is starting or running and that nothing is ending yet. */
+const ACTIVE_LIFECYCLES = new Set<string>(['requesting_permission', 'connecting', 'live'])
 
 type CallLifecycle =
     | 'disabled'
@@ -330,7 +332,10 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
     const playbackRef = useRef<VoicePlaybackBuffer | null>(null)
     /** This call's `voice_ready` advertised `voice_turn_client_metrics` v1 (protocol v2); reset per call. */
     const clientMetricsRef = useRef(false)
-    /** VAD `speech_start` (`performance.now()`) of the utterance in progress: an auto barge-in's onset. */
+    /**
+     * Speech onset (`performance.now()`) of the utterance in progress: the VAD `speech_start`
+     * dated back by its `onset_lag_ms`. An auto barge-in's onset.
+     */
     const speechStartAtRef = useRef<number | null>(null)
     const playbackTimingRef = useRef(new CallPlaybackTiming())
 
@@ -550,6 +555,11 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         userSpeakingRef.current = false
         reconnectingRef.current = false
         turnPhaseRef.current = 'none'
+        // The call is over: nothing reaches its voice session any more — no segment of a
+        // "Call again" upload, no second HTTP end at unmount (S-1). Callers that still need
+        // the id (the end request) read it before calling this.
+        voiceSessionIdRef.current = null
+        if (mountedRef.current) setVoiceSessionId(null)
     }, [abortUploads, clearBargeIn, clearCallTimer, clearReadyTimeout, releaseWakeLock, stopPlaybackProgress])
 
     const mapError = useCallback((unknownError: unknown, fallback: VoiceCallControllerError): VoiceCallControllerError => {
@@ -674,7 +684,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         }
     }, [updateUploadQueueDepth, uploadSegment])
 
-    /** `bargeInOnsetMs`: the VAD `speech_start` behind an automatic barge-in (none for the button). */
+    /** `bargeInOnsetMs`: the speech onset behind an automatic barge-in (none for the button). */
     const sendBargeIn = useCallback((bargeInOnsetMs?: number): boolean => {
         const currentVoiceSessionId = voiceSessionIdRef.current
         if (!currentVoiceSessionId) return false
@@ -955,13 +965,14 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         setLifecycle('ended')
     }, [setLifecycle, stopLocalResources])
 
-    const handleVadState = useCallback((vadState: 'speech_start' | 'speech_end' | 'silence') => {
+    const handleVadState = useCallback((vadState: 'speech_start' | 'speech_end' | 'silence', details?: { onset_lag_ms?: number }) => {
         // NOTE: we intentionally do NOT send a `voice_vad` frame. Turns are driven
         // by the uploaded segments (the server merges a split utterance); barge-in
         // uses the supported `voice_barge_in` frame. Keep local state only.
         if (vadState === 'speech_start') {
             userSpeakingRef.current = true
-            speechStartAtRef.current = performance.now()
+            // Announced only after `minSpeechMs` of speech: date the onset back to its first voiced frame.
+            speechStartAtRef.current = performance.now() - (details?.onset_lag_ms ?? 0)
             maybeAutoBargeIn()
         } else {
             userSpeakingRef.current = false
@@ -985,6 +996,16 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         }
         void uploadSegment(segment)
     }, [uploadSegment])
+
+    // Declared before the socket hook on purpose: React runs unmount cleanups in declaration
+    // order, and the socket hook's closes the socket. Leaving the call screen reports the open
+    // turns (R01) and ends the call over the socket as `navigation` (R02) while it is still open;
+    // the unmount below still sends the HTTP end. A call already ending sent its own voice_end.
+    useEffect(() => () => {
+        if (!voiceSessionIdRef.current || lifecycleRef.current !== 'live') return
+        recordTimeline(() => playbackTimingRef.current.flush(performance.now()))
+        socketRef.current?.end('navigation')
+    }, [])
 
     const socket = useVoiceCallSocket(sessionId, {
         onReady: handleReady,
@@ -1239,16 +1260,28 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
     }, [])
     const dismissError = useCallback(() => setControllerError(null), [setControllerError])
 
+    const endForLostAuth = useCallback(() => {
+        setControllerError({ category: 'auth', message: 'Your session has expired. Please log in again.', fatal: true })
+        stopLocalResources({ closeSocket: true })
+        setLifecycle('error')
+    }, [setControllerError, setLifecycle, stopLocalResources])
+
     useEffect(() => {
         const onAuthExpired = () => {
             if (lifecycleRef.current === 'idle' || lifecycleRef.current === 'ended' || lifecycleRef.current === 'disabled') return
-            setControllerError({ category: 'auth', message: 'Your session has expired. Please log in again.', fatal: true })
-            stopLocalResources({ closeSocket: true })
-            setLifecycle('error')
+            endForLostAuth()
         }
         window.addEventListener('auth:expired', onAuthExpired)
         return () => window.removeEventListener('auth:expired', onAuthExpired)
-    }, [setControllerError, setLifecycle, stopLocalResources])
+    }, [endForLostAuth])
+
+    // Auth can also go away with no `auth:expired` event (sign-out, another tab). The socket
+    // hook then closes the socket quietly, so the call ends here too instead of keeping the
+    // mic, the wake lock and the uploads running (S-2).
+    useEffect(() => {
+        if (options.authKey !== null || !ACTIVE_LIFECYCLES.has(lifecycleRef.current)) return
+        endForLostAuth()
+    }, [endForLostAuth, options.authKey])
 
     // Mobile: keep the screen awake for the call, and end the call when the page
     // is torn down (tab close / navigation) with a request that outlives it.
@@ -1256,16 +1289,12 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
         const onVisibilityChange = () => {
             if (document.visibilityState === 'visible' && lifecycleRef.current === 'live') void acquireWakeLock()
         }
-        const onPageHide = (event: PageTransitionEvent) => {
-            // A bfcache'd page may come back; the server's grace period covers it.
-            if (event.persisted) return
-            const currentSessionId = sessionIdRef.current
-            const currentVoiceSessionId = voiceSessionIdRef.current
-            if (currentSessionId === null || !currentVoiceSessionId) return
-            recordTimeline(() => playbackTimingRef.current.flush(performance.now()))
-            socketRef.current?.end()
-            void apiRef.current?.endVoiceCall(currentSessionId, { voiceSessionId: currentVoiceSessionId, reason: 'user' }, { keepalive: true }).catch(() => undefined)
-            voiceSessionIdRef.current = null
+        const onPageHide = () => {
+            // Unloaded or frozen into the bfcache, the page keeps neither the mic nor the
+            // socket, and nothing resumes a restored call: hang up either way (S-4). The end
+            // request is a keepalive one, issued synchronously, so it outlives the page.
+            if (!ACTIVE_LIFECYCLES.has(lifecycleRef.current)) return
+            void endCall()
         }
         document.addEventListener('visibilitychange', onVisibilityChange)
         window.addEventListener('pagehide', onPageHide)
@@ -1273,7 +1302,7 @@ export function useVoiceCallController(options: UseVoiceCallControllerOptions): 
             document.removeEventListener('visibilitychange', onVisibilityChange)
             window.removeEventListener('pagehide', onPageHide)
         }
-    }, [acquireWakeLock])
+    }, [acquireWakeLock, endCall])
 
     useEffect(() => {
         mountedRef.current = true

@@ -357,7 +357,17 @@ describe('Voice call integration proof', () => {
         expect(integration.socketApi!.start).not.toHaveBeenCalled()
     })
 
-    it('tears down on auth expiry and route leave using the HTTP end-call escape hatch', async () => {
+    it('ends a live call on route leave using the HTTP end-call escape hatch', async () => {
+        const { unmount } = renderVoicePanel()
+        await startVoiceCallThroughConsent()
+        act(() => integration.socketHandlers?.onReady?.(readyFrame()))
+
+        unmount()
+        await waitFor(() => expect(integration.apiService.endVoiceCall).toHaveBeenCalledWith(7, { voiceSessionId: 'voice-session-1', reason: 'user' }, { keepalive: true }))
+        expect(integration.playback!.dispose).toHaveBeenCalled()
+    })
+
+    it('tears down on auth expiry and sends no second end on route leave (S-1)', async () => {
         const { unmount } = renderVoicePanel()
         await startVoiceCallThroughConsent()
         act(() => integration.socketHandlers?.onReady?.(readyFrame()))
@@ -368,8 +378,9 @@ describe('Voice call integration proof', () => {
         expect(screen.getByRole('status')).toHaveTextContent(/session expired/i)
 
         unmount()
-        await waitFor(() => expect(integration.apiService.endVoiceCall).toHaveBeenCalledWith(7, { voiceSessionId: 'voice-session-1', reason: 'user' }, { keepalive: true }))
         expect(integration.playback!.dispose).toHaveBeenCalled()
+        // The socket's clean close already ended the call; an HTTP end would ride an expired token.
+        expect(integration.apiService.endVoiceCall).not.toHaveBeenCalled()
     })
 
     it('sends barge-in, drops local playback, and keeps provider/audio sentinels out of visible errors', async () => {

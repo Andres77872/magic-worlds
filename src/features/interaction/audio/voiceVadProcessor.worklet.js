@@ -28,7 +28,9 @@
  *   { type: 'configure', maxSegmentMs?, minSpeechMs?, silenceMsToEnd?, speechThreshold? }
  *
  * Messages posted to the main thread:
- *   { type: 'vad', state: 'speech_start', at_ms, rms }
+ *   { type: 'vad', state: 'speech_start', at_ms, rms, onset_lag_ms }
+ *     // once `minSpeechMs` of speech accumulated; `onset_lag_ms` is the audio since the
+ *     // utterance's first voiced frame, so its onset was that long before this message.
  *   { type: 'vad', state: 'speech_end', at_ms, rms, ended_by_silence, silence_tail_ms }
  *     // right after the segment it closed. `ended_by_silence` is false for a max-length cut
  *     // (the user is still talking); `silence_tail_ms` is the quiet waited after the last
@@ -210,6 +212,8 @@ class VoiceVadProcessor extends AudioWorkletProcessor {
         this.announced = false
         this.silenceFrames = 0
         this.speechSamples = 0
+        // Segment offset of the first voiced frame (the pre-roll comes before it).
+        this.speechOnsetAt = 0
         this.trailingSilentSamples = 0
         this.frameIndex = 0
         this.smoothedLevel = 0
@@ -320,6 +324,7 @@ class VoiceVadProcessor extends AudioWorkletProcessor {
             read = (read + 1) % capacity
         }
         this.segmentLength = take
+        this.speechOnsetAt = take
         this.preRollStart = 0
         this.preRollLength = 0
     }
@@ -338,7 +343,13 @@ class VoiceVadProcessor extends AudioWorkletProcessor {
             // clicks never fire a turn (and never a false barge-in).
             if (!this.announced && voiced && this.speechSamples >= this.minSpeechSamples) {
                 this.announced = true
-                this.port.postMessage({ type: 'vad', state: 'speech_start', at_ms: this.elapsedMs(), rms: roundMetric(rms) })
+                this.port.postMessage({
+                    type: 'vad',
+                    state: 'speech_start',
+                    at_ms: this.elapsedMs(),
+                    rms: roundMetric(rms),
+                    onset_lag_ms: Math.round(((this.segmentLength - this.speechOnsetAt) / TARGET_SAMPLE_RATE) * 1000),
+                })
             }
 
             if (this.segmentLength >= this.maxSamples) {

@@ -206,6 +206,38 @@ describe('per-turn client timeline (protocol v2 voice_turn_client_metrics)', () 
         expect(onTurnMetrics.mock.calls[0][0]).toMatchObject({ outcome: 'played', autoplay_blocked: true })
     })
 
+    it('leaves the tap delay out: a turn blocked before it played has no start-up times', () => {
+        const { timing, onTurnMetrics } = timeline()
+        timing.segmentSent('call', 1, 1_000, 1_500)
+        timing.turnStarted('call', 'turn-1', 1, 2_000)
+        timing.audioChunk('call', 'turn-1', 2_500)
+        timing.playbackState(state('blocked'), 2_600)
+        timing.playbackState(playingState(), 9_000, 'media_source') // the caller tapped
+        timing.turnEnded('call', 'turn-1', 10_000)
+        timing.playbackState(state('idle'), 12_000)
+        const [frame] = onTurnMetrics.mock.calls[0]
+        expect(frame).toMatchObject({ outcome: 'played', autoplay_blocked: true, speech_end_to_first_chunk_ms: 1_500, playback_path: 'media_source' })
+        for (const field of ['speech_end_to_playing_ms', 'first_chunk_to_playing_ms', 'v2v_ms']) expect(frame, field).not.toHaveProperty(field)
+
+        // Blocked only after it was audible: its start-up was not delayed.
+        timing.segmentSent('call', 2, 20_000, 20_500)
+        timing.turnStarted('call', 'turn-2', 2, 21_000)
+        timing.audioChunk('call', 'turn-2', 21_500)
+        timing.playbackState(playingState('turn-2'), 21_600, 'blob')
+        timing.playbackState(state('blocked', 'turn-2'), 23_000)
+        timing.interrupted('call', 'turn-2', 24_000)
+        expect(onTurnMetrics.mock.calls[1][0]).toMatchObject({ autoplay_blocked: true, speech_end_to_playing_ms: 1_600, v2v_ms: 1_621 })
+    })
+
+    it('times an automatic barge-in from the later of the speech onset and the reply becoming audible', () => {
+        const { timing, onTurnMetrics } = timeline()
+        timing.turnStarted('call', 'turn-1', undefined, 1_000)
+        timing.playbackState(playingState(), 2_000, 'media_source')
+        // The caller was already talking when the reply became audible.
+        timing.interrupted('call', 'turn-1', 2_520, { bargeInOnsetMs: 1_200 })
+        expect(onTurnMetrics.mock.calls[0][0]).toMatchObject({ outcome: 'interrupted', barge_in_onset_to_pause_ms: 520 })
+    })
+
     it('maps voice_cancelled to cancelled, and a server barge-in cancel to interrupted', () => {
         const { timing, onTurnMetrics } = timeline()
         timing.turnStarted('call', 'turn-1', undefined, 1_000)

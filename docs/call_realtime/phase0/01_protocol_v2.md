@@ -21,7 +21,11 @@
 | Client → server | `voice_start.protocol_version` (int ≥ 1, optional) | The highest protocol the client speaks. Absent = 1. Stored on the call (`voice_call_metrics.protocol_version`). |
 | Server → client | `voice_ready.protocol` (object, optional on read) | `{ "version": 2, "client_metrics": 1 }`. `client_metrics` is the `voice_turn_client_metrics` version the server accepts. |
 
-The client sends a frame type that is newer than v1 only if `voice_ready.protocol` advertises it. That makes every rollout **server-first**: deploy the BFF, then the SPA. An older BFF never advertises `protocol`, so a newer SPA stays silent. An older SPA ignores `protocol`, because the client already drops unknown server fields and unknown server frame types (`SERVER_FRAME_TYPES` in `voiceSocket.ts`).
+The client sends a frame type or a reason that is newer than v1 only if `voice_ready.protocol` advertises it. An older SPA ignores `protocol`, because the client already drops unknown server fields and unknown server frame types (`SERVER_FRAME_TYPES` in `voiceSocket.ts`).
+
+**Every rollout is server-first, with no exception: deploy the BFF, then the SPA.** The new fields ride in `voice_start` itself (`protocol_version`, and `llm` from the LLM-profile work). A v1 BFF parses `voice_start` with `extra="forbid"`, and an invalid handshake is fatal, so a new SPA loses every call to a v1 BFF with 4408 before `voice_ready`. The client cannot learn the server's version any earlier than `voice_ready`, so it cannot fall back on its own.
+
+- **`voice_end.reason: "navigation"`** is a v2 reason. The client sends it when the caller leaves the call screen in the app, and only to a server that advertised `protocol`. A v1 server gets `user`.
 
 ### 2.2 Server tolerance (after the handshake)
 
@@ -30,13 +34,13 @@ The client sends a frame type that is newer than v1 only if `voice_ready.protoco
 | Binary frame | Generic exception → `internal`, fatal | Ignored until R47 (streamed uplink) | `binary` |
 | Text that is not JSON, or JSON that is not an object | Generic exception → `internal`, fatal | Ignored | `invalid_json` |
 | Unknown `type` | Fatal `conflict`, 4408 | Ignored | `unknown_type` |
-| Known `type` with extra fields | Fatal `conflict`, 4408 | Extra fields dropped; the frame is processed | `extra_fields` |
+| Known `type` with extra fields | Fatal `conflict`, 4408 | Extra fields dropped; the frame is processed | `extra_fields` (not toward the abuse bound) |
 | Known `type` with an invalid value | Fatal `conflict`, 4408 | Ignored | `invalid_frame` |
 | `voice_turn_client_metrics` for a turn the call does not know (or a second one for a turn) | n/a | Ignored | `unknown_turn`, `duplicate_metrics` |
 
 - **Handshake frames stay strict.** The first `voice_start` or `voice_resume` defines the call, so an invalid one remains a fatal `conflict`, though extra fields are still dropped. Before the handshake, unknown types, non-JSON and binary frames are ignored and counted, the same as after it.
 - **Counters are per call.** They are kept on the call runtime, written to `voice_call_metrics.ignored_frames`, and logged once per kind per call as `voice_frame_ignored`. Nothing is sent to the client.
-- **Abuse bound.** A call that sends more than 1,000 ignored frames is ended as a protocol `conflict`. That is the only remaining fatal path for malformed traffic.
+- **Abuse bound.** A call that sends more than 1,000 ignored frames is ended as a protocol `conflict`. That is the only remaining fatal path for malformed traffic. `extra_fields` is counted but never trips the bound: those frames were processed, and a newer client sends them all call long (a `voice_playback` with one new field arrives about twice a second).
 
 ### 2.3 Client tolerance
 
@@ -59,7 +63,12 @@ The client sends at most one frame per server turn, once the turn has settled fr
 | Autoplay was blocked when the turn's audio arrived | `blocked` |
 | The turn's chunks could not be decoded (`isPlayableCallChunk` false) | `unsupported` |
 
-A turn that never settles, because the socket dropped or the call ended mid-turn, is sent at call end when the socket is still open, and dropped otherwise. The server row then keeps empty `client_*` columns. That is the coverage gap the G0 gate measures.
+A turn that never settles, because the socket dropped or the call ended mid-turn, is sent at call end when the socket is still open, and dropped otherwise:
+- **The caller ends the call:** open turns are sent before `voice_end`.
+- **The caller leaves the call screen in the app:** open turns are sent, then `voice_end{reason:"navigation"}`, before the socket closes.
+- **The server ends the call:** open turns are sent when `voice_ended` arrives. The server takes them for 10 s after the end, from the same socket ([02](02_turn_metrics.md) §7).
+
+A dropped frame leaves the server row with empty `client_*` columns. That is the coverage gap the G0 gate measures.
 
 ### 3.2 Fields
 
@@ -85,12 +94,14 @@ All times are whole milliseconds on the client's `performance.now()` clock and a
 | `chunks` | 0..100,000 | Audio chunks of the turn received |
 | `stalls` | 0..10,000 | `waiting` and `stalled` events on the element after the turn started playing |
 | `stall_ms` | 0..600,000 | Time spent stalled: `waiting` → next `playing` |
-| `barge_in_onset_to_pause_ms` | 0..60,000 | VAD `speech_start` → playback cancelled, for an automatic barge-in |
+| `barge_in_onset_to_pause_ms` | 0..60,000 | Speech onset → playback cancelled, for an automatic barge-in. The onset is the segment's first voiced frame: `speech_start` fires only after `minSpeechMs` (500 ms during playback), and carries `onset_lag_ms` to date it back. When the caller began talking before the turn became audible, the interval starts at `playing` instead |
 | `playback_path` | `media_source` \| `managed_media_source` \| `blob` \| `none` | How the turn played |
 | `aec` | `on` \| `off` \| `unknown` | The capture track's `echoCancellation` setting (`off` covers the raw fallback) |
 | `autoplay_blocked` | bool | Playback reported `blocked` during the turn |
 
 **t0** is `CapturedVoiceSegment.speech_end_perf_ms` of the segment that opened the turn: the last voiced audio, before the hang-over. A segment cut at the maximum length has no t0, so every `speech_end_to_*` field and `v2v_ms` is absent for it.
+
+**A turn that was blocked before it first played** (autoplay, then the caller's tap) has no `speech_end_to_playing_ms`, `first_chunk_to_playing_ms` or `v2v_ms`: its `playing` waited for a human. Its other intervals are sent, and `autoplay_blocked` is true. A turn blocked after it had played keeps its start-up times.
 
 ### 3.3 Server handling
 
@@ -115,7 +126,6 @@ All times are whole milliseconds on the client's `performance.now()` clock and a
 ## 5. Not in v2 (later R02 items)
 
 The following stay as they are and are tracked in [README](README.md) §4:
-- a `voice_end{reason:"navigation"}` reason;
 - splitting the mid-call 4408 close codes;
 - storing a pre-ready close as `abandoned`;
 - re-checking access on resume.
