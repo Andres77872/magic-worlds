@@ -2,9 +2,11 @@ import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 /**
  * Landing — an adaptive front door.
  *
- * Guests and fresh accounts get the marketing experience: a hero, a prominent
- * create menu, a "how it works" explainer, a row of sample worlds, and a closing
- * invitation. Returning users get a zoned dashboard in a deliberate top-to-bottom
+ * Guests and fresh accounts get the marketing experience: a hero, a "what you
+ * can build" gallery (guests) or the actionable create menu (fresh accounts), a
+ * "how it works" explainer, a row of sample worlds, and a closing invitation. A
+ * guest's create click opens sign-up and, once the account exists, lands in that
+ * creator (`guestIntent.ts`). Returning users get a zoned dashboard in a deliberate top-to-bottom
  * narrative: resume the last thread (cinematic carousel) → make something new
  * (fast-create band) → continue what's active (adventures / chats / novels rails)
  * → start a new adventure → your cast → and the quieter reference shelves
@@ -56,6 +58,7 @@ import { searchDashboard, type DashboardSearchGroup } from './searchModel'
 import { itemCardProps, worldCardProps } from './libraryCards'
 import { type CreateAction } from './landingContent'
 import { useDashboardModel } from '../hooks/useDashboardModel'
+import { clearGuestIntent, rememberGuestIntent, takeGuestIntent } from '../guestIntent'
 import { defaultPersonaForCharacter } from '@/utils/characterRoles'
 import { scrollBehavior } from '@/utils/motion'
 import { errorMessage } from '@/utils/errors'
@@ -78,7 +81,7 @@ export function LandingPage() {
     useFeatureFlags()
     const { t } = useTranslation()
     const { setPage } = useNavigation()
-    const { isAuthenticated, openLoginModal } = useAuth()
+    const { isAuthenticated, isLoginModalOpen, openLoginModal } = useAuth()
     const pageFocused = usePageFocus()
     const entryRefreshStartedRef = useRef(false)
     const {
@@ -264,6 +267,12 @@ export function LandingPage() {
         if (novelsEnabled) setNovelModalOpen(true)
     })
     const handleCreate = (key: CreateAction['key']) => {
+        // Guests sign up first; the remembered intent opens this creator afterwards.
+        if (!isAuthenticated) {
+            rememberGuestIntent(key)
+            openLoginModal('register')
+            return
+        }
         if (key === 'character') createCharacter()
         else if (key === 'world') createWorld()
         else if (key === 'item') createItem()
@@ -271,6 +280,19 @@ export function LandingPage() {
         else if (key === 'novel') openNovelCreate()
         else if (key === 'lorebook') createLorebook()
     }
+
+    // Finish the create action a guest started before signing up — once, after the
+    // first load. A dismissed login modal forgets it, so it never fires later.
+    useEffect(() => {
+        if (!isAuthenticated) {
+            if (!isLoginModalOpen) clearGuestIntent()
+            return
+        }
+        if (isLoading) return
+        const intent = takeGuestIntent()
+        if (intent) handleCreate(intent)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isAuthenticated, isLoading, isLoginModalOpen])
 
     const handleNovelCreate = async (request: StoryCreateRequest) => {
         if (!novelsEnabled) return
@@ -427,18 +449,16 @@ export function LandingPage() {
     if (mode === 'guest') {
         // With adventures off, the character creator is the front door: it takes
         // over the hero primary, the showcase "try" action and the closing CTA.
-        const primaryCta = adventuresEnabled ? createAdventure : createCharacter
+        const primaryCta = () => handleCreate(adventuresEnabled ? 'adventure' : 'character')
+        const characterLabel = isAuthenticated ? t('landing.hero.authedSecondary') : t('landing.hero.guestCharacter')
         const heroPrimary: HeroCta = !adventuresEnabled
-            ? { label: t('landing.hero.authedSecondary'), icon: Users, onClick: createCharacter }
+            ? { label: characterLabel, icon: Users, onClick: primaryCta }
             : isAuthenticated
-                ? { label: t('landing.hero.authedPrimary'), icon: Wand2, onClick: createAdventure }
-                : { label: t('landing.hero.guestPrimary'), icon: Feather, onClick: createAdventure }
+                ? { label: t('landing.hero.authedPrimary'), icon: Wand2, onClick: primaryCta }
+                : { label: t('landing.hero.guestPrimary'), icon: Feather, onClick: primaryCta }
         const heroSecondary: HeroCta = isAuthenticated && adventuresEnabled
             ? { label: t('landing.hero.authedSecondary'), icon: Users, onClick: createCharacter }
             : { label: t('landing.hero.guestSecondary'), iconRight: ArrowRight, onClick: scrollToShowcase }
-        const accessCopy = isAuthenticated
-            ? { eyebrow: t('landing.access.authedEyebrow'), title: t('landing.access.authedTitle') }
-            : { eyebrow: t('landing.access.guestEyebrow'), title: t('landing.access.guestTitle') }
 
         return (
             <div className="flex w-full flex-col">
@@ -448,21 +468,31 @@ export function LandingPage() {
                     subtitle={t('landing.hero.subtitle')}
                     primary={heroPrimary}
                     secondary={heroSecondary}
+                    signIn={isAuthenticated ? undefined : {
+                        prompt: t('auth.register.footerText'),
+                        action: t('auth.register.footerAction'),
+                        onClick: () => openLoginModal('login'),
+                    }}
                     stat={t('landing.hero.stat')}
                     heroImage={{ src: heroArt, alt: t('landing.hero.imageAlt') }}
                 />
-                <AccessMenu
-                    eyebrow={accessCopy.eyebrow}
-                    title={accessCopy.title}
-                    onAction={handleCreate}
-                />
-                <FeatureGallery />
+                {/* One create surface per audience: the illustrated tour sells it to
+                    guests; a fresh account gets the actionable menu instead. */}
+                {isAuthenticated ? (
+                    <AccessMenu
+                        eyebrow={t('landing.access.authedEyebrow')}
+                        title={t('landing.access.authedTitle')}
+                        onAction={handleCreate}
+                    />
+                ) : (
+                    <FeatureGallery />
+                )}
                 <HowItWorksSection />
                 {adventuresEnabled && <TwoWaysToPlay />}
                 <ShowcaseWorlds sectionRef={showcaseRef} onTry={primaryCta} />
                 <ClosingCTA
                     onAction={primaryCta}
-                    actionLabel={adventuresEnabled ? undefined : t('landing.hero.authedSecondary')}
+                    actionLabel={adventuresEnabled ? undefined : characterLabel}
                 />
                 {archivedToast}
                 <LandingFooter onNavigate={setPage} />

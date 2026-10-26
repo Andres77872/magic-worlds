@@ -77,6 +77,23 @@ describe('LoginModal', () => {
         expect(screen.getByRole('button', { name: /create account/i })).toBeInTheDocument()
     })
 
+    it('opens on "Create account" when a sign-up CTA asks for it, and again on each reopening', () => {
+        const localI18n = i18n.cloneInstance({ lng: 'en' })
+        const ui = (isOpen: boolean, initialMode: 'login' | 'register') => (
+            <I18nextProvider i18n={localI18n}>
+                <LoginModal isOpen={isOpen} onClose={vi.fn()} initialMode={initialMode} />
+            </I18nextProvider>
+        )
+        const view = render(ui(true, 'register'))
+        expect(screen.getByRole('radio', { name: 'Create account' })).toHaveAttribute('aria-checked', 'true')
+        expect(screen.getByRole('heading', { name: 'Create your account' })).toBeInTheDocument()
+
+        fireEvent.click(screen.getByRole('radio', { name: 'Sign in' }))
+        view.rerender(ui(false, 'register'))
+        view.rerender(ui(true, 'register'))
+        expect(screen.getByRole('radio', { name: 'Create account' })).toHaveAttribute('aria-checked', 'true')
+    })
+
     it('blocks register and shows an inline error when passwords do not match', async () => {
         renderModal()
         fireEvent.click(screen.getByRole('radio', { name: 'Create account' }))

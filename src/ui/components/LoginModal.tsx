@@ -13,6 +13,7 @@ import { useId, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AlertTriangle, ArrowLeft, Eye, EyeOff, Loader2, Lock, LogIn, Mail, MailCheck, ShieldCheck, Sparkles, User, UserPlus } from 'lucide-react'
 import { useAuth } from '../../app/hooks'
+import type { LoginModalMode } from '../../app/providers/AuthProvider'
 import { apiService, ApiError } from '../../infrastructure/api'
 import { AttestationChecks } from '../../features/legal/attestation/AttestationChecks'
 import { useAttestation } from '../../features/legal/attestation/attestationContext'
@@ -23,9 +24,11 @@ import { Button, Callout, cx, Field, Icon, Input, Modal } from '../primitives'
 interface LoginModalProps {
     isOpen: boolean
     onClose: () => void
+    /** Side shown each time the modal opens (guests' "Create account" CTAs pass 'register'). */
+    initialMode?: AuthMode
 }
 
-type AuthMode = 'login' | 'register'
+type AuthMode = LoginModalMode
 
 /** Google "G" brand mark (lucide ships no brand glyphs). */
 function GoogleGlyph() {
@@ -39,12 +42,19 @@ function GoogleGlyph() {
     )
 }
 
-export function LoginModal({ isOpen, onClose }: LoginModalProps) {
+export function LoginModal({ isOpen, onClose, initialMode = 'login' }: LoginModalProps) {
     const { t } = useTranslation()
     const { login, register, loginWithGoogle, isLoading, error, clearError } = useAuth()
     const attestation = useAttestation()
     const attestationErrorId = useId()
-    const [mode, setMode] = useState<AuthMode>('login')
+    const [mode, setMode] = useState<AuthMode>(initialMode)
+    // Each opening starts on the side the caller asked for (adjusted during render,
+    // so the first painted frame is already the right form).
+    const [wasOpen, setWasOpen] = useState(isOpen)
+    if (wasOpen !== isOpen) {
+        setWasOpen(isOpen)
+        if (isOpen) setMode(initialMode)
+    }
     const [forgotOpen, setForgotOpen] = useState(false)
     const [showPassword, setShowPassword] = useState(false)
     const [credentials, setCredentials] = useState({ username: '', password: '' })

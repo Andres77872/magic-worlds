@@ -6,8 +6,8 @@
  */
 import { useTranslation } from 'react-i18next'
 import { Flame, Menu } from 'lucide-react'
-import { useBackgroundTasks, useNavigation } from '../../app/hooks'
-import { Icon, IconButton } from '../primitives'
+import { useAuth, useBackgroundTasks, useNavigation } from '../../app/hooks'
+import { Button, Icon, IconButton } from '../primitives'
 import { SidebarAccountMenu } from './SidebarAccountMenu'
 
 function scrollMainToTop() {
@@ -22,6 +22,7 @@ export function MobileTopBar({ onOpenNav }: MobileTopBarProps) {
     const { t } = useTranslation()
     const { setPage } = useNavigation()
     const { activeCount } = useBackgroundTasks()
+    const { isAuthenticated, openLoginModal } = useAuth()
 
     return (
         <div className="sticky top-0 z-40 flex h-14 shrink-0 items-center justify-between gap-2 border-b border-parchment-50/[.08] bg-ink-900/80 px-3 backdrop-blur-md lg:hidden">
@@ -50,7 +51,15 @@ export function MobileTopBar({ onOpenNav }: MobileTopBarProps) {
                 <span className="truncate">Magic Worlds</span>
             </button>
 
-            <SidebarAccountMenu placement="drop" />
+            <div className="flex shrink-0 items-center gap-1.5">
+                {/* Guests get a visible way in; the account menu keeps language and legal links. */}
+                {!isAuthenticated && (
+                    <Button variant="secondary" size="sm" onClick={() => openLoginModal('login')}>
+                        {t('guestGate.signIn')}
+                    </Button>
+                )}
+                <SidebarAccountMenu placement="drop" />
+            </div>
         </div>
     )
 }

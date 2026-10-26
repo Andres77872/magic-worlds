@@ -22,7 +22,7 @@ export function ImageProfilesPage({ systemAdmin = false }: { systemAdmin?: boole
         <PageHeader title={t(systemAdmin ? 'imageProfiles.rootTitle' : 'imageProfiles.title')}
             subtitle={t(systemAdmin && isAuthenticated ? 'imageProfiles.rootOnly' : 'imageProfiles.loginRequired')}
             icon={<IconTile icon={systemAdmin ? Crown : ImageIcon} tone="arcane" />} />
-        {!isAuthenticated && <div><Button onClick={openLoginModal}>{t('admin.common.logIn')}</Button></div>}
+        {!isAuthenticated && <div><Button onClick={() => openLoginModal()}>{t('admin.common.logIn')}</Button></div>}
     </div>
 
     return <ImageProfilesView state={state}

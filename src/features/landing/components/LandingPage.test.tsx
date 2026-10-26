@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import type { Adventure, Character, CharacterChatSession, Lorebook, Story, World } from '@/shared'
 import { apiService } from '@/infrastructure/api'
 import { LandingPage } from './LandingPage'
+import { rememberGuestIntent, takeGuestIntent } from '../guestIntent'
 import { createWorkspaceTestState, TEST_WORKSPACE_ID, testWorkspace, WorkspaceTestProvider } from '@/shared/hooks/testing/workspaceTestUtils'
 
 const setPage = vi.fn()
@@ -32,6 +33,8 @@ const setEditingLorebook = vi.fn()
 const deleteLorebook = vi.fn().mockResolvedValue(undefined)
 const loadData = vi.fn().mockResolvedValue(undefined)
 let authed = true
+let loginModalOpen = false
+const openLoginModal = vi.fn()
 
 // GalleryCard reaches usePlaylist through a deep import that bypasses the
 // barrel, so it needs its own mock alongside @/app/hooks.
@@ -101,7 +104,7 @@ let stories = STORIES
 let characters = CHARACTERS
 
 vi.mock('@/app/hooks', () => ({
-    useAuth: () => ({ isAuthenticated: authed, openLoginModal: vi.fn() }),
+    useAuth: () => ({ isAuthenticated: authed, isLoginModalOpen: loginModalOpen, openLoginModal }),
     useNavigation: () => ({ setPage }),
     useData: () => ({
         characters,
@@ -143,6 +146,8 @@ vi.mock('@/app/hooks', () => ({
 
 beforeEach(() => {
     authed = true
+    loginModalOpen = false
+    sessionStorage.clear()
     characters = CHARACTERS
     inProgressAdventures = IN_PROGRESS
     characterChats = CHATS
@@ -363,6 +368,62 @@ describe('LandingPage (guest)', () => {
         expect(screen.getByText('Worlds that talk back.')).toBeTruthy()
         expect(screen.queryByTestId('hero-scene')).toBeNull()
         expect(screen.queryByTestId('active-adventures')).toBeNull()
+    })
+
+    it('shows one create surface: the illustrated tour, not the duplicate create menu', () => {
+        authed = false
+        render(<LandingPage />)
+
+        expect(screen.getByText('Everything a story needs.')).toBeTruthy()
+        expect(screen.queryByText('Create your own cast and worlds')).toBeNull()
+    })
+
+    it('opens sign-up from the hero and remembers what the guest wanted to make', () => {
+        authed = false
+        render(<LandingPage />)
+
+        fireEvent.click(screen.getAllByRole('button', { name: 'Begin an adventure' })[0])
+
+        expect(openLoginModal).toHaveBeenCalledWith('register')
+        expect(setPage).not.toHaveBeenCalled()
+        expect(takeGuestIntent()).toBe('adventure')
+    })
+
+    it('leads with the character creator for guests when adventures are off', () => {
+        authed = false
+        setTestFeatureFlags({ adventures: false })
+        render(<LandingPage />)
+
+        fireEvent.click(screen.getAllByRole('button', { name: 'Create your first character' })[0])
+
+        expect(openLoginModal).toHaveBeenCalledWith('register')
+        expect(takeGuestIntent()).toBe('character')
+    })
+
+    it('offers returning visitors a plain sign-in path under the hero', () => {
+        authed = false
+        render(<LandingPage />)
+
+        fireEvent.click(within(screen.getByText('Already have an account?')).getByRole('button', { name: 'Sign in' }))
+
+        expect(openLoginModal).toHaveBeenCalledWith('login')
+    })
+
+    it('forgets the intent when the guest dismisses the login modal', () => {
+        authed = false
+        rememberGuestIntent('world')
+        render(<LandingPage />)
+
+        expect(takeGuestIntent()).toBeNull()
+    })
+
+    it('opens the remembered creator once the guest has signed up', () => {
+        rememberGuestIntent('character')
+        render(<LandingPage />)
+
+        expect(setEditingCharacter).toHaveBeenCalledWith(null)
+        expect(setPage).toHaveBeenCalledWith('character')
+        expect(takeGuestIntent()).toBeNull()
     })
 
     it('renders footer policy links and navigates through app state', () => {

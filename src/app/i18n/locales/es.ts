@@ -769,6 +769,10 @@ export const es = {
                 openNav: 'Abrir navegación',
                 closeNav: 'Cerrar navegación',
                 navDrawer: 'Menú de navegación',
+                guest: {
+                    title: 'Guarda tus historias',
+                    body: 'Crea una cuenta gratis para guardar tus personajes, chats y mundos.',
+                },
                 account: {
                     open: 'Menú de cuenta',
                     title: 'Cuenta',
@@ -2389,6 +2393,36 @@ export const es = {
                     back: 'Atrás',
                 },
             },
+            guestGate: {
+                signUp: 'Crear cuenta gratis',
+                signIn: 'Iniciar sesión',
+                explore: 'Volver a Explorar',
+                perks: {
+                    free: 'Gratis durante la vista previa',
+                    saved: 'Guardado en tu cuenta',
+                    anywhere: 'Continúa en cualquier dispositivo',
+                },
+                library: {
+                    title: 'Tu biblioteca vive aquí',
+                    body: 'Inicia sesión para guardar cada personaje, mundo, objeto e historia que crees en un solo lugar, ordenados en colecciones y listos para jugar.',
+                    imageAlt: 'Estanterías a la luz de las velas llenas de cartas ilustradas de personajes y mundos',
+                },
+                play: {
+                    title: 'Retoma donde lo dejaste',
+                    body: 'Inicia sesión para empezar chats y aventuras con cualquier personaje y volver a ellos cuando quieras. Ellos recuerdan.',
+                    imageAlt: 'Un libro de cuentos abierto con un mundo luminoso que surge de sus páginas junto a una vela',
+                },
+                media: {
+                    title: 'Cada retrato y tema, reunidos',
+                    body: 'Inicia sesión para guardar en una sola galería los retratos, escenas y temas musicales que generes para tus cartas.',
+                    imageAlt: 'Una pared a la luz de las velas con retratos y escenas enmarcados',
+                },
+                notifications: {
+                    title: 'Entérate cuando la magia esté lista',
+                    body: 'Inicia sesión para saber cuándo terminan los retratos, temas musicales y otras generaciones, además de novedades de créditos y de tu cuenta.',
+                    imageAlt: 'Un portador de farol siguiendo un sendero de marcas luminosas',
+                },
+            },
             legal: {
                 actions: {
                     explore: 'Explorar',
@@ -3370,6 +3404,7 @@ export const es = {
                     guestSecondary: 'Explorar mundos',
                     authedPrimary: 'Crea tu primera aventura',
                     authedSecondary: 'Nuevo personaje',
+                    guestCharacter: 'Crea tu primer personaje',
                     imageAlt: 'Una escena a la luz de las velas de una aventura de Magic Worlds.',
                 },
                 access: {

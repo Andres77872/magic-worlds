@@ -440,18 +440,19 @@ describe('GalleryPage', () => {
         expect(screen.queryByTestId('character-persona-section')).not.toBeInTheDocument()
     })
 
-    it('lets signed-out users open the owned gallery without fetching private cards', async () => {
+    it('invites signed-out users to sign up instead of showing an empty owned gallery', async () => {
         authed = false
 
         render(<GalleryPage type="character" />)
 
-        expect(await screen.findByText('No characters yet')).toBeInTheDocument()
+        expect(await screen.findByTestId('guest-gate')).toBeInTheDocument()
+        expect(screen.queryByText('No characters yet')).toBeNull()
         expect(apiService.getCharacters).not.toHaveBeenCalled()
         expect(openLoginModal).not.toHaveBeenCalled()
 
-        fireEvent.click(screen.getAllByRole('button', { name: 'New character' })[0])
+        fireEvent.click(screen.getByRole('button', { name: 'Create free account' }))
 
-        expect(openLoginModal).toHaveBeenCalledTimes(1)
+        expect(openLoginModal).toHaveBeenCalledWith('register')
         expect(setPage).not.toHaveBeenCalledWith('character')
     })
 

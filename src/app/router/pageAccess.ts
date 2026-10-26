@@ -71,3 +71,34 @@ export function pageNeedsWorkspace(page: PageType, isAuthenticated: boolean): bo
     if (!isAuthenticated) return false
     return PAGE_ACCESS[page] === 'private' || page === 'landing'
 }
+
+/**
+ * Which sign-in invitation a guest sees in place of a page that only lists their
+ * own content. Without it these pages had nothing to load and rendered endless
+ * skeletons, "nothing yet" empty states or 401 → "session expired" errors.
+ *
+ * Pages that already have a guest mode stay off this list: the creators (draft,
+ * then sign in to save), story (reauthentication gate), assistant, profile
+ * (email credit-claim links), billing, the model/image/voice settings, admin
+ * consoles, the card galleries (community view; gated in-page), and the session
+ * pages a guest can only reach through a link.
+ */
+export type GuestGateKind = 'library' | 'play' | 'media' | 'notifications'
+
+const GUEST_GATES: Readonly<Partial<Record<PageType, GuestGateKind>>> = {
+    library: 'library',
+    'gallery-lorebooks': 'library',
+    'gallery-resources': 'library',
+    'gallery-stories': 'library',
+    'gallery-media': 'media',
+    chatroom: 'play',
+    'active-adventures': 'play',
+    calls: 'play',
+    notifications: 'notifications',
+}
+
+/** The gate a signed-out viewer sees instead of `page`, or null when the page renders. */
+export function guestGateFor(page: PageType, isAuthenticated: boolean): GuestGateKind | null {
+    if (isAuthenticated) return null
+    return GUEST_GATES[page] ?? null
+}
