@@ -1,0 +1,12 @@
+Generated with the built-in image_gen tool for Magic Worlds maintenance mode.
+Production asset: maintenance.webp (1536 × 1024, WebP quality 85).
+
+Use case: stylized-concept
+Asset type: production hero artwork for the Magic Worlds app maintenance landing page, a literary fantasy roleplay app with the Reverie design system.
+Primary request: A quiet, candlelit enchanted library temporarily resting between stories. A beautifully worn closed leather-bound storybook with a slender gold ribbon bookmark sits on an antique walnut reading desk, beside one lit brass candleholder. Behind it, a tall arched doorway to the library is closed, with a very fine warm light around its edges, suggesting the stories will return. Deep shelves of old books fade into darkness.
+Style/medium: sophisticated cinematic fantasy book-cover painting, realistic materials with delicate painterly texture, understated magical atmosphere, not cartoon or game UI. No characters.
+Composition/framing: landscape 3:2, approximately 1536 by 1024. Strong quiet central composition, the closed book and candle in the lower-middle foreground, arched door centered behind them, clear visual storytelling at small sizes. Leave breathing room around the subjects; every edge fades naturally into deep aubergine ink darkness to integrate into a dark website. This is standalone art in the right half of a page, not a whole page mockup.
+Lighting/mood: warm amber candlelight is the hero accent, rich parchment highlights on book edges, restrained violet in the deepest shadows, a few subtle dust motes. Calm, welcoming, mysterious, hopeful; not ominous, abandoned or ruined.
+Color palette: deep ink aubergine #14111c and #0e0c14, warm ember gold #e8a24a, parchment #f6efe2. Violet only a whisper.
+Materials/textures: tactile dark leather, aged gilded edges, brass, walnut, fine bookbinding details.
+Constraints: no text, no letters, no typography, no logos, no watermark, no UI, no people, no construction tools, no caution tape, no bright neon, no excessive sparks.
