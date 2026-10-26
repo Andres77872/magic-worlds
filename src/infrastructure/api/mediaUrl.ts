@@ -3,8 +3,6 @@ import { API_BASE_URL } from './baseUrl'
 const PROTECTED_MEDIA_PATH_PREFIXES = [
     '/images/assets/',
     '/theme-songs/assets/',
-    '/generated-images/',
-    '/generated-audio/',
     '/tts/assets/',
     '/user/me/avatar/',
     // Voice audio (D10, D18): catalog samples and recipe-preview renders are
