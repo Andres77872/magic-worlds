@@ -13,7 +13,9 @@
  * the i18n layer itself, and the fallback must render regardless.
  */
 import { Component, type ErrorInfo, type ReactNode } from 'react'
-import { Button } from '@/ui/primitives'
+// The bootstrap boundary also serves maintenance mode. Keep its dependency
+// graph independent of the API/auth modules re-exported by the UI barrel.
+import { Button } from '@/ui/primitives/Button'
 
 interface ErrorBoundaryProps {
     children: ReactNode

@@ -1,8 +1,7 @@
 import {StrictMode} from 'react'
 import {createRoot} from 'react-dom/client'
-import './app/i18n'
 import './ui/styles/theme.css'
-import App from './app/App.tsx'
+import { AppEntry } from './app/AppEntry'
 import { consumeAuthDeepLink } from './app/bootstrap/authDeepLink'
 
 // Turn a provider email link (/auth/password/reset?token=… or
@@ -12,6 +11,6 @@ consumeAuthDeepLink()
 
 createRoot(document.getElementById('root')!).render(
     <StrictMode>
-        <App />
+        <AppEntry />
     </StrictMode>,
 )

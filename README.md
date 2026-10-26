@@ -109,6 +109,44 @@ Two browser-auth deployments are supported:
   and `Secure=true`, and list the exact SPA origin in every credentialed CORS
   allow-list. Wildcard origins are invalid with credentials.
 
+### Maintenance page
+
+Set `VITE_MAINTENANCE_MODE=true` to replace the entire app with a standalone,
+Reverie-styled maintenance page. Only the exact string `true` enables it;
+`false` or an unset variable opens the normal app. The default in `.env.example`
+is `false`.
+
+```bash
+# Local preview (or set the variable in .env and restart pnpm dev)
+VITE_MAINTENANCE_MODE=true pnpm dev
+
+# Production maintenance build
+VITE_MAINTENANCE_MODE=true pnpm build
+```
+
+For Cloudflare Pages, set the variable in the target deployment environment and
+trigger a new build/deployment. To reopen the app, set it to `false` and rebuild
+and deploy again. Vite embeds the value at **build time**; changing a server
+variable after a build does not change the published JavaScript.
+
+The entry point chooses maintenance before loading `App`, its providers, or its
+API clients, so the screen makes no authentication, workspace, health-check,
+background-task, or WebSocket requests. It bundles English and Spanish, uses the
+saved/browser language, and saves language changes locally without account sync.
+The retry button reloads the current URL. Auth email/callback links are still
+sanitized and retained in session storage before mounting, but are not exchanged
+while maintenance is enabled. Expired single-use links may need to be requested
+again after reopening.
+
+This is a frontend deployment gate: it does not stop the backend, change HTTP
+responses to 503, or interrupt already-open tabs or previously pinned offline
+app copies. Enforce service-wide downtime at the API/hosting layer when needed.
+The existing offline-copy update flow remains in control of those pinned builds.
+
+Preview both languages in Storybook under `Landing/MaintenancePage`. The generated
+artwork is `src/assets/marketing/maintenance.webp`; its generation prompt is saved
+alongside it in `maintenance.prompt.txt`.
+
 ### Scripts
 
 | Command | Description |

@@ -28,21 +28,24 @@ describe('resolveMediaUrl', () => {
     })
 
     it('normalizes absolute protected media URLs back through the configured API base', () => {
-        const out = resolveMediaUrl('http://127.0.0.1:8010/generated-images/u/j/0.jpeg')
+        const out = resolveMediaUrl('http://127.0.0.1:8010/images/assets/asset-1')
         expect(out).toBeDefined()
-        expect(out!.endsWith('/generated-images/u/j/0.jpeg')).toBe(true)
+        expect(out!.endsWith('/images/assets/asset-1')).toBe(true)
         expect(out).not.toContain('127.0.0.1:8010')
     })
 })
 
 describe('isProtectedMediaUrl', () => {
-    it('recognizes owned media routes and legacy generated media routes', () => {
+    it('recognizes owned media routes', () => {
         expect(isProtectedMediaUrl('/images/assets/asset-1')).toBe(true)
         expect(isProtectedMediaUrl('/theme-songs/assets/song-1.mp3')).toBe(true)
-        expect(isProtectedMediaUrl('/generated-images/2026/06/job/asset.png')).toBe(true)
-        expect(isProtectedMediaUrl('/generated-audio/2026/06/job/asset.mp3')).toBe(true)
         expect(isProtectedMediaUrl('/tts/assets/asset-1.mp3')).toBe(true)
-        expect(isProtectedMediaUrl('http://127.0.0.1:8010/generated-images/2026/06/job/asset.png')).toBe(true)
+        expect(isProtectedMediaUrl('http://127.0.0.1:8010/images/assets/asset-1')).toBe(true)
+    })
+
+    it('no longer treats the removed generated-media routes as protected', () => {
+        expect(isProtectedMediaUrl('/generated-images/2026/06/job/asset.png')).toBe(false)
+        expect(isProtectedMediaUrl('/generated-audio/2026/06/job/asset.mp3')).toBe(false)
     })
 
     it('does not treat external or browser-local URLs as protected backend media', () => {
