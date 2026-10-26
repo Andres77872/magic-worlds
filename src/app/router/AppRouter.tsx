@@ -32,7 +32,7 @@ import {
 } from '../../features/workspaces/components/WorkspaceNotices'
 import { StoryReauthenticationGate } from './StoryReauthenticationGate'
 import { LinkedEditorGate } from './LinkedEditorGate'
-import { pageNeedsWorkspace } from './pageAccess'
+import { guestGateFor, pageNeedsWorkspace } from './pageAccess'
 import {
     WorkspaceStaleDialog,
     WorkspaceStaleNotice,
@@ -82,6 +82,7 @@ const AdminAgentsPage = lazy(() => import('../../features/admin/agents/component
 const AdminCreditCodesPage = lazy(() => import('../../features/admin/creditCodes/components/AdminCreditCodesPage').then(m => ({ default: m.AdminCreditCodesPage })))
 const AdminMembershipPage = lazy(() => import('../../features/admin/membership/components/AdminMembershipPage').then(m => ({ default: m.AdminMembershipPage })))
 const NotFoundPage = lazy(() => import('../../features/errorPages/components/NotFoundPage').then(m => ({ default: m.NotFoundPage })))
+const GuestGateRoute = lazy(() => import('./GuestGateRoute').then(m => ({ default: m.GuestGateRoute })))
 
 export function AppRouter() {
     useFeatureFlags()
@@ -89,6 +90,7 @@ export function AppRouter() {
     const { loadingState } = useData()
     const {
         isLoginModalOpen,
+        loginModalMode,
         closeLoginModal,
         openLoginModal,
         continueSignedOut,
@@ -108,6 +110,8 @@ export function AppRouter() {
     // Workspace R1 (document 08): private pages wait for the handshake and show
     // explicit unavailable/stale states; public and account pages never wait.
     const needsWorkspace = pageEnabled && pageNeedsWorkspace(currentPage, isAuthenticated)
+    // Signed-out visitors get a sign-in invitation instead of pages that only list their own content.
+    const guestGate = pageEnabled ? guestGateFor(currentPage, isAuthenticated) : null
     // Verification consumes a single-use token and then signs out. Keep its result
     // mounted through that auth transition instead of reopening a tokenless page.
     // A committed workspace switch remounts private pages: no state crosses workspaces.
@@ -197,6 +201,8 @@ export function AppRouter() {
                         <Suspense fallback={<div className="flex min-h-full flex-1 items-center justify-center"><LoadingSpinner /></div>}>
                             {!pageEnabled ? (
                                 <FeatureAccessGate />
+                            ) : guestGate ? (
+                                <GuestGateRoute page={currentPage} kind={guestGate} />
                             ) : (
                                 <>
                                     {currentPage === 'landing' && <LandingPage />}
@@ -287,6 +293,7 @@ export function AppRouter() {
             <LoginModal
                 isOpen={isLoginModalOpen}
                 onClose={closeLoginModal}
+                initialMode={loginModalMode}
             />
             <AppWarningModal />
             <WorkspaceStaleDialog

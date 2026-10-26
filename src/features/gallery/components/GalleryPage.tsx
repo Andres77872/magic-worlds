@@ -34,6 +34,7 @@ import { cardGridDensity, cardGridLayout, galleryCardView } from '../galleryView
 import { GalleryViewToggle } from './GalleryViewToggle'
 import { useCardImport, useGalleryCardPreview } from '../hooks/useCardImport'
 import { CardImportOverlays } from './CardImportOverlays'
+import { GuestGate } from '@/features/auth/GuestGate'
 
 export interface GalleryPageProps {
     type: GalleryType
@@ -80,7 +81,7 @@ export function GalleryPage({ type }: GalleryPageProps) {
     const groupChatsEnabled = isGroupChatsFeatureEnabled()
     const isPublicView = communityCardsEnabled && viewMode === 'public'
     const { setPage } = useNavigation()
-    const { isAuthenticated } = useAuth()
+    const { isAuthenticated, openLoginModal } = useAuth()
     const gallery = useCardGallery(activeConfig, undefined, {
         enabled: isPublicView || (isAuthenticated && api !== null),
         resetKey: isPublicView ? 'public' : `${workspaceEpoch}`,
@@ -357,6 +358,24 @@ export function GalleryPage({ type }: GalleryPageProps) {
             {displayConfig.createLabel}
         </Button>
     )
+
+    // Guests have no cards of their own to list; the community view stays open to them.
+    if (!isAuthenticated && !isPublicView) {
+        return (
+            <GuestGate
+                kind="library"
+                eyebrow={displayConfig.title}
+                onSignUp={() => openLoginModal('register')}
+                onSignIn={() => openLoginModal('login')}
+                onExplore={() => setPage('landing')}
+                extraAction={communityCardsEnabled ? (
+                    <Button variant="ghost" size="sm" iconLeft={<Icon icon={Globe2} size={15} />} onClick={() => switchViewMode('public')}>
+                        {t('gallery.publicCards')}
+                    </Button>
+                ) : undefined}
+            />
+        )
+    }
 
     return (
         <div className="mx-auto flex w-full max-w-[1160px] flex-col gap-6 px-5 py-8 sm:px-8 sm:py-10">

@@ -759,6 +759,10 @@ export const en = {
                 openNav: 'Open navigation',
                 closeNav: 'Close navigation',
                 navDrawer: 'Navigation menu',
+                guest: {
+                    title: 'Keep your stories',
+                    body: 'Create a free account to save your characters, chats and worlds.',
+                },
                 account: {
                     open: 'Account menu',
                     title: 'Account',
@@ -2379,6 +2383,36 @@ export const en = {
                     back: 'Go back',
                 },
             },
+            guestGate: {
+                signUp: 'Create free account',
+                signIn: 'Sign in',
+                explore: 'Back to Explore',
+                perks: {
+                    free: 'Free while in preview',
+                    saved: 'Saved to your account',
+                    anywhere: 'Continue on any device',
+                },
+                library: {
+                    title: 'Your library lives here',
+                    body: 'Sign in to keep every character, world, item and story you make in one place — sorted into collections and ready to play.',
+                    imageAlt: 'Candlelit shelves lined with illustrated character and world cards',
+                },
+                play: {
+                    title: 'Pick up where you left off',
+                    body: 'Sign in to start chats and adventures with any character, then come back to them whenever you like. They remember.',
+                    imageAlt: 'An open storybook with a glowing world rising from its pages beside a candle',
+                },
+                media: {
+                    title: 'Every portrait and theme, collected',
+                    body: 'Sign in to keep the portraits, scenes and theme songs you generate for your cards in one gallery.',
+                    imageAlt: 'A candlelit wall of framed portraits and scenes',
+                },
+                notifications: {
+                    title: 'Know when the magic is ready',
+                    body: 'Sign in to hear when portraits, theme songs and other generations finish, along with credit and account updates.',
+                    imageAlt: 'A lantern-bearer following a trail of glowing checkmarks',
+                },
+            },
             legal: {
                 actions: {
                     explore: 'Explore',
@@ -3360,6 +3394,7 @@ export const en = {
                     guestSecondary: 'Explore worlds',
                     authedPrimary: 'Create your first adventure',
                     authedSecondary: 'New character',
+                    guestCharacter: 'Create your first character',
                     imageAlt: 'A candlelit scene from a Magic Worlds adventure.',
                 },
                 access: {

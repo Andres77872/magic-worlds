@@ -172,7 +172,8 @@ export function useLibraryCards(api: ApiService | null, workspaceId: string | nu
     return {
         items,
         total,
-        loading: owned ? state.loading : Boolean(key),
+        // No workspace means nothing will ever be fetched: never report an endless load.
+        loading: key !== null && (owned ? state.loading : true),
         loadingMore: owned && state.loadingMore,
         error: owned && state.error,
         hasMore,

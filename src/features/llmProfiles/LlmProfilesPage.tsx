@@ -23,7 +23,7 @@ export function LlmProfilesPage({ systemAdmin = false }: { systemAdmin?: boolean
         <PageHeader title={t(systemAdmin ? 'llmProfiles.rootTitle' : 'llmProfiles.title')}
             subtitle={t(systemAdmin && isAuthenticated ? 'llmProfiles.rootOnly' : 'llmProfiles.loginRequired')}
             icon={<IconTile icon={systemAdmin ? Crown : Bot} tone="arcane" />} />
-        {!isAuthenticated && <div><Button onClick={openLoginModal}>{t('admin.common.logIn')}</Button></div>}
+        {!isAuthenticated && <div><Button onClick={() => openLoginModal()}>{t('admin.common.logIn')}</Button></div>}
     </div>
 
     return <LlmProfilesConsoleView state={state}

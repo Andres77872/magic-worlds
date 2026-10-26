@@ -174,6 +174,23 @@ describe('Sidebar API status', () => {
         expect(within(dialog).getByText('All dependencies online')).toBeInTheDocument()
     })
 
+    it('shows guests a sign-up invitation instead of the account-only groups', async () => {
+        const openLoginModal = vi.fn()
+        renderSidebar({ ...baseAuth, openLoginModal })
+
+        expect(await screen.findByRole('button', { name: 'Library' })).toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: 'Chatroom' })).not.toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: 'Notifications' })).not.toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: 'Media' })).not.toBeInTheDocument()
+        expect(document.querySelector('#sidebar-group-activity')).toBeNull()
+
+        const prompt = screen.getByTestId('sidebar-guest-prompt')
+        fireEvent.click(within(prompt).getByRole('button', { name: 'Create free account' }))
+        expect(openLoginModal).toHaveBeenLastCalledWith('register')
+        fireEvent.click(within(prompt).getByRole('button', { name: 'Sign in' }))
+        expect(openLoginModal).toHaveBeenLastCalledWith('login')
+    })
+
     it('shows API status + nav inline while signed in, with account utilities in the menu', async () => {
         renderSidebar({ ...baseAuth, isAuthenticated: true, user: mockUser })
 

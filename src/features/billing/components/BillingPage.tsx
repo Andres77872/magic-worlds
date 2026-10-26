@@ -126,7 +126,7 @@ export function BillingPage() {
                 <Card className="flex flex-col items-start gap-3 p-6">
                     <h1 className="font-display text-h2 font-semibold text-parchment-50">{t('billing.title')}</h1>
                     <p className="font-ui text-[14px] text-parchment-300">{t('billing.signedOutBody')}</p>
-                    <Button variant="primary" size="sm" onClick={openLoginModal}>{t('billing.signIn')}</Button>
+                    <Button variant="primary" size="sm" onClick={() => openLoginModal()}>{t('billing.signIn')}</Button>
                 </Card>
             </div>
         )

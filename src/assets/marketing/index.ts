@@ -26,6 +26,12 @@ import sorenImg from './showcase/soren.webp'
 import miraImg from './showcase/mira.webp'
 import vexImg from './showcase/vex.webp'
 import wrenImg from './showcase/wren.webp'
+import lyraThumb from './showcase/thumbs/lyra.webp'
+import kaelThumb from './showcase/thumbs/kael.webp'
+import sorenThumb from './showcase/thumbs/soren.webp'
+import miraThumb from './showcase/thumbs/mira.webp'
+import vexThumb from './showcase/thumbs/vex.webp'
+import wrenThumb from './showcase/thumbs/wren.webp'
 
 import docsHeroImg from './docs/hero.webp'
 import docsMapImg from './docs/map.webp'
@@ -77,6 +83,19 @@ export const showcaseArt: Record<string, string> = {
     mira: miraImg,
     vex: vexImg,
     wren: wrenImg,
+}
+
+/**
+ * 96×96 face crops of the showcase portraits (~1–2 KB each) for avatar-sized
+ * spots above the fold, so the hero never pulls the full portraits early.
+ */
+export const showcaseThumbArt: Record<string, string> = {
+    lyra: lyraThumb,
+    kael: kaelThumb,
+    soren: sorenThumb,
+    mira: miraThumb,
+    vex: vexThumb,
+    wren: wrenThumb,
 }
 
 /** Docs page hero banner (its own art, not the landing hero). */

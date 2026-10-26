@@ -30,13 +30,14 @@ import {
     MessagesSquare,
     Phone,
     Sparkles,
+    UserPlus,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { PageType } from '../../shared'
 import { isPageFeatureEnabled } from '../../shared/featureFlags'
 import { useNavigation, useAuth, useBackgroundTasks, useApiStatus } from '../../app/hooks'
 import { WorkspaceSwitcher } from '../../features/workspaces/components/WorkspaceSwitcher'
-import { Eyebrow, Icon, Tooltip, cx } from '../primitives'
+import { Button, Eyebrow, Icon, Tooltip, cx } from '../primitives'
 import { ApiStatusMonitor } from './ApiStatusMonitor'
 import { SidebarAccountMenu } from './SidebarAccountMenu'
 
@@ -64,6 +65,7 @@ const NAV_PRIMARY: RailItem[] = [
 
 // Collapsible sections. The library items open the full galleries; the creators
 // stay reachable from the dashboard AccessMenu and each gallery's "New …" button.
+// Guests don't see them: every entry lists the visitor's own activity or assets.
 const NAV_GROUPS: NavGroup[] = [
     {
         id: 'activity',
@@ -213,6 +215,64 @@ function NavItemButton({
     )
 }
 
+/**
+ * Guest invitation in place of the account-only groups: a small card on the
+ * labelled rail/panel, a single "create account" icon button on the icon rail.
+ */
+function GuestNavPrompt({
+    collapsed,
+    panel,
+    tooltipOnDesktop,
+    onNavigate,
+}: {
+    collapsed: boolean
+    panel: boolean
+    tooltipOnDesktop: boolean
+    onNavigate?: () => void
+}) {
+    const { t } = useTranslation()
+    const { openLoginModal } = useAuth()
+    const open = (mode: 'login' | 'register') => {
+        openLoginModal(mode)
+        onNavigate?.()
+    }
+    return (
+        <>
+            {(panel || !collapsed) && (
+                <div
+                    data-testid="sidebar-guest-prompt"
+                    className={cx(
+                        'mt-3 w-full flex-col gap-2 rounded-lg border border-ember-500/20 bg-ember-500/[.06] p-3',
+                        panel ? 'flex' : 'hidden lg:flex',
+                    )}
+                >
+                    <p className="m-0 font-display text-[17px] font-semibold leading-tight text-parchment-50">
+                        {t('sidebar.guest.title')}
+                    </p>
+                    <p className="m-0 font-ui text-caption leading-snug text-parchment-300">{t('sidebar.guest.body')}</p>
+                    <Button variant="primary" size="sm" full iconLeft={<Icon icon={UserPlus} size={15} />} onClick={() => open('register')}>
+                        {t('guestGate.signUp')}
+                    </Button>
+                    <Button variant="ghost" size="sm" full onClick={() => open('login')}>
+                        {t('guestGate.signIn')}
+                    </Button>
+                </div>
+            )}
+            {!panel && (
+                <Tooltip
+                    label={t('guestGate.signUp')}
+                    disabled={!tooltipOnDesktop}
+                    wrapperClassName={cx('mt-1 flex h-10 w-full items-center justify-center', !collapsed && 'lg:hidden')}
+                >
+                    <RailButton label={t('guestGate.signUp')} active collapsed={collapsed} onClick={() => open('register')}>
+                        <Icon icon={UserPlus} size={20} />
+                    </RailButton>
+                </Tooltip>
+            )}
+        </>
+    )
+}
+
 export interface SidebarShellProps {
     /** Responsive rail (`rail`) or the always-expanded mobile drawer (`panel`). */
     variant?: 'rail' | 'panel'
@@ -357,7 +417,16 @@ export function SidebarShell({
                     />
                 ))}
 
-                {NAV_GROUPS.map((group) => {
+                {!isAuthenticated && (
+                    <GuestNavPrompt
+                        collapsed={collapsed}
+                        panel={panel}
+                        tooltipOnDesktop={tooltipOnDesktop}
+                        onNavigate={onNavigate}
+                    />
+                )}
+
+                {(isAuthenticated ? NAV_GROUPS : []).map((group) => {
                     const items = group.items.filter(isItemVisible)
                     if (items.length === 0) return null
                     const groupCollapsed = Boolean(collapsedGroups[group.id])

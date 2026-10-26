@@ -3,8 +3,12 @@
 One route, two experiences, picked in `LandingPage.tsx` by auth + content:
 
 - **Guest / empty account** — the marketing front door: `LandingHero` (+ `HeroPreviewCard`),
-  `AccessMenu` (large create cards), `HowItWorksSection`, `TwoWaysToPlay`, `ShowcaseWorlds`,
-  `ClosingCTA`. Copy and sample data live in `landingContent.ts`.
+  then one create surface per audience — `FeatureGallery` (illustrated tour) for guests,
+  `AccessMenu` (actionable create cards) for a fresh account — `HowItWorksSection`,
+  `TwoWaysToPlay`, `ShowcaseWorlds`, `ClosingCTA`. Copy and sample data live in `landingContent.ts`.
+  A guest's create click opens sign-up and remembers the action (`../guestIntent.ts`), so the
+  new account lands in that creator. Guests also get a plain "already have an account?" link
+  under the hero CTAs.
 - **Returning user** — a zoned dashboard ordered by intent (resume → start new → manage → create),
   each zone visually distinct per the Reverie zone grammar.
 

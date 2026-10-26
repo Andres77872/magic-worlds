@@ -8,6 +8,9 @@ import { apiService } from '../../infrastructure'
 import { authSession, type AuthSessionPhase } from '../../infrastructure/api/authSession'
 import { i18n } from '@/app/i18n'
 
+/** Which side of the login modal opens first. */
+export type LoginModalMode = 'login' | 'register'
+
 interface AuthContextValue extends AuthState {
     sessionPhase: AuthSessionPhase
     authEpoch: number
@@ -25,7 +28,10 @@ interface AuthContextValue extends AuthState {
     updateUser: (patch: Partial<User>) => void
     clearError: () => void
     isLoginModalOpen: boolean
-    openLoginModal: () => void
+    /** Optional only so test doubles can omit it; the provider always sets it. */
+    loginModalMode?: LoginModalMode
+    /** Opens the login modal; `'register'` lands guests on "Create account". */
+    openLoginModal: (mode?: LoginModalMode) => void
     closeLoginModal: () => void
 }
 
@@ -53,6 +59,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const [isLoading, setIsLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
+    const [loginModalMode, setLoginModalMode] = useState<LoginModalMode>('login')
     const [sessionPhase, setSessionPhase] = useState<AuthSessionPhase>(initialSession.sessionPhase)
     const [authEpoch, setAuthEpoch] = useState(initialSession.authEpoch)
     const [accountKey, setAccountKey] = useState(initialSession.accountKey)
@@ -100,6 +107,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             clearAuthState()
             localStorage.removeItem(USER_STORAGE_KEY)
             setError(i18n.t('auth.errors.sessionExpired'))
+            setLoginModalMode('login')
             setIsLoginModalOpen(true)
         }
 
@@ -343,7 +351,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setError(null)
     }, [])
 
-    const openLoginModal = useCallback(() => {
+    const openLoginModal = useCallback((mode?: LoginModalMode) => {
+        // Narrowed at runtime too: callers sometimes pass this straight to onClick.
+        setLoginModalMode(mode === 'register' ? 'register' : 'login')
         setIsLoginModalOpen(true)
     }, [])
 
@@ -366,6 +376,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         accountKey,
         userHash,
         isLoginModalOpen,
+        loginModalMode,
         login,
         register,
         loginWithGoogle,
@@ -388,6 +399,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         accountKey,
         userHash,
         isLoginModalOpen,
+        loginModalMode,
         login,
         register,
         loginWithGoogle,

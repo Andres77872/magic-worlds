@@ -9,7 +9,8 @@ import type { ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import { Brain } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Avatar, Badge, Button, Eyebrow, GlowBackdrop, Icon, Illustration } from '@/ui/primitives'
+import { showcaseThumbArt } from '@/assets/marketing'
+import { Avatar, Badge, Button, Eyebrow, GlowBackdrop, Icon, Illustration, cx } from '@/ui/primitives'
 import { HeroPreviewCard } from './HeroPreviewCard'
 import { SHOWCASE_WORLDS } from './landingContent'
 
@@ -30,9 +31,11 @@ export interface LandingHeroProps {
     stat?: ReactNode
     /** Candlelit marketing art for the right column (guest front-door). */
     heroImage?: { src: string; alt: string }
+    /** Guests only: the quiet "already have an account?" path under the CTAs. */
+    signIn?: { prompt: string; action: string; onClick: () => void }
 }
 
-export function LandingHero({ eyebrow, title, subtitle, primary, secondary, stat, heroImage }: LandingHeroProps) {
+export function LandingHero({ eyebrow, title, subtitle, primary, secondary, stat, heroImage, signIn }: LandingHeroProps) {
     const { t } = useTranslation()
     const lead = SHOWCASE_WORLDS[0]
     return (
@@ -90,17 +93,35 @@ export function LandingHero({ eyebrow, title, subtitle, primary, secondary, stat
                         )}
                     </div>
 
+                    {signIn && (
+                        <p className="mb-0 mt-4 font-ui text-[13.5px] text-parchment-400">
+                            {signIn.prompt}{' '}
+                            <button
+                                type="button"
+                                onClick={signIn.onClick}
+                                className="font-semibold text-ember-400 transition-colors hover:text-ember-300"
+                            >
+                                {signIn.action}
+                            </button>
+                        </p>
+                    )}
+
                     {stat && (
                         <div className="mt-[34px] flex items-center gap-3.5">
-                            <div className="flex">
+                            {/* The showcase cast's faces (tiny crops, not the full portraits). */}
+                            <div className="flex" aria-hidden>
                                 {SHOWCASE_WORLDS.slice(0, 5).map((world, i) => (
-                                    <Avatar
+                                    <img
                                         key={world.id}
-                                        name={world.name}
-                                        initial={world.initial}
-                                        gradient={world.portrait}
-                                        size={36}
-                                        className={i > 0 ? '-ml-[11px] border-2 border-ink-800' : 'border-2 border-ink-800'}
+                                        src={showcaseThumbArt[world.id]}
+                                        alt=""
+                                        width={36}
+                                        height={36}
+                                        decoding="async"
+                                        className={cx(
+                                            'h-9 w-9 rounded-full border-2 border-ink-800 object-cover',
+                                            i > 0 && '-ml-[11px]',
+                                        )}
                                     />
                                 ))}
                             </div>
