@@ -1,8 +1,8 @@
 # Interactive AI text streaming
 
-**Source/lifecycle review: 2026-10-15.** implemented transport, deployed acceptance **WIP/TBD**. `VITE_FEATURE_TEXT_STREAMING_ENABLED` defaults on; only the exact string `false` selects synchronous card/story generation. Story/adventure/group/lorebook/app surfaces keep their own gates and are WIP when disabled. See [feature status](FEATURE_STATUS.md) and **STREAM-01** and REL-01 in [roadmap](ROADMAP.md).
+**Source/lifecycle review: 2026-10-15.** implemented transport, deployed acceptance **WIP/TBD**. There is no frontend streaming switch since SPA `692e56bb` (2026-10-18): card and story generation stream when the caller passes `onEvent` and use the synchronous endpoint otherwise. Story/adventure/group/lorebook/app surfaces keep their own plan grants and are WIP where a plan does not grant them. See [feature status](FEATURE_STATUS.md) and **STREAM-01** and REL-01 in [roadmap](ROADMAP.md).
 
-Migration commands and test counts below describe the original streaming rollout. Current BFF source expects the revision named by `CONTENT_SCHEMA_REVISION` in the BFF bootstrap (owned by the active Fish/voice execution; not asserted here); the older `2026_09_text_streaming` revision is a historical step, not the current target. Inspect the actual schema/migration chain before applying it. The planner-tool stream regression was fixed in BFF `2c2973d`, with a later passing smoke on the test deployment recorded in the [current voice ledger](voice_refactor/00_current_status_and_roadmap.md); that bounded evidence does not qualify every graph/provider path.
+Migration commands and test counts below describe the original streaming rollout. Current BFF source expects the revision named by `CONTENT_SCHEMA_REVISION` in the BFF bootstrap (`2026_10_db_refactor` at the 2026-10-26 docs cleanup; a running database is not asserted here); the older `2026_09_text_streaming` revision is a historical step, not the current target. Inspect the actual schema/migration chain before applying it. The planner-tool stream regression was fixed in BFF `2c2973d`, with a later passing smoke on the test deployment recorded in the [current voice ledger](voice_refactor/00_current_status_and_roadmap.md); that bounded evidence does not qualify every graph/provider path.
 
 Implemented across `magic-worlds`, `magic-worlds-api`, and `api.magic_llm`.
 Media generation, extraction, and other background jobs retain their existing job lifecycle.
@@ -85,10 +85,11 @@ For the current release, inventory the exact client/BFF/upstream revisions, veri
    nullable `story_generation.request_id` column and advances the content schema
    revision to `2026_09_text_streaming`. Existing generation records remain readable.
 3. Deploy the BFF streaming routes and services.
-4. Build/deploy the client with `VITE_FEATURE_TEXT_STREAMING_ENABLED=true` (the
-   default). Set it to `false` when building a client against an older BFF. This
-   selects synchronous Story Studio/card endpoints before generation starts;
-   there is no automatic second-request fallback. Existing chat/assistant streaming
+4. Historical: the client was built with `VITE_FEATURE_TEXT_STREAMING_ENABLED=true`
+   (the default), or `false` against an older BFF. That switch was removed on
+   2026-10-18, and the migration in step 2 was removed from the BFF in `c056d82`;
+   current clients choose the transport per call and there is no automatic
+   second-request fallback. Existing chat/assistant streaming
    remains enabled independently.
 
 </details>

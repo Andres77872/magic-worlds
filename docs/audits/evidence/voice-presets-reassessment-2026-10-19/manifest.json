@@ -1,0 +1,20 @@
+{
+  "captured_at_utc": "2026-10-19T15:42:30.702210+00:00",
+  "files": [
+    {
+      "path": "/home/andres/WebstormProjects/magic-worlds/docs/audits/voice-presets-remediation-plan-2026-10-19.md",
+      "bytes": 35443,
+      "sha256": "ef42e4818beb626c16b006aaff9d602ce370479799f042ae79fff63d0cdc5790"
+    },
+    {
+      "path": "/home/andres/WebstormProjects/magic-worlds/docs/audits/evidence/voice-presets-reassessment-2026-10-19/database-readonly.json",
+      "bytes": 4120,
+      "sha256": "ce7558fdd0546253d39e352664e3fb733d9440f983b84c20c2efe27ac0693e40"
+    },
+    {
+      "path": "/home/andres/WebstormProjects/magic-worlds/docs/audits/evidence/voice-presets-reassessment-2026-10-19/reassessment.json",
+      "bytes": 12829,
+      "sha256": "9559758eba4d9936a1eddf35be16cfbb1c98dc9341e76079d70ee89dc89db8b3"
+    }
+  ]
+}

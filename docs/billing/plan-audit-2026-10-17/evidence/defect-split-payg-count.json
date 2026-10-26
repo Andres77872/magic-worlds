@@ -1,0 +1,12 @@
+{
+  "daily_requests": 1,
+  "consumer_monthly_requests": 2,
+  "root_monthly_requests": 2,
+  "credits_charged": 5,
+  "wallet": {
+    "balance": 0,
+    "free_balance": 0,
+    "billed_balance": 0
+  },
+  "expected_requests": 1
+}

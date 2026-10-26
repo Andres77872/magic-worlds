@@ -290,7 +290,7 @@ Archive removes a unit from the active manuscript but preserves it for restorati
 Keep tombstones or equivalent reference metadata so links and jobs resolve safely. Restoring a scene with a deleted parent chooses a valid destination. Pending AI jobs/proposals cannot resurrect an erased scene. Workspace archive restrictions continue to apply to all domain commits.
 
 The BFF uses recoverable novel/unit lifecycle operations; unguarded novel/chapter
-DELETE routes have been removed. [ADR 19](19_novel_erasure_and_retention.md)
+DELETE routes have been removed. [ADR 19](../../../../PycharmProjects/magic-worlds-api/docs/api_usage/stories.md#explicit-permanent-novel-erasure)
 defines the installed root-novel erase flow; its installation status belongs to
 [14](14_status_and_roadmap.md#d2-deliberate-novel-erasure--2026-10-16).
 
@@ -463,7 +463,7 @@ does not close full offline or retention policy.
 
 ## Studio index loading and draft ownership
 
-[ADR 18](18_studio_index_and_scene_loading.md) preserves the existing independent
+[ADR 18](../../../../PycharmProjects/magic-worlds-api/docs/api_usage/stories.md#studio-index-document-seeds-and-bounded-history) preserves the existing independent
 metadata/document/revision/receipt authorities. Unloaded scene heads cannot seed
 an editor. Schema-2 guarded scenes bind root/ancestor/scene heads, expose complete
 canonical prose/applicable references and only the latest context trace. Complete

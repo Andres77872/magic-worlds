@@ -1,0 +1,274 @@
+{
+  "captured_at_utc": "2026-10-19T15:42:30.681181+00:00",
+  "frontend_head": "07d67b9a35d9b02c588b97cecbde36c08e78f0e6",
+  "backend_head": "bac565069bee35fc4aa4df297d00b25bad1f9e4b",
+  "scope": "Reassessment and fix planning; source inspection, real read-only database checks, production build.",
+  "application_source_modified_by_reassessment": false,
+  "account_or_catalog_mutations_by_reassessment": false,
+  "new_provider_renders_in_reassessment": 0,
+  "validation": {
+    "frontend_build": {
+      "command": "pnpm build",
+      "exit_code": 0,
+      "typescript": "passed",
+      "production_bundle": "passed",
+      "warning": "Existing large chunk warning"
+    },
+    "database": {
+      "credentials_source": "backend .env; values not recorded",
+      "access": "read-only session transaction; rollback and close",
+      "evidence": "database-readonly.json"
+    },
+    "new_live_browser_or_paid_provider_suite": "Not run for this planning request; original 17 October live results retained separately."
+  },
+  "findings": [
+    {
+      "id": "F1",
+      "priority": "P1",
+      "status": "Implemented in current source; fresh live browser/API/ledger acceptance pending"
+    },
+    {
+      "id": "F2",
+      "priority": "P2",
+      "status": "Still present by current source review; historical live reproduction"
+    },
+    {
+      "id": "F3",
+      "priority": "P2",
+      "status": "Still present by current source review; historical live reproduction"
+    },
+    {
+      "id": "F4",
+      "priority": "P2",
+      "status": "Still present by current source review; historical live reproduction"
+    },
+    {
+      "id": "F5",
+      "priority": "P2",
+      "status": "Both SQL aliases corrected; current real schema verified; live deletion acceptance pending"
+    },
+    {
+      "id": "F6",
+      "priority": "P2",
+      "status": "Still present by current source review; historical live reproduction"
+    },
+    {
+      "id": "F7",
+      "priority": "P3",
+      "status": "Still present by current source review; historical live reproduction"
+    },
+    {
+      "id": "F8",
+      "priority": "P2",
+      "status": "Current real database confirms no Fish S2 acceptance rows"
+    },
+    {
+      "id": "F9",
+      "priority": "P1",
+      "status": "New source-confirmed issue: complete live test writes pass with hardcoded subjective scores; not executed in reassessment"
+    }
+  ],
+  "files": [
+    {
+      "path": "/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/models.py",
+      "sha256": "0c84a28e21b7f0f85624b3355e90fd9e4e9aaa399872e6ad87e1e09c60a5b7aa",
+      "modified_at_utc": "2026-10-18T23:41:23.264985+00:00",
+      "changed_from_original_audit": true
+    },
+    {
+      "path": "/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/voice_legacy_models.py",
+      "sha256": "04e1ca8caed750ad63f73df73e34aef6acd9c483c1ff633cf30987e526d5534b",
+      "modified_at_utc": "2026-10-18T00:46:58.218661+00:00"
+    },
+    {
+      "path": "/home/andres/PycharmProjects/magic-worlds-api/src/models/voice_preset.py",
+      "sha256": "c3f412d2adf0e0b95ec70833fcb34ecc38f51f8e8cb1991119fe0dc1d4b0d471",
+      "modified_at_utc": "2026-10-18T01:17:15.551512+00:00"
+    },
+    {
+      "path": "/home/andres/PycharmProjects/magic-worlds-api/src/routes/user/route_voice_call.py",
+      "sha256": "d6a3cadb060cd0facbcbe0d09cf41e081f7d626f3041d3f87d25e348c9104aa9",
+      "modified_at_utc": "2026-10-18T11:29:32.661227+00:00"
+    },
+    {
+      "path": "/home/andres/PycharmProjects/magic-worlds-api/src/routes/voice_performance.py",
+      "sha256": "402263acdced31f4b8967917ac2bfdc485361fbcd16681f6ade33572afd3b400",
+      "modified_at_utc": "2026-10-18T10:08:59.425552+00:00",
+      "changed_from_original_audit": true
+    },
+    {
+      "path": "/home/andres/PycharmProjects/magic-worlds-api/src/routes/voice_presets.py",
+      "sha256": "41f4724e5cd9f80a57148162752fe98731d5d459eb33d9762852ebed10c2fe01",
+      "modified_at_utc": "2026-10-18T10:08:59.422879+00:00",
+      "changed_from_original_audit": true
+    },
+    {
+      "path": "/home/andres/PycharmProjects/magic-worlds-api/src/routes/voice_preview.py",
+      "sha256": "301c6f021669d5a90eb0afbf6f70dc574657d25ed14a840a4f47f3394e40f068",
+      "modified_at_utc": "2026-10-18T10:08:59.424804+00:00"
+    },
+    {
+      "path": "/home/andres/PycharmProjects/magic-worlds-api/src/services/speech/catalog/acceptance.py",
+      "sha256": "664d2a8874756c806ece5ba051a56658029f87d0b4af7e64ef597c34f945d7c7",
+      "modified_at_utc": "2026-10-18T00:53:24.844708+00:00"
+    },
+    {
+      "path": "/home/andres/PycharmProjects/magic-worlds-api/src/services/speech/model_features.py",
+      "sha256": "069b89e0b145382de07f9cb95298522175abdf768af74d7fb73b4eaf2493b5bd",
+      "modified_at_utc": "2026-10-18T00:39:25.985623+00:00",
+      "changed_from_original_audit": false
+    },
+    {
+      "path": "/home/andres/PycharmProjects/magic-worlds-api/src/services/speech/performance.py",
+      "sha256": "d5fa52324a96fdc2ca5b9e650d459e5bf493db08c27859f4057f3a8d07bae3c2",
+      "modified_at_utc": "2026-10-15T12:08:27.250906+00:00"
+    },
+    {
+      "path": "/home/andres/PycharmProjects/magic-worlds-api/src/services/speech/preview_meter.py",
+      "sha256": "8ee78ebcdc032523843232844fe6c2311fdd6279ae8dc66e449a0d7d18f2437a",
+      "modified_at_utc": "2026-10-18T09:56:56.439991+00:00"
+    },
+    {
+      "path": "/home/andres/PycharmProjects/magic-worlds-api/src/services/speech/providers/fish_audio/streaming.py",
+      "sha256": "d416948c0c0a232c6da8a6c443df4fbe620e8c647cd3518f448a8f4608b2a5d5",
+      "modified_at_utc": "2026-10-18T00:42:28.254440+00:00"
+    },
+    {
+      "path": "/home/andres/PycharmProjects/magic-worlds-api/src/services/speech/resolver.py",
+      "sha256": "fac5f8e1e5988af686652f68b4cbf711e41a8768e6d4e3596a7a68ba5b0e1ee1",
+      "modified_at_utc": "2026-10-18T00:56:19.321925+00:00"
+    },
+    {
+      "path": "/home/andres/PycharmProjects/magic-worlds-api/src/services/speech/voice_access.py",
+      "sha256": "cce66e8b5b6da6c523bb04ab765531225c825df12a19a98fdabc36ed33d62cbe",
+      "modified_at_utc": "2026-10-14T07:33:25.991089+00:00",
+      "changed_from_original_audit": false
+    },
+    {
+      "path": "/home/andres/PycharmProjects/magic-worlds-api/src/services/speech/voice_write.py",
+      "sha256": "b97b459b69506d237d99ee3df183a3f2d9f65d61c85a6617f7086c2125fecbf1",
+      "modified_at_utc": "2026-10-18T00:46:58.257660+00:00",
+      "changed_from_original_audit": false
+    },
+    {
+      "path": "/home/andres/PycharmProjects/magic-worlds-api/tests/integration/test_voice_presets_end_to_end_live.py",
+      "sha256": "1b3470d6c36f4d1abc53b0461f033cbebb1bc4891405d1b7122942111d532a70",
+      "modified_at_utc": "2026-10-18T01:17:15.584512+00:00"
+    },
+    {
+      "path": "/home/andres/PycharmProjects/magic-worlds-api/tests/integration/voice_presets_live_cleanup.py",
+      "sha256": "0df531c44b460f2015f1b9bfefa6926c2d22e62fa5fdcebb46639e12a368e628",
+      "modified_at_utc": "2026-10-18T01:11:16.067924+00:00"
+    },
+    {
+      "path": "/home/andres/PycharmProjects/magic-worlds-api/tests/routes/test_preview_spending_authorization.py",
+      "sha256": "32fd317baea953871d5f37a46efb9262d91e3851476f5808d0dbbe64a92462a3",
+      "modified_at_utc": "2026-10-18T10:12:04.672104+00:00"
+    },
+    {
+      "path": "/home/andres/WebstormProjects/magic-worlds/src/app/providers/AppProvider.tsx",
+      "sha256": "d443661dc961d38a45be9e413d42e446b8d18cf7d3963c30ae9b42ec3c6383d4",
+      "modified_at_utc": "2026-10-18T10:04:12.365685+00:00"
+    },
+    {
+      "path": "/home/andres/WebstormProjects/magic-worlds/src/features/admin/voices/components/acceptance/AcceptanceModule.tsx",
+      "sha256": "8d9daca37ee6fe76b0e5f333f888dc53d03e12714745657db4f3b585b66819c5",
+      "modified_at_utc": "2026-10-18T00:46:58.398761+00:00"
+    },
+    {
+      "path": "/home/andres/WebstormProjects/magic-worlds/src/features/admin/voices/components/globalPresets/GlobalPresetEditorDrawer.tsx",
+      "sha256": "1e6a0c0d544ddd483c9f30bc220de4a5c943d01b19b88b57ebf52e3c891c6977",
+      "modified_at_utc": "2026-10-18T01:10:25.976289+00:00"
+    },
+    {
+      "path": "/home/andres/WebstormProjects/magic-worlds/src/features/call/components/CallScreen.tsx",
+      "sha256": "63607111acf7ac5089048bd11ed0e004d2b7c4ab3336c04c7479498da7375c02",
+      "modified_at_utc": "2026-10-18T11:43:20.930815+00:00"
+    },
+    {
+      "path": "/home/andres/WebstormProjects/magic-worlds/src/features/voices/PreviewAllowanceProvider.tsx",
+      "sha256": "063f7c67515e6f42f47b2364dbdc260a043dc91eac2b6db822403261c83064ec",
+      "modified_at_utc": "2026-10-18T09:57:52.359567+00:00"
+    },
+    {
+      "path": "/home/andres/WebstormProjects/magic-worlds/src/features/voices/components/PresetEditorV2.tsx",
+      "sha256": "3393962caf3dfc227af8ac4c4cff68cadf8a3c67d012f23ce98092d8abc8002c",
+      "modified_at_utc": "2026-10-18T10:05:02.989302+00:00",
+      "changed_from_original_audit": true
+    },
+    {
+      "path": "/home/andres/WebstormProjects/magic-worlds/src/features/voices/components/PreviewAllowanceHint.tsx",
+      "sha256": "8b101ebea40eb25934aa5d107147bc844b764f6eeccd517b916f98ae0188f981",
+      "modified_at_utc": "2026-10-14T05:14:47.435560+00:00"
+    },
+    {
+      "path": "/home/andres/WebstormProjects/magic-worlds/src/features/voices/components/PronunciationEditor.tsx",
+      "sha256": "fe0927de64ed2cdb1d9ef84bc0e6176606c909af36b9bbc14a736509a990a176",
+      "modified_at_utc": "2026-10-15T12:37:10.963927+00:00"
+    },
+    {
+      "path": "/home/andres/WebstormProjects/magic-worlds/src/features/voices/components/VoicePerformancePanel.tsx",
+      "sha256": "71fee6038de605fdc2573f16f8ff7afaa5a2ca0dd9095ddde25db71b1be9a4ee",
+      "modified_at_utc": "2026-10-18T09:58:52.732109+00:00",
+      "changed_from_original_audit": true
+    },
+    {
+      "path": "/home/andres/WebstormProjects/magic-worlds/src/features/voices/components/VoicePickerElevenLabs.tsx",
+      "sha256": "f3b889cb62ca76f26254ca0bf11170e4dd5d8a242181b0492ba429b5ef152172",
+      "modified_at_utc": "2026-10-18T10:05:03.057301+00:00",
+      "changed_from_original_audit": true
+    },
+    {
+      "path": "/home/andres/WebstormProjects/magic-worlds/src/features/voices/hooks/useCatalogLookup.ts",
+      "sha256": "814297eda97e9a3c12b23d5af9292f0c87c56859ef7cc0c8dabb974f68347867",
+      "modified_at_utc": "2026-10-14T07:44:39.210633+00:00"
+    },
+    {
+      "path": "/home/andres/WebstormProjects/magic-worlds/src/features/voices/previewSpending.test.tsx",
+      "sha256": "c79fb11d4b51b3dc6596f0e12a6a62456cb8a9b2570d9d1ffed6c0addfc4b39a",
+      "modified_at_utc": "2026-10-18T10:14:23.941060+00:00"
+    },
+    {
+      "path": "/home/andres/WebstormProjects/magic-worlds/src/features/voices/usePreviewAllowance.ts",
+      "sha256": "55245ef5476f45bf52250b448c817ca45839d91f614d11251d83b7a0cea7deef",
+      "modified_at_utc": "2026-10-18T10:14:23.911060+00:00"
+    },
+    {
+      "path": "/home/andres/WebstormProjects/magic-worlds/src/features/voices/usePreviewCreditConfirm.ts",
+      "sha256": "873c2e9449d8efbd1fda19264abc179e5f45fa2b140fd8bef21662ad4f575793",
+      "modified_at_utc": "2026-10-14T04:28:49.062337+00:00"
+    },
+    {
+      "path": "/home/andres/WebstormProjects/magic-worlds/src/features/voices/useRecipePreview.ts",
+      "sha256": "b7deee9946a646ea20e3c7f8eed85626c62b3c68ff5c1df87b5c91105d5e2469",
+      "modified_at_utc": "2026-10-18T10:07:07.156360+00:00",
+      "changed_from_original_audit": true
+    },
+    {
+      "path": "/home/andres/WebstormProjects/magic-worlds/src/infrastructure/api/index.ts",
+      "sha256": "7bde23283db92a9c0772c73b884374c6b4eb89c10966d65cb7056a81cf1b3eb8",
+      "modified_at_utc": "2026-10-18T16:39:24.284693+00:00",
+      "changed_from_original_audit": true
+    },
+    {
+      "path": "/home/andres/WebstormProjects/magic-worlds/src/shared/types/voicePerformance.types.ts",
+      "sha256": "d07fbff9ffe907728fa6ca10a79250f5b26f2857a8211a535494a3456ef20b2a",
+      "modified_at_utc": "2026-10-18T09:58:28.255295+00:00"
+    },
+    {
+      "path": "/home/andres/WebstormProjects/magic-worlds/src/shared/types/voicePreset.types.ts",
+      "sha256": "0363e41aec2dee57e688a8e8977b4fd493ba737cc36d08d8ebca3e90a19c9040",
+      "modified_at_utc": "2026-10-18T09:58:28.222295+00:00"
+    },
+    {
+      "path": "/home/andres/WebstormProjects/magic-worlds/tests/browser/voice-console-live.py",
+      "sha256": "b78e3c869ed455c46f9206aad471b8e4558334cd8dda0530eb552f692c7b3fe5",
+      "modified_at_utc": "2026-10-18T01:07:31.211433+00:00"
+    },
+    {
+      "path": "/home/andres/WebstormProjects/magic-worlds/tests/browser/voice-presets-live.py",
+      "sha256": "c7f6b63ef3c52f159b5aef9d3827c83e25c5df7845734173773da1d8ad6d918f",
+      "modified_at_utc": "2026-10-18T01:13:47.289910+00:00"
+    }
+  ]
+}

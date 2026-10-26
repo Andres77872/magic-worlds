@@ -4,7 +4,7 @@
 
 ## Installed saved-source preparation — 2026-10-17
 
-[ADR 21](21_assistant_context_boundary.md) specifies the current read-only `/stories/{id}/assistant-context` contract and Studio drawer. It freezes saved passages, revisions, inherited writing defaults and scoped Codex snapshots; reports omissions/conflicting pins; and exposes the exact serialized messages and conservative budget. It does not call a model, create a conversation, persist a proposal or apply writing. The new compiler is the foundation for future turns; existing inline generation still uses its existing compiler until the unified D3 pipeline is implemented.
+[ADR 21](../../../../PycharmProjects/magic-worlds-api/docs/api_usage/stories.md#saved-source-assistant-preparation) specifies the current read-only `/stories/{id}/assistant-context` contract and Studio drawer. It freezes saved passages, revisions, inherited writing defaults and scoped Codex snapshots; reports omissions/conflicting pins; and exposes the exact serialized messages and conservative budget. It does not call a model, create a conversation, persist a proposal or apply writing. The new compiler is the foundation for future turns; existing inline generation still uses its existing compiler until the unified D3 pipeline is implemented.
 
 The protected anchor/instruction/pin envelope is never silently shortened. Optional remote paragraphs are bounded and omissions are visible. Through-anchor means reading order, not D4 temporal knowledge. Credential handling, profile admission, conversation drafts/history and review/commit semantics remain explicit D3 requirements below.
 

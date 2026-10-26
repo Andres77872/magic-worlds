@@ -10,7 +10,7 @@ Reviewed on 2026-10-14. Frontend root: `/home/andres/WebstormProjects/magic-worl
 
 **Installed and locally verified; broader D2–D6/release work remains open.**
 The [delivery checkpoint](14_status_and_roadmap.md#d2-deliberate-novel-erasure--2026-10-16)
-and [ADR 19](19_novel_erasure_and_retention.md) define the exact scope. The
+and [ADR 19](../../../../PycharmProjects/magic-worlds-api/docs/api_usage/stories.md#explicit-permanent-novel-erasure) define the exact scope. The
 original goal remains WIP across 136 capabilities and D1–D6.
 
 - Full installed frontend: **5,062 passed / one conditional fixture skipped
@@ -306,7 +306,7 @@ D2 helpers. Targeted ESLint on the new save/history/layout/revision/selection/
 journal/document modules passed. `git diff --check` passed in both repositories.
 The final provider-free MySQL smoke again passed through revision 5 after the
 workspace-lock change. D2's persistence module remains unconnected pending its
-schema/routes/UI slice; [ADR 16](16_document_and_structure_decision.md) records
+schema/routes/UI slice; [ADR 16](../../../../PycharmProjects/magic-worlds-api/docs/api_usage/stories.md#canonical-scene-writes) records
 that boundary explicitly.
 
 
@@ -1088,7 +1088,7 @@ No commit, PR, release or full-goal completion is claimed.
 ## D2 personal annotation preparation evidence — 2026-10-16
 
 This is a **prepared slice**, not an installed annotation feature or completed
-D2 phase. [ADR 17](17_annotation_anchors_and_personal_review.md) records the
+D2 phase. [ADR 17](../../../../PycharmProjects/magic-worlds-api/docs/api_usage/stories.md#personal-annotations-and-passage-identity) records the
 contract and [14](14_status_and_roadmap.md#d2-personal-annotation-preparation--2026-10-16)
 records the remaining integration. The project retains the scene schema and all
 recovered content. No project database write, reset or provider execution was
@@ -1175,7 +1175,7 @@ retention/author gates and D3–D6 remain open.
 
 This checkpoint supersedes the preparation-only installation status above.
 The [delivery register](14_status_and_roadmap.md#d2-personal-annotation-integration--2026-10-16)
-and [ADR 17](17_annotation_anchors_and_personal_review.md) retain the full D2
+and [ADR 17](../../../../PycharmProjects/magic-worlds-api/docs/api_usage/stories.md#personal-annotations-and-passage-identity) retain the full D2
 and 136-capability D1–D6 scope. Personal annotations are now connected to Studio,
 the API and document/organization transactions. Frozen annotation snapshot
 reads and broader acceptance remain unfinished.
@@ -2546,7 +2546,7 @@ reset, commit, deployment or release completion is claimed.
 
 Remaining bookmark product acceptance is listed in
 [12](12_validation_and_acceptance.md#bookmark-completion-gates); the extension
-contract is in [17](17_annotation_anchors_and_personal_review.md#prepared-bookmark-extension--2026-10-16).
+contract is in [17](../../../../PycharmProjects/magic-worlds-api/docs/api_usage/stories.md#personal-bookmarks).
 D2 and D3–D6 remain incomplete.
 
 ## D2 bookmark installation evidence — 2026-10-16
@@ -2639,7 +2639,7 @@ planned. No phase, release, commit or deployment completion is claimed.
 
 **Read storage/endpoints and typed frontend transport are installed locally;
 Studio's initial full-tree opening still needs UI/cache integration.** D2 and
-the full 136-capability D1–D6 goal remain WIP. [ADR 18](18_studio_index_and_scene_loading.md)
+the full 136-capability D1–D6 goal remain WIP. [ADR 18](../../../../PycharmProjects/magic-worlds-api/docs/api_usage/stories.md#studio-index-document-seeds-and-bounded-history)
 records the explicit unloaded-content and complete integration requirements.
 
 The scene-prose-free index reads metadata and cached counters without document
@@ -2999,7 +2999,7 @@ D2 cases and all D3–D6 remain open. All 136 capabilities remain in scope.
 
 ## D3 saved-source context preparation evidence — 2026-10-17
 
-The [delivery checkpoint](14_status_and_roadmap.md#d3-saved-source-context-preparation--2026-10-17) and [ADR 21](21_assistant_context_boundary.md) cover the source contract/drawer. Full D3 conversations/profiles/proposals/application and all remaining D2/D4–D6 gates remain open.
+The [delivery checkpoint](14_status_and_roadmap.md#d3-saved-source-context-preparation--2026-10-17) and [ADR 21](../../../../PycharmProjects/magic-worlds-api/docs/api_usage/stories.md#saved-source-assistant-preparation) cover the source contract/drawer. Full D3 conversations/profiles/proposals/application and all remaining D2/D4–D6 gates remain open.
 
 Prepared source checks:
 

@@ -1,0 +1,71 @@
+[
+  {
+    "case": "GET /user/me",
+    "expected": 200,
+    "status": 200,
+    "passed": true
+  },
+  {
+    "case": "consumer cannot GET /admin/billing/plans",
+    "expected": 403,
+    "status": 403,
+    "passed": true,
+    "detail": {
+      "detail": "Root access required."
+    }
+  },
+  {
+    "case": "consumer cannot GET /admin/billing/plans/audit_20261017",
+    "expected": 403,
+    "status": 403,
+    "passed": true,
+    "detail": {
+      "detail": "Root access required."
+    }
+  },
+  {
+    "case": "consumer cannot POST /admin/billing/plans",
+    "expected": 403,
+    "status": 403,
+    "passed": true,
+    "detail": {
+      "detail": "Root access required."
+    }
+  },
+  {
+    "case": "consumer cannot PATCH /admin/billing/plans/audit_20261017",
+    "expected": 403,
+    "status": 403,
+    "passed": true,
+    "detail": {
+      "detail": "Root access required."
+    }
+  },
+  {
+    "case": "consumer cannot GET /admin/billing/memberships",
+    "expected": 403,
+    "status": 403,
+    "passed": true,
+    "detail": {
+      "detail": "Root access required."
+    }
+  },
+  {
+    "case": "consumer cannot GET /admin/billing/membership-overview",
+    "expected": 403,
+    "status": 403,
+    "passed": true,
+    "detail": {
+      "detail": "Root access required."
+    }
+  },
+  {
+    "case": "consumer cannot POST /admin/billing/memberships/assign",
+    "expected": 403,
+    "status": 403,
+    "passed": true,
+    "detail": {
+      "detail": "Root access required."
+    }
+  }
+]

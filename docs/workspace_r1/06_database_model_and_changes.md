@@ -5,7 +5,7 @@
 **Status:** Schema and executable migration/resume tooling implemented; dated local migration evidence exists. Release environment acceptance is WIP.\
 **Refreshed:** 2026-10-12.\
 **Starting schema:** Exact `2026_10_image_profiles`, including unified assistants and current image-profile/job fields.\
-**Frozen R1 target marker:** `2026_10_workspace_r1`; implemented and retained as the stable capability marker. Current bootstrap expects the revision named by `CONTENT_SCHEMA_REVISION` in the BFF bootstrap (owned by the active Fish/voice execution; not asserted here).
+**Frozen R1 target marker:** `2026_10_workspace_r1`; implemented and retained as the stable capability marker. Current bootstrap expects the revision named by `CONTENT_SCHEMA_REVISION` in the BFF bootstrap (`2026_10_db_refactor` at the 2026-10-26 docs cleanup; a running database is not asserted here).
 
 Use frozen [R1 target DDL](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/migrations/2026_10_workspace_r1.sql) for the R1 cutover and the canonical [schema](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/db.sql), [bootstrap](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/bootstrap.py), and [image cutover](/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/image_profile_cutover.py). Preserve the current InnoDB, utf8mb4/column-collation, timestamp, strict row-validation, and transaction-cleanup conventions.
 
@@ -96,7 +96,7 @@ Backfill roots/relationships/context without changing existing IDs, card JSON, v
 
 Account wipe removes copy-receipt/context/media-association/membership records before affected roots, then workspace_scope before workspaces, following the current complete content-cleanup order. Quiesce/terminalize in-flight content work so late callbacks cannot recreate wiped content. Account/billing behavior stays as currently documented.
 
-[Document 11](11_migration_and_rollout.md) fixes supported starting states and recovery. [Document 15](15_execution_contracts.md) defines exact operation/lifecycle behavior.
+The R1 cutover runbook (document 11) was removed on 2026-10-26 after its tooling was deleted in BFF `fceaead`; the BFF [database guide](/home/andres/PycharmProjects/magic-worlds-api/docs/database.md) owns supported starting states and upgrades. [Document 15](15_execution_contracts.md) defines exact operation/lifecycle behavior.
 
 <details>
 <summary>Legacy section anchor</summary>

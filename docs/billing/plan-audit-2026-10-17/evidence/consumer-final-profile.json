@@ -1,0 +1,366 @@
+{
+  "user_hash": "usr-ada155c1-9fdd-459e-832b-ad2af7f19c68",
+  "username": "e2e_plans_20261017",
+  "display_name": null,
+  "user_type": "consumer",
+  "membership": {
+    "plan_code": "audit_20261017",
+    "display_name": "E2E audit custom plan",
+    "credits": {
+      "period": "daily",
+      "max": 18,
+      "used": 11,
+      "remaining": 7,
+      "usage_date": "2026-10-18"
+    },
+    "payg": {
+      "balance": 0,
+      "free_balance": 0,
+      "billed_balance": 0
+    },
+    "total_available_credits": 7,
+    "limits": {
+      "ai_card_generation": {
+        "daily_limit": 1,
+        "used_today": 1,
+        "max_in_flight": 1,
+        "in_flight": 0,
+        "credit_cost": 2,
+        "billing_unit": "action",
+        "seconds_per_credit": null,
+        "billable_seconds_today": null
+      },
+      "image_generation": {
+        "daily_limit": 20,
+        "used_today": 0,
+        "max_in_flight": 2,
+        "in_flight": 0,
+        "credit_cost": 1,
+        "billing_unit": "action",
+        "seconds_per_credit": null,
+        "billable_seconds_today": null
+      },
+      "card_image_generation": {
+        "daily_limit": 5,
+        "used_today": 0,
+        "max_in_flight": 1,
+        "in_flight": 0,
+        "credit_cost": 1,
+        "billing_unit": "action",
+        "seconds_per_credit": null,
+        "billable_seconds_today": null
+      },
+      "theme_song_generation": {
+        "daily_limit": 5,
+        "used_today": 0,
+        "max_in_flight": 1,
+        "in_flight": 0,
+        "credit_cost": 1,
+        "billing_unit": "action",
+        "seconds_per_credit": null,
+        "billable_seconds_today": null
+      },
+      "tts_generation": {
+        "daily_limit": 20,
+        "used_today": 0,
+        "max_in_flight": 1,
+        "in_flight": 0,
+        "credit_cost": 1,
+        "billing_unit": "action",
+        "seconds_per_credit": null,
+        "billable_seconds_today": null
+      },
+      "chat_interaction": {
+        "daily_limit": 3,
+        "used_today": 3,
+        "max_in_flight": 1,
+        "in_flight": 0,
+        "credit_cost": 3,
+        "billing_unit": "action",
+        "seconds_per_credit": null,
+        "billable_seconds_today": null
+      },
+      "voice_call": {
+        "daily_limit": 50,
+        "used_today": 0,
+        "max_in_flight": 1,
+        "in_flight": 0,
+        "credit_cost": 1,
+        "billing_unit": "audio_seconds",
+        "seconds_per_credit": 10,
+        "billable_seconds_today": 0
+      },
+      "lorebook_resource_extraction": {
+        "daily_limit": 10,
+        "used_today": 0,
+        "max_in_flight": 1,
+        "in_flight": 0,
+        "credit_cost": 1,
+        "billing_unit": "action",
+        "seconds_per_credit": null,
+        "billable_seconds_today": null
+      },
+      "voice_preview": {
+        "daily_limit": 3,
+        "used_today": 0,
+        "max_in_flight": 1,
+        "in_flight": 0,
+        "credit_cost": 1,
+        "billing_unit": "action",
+        "seconds_per_credit": null,
+        "billable_seconds_today": null
+      }
+    },
+    "monthly_usage": {
+      "period": "calendar_month",
+      "month": "2026-10",
+      "start_date": "2026-10-01",
+      "end_date": "2026-10-18",
+      "credits_used": 11,
+      "included_credits_used": 11,
+      "payg_credits_used": 0,
+      "payg_free_credits_used": 0,
+      "payg_billed_credits_used": 0,
+      "operations": {
+        "ai_card_generation": {
+          "used": 1,
+          "credits_used": 2,
+          "included_credits_used": 2,
+          "payg_credits_used": 0,
+          "payg_free_credits_used": 0,
+          "payg_billed_credits_used": 0,
+          "billable_seconds": 0
+        },
+        "image_generation": {
+          "used": 0,
+          "credits_used": 0,
+          "included_credits_used": 0,
+          "payg_credits_used": 0,
+          "payg_free_credits_used": 0,
+          "payg_billed_credits_used": 0,
+          "billable_seconds": 0
+        },
+        "card_image_generation": {
+          "used": 0,
+          "credits_used": 0,
+          "included_credits_used": 0,
+          "payg_credits_used": 0,
+          "payg_free_credits_used": 0,
+          "payg_billed_credits_used": 0,
+          "billable_seconds": 0
+        },
+        "theme_song_generation": {
+          "used": 0,
+          "credits_used": 0,
+          "included_credits_used": 0,
+          "payg_credits_used": 0,
+          "payg_free_credits_used": 0,
+          "payg_billed_credits_used": 0,
+          "billable_seconds": 0
+        },
+        "tts_generation": {
+          "used": 0,
+          "credits_used": 0,
+          "included_credits_used": 0,
+          "payg_credits_used": 0,
+          "payg_free_credits_used": 0,
+          "payg_billed_credits_used": 0,
+          "billable_seconds": 0
+        },
+        "chat_interaction": {
+          "used": 3,
+          "credits_used": 9,
+          "included_credits_used": 9,
+          "payg_credits_used": 0,
+          "payg_free_credits_used": 0,
+          "payg_billed_credits_used": 0,
+          "billable_seconds": 0
+        },
+        "voice_call": {
+          "used": 0,
+          "credits_used": 0,
+          "included_credits_used": 0,
+          "payg_credits_used": 0,
+          "payg_free_credits_used": 0,
+          "payg_billed_credits_used": 0,
+          "billable_seconds": 0
+        },
+        "lorebook_resource_extraction": {
+          "used": 0,
+          "credits_used": 0,
+          "included_credits_used": 0,
+          "payg_credits_used": 0,
+          "payg_free_credits_used": 0,
+          "payg_billed_credits_used": 0,
+          "billable_seconds": 0
+        },
+        "voice_preview": {
+          "used": 0,
+          "credits_used": 0,
+          "included_credits_used": 0,
+          "payg_credits_used": 0,
+          "payg_free_credits_used": 0,
+          "payg_billed_credits_used": 0,
+          "billable_seconds": 0
+        }
+      }
+    },
+    "profile_cards": {
+      "current_plan_code": "audit_20261017",
+      "tiers": [
+        {
+          "plan_code": "audit_20261017",
+          "display_name": "E2E audit custom plan",
+          "status": "current",
+          "available": true,
+          "reference_only": false,
+          "badge": "Current",
+          "description": "Included daily credits for the active membership.",
+          "highlights": [
+            "18 daily included credits",
+            "PAYG credits cover overage",
+            "Core generation tools"
+          ],
+          "credits": {
+            "period": "daily",
+            "max": 18,
+            "used": 11,
+            "remaining": 7,
+            "usage_date": "2026-10-18",
+            "preview": false
+          },
+          "limits": {
+            "chat_interaction": {
+              "daily_limit": 3,
+              "used_today": 3,
+              "max_in_flight": 1,
+              "in_flight": 0,
+              "credit_cost": 3,
+              "preview": false
+            },
+            "ai_card_generation": {
+              "daily_limit": 1,
+              "used_today": 1,
+              "max_in_flight": 1,
+              "in_flight": 0,
+              "credit_cost": 2,
+              "preview": false
+            },
+            "image_generation": {
+              "daily_limit": 20,
+              "used_today": 0,
+              "max_in_flight": 2,
+              "in_flight": 0,
+              "credit_cost": 1,
+              "preview": false
+            },
+            "card_image_generation": {
+              "daily_limit": 5,
+              "used_today": 0,
+              "max_in_flight": 1,
+              "in_flight": 0,
+              "credit_cost": 1,
+              "preview": false
+            },
+            "theme_song_generation": {
+              "daily_limit": 5,
+              "used_today": 0,
+              "max_in_flight": 1,
+              "in_flight": 0,
+              "credit_cost": 1,
+              "preview": false
+            },
+            "tts_generation": {
+              "daily_limit": 20,
+              "used_today": 0,
+              "max_in_flight": 1,
+              "in_flight": 0,
+              "credit_cost": 1,
+              "preview": false
+            },
+            "voice_call": {
+              "daily_limit": 50,
+              "used_today": 0,
+              "max_in_flight": 1,
+              "in_flight": 0,
+              "credit_cost": 1,
+              "preview": false
+            },
+            "lorebook_resource_extraction": {
+              "daily_limit": 10,
+              "used_today": 0,
+              "max_in_flight": 1,
+              "in_flight": 0,
+              "credit_cost": 1,
+              "preview": false
+            },
+            "voice_preview": {
+              "daily_limit": 3,
+              "used_today": 0,
+              "max_in_flight": 1,
+              "in_flight": 0,
+              "credit_cost": 1,
+              "preview": false
+            }
+          },
+          "visual": {
+            "tone": "current",
+            "icon": "sparkles"
+          },
+          "action": {
+            "state": "active",
+            "label": "Current plan",
+            "enabled": false
+          }
+        }
+      ],
+      "payg": {
+        "balance": 0,
+        "free_balance": 0,
+        "billed_balance": 0,
+        "credit_cost": 1,
+        "covered_operations": [
+          "chat_interaction",
+          "ai_card_generation",
+          "image_generation",
+          "card_image_generation",
+          "theme_song_generation",
+          "tts_generation",
+          "voice_call",
+          "lorebook_resource_extraction",
+          "voice_preview"
+        ],
+        "non_expiring": true,
+        "available": false,
+        "reference_only": false,
+        "badge": "PAYG",
+        "description": "Non-expiring credits used after included daily credits are exhausted.",
+        "highlights": [
+          "0 credits available",
+          "0 free credits",
+          "1 credit per action"
+        ],
+        "visual": {
+          "tone": "payg",
+          "icon": "coins"
+        },
+        "action": {
+          "state": "active",
+          "label": "Available balance",
+          "enabled": false
+        }
+      }
+    },
+    "narration_chars_used": 0,
+    "narration_chars_limit": 0,
+    "call_seconds_used": 0,
+    "call_seconds_limit": 0,
+    "previews_left": 3
+  },
+  "card_counts": {
+    "character": 2,
+    "world": 0,
+    "adventure_template": 0,
+    "item": 0
+  }
+}

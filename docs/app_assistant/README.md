@@ -1,23 +1,24 @@
 # Assistants: frontend and BFF contract
 
-**Lifecycle: active contract. Reviewed 2026-10-15. App/lorebook surfaces: WIP — default off, locally opted in.** Card assistant has no frontend rollout flag; all kinds still require the BFF registry and usable profiles. Local BFF `ASSISTANTS_ENABLED` opts into `card,lorebook,app`; unset enables none. Source implementation is not deployed/provider acceptance. See [feature status](../FEATURE_STATUS.md) and [ASST-01 roadmap](../ROADMAP.md).
+**Lifecycle: active contract. Reviewed 2026-10-15; kinds and gates rechecked 2026-10-26.** The card assistant has no plan flag; the lorebook, app and novel assistants follow the `lorebooks`, `appAssistant` and `novels` membership plan grants. All kinds still require the BFF registry and usable profiles: BFF `ASSISTANTS_ENABLED` lists the served kinds (for example `card,lorebook,app,novel`); unset enables none. Source implementation is not deployed/provider acceptance. See [feature status](../FEATURE_STATUS.md) and [ASST-01 roadmap](../ROADMAP.md).
 
-This is the implemented three-kind contract. Novel-bound conversations/tools are **WIP planned** in the [novel roadmap](../novel_refactor/14_status_and_roadmap.md); the `app` kind does not edit a manuscript. Repository Markdown is separate from the localized in-app guide used as assistant knowledge.
+This is the implemented four-kind contract. The `novel` kind (BFF `70c9c27`, SPA `692e56bb`, 2026-10-18) is bound to one owned story and proposes reviewed writing; manuscript changes go through the story acceptance contract in the BFF [assistant guide](../../../../PycharmProjects/magic-worlds-api/docs/api_usage/assistant.md), and its remaining scope is D3 in the [novel roadmap](../novel_refactor/14_status_and_roadmap.md). The `app` kind does not edit a manuscript. Repository Markdown is separate from the localized in-app guide used as assistant knowledge.
 
-Magic Worlds has three assistants. They share one client core and one set of BFF routes, `/assistant/conversations`, and differ only by **kind**:
+Magic Worlds has four assistants. They share one client core and one set of BFF routes, `/assistant/conversations`, and differ only by **kind**:
 
 | Kind | Surface | Edits | LLM feature |
 |---|---|---|---|
 | `card` | Floating panel in the four card creators | The saved card, through tool calls | `card_assistant` |
 | `lorebook` | Floating panel in the lorebook studio | The saved lorebook, through tool calls | `lorebook_assistant` |
-| `app` | The `#/assistant` page ("Assistant", a primary sidebar item after **Explore**, **Library** and **Community**; Library and Community show only when their flags are on) | Nothing. It answers in Markdown. | `app_assistant` |
+| `app` | The `#/assistant` page ("Assistant", a primary sidebar item after **Explore**, **Library** and **Community**; Community shows only when the `communityCards` grant is on) | Nothing. It answers in Markdown. | `app_assistant` |
+| `novel` | The assistant drawer in Story Studio | Nothing directly. It proposes writing over saved novel sources, which the author reviews and accepts through the story acceptance contract | `novel_assistant` |
 
 The app assistant answers questions about the whole app, such as features, where things live, and how to use them. It also answers questions about the signed-in user's own content: library cards (characters, personas, worlds, items, adventures), lorebooks, resources, and novels.
 
 ## Enabling it
 
-- **Backend:** `ASSISTANTS_ENABLED=card,lorebook,app` in `magic-worlds-api/.env` lists the kinds the server offers. Any enabled kind also requires `LLM_PROFILES_ENABLED=true` and `MAGIC_LLM_API_URL`; BFF startup refuses otherwise ([startup check](../../../../PycharmProjects/magic-worlds-api/src/main.py)). The `app` kind also needs a model verified for `app_assistant` in the `magic_llm` catalog, and a profile assigned to **App assistant** in the LLM profiles console.
-- **Frontend:** the card assistant has no frontend feature flag. The lorebook assistant follows `VITE_FEATURE_LOREBOOKS_ENABLED`, and the app assistant follows `VITE_FEATURE_APP_ASSISTANT_ENABLED`. The API client refuses a call for a kind whose flag is off before any request is made. In the working tree (uncommitted, 2026-10-15) it also refuses card-kind calls for a disabled card type, and the history list drops card conversations whose `card_type` is disabled (for example adventure templates when adventures are off). This does not bypass the backend registry gate.
+- **Backend:** `ASSISTANTS_ENABLED` in `magic-worlds-api/.env` lists the kinds the server offers (for example `card,lorebook,app,novel`). Any enabled kind also requires `LLM_PROFILES_ENABLED=true` and `MAGIC_LLM_API_URL`; BFF startup refuses otherwise ([startup check](../../../../PycharmProjects/magic-worlds-api/src/main.py)). The `app` kind also needs a model verified for `app_assistant` in the `magic_llm` catalog, and a profile assigned to **App assistant** in the LLM profiles console.
+- **Frontend:** the card assistant has no plan flag. The lorebook assistant follows the `lorebooks` grant, the app assistant `appAssistant` and the novel assistant `novels`. The API client refuses a call for a kind whose grant is off before any request is made. It also refuses card-kind calls for a disabled card type, and the history list drops card conversations whose `card_type` is disabled (for example adventure templates when adventures are off). This does not bypass the backend registry gate.
 
 A kind the server has switched off answers `503 ASSISTANT_DISABLED` on every endpoint. Every surface treats that as a state, not an error:
 
@@ -81,7 +82,7 @@ The shared guide now includes localized **WIP** availability notes for disabled 
 
 | Source | Content |
 |---|---|
-| `guide` | Every Docs section, including the Roadmap areas and initiative phases (initiative phases: working tree, uncommitted, 2026-10-15), plus a list of workspaces with their `#/…` routes. Routes hidden by feature flags are dropped. |
+| `guide` | Every Docs section, including the Roadmap areas and initiative phases, plus a list of workspaces with their `#/…` routes. Routes hidden by feature flags are dropped. |
 | `library` | One line per card: name, facts, a summary clipped to 220 chars, and triggers. Each line links to the card (`#/gallery/<type>?card=<id>`). Personas are listed separately. |
 | `lorebooks` | Each lorebook with its entry count, plus the first 12 entry titles with their keys. |
 | `resources` | Title, file, size, summary, and triggers. Fetched with `GET /lorebook-resources?limit=100`. |
@@ -90,7 +91,7 @@ The shared guide now includes localized **WIP** availability notes for disabled 
 
 Budgets are measured in characters: 14,000 per digest section, 24,000 for focus, and **60,000 in total**. When a budget forces a cut, the panel shows "Partial".
 
-The page's starter suggestions hide when their knowledge source is unavailable. In the working tree (uncommitted, 2026-10-15) they also hide when their product flag (adventures, lorebooks, lorebook resources, voices) is off; see [starter suggestions](../../src/features/appAssistant/assistantSuggestions.ts).
+The page's starter suggestions hide when their knowledge source is unavailable. They also hide when their plan flag (adventures, lorebooks, lorebook resources, voices) is off; see [starter suggestions](../../src/features/appAssistant/assistantSuggestions.ts).
 
 Replies can link back into the app. The model is told to use the links in the context:
 
@@ -98,7 +99,7 @@ Replies can link back into the app. The model is told to use the links in the co
 - **Lorebook links** (`#/lorebook?lorebook=<id>`) preview on hover or keyboard focus and, on click, open the record in a floating window over the thread.
 - **Hover previews** of card and lorebook links can nest, lock, be dragged off the stack and be pinned to focus. Records missing from the loaded library are fetched once per session and workspace. See [hover cards](../../src/features/appAssistant/hoverCards/index.ts).
 - **Novel/resource and other recognized page links**, plus HTTP(S) links, open a new browser tab so the conversation stays in place. Card/lorebook **Open** actions also open their editor in a new tab.
-- **Disabled feature links** render as plain text, with no navigation, preview, focus or handoff, through the shared [link availability helper](../../src/app/router/linkAvailability.ts) (working tree, uncommitted, 2026-10-15). Same-origin absolute links and the public and group-chat gallery modes are checked too, and focus pins and conversation handoff are refused for a disabled content type. Unrecognized hash routes remain in place and show the unavailable-link notice. See [reply link policy](../../src/features/appAssistant/replyLinks.ts) and [reply component](../../src/features/appAssistant/components/AssistantReplyLink.tsx).
+- **Disabled feature links** render as plain text, with no navigation, preview, focus or handoff, through the shared [link availability helper](../../src/app/router/linkAvailability.ts). Same-origin absolute links and the public and group-chat gallery modes are checked too, and focus pins and conversation handoff are refused for a disabled content type. Unrecognized hash routes remain in place and show the unavailable-link notice. See [reply link policy](../../src/features/appAssistant/replyLinks.ts) and [reply component](../../src/features/appAssistant/components/AssistantReplyLink.tsx).
 
 ## BFF contract (`/assistant/conversations`)
 
@@ -206,7 +207,7 @@ The BFF treats the digest as untrusted client-supplied context; identifiers in i
 | ASST-R1 | Open rollout acceptance | Match frontend gates, BFF registry and assigned published profiles; verify kind disabled/available states without misleading model requests |
 | ASST-R2 | Open persistence/concurrency acceptance | Dropped stream reconciliation, identical retry, CAS conflict, target/workspace switch, archive, and busy/delete paths do not duplicate or overwrite target writes |
 | ASST-R3 | Open retention/documentation discrepancy | Reconcile the intended private-context retention policy with the actual frozen-payload storage; define retention/deletion/access behavior and verify replay plus conversation deletion. Never promise that deleting a conversation purges execution payloads without evidence |
-| ASST-R4 | Planned separate initiative | Novel-bound assistant tools and manuscript writes belong to the novel roadmap, not the existing `app` kind |
+| ASST-R4 | Implemented as the separate `novel` kind (2026-10-18); D3 acceptance open | Remaining novel-assistant scope (one context and review path shared with inline AI, real diffs, takes) belongs to the novel roadmap D3, not the `app` kind |
 
 Related assistant-snapshot integrity items are tracked in [Workspace R1 gaps](../workspace_r1/04_gaps_and_priorities.md): W-04b (the media deletion reference scanner omits retained assistant output snapshots) and W-04d (investigation of unbound card-assistant creation and workspace default-persona uniqueness).
 

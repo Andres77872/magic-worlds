@@ -9,12 +9,12 @@ Start with [00 — Current status, evidence and remaining roadmap](00_current_st
 | Concern | Authority | Lifecycle |
 |---|---|---|
 | Current implementation, release gaps and acceptance | [00](00_current_status_and_roadmap.md) | Active, maintained |
-| Provider expansion now being executed | [Fish Audio suite](../fish_audio_support/README.md) | Active separate work; follow its live ledger for progress and rollout |
+| Fish Audio provider contract | BFF [Fish Audio guide](/home/andres/PycharmProjects/magic-worlds-api/docs/fish_audio.md) | Implemented; release gates are V-14 in [00](00_current_status_and_roadmap.md). The execution dossier was removed 2026-10-26 |
 | Moderation replacement and release guards | [Moderation suite](../moderation/README.md) | Active requirements; the older classifier-only proposal is historical |
 | App workspace isolation/lifecycle | [Workspace status](../workspace_r1/02_current_status_and_findings.md), [execution contracts](../workspace_r1/15_execution_contracts.md) | Active contracts |
 | Owner decisions of 2026-10-14 (I-68–I-73) | [00](00_current_status_and_roadmap.md) carries their current effect: I-68/I-69 MiniMax speech purge with no speech fallback; I-70 and then I-72 final schema, ending at native revision `2026_10_voice_native` with the six designed voices and V1/legacy-map removal; I-71 owner closure of the launch legal rows for the no-user project (vendor and counsel questions stay open in V-11); I-73 optional moderation for testing (V-01) | Historical decision text through git ([Historical record](#historical-dossier)); later accepted work controls where scope changes |
 
-The current source has progressed beyond the migration's single-provider/V2 baseline. This folder does not duplicate the active Fish delivery ledger. Read the BFF bootstrap and provider contracts linked from 00 before preparing a release; historical native-schema instructions are not a current full migration chain.
+The current source has progressed beyond the migration's single-provider/V2 baseline. Fish Audio release gates are V-14 in 00; its contract is the BFF `docs/fish_audio.md`. Read the BFF bootstrap and provider contracts linked from 00 before preparing a release; historical native-schema instructions are not a current full migration chain.
 
 ## What was retired and what remains
 

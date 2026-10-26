@@ -1,0 +1,11 @@
+[
+  {
+    "case": "live response",
+    "accepted": false,
+    "error": "Invalid LLM capacity usage."
+  },
+  {
+    "case": "same response without novel_assistant",
+    "accepted": true
+  }
+]

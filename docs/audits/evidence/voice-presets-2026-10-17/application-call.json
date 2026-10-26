@@ -1,0 +1,577 @@
+[
+  {
+    "preset": "Audit narration-only call fixture",
+    "voice_key": "vk_b2181fd85907a0cea6cb88ee52e96be6",
+    "provider": "fish_audio",
+    "frames": [
+      {
+        "type": "voice_error",
+        "category": "tts_unavailable",
+        "code": "voice_unavailable",
+        "message": "This character's voice is not available for calls.",
+        "fatal": true
+      }
+    ]
+  },
+  {
+    "preset": "Audit Drama 3 reassuring narrator",
+    "voice_key": "vk_35d9b99bf23f45704a705c2724f97582",
+    "provider": "fish_audio",
+    "frames": [
+      {
+        "type": "voice_ready",
+        "voice_session_id": "ba3a9796-aa83-4b7d-b514-1bc401f637f1",
+        "server_time_ms": 1792294037460,
+        "limits": {
+          "max_call_seconds": 600,
+          "idle_timeout_seconds": 120,
+          "remaining_daily_seconds": 0,
+          "max_segment_duration_ms": 30000
+        },
+        "upload_url": "/character-chats/72/voice-segments",
+        "audio": {
+          "content_type": "audio/mpeg",
+          "codec": "mp3",
+          "sample_rate": 44100,
+          "channels": 1
+        },
+        "effective_voice": {
+          "voice_key": "vk_35d9b99bf23f45704a705c2724f97582",
+          "display_name": "Gabriel · Spanish narrator",
+          "provider_route": "fish_audio",
+          "substitution_reason": null,
+          "badges": []
+        },
+        "original_voice_name": null,
+        "ai_voice": true
+      },
+      {
+        "type": "voice_status",
+        "state": "listening"
+      },
+      {
+        "type": "voice_ended",
+        "voice_session_id": "ba3a9796-aa83-4b7d-b514-1bc401f637f1",
+        "reason": "user"
+      }
+    ]
+  },
+  {
+    "preset": "Audit v4 warm narrator",
+    "voice_key": "vk_088e3507904c86b5413062367f7f9d73",
+    "provider": "elevenlabs",
+    "frames": [
+      {
+        "type": "voice_ready",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "server_time_ms": 1792294037551,
+        "limits": {
+          "max_call_seconds": 600,
+          "idle_timeout_seconds": 120,
+          "remaining_daily_seconds": 0,
+          "max_segment_duration_ms": 30000
+        },
+        "upload_url": "/character-chats/72/voice-segments",
+        "audio": {
+          "content_type": "audio/mpeg",
+          "codec": "mp3",
+          "sample_rate": 44100,
+          "channels": 1
+        },
+        "effective_voice": {
+          "voice_key": "vk_088e3507904c86b5413062367f7f9d73",
+          "display_name": "Narradora",
+          "provider_route": "elevenlabs",
+          "substitution_reason": null,
+          "badges": []
+        },
+        "original_voice_name": null,
+        "ai_voice": true
+      },
+      {
+        "upload_status": 200,
+        "upload_response": {
+          "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+          "segment_id": "379a7883-db6d-4a10-83b8-da2600975b59",
+          "seq": 1,
+          "status": "accepted",
+          "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+          "user_message_id": 396,
+          "assistant_message_id": 397
+        },
+        "input_origin": "real root-lab v4 audio, converted to PCM; no microphone emulation"
+      },
+      {
+        "type": "voice_status",
+        "state": "listening"
+      },
+      {
+        "type": "voice_segment_ack",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "seq": 1,
+        "status": "received"
+      },
+      {
+        "type": "voice_segment_ack",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "seq": 1,
+        "status": "accepted"
+      },
+      {
+        "type": "transcript_final",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "seq": 1,
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "text": "The lamp is still on. We'll be back before dawn.",
+        "no_speech_prob": 0.07342529
+      },
+      {
+        "type": "voice_turn_start",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "user_message_id": 396,
+        "assistant_message_id": 397,
+        "segment_seq": 1
+      },
+      {
+        "type": "voice_assistant_delta",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "content": "Sí, seguimos"
+      },
+      {
+        "type": "voice_assistant_delta",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "content": " hacia cas"
+      },
+      {
+        "type": "voice_assistant_delta",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "content": "a, con"
+      },
+      {
+        "type": "voice_assistant_delta",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "content": " cal"
+      },
+      {
+        "type": "voice_assistant_delta",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "content": "ma y paso"
+      },
+      {
+        "type": "voice_assistant_delta",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "content": " fir"
+      },
+      {
+        "type": "voice_assistant_delta",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "content": "me, que"
+      },
+      {
+        "type": "voice_assistant_delta",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "content": " la lámpara n"
+      },
+      {
+        "type": "voice_assistant_delta",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "content": "os guía y llegarem"
+      },
+      {
+        "type": "voice_assistant_delta",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "content": "os antes del amanecer"
+      },
+      {
+        "type": "voice_assistant_delta",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "content": ". ¿Cómo"
+      },
+      {
+        "type": "voice_assistant_delta",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "content": " te sientes para"
+      },
+      {
+        "type": "voice_assistant_delta",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "content": " continuar?"
+      },
+      {
+        "type": "voice_audio_chunk",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "seq": 1,
+        "content_type": "audio/mpeg",
+        "sample_rate": 44100,
+        "channels": 1,
+        "is_final": false,
+        "codec": "mp3",
+        "gain_db": 0.0,
+        "substitution_reason": null,
+        "audio_bytes": 44
+      },
+      {
+        "type": "voice_audio_chunk",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "seq": 2,
+        "content_type": "audio/mpeg",
+        "sample_rate": 44100,
+        "channels": 1,
+        "is_final": false,
+        "codec": "mp3",
+        "gain_db": 0.0,
+        "substitution_reason": null,
+        "audio_bytes": 417
+      },
+      {
+        "type": "voice_audio_chunk",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "seq": 3,
+        "content_type": "audio/mpeg",
+        "sample_rate": 44100,
+        "channels": 1,
+        "is_final": false,
+        "codec": "mp3",
+        "gain_db": 0.0,
+        "substitution_reason": null,
+        "audio_bytes": 1254
+      },
+      {
+        "type": "voice_audio_chunk",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "seq": 4,
+        "content_type": "audio/mpeg",
+        "sample_rate": 44100,
+        "channels": 1,
+        "is_final": false,
+        "codec": "mp3",
+        "gain_db": 0.0,
+        "substitution_reason": null,
+        "audio_bytes": 627
+      },
+      {
+        "type": "voice_audio_chunk",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "seq": 5,
+        "content_type": "audio/mpeg",
+        "sample_rate": 44100,
+        "channels": 1,
+        "is_final": false,
+        "codec": "mp3",
+        "gain_db": 0.0,
+        "substitution_reason": null,
+        "audio_bytes": 1881
+      },
+      {
+        "type": "voice_audio_chunk",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "seq": 6,
+        "content_type": "audio/mpeg",
+        "sample_rate": 44100,
+        "channels": 1,
+        "is_final": false,
+        "codec": "mp3",
+        "gain_db": 0.0,
+        "substitution_reason": null,
+        "audio_bytes": 5016
+      },
+      {
+        "type": "voice_audio_chunk",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "seq": 7,
+        "content_type": "audio/mpeg",
+        "sample_rate": 44100,
+        "channels": 1,
+        "is_final": false,
+        "codec": "mp3",
+        "gain_db": 0.0,
+        "substitution_reason": null,
+        "audio_bytes": 6896
+      },
+      {
+        "type": "voice_audio_chunk",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "seq": 8,
+        "content_type": "audio/mpeg",
+        "sample_rate": 44100,
+        "channels": 1,
+        "is_final": false,
+        "codec": "mp3",
+        "gain_db": 0.0,
+        "substitution_reason": null,
+        "audio_bytes": 3344
+      },
+      {
+        "type": "voice_audio_chunk",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "seq": 9,
+        "content_type": "audio/mpeg",
+        "sample_rate": 44100,
+        "channels": 1,
+        "is_final": false,
+        "codec": "mp3",
+        "gain_db": 0.0,
+        "substitution_reason": null,
+        "audio_bytes": 5642
+      },
+      {
+        "type": "voice_audio_chunk",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "seq": 10,
+        "content_type": "audio/mpeg",
+        "sample_rate": 44100,
+        "channels": 1,
+        "is_final": false,
+        "codec": "mp3",
+        "gain_db": 0.0,
+        "substitution_reason": null,
+        "audio_bytes": 6896
+      },
+      {
+        "type": "voice_audio_chunk",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "seq": 11,
+        "content_type": "audio/mpeg",
+        "sample_rate": 44100,
+        "channels": 1,
+        "is_final": false,
+        "codec": "mp3",
+        "gain_db": 0.0,
+        "substitution_reason": null,
+        "audio_bytes": 5225
+      },
+      {
+        "type": "voice_audio_chunk",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "seq": 12,
+        "content_type": "audio/mpeg",
+        "sample_rate": 44100,
+        "channels": 1,
+        "is_final": false,
+        "codec": "mp3",
+        "gain_db": 0.0,
+        "substitution_reason": null,
+        "audio_bytes": 2508
+      },
+      {
+        "type": "voice_audio_chunk",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "seq": 13,
+        "content_type": "audio/mpeg",
+        "sample_rate": 44100,
+        "channels": 1,
+        "is_final": false,
+        "codec": "mp3",
+        "gain_db": 0.0,
+        "substitution_reason": null,
+        "audio_bytes": 5851
+      },
+      {
+        "type": "voice_audio_chunk",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "seq": 14,
+        "content_type": "audio/mpeg",
+        "sample_rate": 44100,
+        "channels": 1,
+        "is_final": false,
+        "codec": "mp3",
+        "gain_db": 0.0,
+        "substitution_reason": null,
+        "audio_bytes": 5851
+      },
+      {
+        "type": "voice_audio_chunk",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "seq": 15,
+        "content_type": "audio/mpeg",
+        "sample_rate": 44100,
+        "channels": 1,
+        "is_final": false,
+        "codec": "mp3",
+        "gain_db": 0.0,
+        "substitution_reason": null,
+        "audio_bytes": 5643
+      },
+      {
+        "type": "voice_audio_chunk",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "seq": 16,
+        "content_type": "audio/mpeg",
+        "sample_rate": 44100,
+        "channels": 1,
+        "is_final": false,
+        "codec": "mp3",
+        "gain_db": 0.0,
+        "substitution_reason": null,
+        "audio_bytes": 1463
+      },
+      {
+        "type": "voice_audio_chunk",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "seq": 17,
+        "content_type": "audio/mpeg",
+        "sample_rate": 44100,
+        "channels": 1,
+        "is_final": false,
+        "codec": "mp3",
+        "gain_db": 0.0,
+        "substitution_reason": null,
+        "audio_bytes": 417
+      },
+      {
+        "type": "voice_audio_chunk",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "seq": 18,
+        "content_type": "audio/mpeg",
+        "sample_rate": 44100,
+        "channels": 1,
+        "is_final": false,
+        "codec": "mp3",
+        "gain_db": 0.0,
+        "substitution_reason": null,
+        "audio_bytes": 1254
+      },
+      {
+        "type": "voice_audio_chunk",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "seq": 19,
+        "content_type": "audio/mpeg",
+        "sample_rate": 44100,
+        "channels": 1,
+        "is_final": false,
+        "codec": "mp3",
+        "gain_db": 0.0,
+        "substitution_reason": null,
+        "audio_bytes": 627
+      },
+      {
+        "type": "voice_audio_chunk",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "seq": 20,
+        "content_type": "audio/mpeg",
+        "sample_rate": 44100,
+        "channels": 1,
+        "is_final": false,
+        "codec": "mp3",
+        "gain_db": 0.0,
+        "substitution_reason": null,
+        "audio_bytes": 1881
+      },
+      {
+        "type": "voice_audio_chunk",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "seq": 21,
+        "content_type": "audio/mpeg",
+        "sample_rate": 44100,
+        "channels": 1,
+        "is_final": false,
+        "codec": "mp3",
+        "gain_db": 0.0,
+        "substitution_reason": null,
+        "audio_bytes": 5016
+      },
+      {
+        "type": "voice_audio_chunk",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "seq": 22,
+        "content_type": "audio/mpeg",
+        "sample_rate": 44100,
+        "channels": 1,
+        "is_final": false,
+        "codec": "mp3",
+        "gain_db": 0.0,
+        "substitution_reason": null,
+        "audio_bytes": 5642
+      },
+      {
+        "type": "voice_audio_chunk",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "seq": 23,
+        "content_type": "audio/mpeg",
+        "sample_rate": 44100,
+        "channels": 1,
+        "is_final": false,
+        "codec": "mp3",
+        "gain_db": 0.0,
+        "substitution_reason": null,
+        "audio_bytes": 1463
+      },
+      {
+        "type": "voice_audio_final",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "last_seq": 23
+      },
+      {
+        "type": "voice_turn_end",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "turn_id": "576e9e07-616f-4990-864b-be8c3ab32b0c",
+        "status": "completed",
+        "partial": false,
+        "duration_ms": 3744,
+        "truncated": false,
+        "played_ms": null
+      },
+      {
+        "type": "voice_ended",
+        "voice_session_id": "f8ce0ac4-82e0-4b98-9a4e-9b785baa85ad",
+        "reason": "user"
+      }
+    ],
+    "audio_evidence": {
+      "file": "application-call-v4-turbo.mp3",
+      "bytes": 74858,
+      "chunks": 23,
+      "sha256": "3a9cb0e5d4dcea2dbbeb172332f0eff2bfcdfa248fad572e2dd72e51ecea7e5c",
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "mp3",
+          "sample_rate": "44100",
+          "channels": 1
+        }
+      ],
+      "format": {
+        "duration": "9.351750"
+      }
+    }
+  }
+]

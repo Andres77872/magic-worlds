@@ -14,7 +14,7 @@ This file owns the implementation status and backlog; use [SETUP.md](SETUP.md) f
 | Promo/email grants | Redemption/claim routes and credit-token administration exist independently | Preserve grants and quota behavior with checkout off |
 | Patreon | Backend entitlement reconciliation is independently gated (`PATREON_PROVIDER_SYNC_ENABLED`); BFF `/patreon/link/*` proxies api.auth's link-proof routes; frontend flag and gated client methods exist | No connect/link UI is implemented; PAT-01 product decision |
 
-The source default for an absent `VITE_BILLING_ENABLED` is false. `.env.example` explicitly opts in, so copying that template changes the purchase surface. Local `.env` absence and backend provider flags were reviewed as configuration evidence only; built/deployed settings were not inspected. [SETUP.md](SETUP.md) records the local snapshot.
+Since 2026-10-18 (SPA `692e56bb`) there is no frontend billing or Patreon switch: `VITE_BILLING_ENABLED`, `VITE_PATREON_ENABLED` and `billingFeatureFlag.ts` were removed. The purchase surface follows the server catalog alone (`GET /billing/plans` returning `enabled: true`). Backend provider flags were reviewed as configuration evidence only; built/deployed settings were not inspected. [SETUP.md](SETUP.md) records the gates.
 
 ## Remaining work
 

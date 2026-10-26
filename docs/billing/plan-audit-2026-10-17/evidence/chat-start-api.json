@@ -1,0 +1,6 @@
+{
+  "status": 422,
+  "response": {
+    "detail": "persona_id must reference a persona card"
+  }
+}

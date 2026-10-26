@@ -1,0 +1,174 @@
+{
+  "files": [
+    {
+      "file": "api-validation.json",
+      "bytes": 3369,
+      "sha256": "7b0682acbd824f403dd88d4da4e905291620ece3b4661ded34b1653584781ce0"
+    },
+    {
+      "file": "application-call-v4-turbo.mp3",
+      "bytes": 74858,
+      "sha256": "3a9cb0e5d4dcea2dbbeb172332f0eff2bfcdfa248fad572e2dd72e51ecea7e5c"
+    },
+    {
+      "file": "application-call.json",
+      "bytes": 18010,
+      "sha256": "1a82f891db34e34666055fdacc8c21e63ba038ce888177f406e09d6edb93631b"
+    },
+    {
+      "file": "browser-chat-drama-narration.mp3",
+      "bytes": 107414,
+      "sha256": "53c6a8af3bd281c87c21be45a6100346330c697c46f524dbb1382777d96b0fe3"
+    },
+    {
+      "file": "call-database.json",
+      "bytes": 1926,
+      "sha256": "b00f09d3097f6cd37d64be3d3041818023403afd4c70eb051dc8678d3f846a3f"
+    },
+    {
+      "file": "catalog-acceptance.json",
+      "bytes": 29683,
+      "sha256": "37a5ba3aaf2a2c7b309cccf234667d21affdc5fecfed0a103e9b0f642d5616e1"
+    },
+    {
+      "file": "character-assignment.json",
+      "bytes": 3090,
+      "sha256": "26be8826eb5cd28f16af99ee03174799222bebd04a3ba1a10601f78c62dce2db"
+    },
+    {
+      "file": "chat-delete-ui.json",
+      "bytes": 706,
+      "sha256": "37c0221b4e3efe5d9025e804ef3d39286e6ef5edd1bf6c7dc0d2af889f0d6b5c"
+    },
+    {
+      "file": "chat-deletion-fails.png",
+      "bytes": 1381493,
+      "sha256": "27ef655c76e58881afa003fefc941e0df00ace7803a9a28ccab06f2651913714"
+    },
+    {
+      "file": "chat-generation.json",
+      "bytes": 7152,
+      "sha256": "7e69ce8dbaffba70b66341fd6851b091d37fedea840b9bc4f4234161c9398f6a"
+    },
+    {
+      "file": "consumer-browser.json",
+      "bytes": 25086,
+      "sha256": "57efad6a1fd271c9772aace4567879d5a2da394cfc851e9dbdc75ceabd717b48"
+    },
+    {
+      "file": "cross-language-dictionary.png",
+      "bytes": 243756,
+      "sha256": "217f333b8df4eb635bed7e8b599c3b3ab729afa4096c4271511f40b514d28bcc"
+    },
+    {
+      "file": "english-cmu-preview.mp3",
+      "bytes": 47228,
+      "sha256": "e6ca745d303bf506f88b794b4fb7f10f116b8029ca36f0cf6ca6af3650dfbfca"
+    },
+    {
+      "file": "final-backend-validation.json",
+      "bytes": 2805,
+      "sha256": "fcea0eed2b405e3cc30bc1e1dda338b8610c202b71957743ddc2b4ef1ffc0f8c"
+    },
+    {
+      "file": "first-paid-preview-database.json",
+      "bytes": 2245,
+      "sha256": "1f859cf7acb44257881b045976d0a890b97ecbab3ddd4f94903388366eec3471"
+    },
+    {
+      "file": "fish-native-streams.json",
+      "bytes": 1082,
+      "sha256": "f2f476a3e85e3cd5103982997099efd0acdda63d67d4ca407f006d7d4a6b1376"
+    },
+    {
+      "file": "full-build.txt",
+      "bytes": 12559,
+      "sha256": "2fbecf63badea9f01114f6b0f16c8e9bf287a8fd5233ad281ee2a2c42488a188"
+    },
+    {
+      "file": "narration-only-call-selection.png",
+      "bytes": 220685,
+      "sha256": "dc193cfe2a0ddda6e02a39f2bfe68b68decbb74dfff9e8e34cfd7d36859e0a9e"
+    },
+    {
+      "file": "native-stream-tests.txt",
+      "bytes": 98,
+      "sha256": "6ede137f5481cc9dab8f66fd90a9c89881116964a8d3e0d38ebbe8b808cea709"
+    },
+    {
+      "file": "new-free-account.json",
+      "bytes": 4217,
+      "sha256": "688d9ca4346266db6f38f50cbec8d22b1f537939ba0f80b1b0503bd3daabfffd"
+    },
+    {
+      "file": "new-free-account.png",
+      "bytes": 239147,
+      "sha256": "9420b326bff265d27594fa8824a00b69a8d025e3db2626546bc2128958e34353"
+    },
+    {
+      "file": "pagination.json",
+      "bytes": 837,
+      "sha256": "2b23c6500ae9e3a3e157694cd3721da6889b6bc8dd3e716e3bc8db24d7d1013c"
+    },
+    {
+      "file": "performance-browser.json",
+      "bytes": 2998,
+      "sha256": "2cc7877309703974e2bb299c0154bfd2fa0dd9da64a02eea5da0e89b59702535"
+    },
+    {
+      "file": "preview-edges.json",
+      "bytes": 5230,
+      "sha256": "6478b991b6b09cf6ab356c79ca9f9996868462a0f11c45cd42df845e5f0a0126"
+    },
+    {
+      "file": "production-mobile.json",
+      "bytes": 1074,
+      "sha256": "5f69cc20bc8f289955eb65b18862026811153382eed045e837108650901db3e5"
+    },
+    {
+      "file": "production-narration-and-call-ui.json",
+      "bytes": 10181,
+      "sha256": "ccf36e5ac1ff861fb260e0eaafe749e2da2d7531cdead431d588bfdd923b5a28"
+    },
+    {
+      "file": "production-narration-playback.png",
+      "bytes": 207471,
+      "sha256": "bb7d6d908c6ae1c1a171b68b37b09f9ee28110909302a6ccdfb6ae5c4f226fb8"
+    },
+    {
+      "file": "root-browser.json",
+      "bytes": 6968,
+      "sha256": "dd31b6c23082df4a88ba3a935b99eae30bb37341468acba12c7ca31937f7d1c5"
+    },
+    {
+      "file": "root-lab-drama-3.mp3",
+      "bytes": 99891,
+      "sha256": "1ce356836f36d7b1be004c10f816af8be717f810755f408755045fc6e6157394"
+    },
+    {
+      "file": "root-lab-s2.1-pro.mp3",
+      "bytes": 69380,
+      "sha256": "8023458fd6a0b0091bb22ed3d67722b5d927c0dd1e4ca95e94e097628d8174a1"
+    },
+    {
+      "file": "root-lab-v4.mp3",
+      "bytes": 65244,
+      "sha256": "e71b1d2881d8e388a9c7ea344c1834578740be3dd1dc96a1c1abb7de6e1ec338"
+    },
+    {
+      "file": "source-snapshot.json",
+      "bytes": 3041,
+      "sha256": "706a83a1ca371e243f84ab3d910089abc91265ab271c61ec4f184e31b4c82f29"
+    },
+    {
+      "file": "stale-preview-credit.png",
+      "bytes": 245474,
+      "sha256": "46f354886b95911b210392c8a9c4d8f2ee6d1db006b1f017e75fe5d5553488f4"
+    },
+    {
+      "file": "v4-turbo-native-stream.json",
+      "bytes": 371,
+      "sha256": "2c033dc2cc78659f762745c7ff75ccef7526eafe7facc8cb3898a9ebfae6b69d"
+    }
+  ]
+}

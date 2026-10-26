@@ -186,7 +186,9 @@ Contracts and inventory: [document 15](15_execution_contracts.md), [document 16]
 
 The R1 API requires `X-Workspace-Id` on every private content request and never falls back to account-wide data (document 15). A browser may therefore run a frontend build that does not match the API: an old tab left open through the cutover, or a new build loaded while the API is stopped or rolled back. These requirements make every such combination either work on the protected default workspace or show an explicit state. The frontend never sends a private request without a validated workspace and never shows an empty library as if content were gone.
 
-### One build, two UI states
+### One build, two UI states (historical)
+
+> **Graduated 2026-10-18.** The flag below was removed in SPA `692e56bb`; the full R1 UI is always on and there is no flag-`false` state. This subsection and the deploy order below record the R1 rollout design.
 
 The R1 build always sends workspace-scoped requests; it has no account-wide code path. A build-time flag, `VITE_FEATURE_WORKSPACES_ENABLED`, follows the existing `VITE_FEATURE_*` convention in `src/shared/featureFlags.ts` and controls only what the user sees:
 
@@ -231,7 +233,9 @@ Tabs older than the compatibility release only show the existing non-blocking up
 
 Content-related browser storage written before R1 is not scoped to a workspace (for example the app-assistant knowledge focus and saved library filters). On the first R1 load, move each such entry into the protected default workspace's key once, then delete the old key. Never assign it to another workspace. Account/global preferences stay as they are: language, gallery view mode, sidebar state, playlist, cookie consent and auth token. Entries already keyed by a stable record ID (novel word goal per story, auto-narrate per session) need no change.
 
-### Deploy order (frontend view; full runbook in document 11)
+### Deploy order (historical; frontend view)
+
+The R1 cutover runbook (document 11) and its tooling were removed after the cutover; current upgrades follow the BFF database guide.
 
 1. **Before the window:** ship the compatibility release.
 2. **Stop the API** (document 11 quiescence). Open tabs show the services-down banner.
@@ -240,7 +244,7 @@ Content-related browser storage written before R1 is not scoped to a workspace (
 5. **Run smoke checks** with the flag `false`.
 6. **Redeploy with the flag `true`.** Tabs on the flag-`false` build keep working, because their requests are already correct, and get the update banner.
 
-**Rollback:** before activation, if the API is restored to the predecessor, also redeploy the pre-R1 frontend; otherwise the R1 build keeps private pages blocked, by design. After activation, the emergency switch is a redeploy with the flag `false`; content in other workspaces is preserved and the notice above explains why it is hidden.
+**Rollback:** before activation, if the API is restored to the predecessor, also redeploy the pre-R1 frontend; otherwise the R1 build keeps private pages blocked, by design. After activation, the emergency switch was a redeploy with the flag `false`; since graduation there is no such switch, so rollback means redeploying a compatible build pair.
 
 ## Research basis and design validation
 

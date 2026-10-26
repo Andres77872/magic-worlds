@@ -1,6 +1,8 @@
 # Current status and evidence
 
-**Status authority for this initiative. Reviewed:** 2026-10-15. **Overall:** researched and proposed; implementation has not started as part of this request.
+**Status authority for this initiative. Reviewed:** 2026-10-15; baseline kinds rechecked 2026-10-26. **Overall:** researched and proposed; implementation has not started (no AIMP work in source as of 2026-10-26).
+
+**Baseline update, 2026-10-26:** a fourth assistant kind, `novel`, landed on 2026-10-18 (BFF `70c9c27`/`7f7eac7`, SPA `692e56bb`). It is bound to one story, answers through a reply tool with `applies_tools=False`, and does not change the `app` kind. Its work also changed point 1 below: the turn store now sets `targeted = handler.applies_tools` instead of `bool(handler.tools)`. The rest of this baseline keeps its 2026-10-15 scope.
 
 ## Evidence boundary
 
@@ -14,7 +16,7 @@ Only Markdown documents under this directory are delivered. No implementation or
 
 | Area | Observed behavior | Source |
 | --- | --- | --- |
-| Assistant kinds | `card`, `lorebook`, `app`; server registry can disable each kind | [Registry](../../../../PycharmProjects/magic-worlds-api/src/services/assistants/registry.py), [request models](../../../../PycharmProjects/magic-worlds-api/src/models/assistant.py) |
+| Assistant kinds | `card`, `lorebook`, `app` at this review; `novel` was added 2026-10-18. The server registry can disable each kind | [Registry](../../../../PycharmProjects/magic-worlds-api/src/services/assistants/registry.py), [request models](../../../../PycharmProjects/magic-worlds-api/src/models/assistant.py) |
 | Main assistant | Plain text/Markdown over a client-built context; no tools or mutation target | [App handler](../../../../PycharmProjects/magic-worlds-api/src/services/assistants/app.py), [app graph](../../../../PycharmProjects/magic-worlds-api/src/agent_graphs/runtime/app_assistant.v2.json) |
 | Card tools | Replace, patch, or answer without changing one bound card; type-specific schemas | [Card handler and planning](../../../../PycharmProjects/magic-worlds-api/src/services/assistants/card.py) |
 | Lorebook tools | Replace, patch, or answer without changing one bound lorebook | [Lorebook handler and planning](../../../../PycharmProjects/magic-worlds-api/src/services/assistants/lorebook.py) |
@@ -43,7 +45,7 @@ There is also an existing `mw_read_card` tool in character/adventure/group rolep
 
 ## Why enabling app tools alone will fail
 
-1. `AssistantTurnStore.targeted = bool(handler.tools)` equates tool use with a conversation-bound document.
+1. At this review, `AssistantTurnStore.targeted = bool(handler.tools)` equated tool use with a conversation-bound document. Since 2026-10-18 it is `handler.applies_tools`, so a tool-calling kind that applies no edit is no longer treated as targeted; an app kind that applies edits still needs a bound target.
 2. App conversations have no card/lorebook binding or target CAS.
 3. Stored app messages reject tool roles and tool fields.
 4. Current snapshot and frontend verifiers expect different terminal shapes for document and app kinds.

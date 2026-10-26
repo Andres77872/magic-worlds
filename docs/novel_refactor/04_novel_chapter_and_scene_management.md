@@ -451,5 +451,5 @@ checkpoint, including an empty paragraph. Separate note/bookmark lists offer
 label editing, Trash/restore and reviewed reattachment. Opening verifies the
 owned stable anchor before moving the writer cursor; detached or changed
 locations retain evidence. Device draft/receipt recovery, independent copy
-choices and frozen snapshot review are connected. [17](17_annotation_anchors_and_personal_review.md#prepared-bookmark-extension--2026-10-16)
+choices and frozen snapshot review are connected. [17](../../../../PycharmProjects/magic-worlds-api/docs/api_usage/stories.md#personal-bookmarks)
 records point/lineage rules. Broader D2 acceptance remains open.

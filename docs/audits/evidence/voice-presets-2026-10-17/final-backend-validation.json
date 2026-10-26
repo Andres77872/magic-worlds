@@ -1,0 +1,113 @@
+[
+  {
+    "check": "real_provider_transition_roundtrip",
+    "fish": {
+      "provider": "fish_audio",
+      "schema_version": 3,
+      "settings": null,
+      "model_id": "drama-3",
+      "performance": {
+        "version": 1,
+        "direction": "Warm and steady",
+        "dictionary_refs": []
+      }
+    },
+    "elevenlabs": {
+      "provider": "elevenlabs",
+      "schema_version": 2,
+      "settings": {
+        "similarity_boost": 0.7
+      },
+      "model_id": null,
+      "performance": null
+    }
+  },
+  {
+    "check": "real_english_cmu_preview_and_version_conflict",
+    "preset_id": "16a567fe-1cf6-4c0a-a1a0-fe208c6932a4",
+    "dictionary_id": "pd_14981eeef9ab470788fd232d1d65585f",
+    "stale_version_status": 409,
+    "bytes": 47228,
+    "sha256": "e6ca745d303bf506f88b794b4fb7f10f116b8029ca36f0cf6ca6af3650dfbfca",
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "codec_name": "mp3",
+        "sample_rate": "44100",
+        "channels": 1
+      }
+    ],
+    "format": {
+      "duration": "2.951750"
+    }
+  },
+  {
+    "check": "foreign_owned_preview_without_grant",
+    "status": 404
+  },
+  {
+    "check": "saved_character_recipe_by_value",
+    "character_id": "f6f846ce-4d24-4efe-8c26-d653116d574e",
+    "model_id": "drama-3",
+    "performance": {
+      "version": 1,
+      "direction": "Warm and quietly reassuring",
+      "dictionary_refs": [
+        {
+          "dictionary_id": "pd_40b0d1b246f945c69129e5bab7c8a097",
+          "version_id": "pv_aef699129bc0451cb9181e1eadce1f49"
+        }
+      ]
+    }
+  },
+  {
+    "check": "owned_narration_audio_from_browser_job",
+    "job_id": "2b7bbefa-47ec-4bf2-a395-ed1e0b7eb48b",
+    "voice_name": "Gabriel · Spanish narrator",
+    "bytes": 107414,
+    "sha256": "53c6a8af3bd281c87c21be45a6100346330c697c46f524dbb1382777d96b0fe3",
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "codec_name": "mp3",
+        "sample_rate": "44100",
+        "channels": 1
+      }
+    ],
+    "format": {
+      "duration": "6.713375"
+    }
+  },
+  {
+    "check": "empty_test_chat_cleanup",
+    "status": 500,
+    "response": {
+      "detail": "Failed to delete character chat"
+    }
+  },
+  {
+    "check": "negative_property_matrix",
+    "counts": {
+      "/voice-presets": 7,
+      "/admin/voice-presets/global": 1,
+      "/voice-performance/preview": 11,
+      "/voice-performance/dictionaries": 7
+    },
+    "total": 26
+  },
+  {
+    "check": "retained_test_account",
+    "username": "voice_review_20261017_8dbf34",
+    "user_type": "consumer",
+    "personal_presets": [
+      "Audit Drama 3 English pronunciation",
+      "Audit Drama 3 reassuring narrator",
+      "Audit v4 warm narrator"
+    ],
+    "global_count": 12,
+    "temporary_call_preset_deleted": true,
+    "empty_chat_deleted": false
+  }
+]

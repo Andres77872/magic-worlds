@@ -1,0 +1,218 @@
+{
+  "captured_at_utc": "2026-10-19T15:33:28.338092+00:00",
+  "transaction": "read only",
+  "checks": {
+    "catalog_counts": [
+      {
+        "provider": "elevenlabs",
+        "status": "draft",
+        "visibility": "admin",
+        "n": 23
+      },
+      {
+        "provider": "elevenlabs",
+        "status": "active",
+        "visibility": "public",
+        "n": 6
+      },
+      {
+        "provider": "fish_audio",
+        "status": "draft",
+        "visibility": "admin",
+        "n": 7
+      },
+      {
+        "provider": "fish_audio",
+        "status": "active",
+        "visibility": "public",
+        "n": 13
+      },
+      {
+        "provider": "elevenlabs",
+        "status": "blocked",
+        "visibility": "admin",
+        "n": 1
+      }
+    ],
+    "fish_acceptance": [
+      {
+        "model_id": "drama-3",
+        "language": "en",
+        "verdict": "pass",
+        "voices": 6
+      },
+      {
+        "model_id": "drama-3",
+        "language": "es",
+        "verdict": "pass",
+        "voices": 7
+      }
+    ],
+    "published_fish_model_acceptance": [
+      {
+        "model_id": "drama-3",
+        "language": "en",
+        "voices": 6
+      },
+      {
+        "model_id": "drama-3",
+        "language": "es",
+        "voices": 7
+      }
+    ],
+    "tts_asset_schema": [
+      {
+        "COLUMN_NAME": "asset_id"
+      },
+      {
+        "COLUMN_NAME": "job_id"
+      },
+      {
+        "COLUMN_NAME": "storage_backend"
+      },
+      {
+        "COLUMN_NAME": "storage_path"
+      },
+      {
+        "COLUMN_NAME": "content_type"
+      },
+      {
+        "COLUMN_NAME": "file_size_bytes"
+      },
+      {
+        "COLUMN_NAME": "duration_ms"
+      },
+      {
+        "COLUMN_NAME": "sample_rate"
+      },
+      {
+        "COLUMN_NAME": "channels"
+      },
+      {
+        "COLUMN_NAME": "bitrate"
+      },
+      {
+        "COLUMN_NAME": "output_format"
+      },
+      {
+        "COLUMN_NAME": "provider_url_hash"
+      },
+      {
+        "COLUMN_NAME": "created_at"
+      },
+      {
+        "COLUMN_NAME": "deleted_at"
+      }
+    ],
+    "tts_job_schema": [
+      {
+        "COLUMN_NAME": "job_id"
+      },
+      {
+        "COLUMN_NAME": "user_id"
+      },
+      {
+        "COLUMN_NAME": "project_hash"
+      },
+      {
+        "COLUMN_NAME": "user_group_hash"
+      },
+      {
+        "COLUMN_NAME": "workspace_id"
+      },
+      {
+        "COLUMN_NAME": "adventure_id"
+      },
+      {
+        "COLUMN_NAME": "assistant_message_id"
+      },
+      {
+        "COLUMN_NAME": "turn_id"
+      },
+      {
+        "COLUMN_NAME": "segment_index"
+      },
+      {
+        "COLUMN_NAME": "request_id"
+      },
+      {
+        "COLUMN_NAME": "source"
+      },
+      {
+        "COLUMN_NAME": "operation"
+      },
+      {
+        "COLUMN_NAME": "status"
+      },
+      {
+        "COLUMN_NAME": "model_alias"
+      },
+      {
+        "COLUMN_NAME": "provider"
+      },
+      {
+        "COLUMN_NAME": "provider_model_id"
+      },
+      {
+        "COLUMN_NAME": "voice_id_hash"
+      },
+      {
+        "COLUMN_NAME": "normalized_text_sha256"
+      },
+      {
+        "COLUMN_NAME": "input_summary"
+      },
+      {
+        "COLUMN_NAME": "result_summary"
+      },
+      {
+        "COLUMN_NAME": "error_category"
+      },
+      {
+        "COLUMN_NAME": "error_public_detail"
+      },
+      {
+        "COLUMN_NAME": "error_internal_code"
+      },
+      {
+        "COLUMN_NAME": "error_provider_status_code"
+      },
+      {
+        "COLUMN_NAME": "provider_trace_id_hash"
+      },
+      {
+        "COLUMN_NAME": "mirror_attempt_count"
+      },
+      {
+        "COLUMN_NAME": "provider_attempt_count"
+      },
+      {
+        "COLUMN_NAME": "submitted_at"
+      },
+      {
+        "COLUMN_NAME": "completed_at"
+      },
+      {
+        "COLUMN_NAME": "created_at"
+      },
+      {
+        "COLUMN_NAME": "updated_at"
+      },
+      {
+        "COLUMN_NAME": "turn_charge_id"
+      },
+      {
+        "COLUMN_NAME": "billed_chars"
+      },
+      {
+        "COLUMN_NAME": "tier"
+      },
+      {
+        "COLUMN_NAME": "substitution_reason"
+      },
+      {
+        "COLUMN_NAME": "shared_card"
+      }
+    ]
+  }
+}

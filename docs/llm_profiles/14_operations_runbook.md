@@ -1,6 +1,6 @@
 # Runbook operativo de perfiles LLM
 
-**Revisado: 2026-10-15. Estado: referencia operativa activa; aceptación de custodia bloqueada.** Los perfiles y la admisión existen. El BFF actual transforma los clientes simbólicos en `engine`, `model` y `api_info`, y publica `{agt, messages, stream}` en `/v1/chat/completions`. No usa el handshake del diseño protegido. [Estado actual](16_current_status_and_roadmap.md) y [hallazgos de seguridad](../security/README.md) tienen precedencia.
+**Revisado: 2026-10-15; transporte BYOK actualizado el 2026-10-26. Estado: referencia operativa activa; aceptación de custodia pendiente.** Los perfiles y la admisión existen. El BFF actual transforma los clientes simbólicos en `engine`, `model` y `api_info`, y publica `{agt, messages, stream}` en `/v1/chat/completions`, más `request_credentials` cuando el plan es BYOK. No usa el handshake del diseño protegido. [Estado actual](16_current_status_and_roadmap.md) y [hallazgos de seguridad](../security/README.md) tienen precedencia.
 
 ## 1. Identificar el contrato realmente instalado
 
@@ -13,7 +13,7 @@ Registrar las revisiones del frontend, BFF, API LLM y runtime instalado, la conf
 
 ## 2. Gate de custodia pendiente
 
-El transporte actual coloca la clave BYOK en `agt` antes de serializar. La ruta inline del ejecutor conserva una copia del grafo authored en el snapshot nativo. Limpiar el diccionario del BFF después del envío no elimina la copia recibida. Por tanto, **no está acreditada la promesa de no persistencia end-to-end**.
+Desde el 2026-10-18/19 la clave BYOK viaja en `request_credentials`, fuera de `agt` (BFF `7f7eac7`); api.magic_llm lo descarta antes de la admisión y del snapshot nativo (`be1ab64`). Las claves de plataforma siguen dentro del grafo authored que el ejecutor captura. Los snapshots escritos antes del cambio pueden conservar claves BYOK antiguas. Por tanto, **la promesa de no persistencia end-to-end sigue sin acreditar** hasta el canario de abajo. Desplegar el ejecutor compatible antes de habilitar BYOK en el BFF.
 
 Antes de declarar esa garantía, ejecutar un canario ficticio por la ruta completa BFF → admisión → runtime → snapshot, incluyendo éxito, fallo, cancelación y retry. El criterio es ausencia del valor y de derivados prohibidos en persistencia, historial, diagnósticos y telemetría. El diseño deseado permanece en [05](05_security_and_secrets.md); F04 y F05 permanecen abiertos en [seguridad](../security/README.md).
 
@@ -52,13 +52,13 @@ Comportamiento implementado en la SPA (base de aceptación de LLM-R5). La clave 
 | Recarga de la pestaña | Se pierde | Se pierde | Extracción: el recibo local reanuda con su request ID y target. Chat: el historial del servidor muestra el turno, y un turno interrumpido se reconcilia por request ID al reintentar desde esta pestaña. Las demás superficies inician una solicitud nueva |
 | Token expirado (mismo usuario) | Se borra | Se conserva | Tras el refresh, el reintento reenvía el target sin clave; si el servidor la pide, se solicita solo para el mismo perfil y revisión |
 | Logout, cambio de cuenta/proyecto u otra pestaña cambia el token | Se borra | Se borra | Nada se reenvía; el siguiente intento es una solicitud nueva |
-| Restart o lease vencido en el servidor | El BFF no la guarda; el snapshot del ejecutor puede conservarla mientras F04 siga abierto | Se conserva | El reintento con el mismo request ID recupera la ejecución congelada sin doble cobro. Si es BYOK y el servidor pide la clave, se solicita otra vez; nunca cambia a platform. Un fallo terminal confirmado ofrece un intento enlazado (`retry_of_execution_id`) |
+| Restart o lease vencido en el servidor | El BFF no la guarda; el ejecutor la descarta antes del snapshot (sin canario end-to-end todavía) | Se conserva | El reintento con el mismo request ID recupera la ejecución congelada sin doble cobro. Si es BYOK y el servidor pide la clave, se solicita otra vez; nunca cambia a platform. Un fallo terminal confirmado ofrece un intento enlazado (`retry_of_execution_id`) |
 
 ## 5. Rotación y retención
 
 El transporte platform envía referencias de entorno al ejecutor y el runtime actual materializa clientes. Verificar en el servicio real cuándo se cargan y retienen esos valores antes de planificar rotación. Coordinar sustitución, reinicio/drenaje y verificación con el operador; este documento no acredita una rotación ni promete resolución lazy por ejecución.
 
-Snapshots, mensajes, checkpoints, auditoría, recibos y backups necesitan una política de retención. **No afirmar que todos esos almacenes excluyen credenciales mientras F04 siga abierto.** Hoy no hay purga automática de planes, recibos y reservas del BFF, snapshots y eventos de API LLM ni facts de uso, que guardan prompts y resultados del usuario. Antes del release, decidir plazos por tabla, retención de backups y el tratamiento de backups anteriores al corte, que pueden contener configuración antigua. Las claves de media tienen ciclos de vida separados; la selección BYOK de texto no cambia automáticamente el costo ni la autorización de imagen, música o voz.
+Snapshots, mensajes, checkpoints, auditoría, recibos y backups necesitan una política de retención. **No afirmar que todos esos almacenes excluyen credenciales hasta cerrar la aceptación de F04** (incluye snapshots anteriores al 2026-10-19). Hoy no hay purga automática de planes, recibos y reservas del BFF, snapshots y eventos de API LLM ni facts de uso, que guardan prompts y resultados del usuario. Antes del release, decidir plazos por tabla, retención de backups y el tratamiento de backups anteriores al corte, que pueden contener configuración antigua. Las claves de media tienen ciclos de vida separados; la selección BYOK de texto no cambia automáticamente el costo ni la autorización de imagen, música o voz.
 
 ## 6. Migraciones y handoff de revisión
 
@@ -66,7 +66,7 @@ Usar la [guía de base actual](../../../../PycharmProjects/magic-worlds-api/docs
 
 API LLM: [`20261010_retire_agent_model_reference.sql`](../../../../PycharmProjects/api.magic_llm/scripts/migrations/20261010_retire_agent_model_reference.sql) elimina `magic_manage.tb_agent_flow.id_model` y su índice en un único ALTER. Aplicarlo en el mismo despliegue, tras terminar la inicialización/verificación del versionado de agentes, con los escritores anteriores detenidos y `SHOW CREATE TABLE` revisado (sin FK sobre la columna), antes de arrancar el writer nuevo sobre una tabla con `id_model NOT NULL`. Retirar la columna cambia el fingerprint del verificador de identidades; no reutilizar la prueba previa. Antes de aplicarlo, retirar o corregir `eval_user_model_access_for_agent` en `api.magic_llm/src/db/user.py` (hoy sin llamadores), que todavía hace JOIN sobre `tb_agent_flow.id_model`. Pendiente de verificar por entorno (no aplicado en `.90` según el registro del 2026-10-10).
 
-Inspeccionar primero la revisión existente, los preflights soportados, escritores activos, backups/restauración y el orden de despliegue. Una base posterior no debe recibir otra vez un corte predecessor. La ejecución Fish está fuera de este cleanup: cualquier avance o handoff de esa integración corresponde a [su ledger](../fish_audio_support/11_implementation_status.md).
+Inspeccionar primero la revisión existente, los preflights soportados, escritores activos, backups/restauración y el orden de despliegue. Una base posterior no debe recibir otra vez un corte predecessor. Fish Audio está implementado; su contrato es el BFF `docs/fish_audio.md` y sus gates de release están en [V-14](../voice_refactor/00_current_status_and_roadmap.md).
 
 ## 7. Evidencia para cerrar aceptación
 

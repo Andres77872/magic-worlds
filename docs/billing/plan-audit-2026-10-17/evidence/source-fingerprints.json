@@ -1,0 +1,12 @@
+{
+  "/home/andres/WebstormProjects/magic-worlds/src/infrastructure/api/llmProfileContract.ts": "f8dfce8fab1f0c5c13f619fc24a7b3ec4905a913954191ad0946bfba2cbae930",
+  "/home/andres/WebstormProjects/magic-worlds/src/utils/characterRoles.ts": "838ae18197422a0076150aa20a2fab511e5f1bfdc97916492752e8b6c13d65bd",
+  "/home/andres/WebstormProjects/magic-worlds/src/features/profile/components/UsageSection.tsx": "45ff411264a17fd08c8cd064ceddfd258626d95d2499a76402e384c50904b642",
+  "/home/andres/WebstormProjects/magic-worlds/src/features/admin/membership/components/PlanEditorDialog.tsx": "698764b33a49e5556ed047d32b709268e432d50bdd08292137c40074897ae958",
+  "/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/models.py": "f67229dbccbc2878bc93bddf0dede069097786830ad93d1e82d1d4c94950ec19",
+  "/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/membership_admin_models.py": "f023b02fe5cf2fb4c8eab01fb424fd59d93d17fa2aeb305b270439fbdd15eae3",
+  "/home/andres/PycharmProjects/magic-worlds-api/src/database/mysql/llm_execution_admission.py": "94ae22efc62f53f20e213301b80a155f90d7c0a7a4a85f185cb18ac8047cccf1",
+  "/home/andres/PycharmProjects/magic-worlds-api/src/routes/admin_membership.py": "6e067ca9201690b3a21bdef6b813e7a1e7c31a065bc99704b1ebb2e0c842aa43",
+  "/home/andres/PycharmProjects/magic-worlds-api/src/routes/user/route_chat.py": "08e820e3092bc66be52a08e43c205e7702889164e5672c435986b429c2967b7d",
+  "/home/andres/PycharmProjects/magic-worlds-api/src/routes/user/route_character_chat.py": "970df46f09a03855dc0e21c92d941546095709f4e0348aa0d70ca1bc3e2d1599"
+}

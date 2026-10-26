@@ -1,0 +1,261 @@
+{
+  "checks": [
+    {
+      "check": "root_lab_real_ui_render",
+      "model": "v4",
+      "voice": "Narradora · Active",
+      "model_options": [
+        {
+          "text": "v4",
+          "disabled": null
+        }
+      ],
+      "slider_count": 2,
+      "bytes": 65244,
+      "sha256": "e71b1d2881d8e388a9c7ea344c1834578740be3dd1dc96a1c1abb7de6e1ec338",
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "mp3",
+          "sample_rate": "44100",
+          "channels": 1
+        }
+      ],
+      "format": {
+        "duration": "4.048980"
+      }
+    },
+    {
+      "check": "root_lab_real_ui_render",
+      "model": "Drama 3",
+      "voice": "Gabriel · Spanish narrator · Active",
+      "model_options": [
+        {
+          "text": "Fish Audio · Drama 3",
+          "disabled": null
+        },
+        {
+          "text": "Fish Audio · S2.1 Pro",
+          "disabled": null
+        }
+      ],
+      "slider_count": 0,
+      "bytes": 99891,
+      "sha256": "1ce356836f36d7b1be004c10f816af8be717f810755f408755045fc6e6157394",
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "mp3",
+          "sample_rate": "44100",
+          "channels": 1
+        }
+      ],
+      "format": {
+        "duration": "6.243188"
+      }
+    },
+    {
+      "check": "root_lab_real_ui_render",
+      "model": "S2.1 Pro",
+      "voice": "Gabriel · Spanish narrator · Active",
+      "model_options": [
+        {
+          "text": "Fish Audio · Drama 3",
+          "disabled": null
+        },
+        {
+          "text": "Fish Audio · S2.1 Pro",
+          "disabled": null
+        }
+      ],
+      "slider_count": 0,
+      "bytes": 69380,
+      "sha256": "8023458fd6a0b0091bb22ed3d67722b5d927c0dd1e4ca95e94e097628d8174a1",
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "mp3",
+          "sample_rate": "44100",
+          "channels": 1
+        }
+      ],
+      "format": {
+        "duration": "4.336250"
+      }
+    },
+    {
+      "check": "global_s2_actual_acceptance",
+      "offered_options": [
+        "Drama 3"
+      ],
+      "status": 201,
+      "response": {
+        "preset_id": "d5a5c13e-c660-46a1-a422-2c5db23ba74f",
+        "name": "Audit temporary S2 shared settings",
+        "description": null,
+        "voice_key": "vk_35d9b99bf23f45704a705c2724f97582",
+        "voice_name": "Gabriel · Spanish narrator",
+        "settings": null,
+        "emotion": null,
+        "language_code": null,
+        "is_global": true,
+        "schema_version": 3,
+        "provider": "fish_audio",
+        "model_id": "drama-3",
+        "metadata": {
+          "model_id": "drama-3",
+          "performance": {
+            "version": 1,
+            "direction": "Warm and quietly reassuring",
+            "dictionary_refs": []
+          }
+        },
+        "performance": {
+          "version": 1,
+          "direction": "Warm and quietly reassuring",
+          "dictionary_refs": []
+        },
+        "created_at": "2026-10-18T03:15:39",
+        "updated_at": "2026-10-18T03:15:39",
+        "voice_public": true,
+        "seed_key": null,
+        "effective_voice": {
+          "voice_key": "vk_35d9b99bf23f45704a705c2724f97582",
+          "display_name": "Gabriel · Spanish narrator",
+          "provider_route": "fish_audio",
+          "substitution_reason": null,
+          "badges": []
+        }
+      }
+    },
+    {
+      "check": "root_design_surface",
+      "text": "Magic Worlds\nCollapse sidebar\nMy library\nExplore\nLibrary\nCommunity\nAssistant\nACTIVITY\nChatroom\nStarted adventures\nNotifications\nNovels\nCalls\nASSETS\nLorebooks\nResources\nMedia\nVoices\nAPI online\nAPI online\nTasks\nR\nroot\nROOT CONSOLE\nVoice console\n\nCreate distinct voices, review how they sound, and publish them for your users.\n\nOpen voice studio\nVoices\nCreate a voice\nReview voices\nTools\nCreate\n\nThis creates a distinct voice. Delivery settings and emotions can be changed later without creating another voice.\n\n1.Describe the speaker\n2.Listen and compare\n3.Save your chosen voice\nDesign\nRemix\nFish Audio\nElevenLabs\n\nDescribe a voice, generate three previews, then save the one you choose as a root-only draft.\n\nVoice description\n105 / 1000 characters\nAge, gender, accent, timbre, pacing and mood. For example: a weathered old sailor with a warm, gravelly voice and a slow, confiding pace.\nGenerate the preview text automatically\nPreview text\n100 / 1000 characters\nBetween 100 and 1,000 characters.\nAdvanced options\nThis prompt does not describe or imitate a real person.\n\nChild-like voices are not allowed in the catalog.\n\nGenerate previews\n\nGlobal preset created"
+    }
+  ],
+  "network": [
+    {
+      "method": "GET",
+      "path": "/health/dependencies",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/user/preferences",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/workspaces/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/user/attestations",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/workspaces",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/adventure-sessions/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/worlds/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/characters/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/items/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/adventure-templates/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/admin/voices/limits",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/character-chats/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/admin/voices/test/models",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/stories",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/lorebooks",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/voices/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/admin/voices/catalog",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/tasks",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/admin/voice-presets/global",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/tasks",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/admin/voice-presets/global",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/tasks",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/admin/voice-presets/global",
+      "status": 201
+    },
+    {
+      "method": "GET",
+      "path": "/admin/voices/fish/design/capabilities",
+      "status": 200
+    }
+  ]
+}

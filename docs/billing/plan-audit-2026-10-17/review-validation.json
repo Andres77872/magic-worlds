@@ -1,0 +1,53 @@
+{
+  "review_date_local": "2026-10-17",
+  "timezone": "America/Mexico_City",
+  "scope": "Source review, focused baseline reruns, captured-response probe, and fix planning; no implementation",
+  "frontend": {
+    "cwd": "/home/andres/WebstormProjects/magic-worlds",
+    "command": "pnpm exec vitest run --exclude '**/.claude/**' --exclude '**/.codex/**' src/infrastructure/api/llmProfileContract.test.ts src/utils/characterRoles.test.ts src/features/characterChat/components/NewCharacterChatDialog.test.tsx src/features/profile/components/UsageSection.test.tsx src/features/profile/hooks/useLlmCapacityUsage.test.ts src/features/interaction/hooks/useAdventureChatSocket.test.tsx",
+    "exit_code": 0,
+    "files_passed": 6,
+    "tests_passed": 97,
+    "duration_seconds": 1.81
+  },
+  "backend": {
+    "cwd": "/home/andres/PycharmProjects/magic-worlds-api",
+    "command": ".venv/bin/python -m pytest -q tests/models/test_membership_payg.py tests/models/test_membership_admin.py tests/routes/test_admin_membership.py tests/services/test_turn_charge.py",
+    "exit_code": 0,
+    "files": 4,
+    "tests_passed": 259,
+    "duration_seconds": 1.69
+  },
+  "capacity_probe": {
+    "cwd": "/home/andres/WebstormProjects/magic-worlds",
+    "command": "node --experimental-strip-types docs/billing/plan-audit-2026-10-17/check_capacity_contract.mjs",
+    "exit_code": 0,
+    "output": "Confirmed: novel_assistant makes the frontend reject the captured valid capacity response.",
+    "meaning": "The existing negative probe still reproduces F5; exit zero does not mean F5 is fixed."
+  },
+  "original_audit_results": {
+    "reference": "README.md#automated-validation",
+    "tests_passed": 441,
+    "accounting_probes_strict_xfailed": 3,
+    "production_build": "passed during original audit; not rerun for this document-only review",
+    "note": "Original and review counts overlap and must not be added as distinct coverage. The original live E2E and isolated MySQL probes were not rerun during this review."
+  },
+  "review_side_effects": {
+    "product_source_edits": false,
+    "schema_changes": false,
+    "live_user_or_plan_mutations": false,
+    "payment_or_live_provider_requests": false,
+    "new_documents": [
+      "REVIEW_AND_FIX_PLAN.md",
+      "review-validation.json"
+    ],
+    "updated_documents": [
+      "README.md"
+    ]
+  },
+  "source_fingerprints": {
+    "reference": "evidence/source-fingerprints.json",
+    "files_checked": 10,
+    "all_match": true
+  }
+}

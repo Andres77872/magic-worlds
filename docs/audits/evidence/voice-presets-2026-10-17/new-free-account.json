@@ -1,0 +1,192 @@
+{
+  "checks": [],
+  "network": [
+    {
+      "method": "GET",
+      "path": "/health/dependencies",
+      "query": "",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/workspaces/capabilities",
+      "query": "",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/user/attestations",
+      "query": "",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/user/preferences",
+      "query": "",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/workspaces",
+      "query": "include_archived=true",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/characters/",
+      "query": "skip=0&limit=100",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/worlds/",
+      "query": "skip=0&limit=100",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/items/",
+      "query": "skip=0&limit=100",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/adventure-templates/",
+      "query": "skip=0&limit=100",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/adventure-sessions/",
+      "query": "",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/character-chats/",
+      "query": "",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/lorebooks",
+      "query": "skip=0&limit=100",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/stories",
+      "query": "skip=0&limit=100",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/tasks",
+      "query": "state=active&operation=all&limit=20&offset=0&status=pending&status=in_progress&status=synthesizing&status=mirroring",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/tasks",
+      "query": "state=terminal&operation=all&limit=20&offset=0&status=completed",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/tasks",
+      "query": "state=terminal&operation=all&limit=20&offset=0&status=failed&status=canceled",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/voices/capabilities",
+      "query": "",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/user/preferences",
+      "query": "",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/voice-presets",
+      "query": "skip=0&limit=100",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/voices/catalog",
+      "query": "limit=24",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/voices/preview-texts",
+      "query": "language=en",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/voices/preview-texts",
+      "query": "language=es",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/user/me",
+      "query": "",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/voice-presets",
+      "query": "skip=0&limit=100",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/voices/catalog",
+      "query": "keys=vk_088e3507904c86b5413062367f7f9d73%2Cvk_1d5f0cec48584027bc74e7d6b97b04bb%2Cvk_3457190913781cbf311e4b30d4e0762e%2Cvk_8ccdbb95cfae8f3e558401e3c446cc92%2Cvk_da0f451ff4f64ee6ad0dc283a5fca897%2Cvk_e89d3360cfd4e09b6c35f434638a7583",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/user/me",
+      "query": "",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/user/me",
+      "query": "",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/voice-presets/preview",
+      "query": "",
+      "status": 403,
+      "body": {
+        "voice_key": "vk_088e3507904c86b5413062367f7f9d73",
+        "settings": {
+          "stability": 0.45
+        },
+        "emotion": null,
+        "text_id": "narration",
+        "language": "es",
+        "tier": "standard"
+      },
+      "response": {
+        "detail": {
+          "code": "voice_not_eligible",
+          "message": "Voice is not available for this account yet.",
+          "retryable": false,
+          "retry_after_seconds": 86303
+        }
+      }
+    }
+  ],
+  "browser_errors": []
+}

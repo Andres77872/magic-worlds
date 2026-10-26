@@ -1,0 +1,19 @@
+{
+  "model": "eleven_v4_turbo",
+  "native_websocket": true,
+  "chunks": 12,
+  "bytes": 33062,
+  "sha256": "38afbedc485528298b221f48e058cdefa2ff0894c6986b425f6bffc05bf30c75",
+  "programs": [],
+  "stream_groups": [],
+  "streams": [
+    {
+      "codec_name": "mp3",
+      "sample_rate": "44100",
+      "channels": 1
+    }
+  ],
+  "format": {
+    "duration": "4.127250"
+  }
+}

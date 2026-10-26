@@ -13,7 +13,7 @@
 2. **Finish D1–D3:** live checks of the 38 built rows, one context and review path for inline AI and the assistant (CL-04), drafting a scene from its plan, real diffs and per-change review, takes, accessibility and production-build performance.
 3. **Then** the rest of D4, D5 and D6. Branches (N05) and research (A28) wait on the owner's decisions.
 
-The dossier contains 21 Markdown documents, a standalone HTML prototype, 136 target capabilities, 23 NE findings, 12 prioritized UI/UX work items, and 62 primary references. The references cover eight writing/planning products and four editor or open-source foundations. Findings distinguish prior controlled reproductions, source-confirmed concerns, prototype observations, target gaps, and unmeasured risks. Vendor/model research retains its 2026-10-14 cutoff. The earlier lifecycle/UI review and its test/prototype records remain dated evidence. The deep review recorded focused frontend/backend tests. Use M1–M3 scoped implementation steps, three short DEV checks and the CL-01–CL-10 removal inventory. Historical reset approval is superseded by the preservation correction above; it does not authorize another rebuild.
+The dossier contains 15 Markdown documents (six implemented ADRs were removed on 2026-10-26; their contracts are in the BFF stories and assistant guides), a standalone HTML prototype, 136 target capabilities, 23 NE findings, 12 prioritized UI/UX work items, and 62 primary references. The references cover eight writing/planning products and four editor or open-source foundations. Findings distinguish prior controlled reproductions, source-confirmed concerns, prototype observations, target gaps, and unmeasured risks. Vendor/model research retains its 2026-10-14 cutoff. The earlier lifecycle/UI review and its test/prototype records remain dated evidence. The deep review recorded focused frontend/backend tests. Use M1–M3 scoped implementation steps, three short DEV checks and the CL-01–CL-10 removal inventory. Historical reset approval is superseded by the preservation correction above; it does not authorize another rebuild.
 
 [14 — Status and roadmap](14_status_and_roadmap.md) is the sole delivery authority. Documents 01/10 maintain current evidence and findings; 04–09/11–12/15 are target design, migration/cleanup and acceptance; 13 records the dated product/research references, their limits, and unresolved decisions. The June 2026 storytelling brief was consolidated into this dossier on 2026-10-15; its retained writing requirements are folded into the catalog and design documents, with the clarified contracts in 06–08 and their acceptance checks in 12. All 136 novel capabilities and D1–D6 remain; no NE finding, migration/cleanup gate or future phase is closed by this documentation update.
 
@@ -36,7 +36,7 @@ Current D2 functional gaps include remaining editor/catalog and organization/con
 The [bookmark installation checkpoint](14_status_and_roadmap.md#d2-bookmark-installation--2026-10-16) connects writer/reader point and passage bookmarks, exact navigation, scoped request/draft recovery, independent copy choices and frozen review. The additive `2026_10_novel_bookmarks` upgrade preserved all 4,314 original content rows against a verified private backup. Installed tests, build and Storybook typecheck pass; broader D2 acceptance and D3–D6 remain open.
 
 The [deliberate erasure checkpoint](14_status_and_roadmap.md#d2-deliberate-novel-erasure--2026-10-16)
-and [ADR 19](19_novel_erasure_and_retention.md) prepare explicit permanent erase
+and [ADR 19](../../../../PycharmProjects/magic-worlds-api/docs/api_usage/stories.md#explicit-permanent-novel-erasure) prepare explicit permanent erase
 for one trashed novel, with exact title/source review, a minimal replay barrier
 and durable lost-response recovery. The feature is installed and locally verified. The additive empty-table
 upgrade preserved all **4,449 original content rows** against a fresh private
@@ -110,13 +110,8 @@ The subsequent 2026-10-15 deep review passed **221 frontend tests / 28 files** (
 | [13 — Sources and open decisions](13_sources_and_open_decisions.md) | Primary references, verification limits, recommendation ledger, unresolved choices |
 | [14 — Actual status and roadmap](14_status_and_roadmap.md) | WIP availability, implemented/partial/planned coverage, dependency order, release gates, TBD ownership and decisions |
 | [15 — Database migration and legacy cleanup](15_database_migration_and_legacy_cleanup.md) | Data preservation and recovery, scoped schema changes, API/code replacement, lean checks and cleanup inventory |
-| [16 — Document and structure decision](16_document_and_structure_decision.md) | Accepted D2 document/identity decisions, options, costs and integration steps |
-| [17 — Personal annotation decision](17_annotation_anchors_and_personal_review.md) | Independent note/anchor versions, exact transaction mappings, orphan handling, personal review and additive storage |
-| [18 — Studio loading decision](18_studio_index_and_scene_loading.md) | Separate outline/selected-scene projections, explicit unloaded content, source preconditions and UI/cache integration (installed) |
-| [19 — Novel erasure and retention](19_novel_erasure_and_retention.md) | Explicit owned erasure, redaction, recovery and retention boundaries |
 | [20 — Offline and reconciliation](20_offline_and_reconciliation.md) | Device drafts, guarded reconciliation, offline app loading and remaining acceptance |
-| [21 — Assistant source boundary](21_assistant_context_boundary.md) | Installed saved-source preparation, exact evidence and remaining full assistant scope |
-| [22 — Bound novel turns and commits](22_novel_assistant_turns_and_commit.md) | Conversation/profile/prompt/candidate boundary, now running in the app (D3), historical compatibility and remaining gates |
+| BFF [stories contract](../../../../PycharmProjects/magic-worlds-api/docs/api_usage/stories.md) and [assistant contract](../../../../PycharmProjects/magic-worlds-api/docs/api_usage/assistant.md) | Implemented contracts of the removed ADRs 16 (scene documents and structure revisions), 17 (personal annotations), 18 (Studio index and scene loading), 19 (erasure and retention), 21 (saved-source assistant preparation) and 22 (bound novel turns and commits). Links that still say "ADR 16" and so on point at these sections. The ADRs were removed on 2026-10-26 and are retrievable with `git show 2d13abe2:docs/novel_refactor/<file>` |
 
 
 ## Evidence and precedence
@@ -179,7 +174,7 @@ and journals. Full generation history and source previews remain reachable throu
 bounded summaries/excerpts and explicit detail reads. Initial full-tree Studio
 loading is replaced; whole-product resource limits, remaining D2 capabilities and
 author/device/accessibility acceptance remain open. D3–D6 remain planned.
-[ADR 18](18_studio_index_and_scene_loading.md) records the current contracts.
+[ADR 18](../../../../PycharmProjects/magic-worlds-api/docs/api_usage/stories.md#studio-index-document-seeds-and-bounded-history) records the current contracts.
 
 The [highlight/display checkpoint](14_status_and_roadmap.md#d2-highlights-and-invisible-characters--2026-10-16)
 adds E18's canonical text highlights and a separate scoped option for invisible
@@ -223,7 +218,7 @@ are verified locally. Broader D2 acceptance/policy and D3–D6 remain open.
 
 
 The [D3 saved-source checkpoint](14_status_and_roadmap.md#d3-saved-source-context-preparation--2026-10-17)
-and [ADR 21](21_assistant_context_boundary.md) add explicit saved selection/scene/chapter/novel/selected-scene preparation,
+and [ADR 21](../../../../PycharmProjects/magic-worlds-api/docs/api_usage/stories.md#saved-source-assistant-preparation) add explicit saved selection/scene/chapter/novel/selected-scene preparation,
 exact passage citations, inherited writing defaults, pinned conflicts, reading-order exclusions,
 and an inspectable actual-message packet with a conservative input estimate and reserved output.
 This preparation performs no model execution or manuscript write. Novel-bound conversations,

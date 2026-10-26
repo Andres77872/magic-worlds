@@ -58,6 +58,7 @@ R13, R15, K02, and the inline commands and actions with no live turn: A02, A04, 
 | Author acceptance | **None.** No study has run (UX-12, decision 13). |
 | Export validation | SHA-256 manifests and LibreOffice conversions only. No EPUBCheck, Microsoft Word or e-reader check. |
 | Availability | Novels need the plan grant `novels` (since 2026-10-18 04:45; root bypasses). No deployed or production evidence. |
+| Execution custody | Carried from the removed ADR 22 on 2026-10-26. Before paid novel execution, credentials must stay outside authored graphs and quoted source/history text must be treated as literal data. Since 2026-10-18/19 BYOK keys travel in a separate `request_credentials` field that the executor drops before admission and snapshots, but the end-to-end fake-key canary, published model/profile compatibility and explicit credential/retry handling still need acceptance ([security findings](../security/README.md), [profile rollout](../llm_profiles/16_current_status_and_roadmap.md)). |
 
 ### Priority — what to do next
 
@@ -2986,7 +2987,7 @@ Evidence: [save queue regressions](../../src/features/novel/hooks/useSceneDraft.
 
 ## D2 scene integration — 2026-10-16
 
-**Core schema/API/editor integration is implemented and locally verified. D2 remains WIP; the 136-capability D1–D6 scope is unchanged.** [ADR 16](16_document_and_structure_decision.md) is implemented with versioned TipTap scene JSON, unique stable block IDs and Codex reference IDs. Markdown/plain text are derived projections; exact UTF-16 selection/cursor/split positions address the saved scene revision. The old chapter-body writer, tables, DTOs and callers have been retired without a development-data compatibility bridge.
+**Core schema/API/editor integration is implemented and locally verified. D2 remains WIP; the 136-capability D1–D6 scope is unchanged.** [ADR 16](../../../../PycharmProjects/magic-worlds-api/docs/api_usage/stories.md#canonical-scene-writes) is implemented with versioned TipTap scene JSON, unique stable block IDs and Codex reference IDs. Markdown/plain text are derived projections; exact UTF-16 selection/cursor/split positions address the saved scene revision. The old chapter-body writer, tables, DTOs and callers have been retired without a development-data compatibility bridge.
 
 - Parts/chapters/scenes have independent metadata, lifecycle and text authorities. The root has structure/metadata/context revisions. Scene autosave keeps the D1 queue/receipt/recovery guarantees; revision-aware cache merging preserves later text and moves independently. API/account/workspace/novel/scene scoped view preferences restore scene, cursor and scroll position.
 - Atomic organization supports create, move/reorder, chapter/scene copy, scene/chapter split/merge, archive, recoverable trash and restoration. Copy allocates IDs, remaps local Codex mentions, and retains source/version lineage. At this initial checkpoint, guarded undo targeted only the previous operation and had no redo. The organization history checkpoint below supersedes that restriction with reviewed multi-step undo/redo and actual before-images.
@@ -3103,7 +3104,7 @@ Controlled desktop Storybook inspection verified the explicit before/after text 
 
 **Historical preparation checkpoint. The integration checkpoint below supersedes its installation and availability status.**
 
-**Prepared storage/client/UI slice; feature integration and D2 remain WIP.** [ADR 17](17_annotation_anchors_and_personal_review.md) records independent content/state and anchor versions, immutable origin, last verified attachment, exact saved-point identities and explicit orphan behavior. Automatic mapping must never overwrite note text/resolution or guess an equal quote's identity.
+**Prepared storage/client/UI slice; feature integration and D2 remain WIP.** [ADR 17](../../../../PycharmProjects/magic-worlds-api/docs/api_usage/stories.md#personal-annotations-and-passage-identity) records independent content/state and anchor versions, immutable origin, last verified attachment, exact saved-point identities and explicit orphan behavior. Automatic mapping must never overwrite note text/resolution or guess an equal quote's identity.
 
 - The editor derives bounded plain-projection traces from actual transactions. Ordered saves retain the original sent prefix through later keystrokes, uncertain requests, acceptance and reload. Server validators require an exact final projection with valid Unicode/mention boundaries. The annotation store provides scoped CAS, immutable events, exact receipts, small pages, literal search and archive/Trash readers. A shared checkpoint remapper is prepared but **not called by the active checkpoint writer**.
 - Scoped note drafts persist each keystroke; uncertain writes recover their receipt before retrying and retain confirmation until a separate current-note read succeeds. The prepared drawer supports saved-passage reading by exact points, explicit reattachment review, independent resolution/Trash, device/account comparison and copy/download. Newer unsent text survives older confirmation. Editor selection is frozen before flushing and must match the fresh saved document; changes of prose/editor/scene/account invalidate capture. Controlled Storybook inspection covers the desktop note reader and attachment review.
@@ -3363,7 +3364,7 @@ The public preview is bounded to 1.5 MB, each canonical document to 2 MB, and co
 
 Prepared BFF scope: **733 passed**. Frontend contract/capture checks and a complete prepared build and Storybook typecheck pass; final full-suite evidence is recorded in [01](01_current_state_and_evidence.md). No project DB migration or runtime code publication was performed for this preparation checkpoint. Project records and media files remain unchanged.
 
-**Subsequent work:** the following checkpoint completes local UI integration and installation. Broader D2 gates and D3–D6 stay open. [17](17_annotation_anchors_and_personal_review.md#prepared-bookmark-extension--2026-10-16) records the extension contract.
+**Subsequent work:** the following checkpoint completes local UI integration and installation. Broader D2 gates and D3–D6 stay open. [17](../../../../PycharmProjects/magic-worlds-api/docs/api_usage/stories.md#personal-bookmarks) records the extension contract.
 
 ## D2 bookmark installation — 2026-10-16
 
@@ -3413,7 +3414,7 @@ remains `2026_10_novel_bookmarks`.
 opening, navigation and dependent refreshes. Preserve draft/review barriers,
 selection, complete copy/history access, search/bookmark navigation and receipt/
 snapshot recovery. Then measure repeated switching, editor latency and memory,
-and finish the wider D2 acceptance gates. [ADR 18](18_studio_index_and_scene_loading.md)
+and finish the wider D2 acceptance gates. [ADR 18](../../../../PycharmProjects/magic-worlds-api/docs/api_usage/stories.md#studio-index-document-seeds-and-bounded-history)
 retains these requirements; D3–D6 remain planned.
 
 ## D2 Studio loading and bounded history — 2026-10-16
@@ -3471,7 +3472,7 @@ cleanup, commit or release occurred. Records without files remain valid.
 **Next D2:** highlighting/invisible-character controls and remaining catalog,
 organization/context/editor cases; repeated-switch heap/typing measurements,
 retention/offline policy, author/mobile/font/zoom/assistive-technology acceptance.
-D3–D6 remain planned. [ADR 18](18_studio_index_and_scene_loading.md) describes
+D3–D6 remain planned. [ADR 18](../../../../PycharmProjects/magic-worlds-api/docs/api_usage/stories.md#studio-index-document-seeds-and-bounded-history) describes
 current read/cache ownership; all broader acceptance gates remain in scope.
 
 ## D2 highlights and invisible characters — 2026-10-16
@@ -3520,7 +3521,7 @@ review, D5 portability/productivity and D6 series/extensions remain planned.
 ## D2 deliberate novel erasure — 2026-10-16
 
 **Installed and locally verified. D2 and the full
-136-capability D1–D6 goal remain WIP.** [ADR 19](19_novel_erasure_and_retention.md)
+136-capability D1–D6 goal remain WIP.** [ADR 19](../../../../PycharmProjects/magic-worlds-api/docs/api_usage/stories.md#explicit-permanent-novel-erasure)
 resolves explicit root-novel erasure. Trash stays retained until an author erases
 one selected trashed novel; installation does not erase project content.
 
@@ -3666,8 +3667,8 @@ capabilities or later phases is removed by this checkpoint.
 
 | Layer | Actual status | Evidence / limitation |
 |---|---|---|
-| Default example configuration | **Per-plan grant (updated 2026-10-18)** | The membership feature-flag rollout (schema `2026_10_membership_feature_flags`, 04:45) removed the frontend `VITE_FEATURE_*` variables from [`.env.example`](../../.env.example) (uncommitted change). Novels are available only when the user's plan grants `novels` ([featureFlags](../../src/shared/featureFlags.ts): a missing or null grant is off; root bypasses). The test user's `free` plan has it on |
-| Reviewed local checkout | **WIP — enabled by local opt-in** | Local `.env` sets the novels flag to `true`; this is a development override, not release evidence |
+| Default example configuration | **Per-plan grant (updated 2026-10-18)** | The membership feature-flag rollout (schema `2026_10_membership_feature_flags`, 04:45) removed the frontend `VITE_FEATURE_*` variables from [`.env.example`](../../.env.example) (committed in SPA `692e56bb`; the marker itself was later folded into the `2026_10_db_refactor` baseline). Novels are available only when the user's plan grants `novels` ([featureFlags](../../src/shared/featureFlags.ts): a missing or null grant is off; root bypasses). The test user's `free` plan has it on |
+| Reviewed local checkout | **WIP — granted by plan** | No frontend novels flag exists; local access comes from the account's plan grant (the seeded Free plan grants `novels`), which is not release evidence |
 | Disabled frontend behavior | Implemented gating | [Sidebar](../../src/ui/components/Sidebar.tsx) hides story navigation; [AppRouter](../../src/app/router/AppRouter.tsx) renders Not Found for disabled pages; [API methods](../../src/infrastructure/api/index.ts) throw `Novels are disabled.` before requests |
 | WIP placeholder in product UI | Gap / product decision TBD | No WIP page is rendered by the current router. Documentation uses WIP status; changing the UI would require separate implementation |
 | Backend story domain | Current scene source and local API verified; release unverified | Current schema bootstrap, healthy API and provider-free MySQL smoke passed on 2026-10-16. The frontend flag remains independent of backend authorization |
@@ -3689,13 +3690,13 @@ An implemented DTO, endpoint, toolbar command, or test pass is not a shipped fea
 | Source types | Reviewed blank/card batches and author-approved reference passages, source-version guards, exact original snapshots and immutable creation provenance; existing BFF saved-adventure snapshots | Complete author/UX acceptance; no live session-history browser in scope | [shared creation form](../../src/features/novel/components/NovelCreateDialog.tsx), [source review](../../src/features/novel/components/NovelCreationSources.tsx), [creation origin](../../src/features/novel/components/NovelCreationOrigin.tsx) |
 | Scene editor | Canonical versioned TipTap JSON, stable block/mention IDs, Unicode selection/replacement, counts, guarded link inspector/paste, author typing choices and accepted-rewrite undo | Complete supported-format/loss, long-document and broader author/device acceptance | [NovelEditor](../../src/features/novel/editor/NovelEditor.tsx), document/selection/identity regressions |
 | Structure | Parts, chapters, independent scenes, scoped metadata/defaults, atomic organization/lifecycle, reviewed copies including personal comments, guarded undo and independent novel copy | Remaining nested/compound/context and full position acceptance | [outline](../../src/features/novel/components/NovelChapterRail.tsx), [copy review](../../src/features/novel/components/NovelUnitCopyModal.tsx), BFF annotation/unit-copy smokes |
-| Personal review | Personal notes and point/passage bookmarks, independent content/anchor versions, exact navigation/orphan review, applicable state/Trash actions, scoped draft/receipt recovery, independent copies and frozen reads | D4 AI review/issues and D5 export; broader acceptance | [personal notes](../../src/features/novel/components/NovelAnnotationDrawer.tsx), [ADR 17](17_annotation_anchors_and_personal_review.md), BFF annotation smoke |
+| Personal review | Personal notes and point/passage bookmarks, independent content/anchor versions, exact navigation/orphan review, applicable state/Trash actions, scoped draft/receipt recovery, independent copies and frozen reads | D4 AI review/issues and D5 export; broader acceptance | [personal notes](../../src/features/novel/components/NovelAnnotationDrawer.tsx), [ADR 17](../../../../PycharmProjects/magic-worlds-api/docs/api_usage/stories.md#personal-annotations-and-passage-identity), BFF annotation smoke |
 | Autosave | Ordered scene queue, independent text/metadata CAS, exact receipts; scoped prose/details/goal/lifecycle/Codex/scene-restore recovery and conflict comparison | Full offline/storage/retention policy and large-project performance remain unverified | [save hook](../../src/features/novel/hooks/useSceneDraft.ts), cache regressions and actual MySQL smoke |
 | AI inline actions | Implemented seven commands, cursor-grounded saved context, decoration-only review, explicit atomic acceptance and undo/redo; opt-in completions (A27) | Still its own context compiler and accept path (CL-04): no context preview before sending, no approved facts or summaries in its context, no Stop receipt | [useInlineAI](../../src/features/novel/editor/hooks/useInlineAI.ts), [AiSuggestion](../../src/features/novel/editor/extensions/aiSuggestion.ts) |
 | History | Filtered small scene pages, verified individual checkpoints/excerpt copy, hash-bound text restore with durable recovery; generation lineage; reviewed organization undo/redo and manuscript snapshots/restore; recoverable Trash and frozen personal-note reads | Retention/author/performance acceptance and conversational changeset history | [revision drawer](../../src/features/novel/components/NovelRevisionDrawer.tsx), [scene recovery](../../src/features/novel/hooks/useSceneRestores.ts), [organization history](../../src/features/novel/components/NovelStructureHistory.tsx), [snapshot drawer](../../src/features/novel/components/NovelSnapshotDrawer.tsx), BFF scene/history/snapshot stores |
 | Stash | Running: cuts and alternative takes in *Tasks & stash* with reinsertion (D4 slice 2, R11) | Lineage and review/undo acceptance | [API client](../../src/infrastructure/api/index.ts), [DataProvider](../../src/app/providers/DataProvider.tsx), BFF `/generations/{id}/stash` |
 | Codex | Novel/chapter/scene snapshots, local precedence, frozen version pins, stable mentions, removal tombstones and disabled restoration; frontend feature filters preserve hidden refs | Source-update impact review, temporal canon and extraction; hidden enabled refs still participate in BFF context | [useCodex](../../src/features/novel/hooks/useCodex.ts), [CodexPanel](../../src/features/novel/components/codex/CodexPanel.tsx), identity smoke |
-| Context | Existing inline preview/execution compiler plus separate saved-source assistant preparation: exact messages/quotes, inherited defaults, scoped pins, visible omissions/conflicts and reserved-output budget | Connect bound assistant turns/profiles to the same prepared compiler; unified application lineage and temporal memory | [ADR 21](21_assistant_context_boundary.md), BFF compiler and native HTTP/MySQL packet checks |
+| Context | Existing inline preview/execution compiler plus separate saved-source assistant preparation: exact messages/quotes, inherited defaults, scoped pins, visible omissions/conflicts and reserved-output budget | Connect bound assistant turns/profiles to the same prepared compiler; unified application lineage and temporal memory | [ADR 21](../../../../PycharmProjects/magic-worlds-api/docs/api_usage/stories.md#saved-source-assistant-preparation), BFF compiler and native HTTP/MySQL packet checks |
 | Novel chat assistant | Running since 2026-10-17 (D3): bound conversations, cited sources, Ask/Suggest → review → accept → undo, Stop and recovery, named actions, grouped changesets | AI quality evaluation, BYOK accounting after dispatch, the intermittent invalid result, account/profile lifecycle | [AssistantKind](../../src/shared/types/assistant.types.ts), BFF `AssistantKind`, NE-015 |
 | Portability and production | Running (D5 slices 1–16): Word/EPUB/PDF/Markdown/text export, six import formats with loss reports, `.mwnovel` packages, export jobs, book copy, translation, completions | EPUBCheck validation, export jobs in the *Tasks* drawer and across restarts, cover generation, read-aloud, dictation | [NovelStudioHeader](../../src/features/novel/components/NovelStudioHeader.tsx), NE-021 |
 | Accessibility and performance | Partial / runtime unverified | Status announcements, active-option/focus semantics, deliberate review keyboard behavior; measured typing/render/save performance | NE-017/018/019; [validation](12_validation_and_acceptance.md) |
@@ -3706,7 +3707,7 @@ An implemented DTO, endpoint, toolbar command, or test pass is not a shipped fea
 |---|---|---|---|---|---|
 | R0 — establish availability | **WIP** | Existing gating | Record deployed build flag, compatible BFF/profile versions, disabled UX choice and intended release cohort | Enabled/disabled route and API checks; live gallery → create → save → reopen; unknown production values explicitly retained | Product + frontend + operations; named owner TBD |
 | D1 — reliable editor and persistence | **Implemented/validated in checkout, WIP release** (2026-10-16); broader UI/author gates outstanding | R0 source baseline | Complete real-device/assistive-technology and author gates; carry the verified persistence/review guarantees into the D2 scene contract | Ordered save/conflict/recovery, undo/redo, target mapping and restore regressions pass; actual MySQL CAS/restore/acceptance replay passed; 250 frontend / 323 scoped BFF tests, build and story typecheck passed | Frontend editor/data + BFF story persistence; implementation owner Codex, release owner TBD |
-| D2 — document model and organization | **WIP integration** (scene schema/API/editor/outline/lifecycle, templates, reviewed sources/copies, personal notes, creation recovery, organization undo/redo, snapshots/restore, history, library discovery, cover/default POV, saved statistics/size, reading appearance, view/position resume, manuscript result navigation, unit planning, bounded saved reading/resume, reviewed replacements, personal bookmarks, metadata/selected-scene loading, bounded generation history, highlights/invisible-character display and deliberate root erasure, open-scene reconnect, reviewed rich-block reconciliation, persistent device entry, durable exact-source review choices and opt-in cold app loading locally checked) | D1 save/revision contract; [accepted document decision](16_document_and_structure_decision.md) | Remaining catalog features; broader context/organization cases; complete performance and retention/offline/author acceptance | Current schema verification + isolated save/reopen/annotation/structure/copy/creation/source/template/snapshot/restore/history/library/statistics/search smoke, targeted product regressions | Frontend novel + BFF domain/database; implementation owner Codex, release owner TBD |
+| D2 — document model and organization | **WIP integration** (scene schema/API/editor/outline/lifecycle, templates, reviewed sources/copies, personal notes, creation recovery, organization undo/redo, snapshots/restore, history, library discovery, cover/default POV, saved statistics/size, reading appearance, view/position resume, manuscript result navigation, unit planning, bounded saved reading/resume, reviewed replacements, personal bookmarks, metadata/selected-scene loading, bounded generation history, highlights/invisible-character display and deliberate root erasure, open-scene reconnect, reviewed rich-block reconciliation, persistent device entry, durable exact-source review choices and opt-in cold app loading locally checked) | D1 save/revision contract; [accepted document decision](../../../../PycharmProjects/magic-worlds-api/docs/api_usage/stories.md#canonical-scene-writes) | Remaining catalog features; broader context/organization cases; complete performance and retention/offline/author acceptance | Current schema verification + isolated save/reopen/annotation/structure/copy/creation/source/template/snapshot/restore/history/library/statistics/search smoke, targeted product regressions | Frontend novel + BFF domain/database; implementation owner Codex, release owner TBD |
 | D3 — grounded novel assistant | **Running since 2026-10-17; 7 A rows, K03, K10, R06, R07, R12, S18 and several U rows still partial (see summary); inline AI still uses its own context compiler (CL-04)** | D1 reliability, D2 revision/target contracts; context compiler | NE-015/020; novel kind/profile, scope, retrieval, summaries, explicit changesets; shared inline/chat review and commit; stash | Trace equals actual packet; enforced budget; target/base checks; idempotent application; transport recovery; profile/account/workspace isolation; author usefulness evaluation | Assistant/profile + frontend novel + BFF; named owners TBD |
 | D4 — planning, continuity and personal review | **In progress — slices 1–19 run; open: K05, K06, K14, R08 partial; N05, A28 wait on decisions (see summary)** | D2 structure + D3 proposals/memory | NE-023; board/timeline/matrix, knowledge/reveal state, plot threads, comments/tasks, reviewed multi-scene work | Source-linked continuity fixtures; stale-memory invalidation; dependency-safe partial acceptance; uncertain findings reviewed by authors | Novel product/UX + memory/assistant; named owners TBD |
 | D5 — portability and productivity | **In progress — slices 1–16 run; open: X09, X10, E06, E13, E16 partial; U09, U10, E15, E20 gaps (see summary)** | D2 document/schema + D1 revision/recovery; format decisions | NE-021; Markdown/plain-text/DOCX import, manuscript/project export, selected EPUB/PDF workflows, whole-novel goals and writing-session analytics (saved totals and per-chapter word goals already exist), optional owned media/read-aloud | Format support/loss matrix; round-trip fixtures; frozen export manifest; cancellation/retry and accessible outputs; measured large-project limits | Novel frontend + BFF import/export/media; named owners TBD |
@@ -3935,7 +3936,7 @@ The provider-free HTTP/MySQL smoke used retained **`magic_worlds_novel_assistant
 
 Native desktop inspection used controlled fictional packets exported by the Python compiler. It verified exact source quotes/pins/exclusions, stale labeling when the reading boundary changed, later-scene inclusion only after explicit author-analysis preparation, and an unsent question retained across close/reopen. This is not authenticated author, mobile/assistive-technology, model-quality or whole-phase acceptance.
 
-**Remaining D3:** novel kind/storage/binding and published profiles; retained conversations and unsent drafts across navigation/reload; execution admission/recovery and credential custody; evidence-linked answers; proposal validation/storage/comparison/refine/stash; revision-bound idempotent acceptance/undo; shared inline/chat pipeline; assisted planning/summaries/canon proposals; full source/profile/account/workspace and author-usefulness acceptance. [ADR 21](21_assistant_context_boundary.md) preserves those boundaries. No D3–D6 completion or release is claimed.
+**Remaining D3:** novel kind/storage/binding and published profiles; retained conversations and unsent drafts across navigation/reload; execution admission/recovery and credential custody; evidence-linked answers; proposal validation/storage/comparison/refine/stash; revision-bound idempotent acceptance/undo; shared inline/chat pipeline; assisted planning/summaries/canon proposals; full source/profile/account/workspace and author-usefulness acceptance. [ADR 21](../../../../PycharmProjects/magic-worlds-api/docs/api_usage/stories.md#saved-source-assistant-preparation) preserves those boundaries. No D3–D6 completion or release is claimed.
 
 
 **Final installed check:** **5,210 frontend tests / 567 files, one skip; 980 backend novel/startup/isolation checks / 55 files** passed, alongside production build and Storybook typecheck. API **1850548** is healthy; the installed endpoint rejects unauthenticated reads. All **112 project table fingerprints**, both staged patches and 3,376 unrelated source files remain unchanged. The schema marker stays `2026_10_novel_erase`; no project test CRUD, reset, reseed or cleanup was performed. Source/runtime installation does not close D3 conversations/proposals or remaining D2/D4–D6 gates.
@@ -3943,7 +3944,7 @@ Native desktop inspection used controlled fictional packets exported by the Pyth
 
 ## D3 bound conversation preparation — 2026-10-17
 
-**Prepared; not installed or enabled.** [ADR 22](22_novel_assistant_turns_and_commit.md)
+**Prepared; not installed or enabled.** [ADR 22](../../../../PycharmProjects/magic-worlds-api/docs/api_usage/assistant.md)
 records the shared novel binding/profile contract, full profile/history-bound
 preview, cited Ask results and unapplied generation candidates. The existing
 reviewed manuscript commit remains the only writer. This changes no phase
@@ -3965,7 +3966,7 @@ acceptance remain required. Remaining D2 and all D4–D6 work stay open.
 
 **Prepared; feature runtime and schema are not installed or enabled.** This
 extends the preceding core checkpoint and its interface gap; it does not close
-D3 or any of the 136 capabilities' remaining acceptance gates. [22](22_novel_assistant_turns_and_commit.md#prepared-studio-conversations-and-retained-drafts--2026-10-17)
+D3 or any of the 136 capabilities' remaining acceptance gates. [22](../../../../PycharmProjects/magic-worlds-api/docs/api_usage/assistant.md)
 records the prepared behavior and exact limits.
 
 The Studio drawer reuses shared conversations, message rendering, streaming and
@@ -3999,7 +4000,7 @@ Remaining D2 and all D4–D6 work are unchanged.
 ## D3 private runtime and provider transport preparation — 2026-10-17
 
 **Prepared and verified through controlled ports; feature execution and schema
-remain uninstalled.** [ADR 22](22_novel_assistant_turns_and_commit.md#prepared-private-runtime-and-provider-transport--2026-10-17)
+remain uninstalled.** [ADR 22](../../../../PycharmProjects/magic-worlds-api/docs/api_usage/assistant.md)
 records the source boundaries and remaining integration. This advances D3 without
 closing D2, D3–D6 or any remaining full-goal acceptance requirement.
 
@@ -4049,7 +4050,7 @@ fresh-plan authorization precede admission. Confirmed completed replays use thei
 original execution and do not require the old key or current catalog availability;
 an in-progress replay cannot start another model call. An explicit capabilities
 endpoint and version acknowledgement are prepared. BFF dispatch is not connected.
-[ADR 22](22_novel_assistant_turns_and_commit.md#prepared-protected-http-boundary--2026-10-17)
+[ADR 22](../../../../PycharmProjects/magic-worlds-api/docs/api_usage/assistant.md)
 records the boundary and its limits.
 
 Sixteen focused HTTP boundary checks passed. A further **112 actual compiled-packet
@@ -4099,7 +4100,7 @@ rebuild a client for a historical read. Completed-node continuation now returns
 its full canonical answer. Stream projection handles restated and split tool
 names without duplicating names or combining pending fragments into one action
 frame. Credential ownership also closes if response headers fail before iteration.
-[ADR 22](22_novel_assistant_turns_and_commit.md#prepared-protected-dispatch-and-reconciliation--2026-10-17)
+[ADR 22](../../../../PycharmProjects/magic-worlds-api/docs/api_usage/assistant.md)
 records the current boundaries.
 
 Verification: **932 BFF regression checks passed**, with **94 current focused

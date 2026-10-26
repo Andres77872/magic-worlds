@@ -8,7 +8,7 @@ This is the current capability register. Proposed field schemas are not accepted
 
 | Area | Actual source status | Gap / release condition |
 |---|---|---|
-| Character/persona, world, adventure-template and item library cards | Implemented, including creators and API models | Adventure surfaces are **WIP / disabled** wherever `VITE_FEATURE_ADVENTURES_ENABLED` is false; local `.env` enabled it while `.env.example` defaults it off |
+| Character/persona, world, adventure-template and item library cards | Implemented, including creators and API models | Adventure surfaces are **WIP** and hidden wherever the user's plan does not grant `adventures` (the seeded Free plan grants it; new plans do not) |
 | First-class items | Implemented: `name`, `alias`, `type`, `rarity`, `description`, `effects`, `requirements`, `limitations`, `origin`, `value`, `category`, `triggers`, cover/theme | Owner/location/condition/use/cost/story details are guided `category` data, not independent relational inventory state |
 | Item assistant and media | Implemented: `AssistantCardType` includes `item`; starter actions create, balance and add lore; media accepts `item` | Further quality grading/extraction/actions remain proposed |
 | Items in character-chat Codex | Implemented as enabled/disabled frozen card snapshots; shared context assembly reads enabled items | No claim of automated inventory changes, equipment rules or charges; attached context does not create those systems |

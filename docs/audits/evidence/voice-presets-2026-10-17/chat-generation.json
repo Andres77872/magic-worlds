@@ -1,0 +1,229 @@
+[
+  {
+    "type": "ready",
+    "capabilities": {
+      "chat_image_request": true,
+      "chat_images": true
+    }
+  },
+  {
+    "type": "turn_started",
+    "request_id": "ba7b83d1-f19c-4418-a842-1a251fb6e27f",
+    "turn_id": "9583a250-d8fd-4e76-a264-ba90abccacaa",
+    "user_message_id": 399,
+    "assistant_message_id": 400,
+    "llm": {
+      "execution_id": "9583a250-d8fd-4e76-a264-ba90abccacaa",
+      "feature": "chat_character",
+      "profile_id": "1bbb0305-d9ec-4052-a1a7-0be885279064",
+      "revision_id": "b4b9f127-f019-4654-bbd7-cde6f1ccd5ba",
+      "profile_scope": "system",
+      "resolution_source": "explicit",
+      "credential_mode": "platform",
+      "provider_target_key": "openrouter",
+      "roles": {
+        "primary": {
+          "catalog_model_key": "@5/anthropic/claude-sonnet-5.5",
+          "provider_model_id": "anthropic/claude-sonnet-5.5",
+          "settings": {
+            "temperature": null,
+            "top_p": null,
+            "max_input_tokens": 200000,
+            "max_output_tokens": 16384,
+            "max_messages": 100,
+            "timeout_seconds": 120.0,
+            "truncation_strategy": "token_budget",
+            "reasoning_effort": "medium"
+          }
+        },
+        "metadata": {
+          "catalog_model_key": "@5/anthropic/claude-haiku-5.5",
+          "provider_model_id": "anthropic/claude-haiku-5.5",
+          "settings": {
+            "temperature": null,
+            "top_p": null,
+            "max_input_tokens": 200000,
+            "max_output_tokens": 16384,
+            "max_messages": 100,
+            "timeout_seconds": 120.0,
+            "truncation_strategy": "token_budget",
+            "reasoning_effort": null
+          }
+        },
+        "preflight": {
+          "catalog_model_key": "@5/anthropic/claude-haiku-5.5",
+          "provider_model_id": "anthropic/claude-haiku-5.5",
+          "settings": {
+            "temperature": null,
+            "top_p": null,
+            "max_input_tokens": 200000,
+            "max_output_tokens": 4096,
+            "max_messages": 100,
+            "timeout_seconds": 30.0,
+            "truncation_strategy": "token_budget",
+            "reasoning_effort": null
+          }
+        }
+      }
+    }
+  },
+  {
+    "type": "speakers",
+    "request_id": "ba7b83d1-f19c-4418-a842-1a251fb6e27f",
+    "turn_id": "9583a250-d8fd-4e76-a264-ba90abccacaa",
+    "roster": [
+      {
+        "speaker_id": "f6f846ce-4d24-4efe-8c26-d653116d574e",
+        "name": "Audit voice guide",
+        "image_url": null,
+        "has_voice": true
+      }
+    ],
+    "narrator": {
+      "name": null,
+      "image_url": null,
+      "kind": "scene"
+    }
+  },
+  {
+    "type": "delta",
+    "content": "NO_CARD_READ",
+    "request_id": "ba7b83d1-f19c-4418-a842-1a251fb6e27f",
+    "turn_id": "9583a250-d8fd-4e76-a264-ba90abccacaa"
+  },
+  {
+    "type": "delta",
+    "content": "<response><say speaker_",
+    "request_id": "ba7b83d1-f19c-4418-a842-1a251fb6e27f",
+    "turn_id": "9583a250-d8fd-4e76-a264-ba90abccacaa"
+  },
+  {
+    "type": "delta",
+    "content": "id=\"f6f846ce",
+    "request_id": "ba7b83d1-f19c-4418-a842-1a251fb6e27f",
+    "turn_id": "9583a250-d8fd-4e76-a264-ba90abccacaa"
+  },
+  {
+    "type": "delta",
+    "content": "-4d24-4efe",
+    "request_id": "ba7b83d1-f19c-4418-a842-1a251fb6e27f",
+    "turn_id": "9583a250-d8fd-4e76-a264-ba90abccacaa"
+  },
+  {
+    "type": "delta",
+    "content": "-8c26-d653",
+    "request_id": "ba7b83d1-f19c-4418-a842-1a251fb6e27f",
+    "turn_id": "9583a250-d8fd-4e76-a264-ba90abccacaa"
+  },
+  {
+    "type": "delta",
+    "content": "116d574e",
+    "request_id": "ba7b83d1-f19c-4418-a842-1a251fb6e27f",
+    "turn_id": "9583a250-d8fd-4e76-a264-ba90abccacaa"
+  },
+  {
+    "type": "delta",
+    "content": "\">Sí, s",
+    "request_id": "ba7b83d1-f19c-4418-a842-1a251fb6e27f",
+    "turn_id": "9583a250-d8fd-4e76-a264-ba90abccacaa"
+  },
+  {
+    "type": "delta",
+    "content": "igamos con",
+    "request_id": "ba7b83d1-f19c-4418-a842-1a251fb6e27f",
+    "turn_id": "9583a250-d8fd-4e76-a264-ba90abccacaa"
+  },
+  {
+    "type": "delta",
+    "content": " cal",
+    "request_id": "ba7b83d1-f19c-4418-a842-1a251fb6e27f",
+    "turn_id": "9583a250-d8fd-4e76-a264-ba90abccacaa"
+  },
+  {
+    "type": "delta",
+    "content": "ma, el camino a",
+    "request_id": "ba7b83d1-f19c-4418-a842-1a251fb6e27f",
+    "turn_id": "9583a250-d8fd-4e76-a264-ba90abccacaa"
+  },
+  {
+    "type": "delta",
+    "content": " casa está desp",
+    "request_id": "ba7b83d1-f19c-4418-a842-1a251fb6e27f",
+    "turn_id": "9583a250-d8fd-4e76-a264-ba90abccacaa"
+  },
+  {
+    "type": "delta",
+    "content": "ejado y y",
+    "request_id": "ba7b83d1-f19c-4418-a842-1a251fb6e27f",
+    "turn_id": "9583a250-d8fd-4e76-a264-ba90abccacaa"
+  },
+  {
+    "type": "delta",
+    "content": "o vo",
+    "request_id": "ba7b83d1-f19c-4418-a842-1a251fb6e27f",
+    "turn_id": "9583a250-d8fd-4e76-a264-ba90abccacaa"
+  },
+  {
+    "type": "delta",
+    "content": "y cont",
+    "request_id": "ba7b83d1-f19c-4418-a842-1a251fb6e27f",
+    "turn_id": "9583a250-d8fd-4e76-a264-ba90abccacaa"
+  },
+  {
+    "type": "delta",
+    "content": "igo.</say></response",
+    "request_id": "ba7b83d1-f19c-4418-a842-1a251fb6e27f",
+    "turn_id": "9583a250-d8fd-4e76-a264-ba90abccacaa"
+  },
+  {
+    "type": "delta",
+    "content": ">",
+    "request_id": "ba7b83d1-f19c-4418-a842-1a251fb6e27f",
+    "turn_id": "9583a250-d8fd-4e76-a264-ba90abccacaa"
+  },
+  {
+    "type": "metadata",
+    "request_id": "ba7b83d1-f19c-4418-a842-1a251fb6e27f",
+    "turn_id": "9583a250-d8fd-4e76-a264-ba90abccacaa",
+    "forwardOptions": [
+      {
+        "label": "Seguir el camino",
+        "message": "Vale, sigamos con calma hacia casa. ¿Por dónde seguimos?"
+      },
+      {
+        "label": "Preguntar por la lámpara",
+        "message": "¿Por qué la lámpara sigue encendida?"
+      },
+      {
+        "label": "Detenerse a descansar",
+        "message": "Antes de seguir, ¿podemos descansar un momento?"
+      }
+    ],
+    "imagePrompt": "A patient human guide with a weathered cloak and a lantern stands on a quiet dirt path at dusk, gesturing gently forward. Tall pine trees frame the winding trail, and soft amber lamplight glows against the deepening blue sky. The traveler stands nearby, listening, as the calm evening air settles over the empty road home.",
+    "language": "es"
+  },
+  {
+    "type": "segments",
+    "request_id": "ba7b83d1-f19c-4418-a842-1a251fb6e27f",
+    "turn_id": "9583a250-d8fd-4e76-a264-ba90abccacaa",
+    "responseFormat": "mw_xml_v1",
+    "segments": [
+      {
+        "content": "Sí, sigamos con calma, el camino a casa está despejado y yo voy contigo.",
+        "kind": "speech",
+        "speaker_id": "f6f846ce-4d24-4efe-8c26-d653116d574e",
+        "speaker_name": "Audit voice guide"
+      }
+    ],
+    "displayText": "Audit voice guide: Sí, sigamos con calma, el camino a casa está despejado y yo voy contigo."
+  },
+  {
+    "type": "done",
+    "request_id": "ba7b83d1-f19c-4418-a842-1a251fb6e27f",
+    "turn_id": "9583a250-d8fd-4e76-a264-ba90abccacaa",
+    "user_message_id": 399,
+    "assistant_message_id": 400,
+    "replayed": false,
+    "image_scheduled": false
+  }
+]

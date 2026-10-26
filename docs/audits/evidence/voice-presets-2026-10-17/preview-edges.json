@@ -1,0 +1,159 @@
+{
+  "checks": [
+    {
+      "check": "allowance_after_advanced_render",
+      "advanced_response": {
+        "cache_key": "c16a73f58d119554a7084073b48d53e04ab8845b3333a9a3dc985b58cad0e585",
+        "url": "/voice-presets/preview/c16a73f58d119554a7084073b48d53e04ab8845b3333a9a3dc985b58cad0e585.mp3",
+        "cached": false,
+        "previews_left": 7,
+        "gain_db": -0.7,
+        "text": "Stay close. Aeloria has 24 coins and will return at dawn.",
+        "tier_used": "standard",
+        "source": "render",
+        "free_previews_left": 0
+      },
+      "status_hints": [
+        "7 previews left today",
+        "8 previews left today"
+      ],
+      "preview_button": [
+        "Preview voice"
+      ]
+    },
+    {
+      "check": "main_first_paid_confirmation",
+      "dialogs_count": 1,
+      "main_request_after_click": true
+    },
+    {
+      "check": "dictionary_version_pin",
+      "new_version": "pv_bc80f313775b470fb5e8a43e5a2fa06b",
+      "pinned_hint": true
+    },
+    {
+      "check": "cross_language_dictionary_save",
+      "status": 200,
+      "recipe": {
+        "preset_id": "01d0749e-6fdc-4e99-9883-b18a58c768cb",
+        "name": "Audit language mismatch temporary",
+        "description": null,
+        "voice_key": "vk_2fc736ee99c32d494c56dea8bf3fe562",
+        "voice_name": "Claire · Storyteller",
+        "settings": null,
+        "emotion": null,
+        "language_code": null,
+        "is_global": false,
+        "schema_version": 3,
+        "provider": "fish_audio",
+        "model_id": "drama-3",
+        "metadata": {
+          "model_id": "drama-3",
+          "performance": {
+            "version": 1,
+            "direction": "Warm and quietly reassuring",
+            "dictionary_refs": [
+              {
+                "version_id": "pv_aef699129bc0451cb9181e1eadce1f49",
+                "dictionary_id": "pd_40b0d1b246f945c69129e5bab7c8a097"
+              }
+            ]
+          }
+        },
+        "performance": {
+          "version": 1,
+          "direction": "Warm and quietly reassuring",
+          "dictionary_refs": [
+            {
+              "dictionary_id": "pd_40b0d1b246f945c69129e5bab7c8a097",
+              "version_id": "pv_aef699129bc0451cb9181e1eadce1f49"
+            }
+          ]
+        },
+        "created_at": "2026-10-18T03:10:25",
+        "updated_at": "2026-10-18T03:13:16",
+        "effective_voice": {
+          "voice_key": "vk_2fc736ee99c32d494c56dea8bf3fe562",
+          "display_name": "Claire · Storyteller",
+          "provider_route": "fish_audio",
+          "substitution_reason": null,
+          "badges": []
+        }
+      },
+      "comparison_text": "Stay close. Aeloria has 24 coins and will return at dawn.",
+      "comparison_lang": "en"
+    },
+    {
+      "check": "cross_language_saved_card",
+      "text": "C\n\nAudit language mismatch temporary\n\nFish Audio · Drama 3\n\nClaire · Storyteller\n\nVoice defaults\nPreview · 1 credit"
+    }
+  ],
+  "preview_requests": [
+    {
+      "path": "/voice-performance/preview",
+      "status": 200,
+      "body": {
+        "voice_key": "vk_35d9b99bf23f45704a705c2724f97582",
+        "text": "Stay close. Aeloria has 24 coins and will return at dawn.",
+        "model_id": "drama-3",
+        "language": "es",
+        "kind": "narration",
+        "emotion": null,
+        "performance": {
+          "version": 1,
+          "offset_unit": "unicode_code_points",
+          "dictionary_refs": [],
+          "spans": [],
+          "events": []
+        }
+      },
+      "response": {
+        "cache_key": "c16a73f58d119554a7084073b48d53e04ab8845b3333a9a3dc985b58cad0e585",
+        "url": "/voice-presets/preview/c16a73f58d119554a7084073b48d53e04ab8845b3333a9a3dc985b58cad0e585.mp3",
+        "cached": false,
+        "previews_left": 7,
+        "gain_db": -0.7,
+        "text": "Stay close. Aeloria has 24 coins and will return at dawn.",
+        "tier_used": "standard",
+        "source": "render",
+        "free_previews_left": 0
+      }
+    },
+    {
+      "path": "/voice-presets/preview",
+      "status": 200,
+      "body": {
+        "voice_key": "vk_35d9b99bf23f45704a705c2724f97582",
+        "schema_version": 3,
+        "provider": "fish_audio",
+        "model_id": "drama-3",
+        "performance": {
+          "version": 1,
+          "direction": "Warm and quietly reassuring",
+          "dictionary_refs": [
+            {
+              "dictionary_id": "pd_40b0d1b246f945c69129e5bab7c8a097",
+              "version_id": "pv_aef699129bc0451cb9181e1eadce1f49"
+            }
+          ]
+        },
+        "settings": null,
+        "emotion": null,
+        "text_id": "narration",
+        "language": "es",
+        "tier": "standard"
+      },
+      "response": {
+        "cache_key": "8fac7e8c88242a124ae88d2a8ba98246cfd7198d94e691b538256a03c90e32a4",
+        "url": "/voice-presets/preview/8fac7e8c88242a124ae88d2a8ba98246cfd7198d94e691b538256a03c90e32a4.mp3",
+        "cached": false,
+        "previews_left": 6,
+        "gain_db": -0.7,
+        "text": "La lluvia susurraba contra las ventanas de la torre mientras la última vela se consumía, y abajo una puerta crujió.",
+        "tier_used": "standard",
+        "source": "render",
+        "free_previews_left": 0
+      }
+    }
+  ]
+}

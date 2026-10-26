@@ -1,0 +1,29 @@
+{
+  "credits_before_refund": {
+    "period": "daily",
+    "max": 30,
+    "used": 2,
+    "remaining": 28,
+    "usage_date": "2026-10-18"
+  },
+  "credits_after_refund": {
+    "period": "daily",
+    "max": 30,
+    "used": 0,
+    "remaining": 30,
+    "usage_date": "2026-10-18"
+  },
+  "operation_after": {
+    "daily_limit": 10,
+    "used_today": 0,
+    "max_in_flight": 1,
+    "in_flight": 0,
+    "credit_cost": 2,
+    "billing_unit": "action",
+    "seconds_per_credit": null,
+    "billable_seconds_today": null
+  },
+  "monthly_credits": 2,
+  "expected_daily_credits": 2,
+  "expected_daily_requests": 1
+}

@@ -30,7 +30,7 @@ Severity expresses consequences if R1 guarantees are missed, not evidence that t
 | R17 | High | Workspace-scoping changes global call admission/quotas | One-live-call/supersede preserved across workspaces; switch/end/archive tests |
 | R18 | Medium | Notification/task action opens an unrelated active-workspace view | Durable origin and archived/deleted-target action tests |
 | R19 | High | Account wipe is followed by late work recreating content | Quiescence/context cleanup and worker finalization tests; a copy racing the wipe either commits before it or fails |
-| R20 | High | A frontend build and an API build that disagree meet during rollout (old tab on the new API, new build on a stopped or old API, the new header hitting old CORS) | Startup handshake, flag-gated UI state, compatibility release and deploy-order tests (A27) |
+| R20 | High | A frontend build and an API build that disagree meet during rollout (old tab on the new API, new build on a stopped or old API, the new header hitting old CORS) | Startup handshake, compatibility release and deploy-order tests (A27); the flag-gated UI state was retired at graduation (2026-10-18) |
 
 ## Selected R1 decisions
 
@@ -53,7 +53,7 @@ Severity expresses consequences if R1 guarantees are missed, not evidence that t
 | Calls | End before committed switch; active call blocks archive; account single-call/quota behavior retained | 08, 15 |
 | Notifications/audio | Mixed account inbox and playlist; origin labels and guarded content links | 08, 15 |
 | Deployment | Coordinated exact-schema cutover from 2026_10_image_profiles | 11 |
-| Frontend rollout | One R1 build that always sends workspace-scoped requests; `VITE_FEATURE_WORKSPACES_ENABLED` gates UI only; startup handshake before any private request; compatibility release for stale tabs; stop API → deploy frontend → migrate → start API → enable flag | 08, 11 |
+| Frontend rollout | One R1 build that always sends workspace-scoped requests; the UI flag that gated R1 UI during rollout was removed on 2026-10-18 (always on); startup handshake before any private request; compatibility release for stale tabs; stop API → deploy frontend → migrate → start API | 08, 11 |
 
 These selections resolve the previous design alternatives. Their implementation exists; this decision table is not evidence that every release gate has passed. Current source findings and closure criteria live in 02/04.
 

@@ -34,7 +34,7 @@ Gate: verify the installed target schema read-only, then exercise seeded save/re
 
 ## D3: grounded writing assistant
 
-The [saved-source preparation boundary](21_assistant_context_boundary.md) and the bound conversation/profile/proposal/application contract run in the app since 2026-10-17. **Not done (audit 2026-10-18):** inline commands were not moved into the same proposal/review/commit pipeline; they still call `/stories/{id}/context-preview` (unused by the UI) and `/generate/stream`, compiled by `story_generation.py` apart from `story_assistant_context.py`.
+The [saved-source preparation boundary](../../../../PycharmProjects/magic-worlds-api/docs/api_usage/stories.md#saved-source-assistant-preparation) and the bound conversation/profile/proposal/application contract run in the app since 2026-10-17. **Not done (audit 2026-10-18):** inline commands were not moved into the same proposal/review/commit pipeline; they still call `/stories/{id}/context-preview` (unused by the UI) and `/generate/stream`, compiled by `story_generation.py` apart from `story_assistant_context.py`.
 
 Extend unified assistant kinds/storage, published-profile feature/role support and shared conversation/message/composer hooks for the novel inspector. Add explicit scope, context compiler, evidence-linked retrieval and changesets. Move inline commands into the same proposal/review/commit pipeline. Support single-scene drafting/editing, planning assistance, custom presets, summaries, and proposed canon extraction. Coordinate common tool/effect contracts with the adjacent assistant plan; novel proposal and commit policy remains here.
 

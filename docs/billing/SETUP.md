@@ -1,6 +1,6 @@
 # Billing setup and actual availability
 
-**Reviewed 2026-10-15. Status: WIP — purchase UI disabled in this local configuration.** `VITE_BILLING_ENABLED` is absent from local `.env`, so the frontend helper returns false. `.env.example` explicitly sets it to `true` (and also sets `VITE_PATREON_ENABLED=true`); the code default for an unset value is false. Local backend provider-sync flags are true, but that does not enable the frontend or establish provider/catalog readiness. See [status register](../FEATURE_STATUS.md).
+**Reviewed 2026-10-15; frontend gates rechecked 2026-10-26. Status: WIP — purchase availability is server-controlled.** The frontend `VITE_BILLING_ENABLED` and `VITE_PATREON_ENABLED` switches were removed on 2026-10-18 (SPA `692e56bb`). A signed-in user sees purchase surfaces only when the BFF returns an enabled catalog. Local backend provider-sync flags were true at the 2026-10-15 review, which does not establish provider/catalog readiness. See [status register](../FEATURE_STATUS.md).
 
 The [folder entry point](README.md) owns the current implementation/backlog summary. This file describes current source/configuration, not a claim that checkout was exercised.
 
@@ -8,18 +8,18 @@ The [folder entry point](README.md) owns the current implementation/backlog summ
 
 | Layer | Implementation / gate |
 | --- | --- |
-| Purchase plans / PAYG credits | SPA `VITE_BILLING_ENABLED` plus configured BFF/api.auth billing catalog and checkout/portal routes |
+| Purchase plans / PAYG credits | Configured BFF/api.auth billing catalog (`GET /billing/plans` with `enabled: true`) and checkout/portal routes; no frontend switch |
 | Membership/credit display and usage | MySQL membership/ledger models and `/user/me`; independent of checkout gate |
 | Promo code and email grants | Redemption/claim routes and root credit-token console; independent of checkout gate |
-| Patreon entitlements | Backend reconciliation is independently gated by `PATREON_PROVIDER_SYNC_ENABLED`; BFF `/patreon/link/*` proxies api.auth's link-proof routes. Frontend `VITE_PATREON_ENABLED` (true in `.env.example`) only gates client methods; no link/connect UI ships (PAT-01) |
+| Patreon entitlements | Backend reconciliation is independently gated by `PATREON_PROVIDER_SYNC_ENABLED`; BFF `/patreon/link/*` proxies api.auth's link-proof routes. Frontend client methods exist with no switch, and no link/connect UI calls them (PAT-01) |
 
 ## Frontend gate and server behavior
 
-[isBillingFeatureEnabled](../../src/shared/billingFeatureFlag.ts) requires the exact string `true`. [useBillingCatalog](../../src/features/billing/hooks/useBillingCatalog.ts) skips fetching when the gate is off or the user is signed out. While loading or on failure it reports `enabled:false`; this is client state, not necessarily a successful disabled catalog response.
+There is no frontend billing flag. [useBillingCatalog](../../src/features/billing/hooks/useBillingCatalog.ts) skips fetching only when the user is signed out. While loading or on failure it reports `enabled:false`; this is client state, not necessarily a successful disabled catalog response.
 
-The current BFF [GET /billing/plans](../../../../PycharmProjects/magic-worlds-api/src/routes/billing_subscriptions.py) calls `_require_billing_enabled`: when provider sync is off it returns **HTTP 503 “Billing is not available.”** A configured, validated catalog returns `enabled:true`. The earlier documented `200 {enabled:false}` disabled-server response is not the current BFF contract; the frontend can still consume that shape if a server supplies it. Source follow-up: the header comment in `useBillingCatalog.ts` still says server-off billing resolves successfully with `{ enabled: false }`; correct it to the current 503 contract.
+The current BFF [GET /billing/plans](../../../../PycharmProjects/magic-worlds-api/src/routes/billing_subscriptions.py) calls `_require_billing_enabled`: when provider sync is off it returns **HTTP 503 “Billing is not available.”** A configured, validated catalog returns `enabled:true`. The earlier documented `200 {enabled:false}` disabled-server response is not the current BFF contract; the frontend can still consume that shape if a server supplies it. Source follow-up: the `useBillingCatalog.ts` header comment still describes a frontend switch that "short-circuits" when off; that switch no longer exists.
 
-When the frontend gate is off, Profile hides “Plans & credits”; a direct `#/billing` renders its unavailable state without fetching the catalog. With it on, failures render the page's error/retry state, and purchase actions require a successfully enabled catalog. Promo grants and quotas keep their own behavior.
+Profile shows “Plans & credits” only after the catalog confirms `enabled: true`. A direct `#/billing` fetches the catalog for a signed-in user; a `503` or other failure renders the page's error/retry state, and purchase actions require a successfully enabled catalog. Promo grants and quotas keep their own behavior.
 
 ## BFF startup configuration
 
@@ -43,9 +43,9 @@ The BFF reads validated plan/pack lookup keys from api.auth's remote catalog; th
 ## Release verification — WIP / TBD
 
 1. Validate BFF startup configuration and api.auth project/catalog/S2S agreement in the intended environment. Confirm the exact return origin is permitted upstream. Confirm the api.auth revision includes the 2026-10-13 billing ownership procedures/triggers (`billing_scope_upgrade.py` applied) and that the read-only `billing_ownership_audit.py` report was reviewed; see “Deploying webhook ownership validation” in api.auth's [Stripe billing runbook](../../../../PycharmProjects/api.auth/docs/RUNBOOKS/stripe-billing.md).
-2. Explicitly choose `VITE_BILLING_ENABLED=true` for that build and verify signed-in `/billing/plans` succeeds with the current contract.
+2. Enable billing provider sync on the BFF for that environment and verify signed-in `/billing/plans` returns `enabled: true` with the current contract.
 3. In a payment sandbox, verify subscription checkout, credit checkout, portal, cancellation and return reconciliation through Profile. Verify repeated reconciliation cannot grant duplicate credits.
-4. Verify off-mode hides purchases and makes no catalog request; redemption, profile usage and root membership/credit consoles remain functional.
+4. Verify that with billing off on the server (`503`) purchases stay hidden and Profile shows no “Plans & credits”; redemption, profile usage and root membership/credit consoles remain functional.
 5. Record provider/refund/reconciliation evidence before closing [BILL-01](../ROADMAP.md). **TBD:** no local path reverses credits granted for a credit purchase that is later refunded (reconciliation fulfils only `paid` purchases); decide the intended refund behavior. Connecting Patreon UI is a separate **TBD** product scope.
 
 No payments, provider requests, environment changes or deployment were performed by this documentation review.

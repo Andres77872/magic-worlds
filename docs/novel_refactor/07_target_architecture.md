@@ -234,7 +234,7 @@ Keep metadata/structure transactions, workspace ownership checks, accepted chang
 
 ## Studio index and selected-scene read boundary
 
-[ADR 18](18_studio_index_and_scene_loading.md) separates organization metadata
+[ADR 18](../../../../PycharmProjects/magic-worlds-api/docs/api_usage/stories.md#studio-index-document-seeds-and-bounded-history) separates organization metadata
 from complete loaded scenes. The installed BFF index never reads scene document
 JSON/plain text or generation output. Per-scene statistics bind exact revision,
 hash and policy; absent/stale counters remain null. Complete root Codex snapshots
@@ -266,4 +266,4 @@ separate `:invisibles` key. The real editor keeps its instance and selection whi
 metadata-only transactions paint a bounded visible window. Coalesced scroll,
 resize/reflow and composition-end handling retire with the editor. Decorations
 skip atom interiors and emoji joiners; DOM text, clipboard/model serialization,
-word counts and AI context retain the original characters. See [16](16_document_and_structure_decision.md#additive-author-highlights-and-display-markers).
+word counts and AI context retain the original characters. See [16](../../../../PycharmProjects/magic-worlds-api/docs/api_usage/stories.md#author-highlights-and-invisible-character-display).

@@ -2,7 +2,7 @@
 
 **Revisión de fuentes/documentación: 2026-10-15. Estado: fundamento implementado; custodia end-to-end y aceptación operativa abiertas.** El [ledger 16](16_current_status_and_roadmap.md) es la autoridad de estado. No confundir la implementación de perfiles con una garantía de que las claves personales nunca se persisten.
 
-Frontend y BFF implementan perfiles de sistema/personales, revisiones, selección por feature, admisión y pagador. La SPA conserva BYOK en memoria transitoria. Sin embargo, el BFF actual coloca esa clave dentro de `agt` al llamar al completion original, y el ejecutor conserva el graph authored. **F04 sigue abierto.** La factory protegida de otro módulo no acredita que este camino la use. Ver [API vigente](07_api_changes.md) y [seguridad](../security/README.md).
+Frontend y BFF implementan perfiles de sistema/personales, revisiones, selección por feature, admisión y pagador. La SPA conserva BYOK en memoria transitoria. Desde el 2026-10-18/19 el BFF envía esa clave en un campo `request_credentials` separado, fuera de `agt` (BFF `7f7eac7`), y api.magic_llm lo descarta antes de la admisión y los snapshots (`be1ab64`). **F04 está implementado en fuente; falta la aceptación end-to-end.** Las claves de plataforma siguen renderizándose dentro del grafo. La factory protegida de otro módulo no acredita que este camino la use. Ver [API vigente](07_api_changes.md) y [seguridad](../security/README.md).
 
 ## Requisitos que siguen vigentes
 
@@ -20,7 +20,6 @@ Writers de media/callbot no ofrecen selección personal donde el registro la des
 | Documento | Disposición / uso |
 |---|---|
 | [02 Gaps](02_gaps_and_risks.md) | Riesgos/requisitos; 16 mantiene disposición actual |
-| [03 Arquitectura](03_architecture_and_approach.md) | ADR y contrato objetivo; no prueba de custodia implementada |
 | [04 Catálogo](04_model_catalog_and_best_practices.md) | Requisitos/diseño y evaluación; no catálogo desplegado |
 | [05 Seguridad](05_security_and_secrets.md) | Garantía requerida y canarios; garantía aún incumplida por el camino actual |
 | [07 API](07_api_changes.md) | Rutas y transporte usados |
@@ -28,7 +27,9 @@ Writers de media/callbot no ofrecen selección personal donde el registro la des
 | [10 Aceptación](10_implementation_plan_and_acceptance.md) | Entregables y criterios aún aplicables |
 | [14 Runbook](14_operations_runbook.md) | Referencia operativa del transporte actual |
 | [16 Ledger](16_current_status_and_roadmap.md) | Estado, riesgos y trabajo restante mantenidos |
-| [17 Custom providers](17_custom_provider_audit_and_plan.md) | Propuesta BYOK OpenAI para URL e ID manual, sin dependencia de catálogo ni prueba obligatoria; corrección local del routing y plan de integración |
+| Custom providers | Implementado; contrato en el BFF [`docs/custom_llm_profiles.md`](../../../../PycharmProjects/magic-worlds-api/docs/custom_llm_profiles.md) y trabajo restante en LLM-R8 de [16](16_current_status_and_roadmap.md) |
+
+Retirados el 2026-10-26 por estar implementados: la ADR 03 (perfiles en DB, orden de resolución y canal BYOK transitorio separado; recuperable con `git show 2d13abe2:docs/llm_profiles/03_architecture_and_approach.md`) y el plan 17 de custom providers (no estaba en git); sus pendientes viven en 16.
 
 ## Evidencia y límites
 
@@ -38,7 +39,7 @@ El 2026-10-17 se corrigió el copy de Modelos/BYOK ([`llmProfiles.ts`](../../src
 
 El contenido del usuario puede conservarse intencionalmente en prompts/payloads congelados para replay, incluido el digest del app assistant. Esa política de privacidad/retención es independiente del requisito de excluir claves; [seguridad](../security/README.md#content-retention-is-a-separate-contract) mantiene el límite. El operador puede observar una clave durante ejecución; cumplir no persistencia tampoco equivale a impedir acceso al proceso.
 
-Estado global: [matriz](../STATUS_MATRIX.md), [gates](../FEATURE_STATUS.md) y [roadmap](../ROADMAP.md). La ejecución [Fish](../fish_audio_support/11_implementation_status.md) conserva su propio estado y no se modificó.
+Estado global: [matriz](../STATUS_MATRIX.md), [gates](../FEATURE_STATUS.md) y [roadmap](../ROADMAP.md). Fish Audio está implementado; sus gates de release están en [V-14](../voice_refactor/00_current_status_and_roadmap.md).
 
 <details>
 <summary>Established section anchors retained after reconciliation</summary>

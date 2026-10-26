@@ -5,7 +5,7 @@
 ## Precedencia de revisión
 
 - El [bootstrap BFF actual](../../../../PycharmProjects/magic-worlds-api/src/database/mysql/bootstrap.py) espera la revisión nombrada por `CONTENT_SCHEMA_REVISION` (propiedad de la ejecución activa de Fish/voz; no se afirma aquí); el marker de capacidad workspace conserva `2026_10_workspace_r1`.
-- La revisión fuente, el binario/paquete instalado y el marker real de una base son datos distintos. La ejecución Fish sigue [su propio ledger](../fish_audio_support/11_implementation_status.md) y está fuera de este cleanup.
+- La revisión fuente, el binario/paquete instalado y el marker real de una base son datos distintos. Los gates de release de Fish están en [V-14](../voice_refactor/00_current_status_and_roadmap.md).
 - El [runbook vigente](14_operations_runbook.md) y la [guía de base del BFF](../../../../PycharmProjects/magic-worlds-api/docs/database.md) prevalecen para determinar precondiciones y cadena soportada.
 
 ## Preparación por entorno

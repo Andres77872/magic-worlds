@@ -1,0 +1,22 @@
+{
+  "status": 402,
+  "body": {
+    "detail": {
+      "code": "PLATFORM_CREDITS_EXHAUSTED"
+    }
+  },
+  "credits_before": {
+    "period": "daily",
+    "max": 12,
+    "used": 5,
+    "remaining": 7,
+    "usage_date": "2026-10-18"
+  },
+  "credits_after": {
+    "period": "daily",
+    "max": 12,
+    "used": 5,
+    "remaining": 7,
+    "usage_date": "2026-10-18"
+  }
+}

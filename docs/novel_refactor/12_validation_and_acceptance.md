@@ -565,7 +565,7 @@ does not substitute for screen-reader, phone/IME or full author-task validation.
 
 ## Studio index integration gates
 
-The installed integration in [ADR 18](18_studio_index_and_scene_loading.md)
+The installed integration in [ADR 18](../../../../PycharmProjects/magic-worlds-api/docs/api_usage/stories.md#studio-index-document-seeds-and-bounded-history)
 locally checks the opening/cache/source flows below. Retain their regressions and
 the broader measurement/author/device gates; implementation is not full D2 acceptance:
 
@@ -610,7 +610,7 @@ policy and full author/mobile/assistive-technology work remain open.
 
 ## Deliberate root-novel erasure acceptance
 
-[ADR 19](19_novel_erasure_and_retention.md) resolves N07's explicit root action.
+[ADR 19](../../../../PycharmProjects/magic-worlds-api/docs/api_usage/stories.md#explicit-permanent-novel-erasure) resolves N07's explicit root action.
 Installed regression/native/browser and project preservation evidence passes;
 broader release gates remain in [14](14_status_and_roadmap.md#d2-deliberate-novel-erasure--2026-10-16).
 

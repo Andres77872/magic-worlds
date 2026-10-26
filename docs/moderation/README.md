@@ -18,7 +18,7 @@ Current application moderation is mainly a text gate before TTS. Local speech co
 
 Source recheck 2026-10-15: native moderation has not started in any repository. No native client, Clef/Decisions call or `moderation_enabled` profile field exists in any backend or frontend working tree; the 2026-10-13/14 commits above only strengthened the legacy api.magic_llm classifier path.
 
-Existing ElevenLabs catalog `live_moderation_enabled` is provider-sharing metadata, not the requested application profile switch. The active Fish execution is outside this cleanup; no files in its dossier were changed.
+Existing ElevenLabs catalog `live_moderation_enabled` is provider-sharing metadata, not the requested application profile switch.
 
 ## Accepted requirements
 

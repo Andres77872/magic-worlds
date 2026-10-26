@@ -222,7 +222,7 @@ replay through revision 5, including the transaction-level workspace lock.
 
 This fulfills the D1 reset/smoke slice. D2 scene schema, structure history and
 chapter-writer retirement remain open. See [14](14_status_and_roadmap.md) for the
-current register and [16](16_document_and_structure_decision.md) for the accepted
+current register and [16](../../../../PycharmProjects/magic-worlds-api/docs/api_usage/stories.md#canonical-scene-writes) for the accepted
 D2 document contract. No production deployment or full feature completion is claimed.
 
 

@@ -1,6 +1,6 @@
 # Chat Image WebSocket Delivery
 
-**Source/lifecycle review: 2026-10-16.** Covers per-turn image galleries, the composer image control, the image details dialog and regeneration. Adventure availability is still **WIP and default off**; it is opted in locally. Character chats use their own stored session and message endpoints inside the shared engine. Backend, provider and deployed recovery acceptance are tracked separately; the [roadmap](ROADMAP.md) tracks play and media inconsistencies and the live smoke gates.
+**Source/lifecycle review: 2026-10-16.** Covers per-turn image galleries, the composer image control, the image details dialog and regeneration. Adventure availability is still **WIP** and follows the `adventures` plan grant (granted on the seeded Free plan). Character chats use their own stored session and message endpoints inside the shared engine. Backend, provider and deployed recovery acceptance are tracked separately; the [roadmap](ROADMAP.md) tracks play and media inconsistencies and the live smoke gates.
 
 The frontend treats chat images as a lifecycle of their own, layered on top of normal text chat.
 
