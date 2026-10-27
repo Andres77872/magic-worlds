@@ -1,9 +1,0 @@
-{
-  "status": 500,
-  "path": "http://localhost:8010/character-chats/71",
-  "response": {
-    "detail": "Failed to delete character chat"
-  },
-  "cards_after": 3,
-  "ui": "Magic Worlds\nCollapse sidebar\nMy library\nExplore\nLibrary\nCommunity\nAssistant\nACTIVITY\nChatroom\nStarted adventures\nNotifications\nNovels\nCalls\nASSETS\nLorebooks\nResources\nMedia\nVoices\nAPI online\nAPI online\nTasks\nV\nvoice_review_20261017_8dbf34\nCHATROOM\nCharacter conversations\n\nResume, remove, or start character chats.\n\nNew chat\nNew group chat\nA\nAudit voice guide\n\n9m ago\n\nA\nAudit voice guide\n\n12m ago\n\nA\nAudit voice guide\n\n17m ago\n\nCould not delete chat\n\nFailed to delete character chat"
-}

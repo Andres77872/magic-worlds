@@ -328,7 +328,7 @@ Existing metrics that cover this path: `call_user_stop_to_first_audio_ms` and `c
 - Confidence: high.
 
 ### BE-STT-20 · info · maintainability — Stale cross-repo limits comment
-- FACT: frontend says "the server rejects segments over 8 s" (`voiceVadWorklet.ts:17`) while the server default is 30,000 ms (`config.py:42`; live evidence `docs/audits/evidence/voice-presets-2026-10-17/application-call.json` reports `max_segment_duration_ms = 30000`).
+- FACT: frontend says "the server rejects segments over 8 s" (`voiceVadWorklet.ts:17`) while the server default is 30,000 ms (`config.py:42`; live evidence `docs/audits/evidence/voice-presets-2026-10-17/application-call.json`, removed 2026-10-26 and kept in git at `77174215`, reports `max_segment_duration_ms = 30000`).
 - Recommendation: align the comment/limit (a 10 s server limit would also bound BE-STT-19).
 
 ### BE-STT-21 · info · ux — STT verdict cannot protect against false barge-ins (cross-reference)
