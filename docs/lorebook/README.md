@@ -11,14 +11,14 @@
 | Capability | Actual source status | Gap / acceptance |
 | --- | --- | --- |
 | Domain and authoring | Shared lorebook types, gallery, studio, entry editor, attachments and API CRUD exist | Default-off rollout; qualify save/CAS/read-only behavior in matching deployment |
-| Keyword activation | Backend supports primary/secondary keys, logical modes, constant entries, regex/case/whole-word settings, recursion and reveal matching | Secret reveal is deterministic text matching, not a narrative authorization/AI adjudication guarantee |
+| Keyword activation | Backend supports primary/secondary keys, logical modes, regex/case/whole-word settings and recursion | Entries activate only by their keys. Constant, secret and reveal were removed on 2026-10-26 |
 | Activation preview/trace | Studio panel and `/lorebooks/activation-preview`, validation, match reasons and estimated budget exist | `estimate_tokens` uses whitespace count ×1.35; it is not model-specific tokenizer accounting. Preview is not proof of the final provider prompt, and it does not reproduce live multi-target activation (see [current runtime behavior](#current-runtime-behavior)) |
 | Runtime insertion | `lorebook_loader.py` loads scoped attached/global books and constructs prompt fragments/metadata in the backend | Verify ordering, budgets and snapshot/linked behavior for each real conversation graph; see [current runtime behavior](#current-runtime-behavior) |
 | Resources | Shared/embedded text resources, resource gallery/picker, `.md`/`.txt` file import, URL-to-Markdown import (BFF `/imports/markdown`), PDF import and metadata extraction/reconciliation exist | PDF/extraction runtime config and profiles still gate execution: server extraction also requires BFF `LOREBOOK_EXTRACTION_ENABLED=true` (default false) plus LLM profile transport. Verify retry/credentials/workspace lifecycle |
 | Assistant | Shared assistant core supports `lorebook` with BFF handler and CAS target writes | Requested turns may commit the target and apply it at final without a separate accept step; reopened/reloaded targets have a distinct apply-to-form state. Registry can disable the kind independently |
 | Session isolation | Workspace-bound API hooks, scoped loader and archived-workspace read-only guards exist | Populated migration and cross-workspace/target retention need environment acceptance |
 | Portability | No Character Card V2 adapter or general lorebook JSON import/export UI/route found in current sources | **WIP planned**; PDF/text-resource import is not portable lorebook interchange |
-| Advanced retrieval/policy | Deterministic activation exists | Semantic/vector retrieval, timed/group/probability policies and narrative secret adjudication remain **WIP/TBD** |
+| Advanced retrieval/policy | Deterministic activation exists | Semantic/vector retrieval and timed/group/probability policies remain **WIP/TBD** |
 
 Source evidence:
 
@@ -33,12 +33,10 @@ The frontend does not assemble the provider prompt by injecting arbitrary lore i
 **Current runtime behavior (source, 2026-10-15).** These facts describe what the backend does today. They are not a designed policy; LORE-R2 decides that.
 
 - Live activation scans only the newest user message of the turn, not earlier history.
-- Constant entries apply without a key match; they still count against the token budget.
 - When a book enables recursion, activated entries can trigger other entries. "Scan depth" caps the number of recursion passes (the highest value among enabled books); it is not a message-history window.
 - One token budget, taken from the first eligible book, caps all books together.
 - Book order follows attachment ordering (target kind alphabetical, then most recently updated attachment first). This order is implicit; it is not a designed source precedence.
 - Insertion position only orders entries inside one `lorebook_context` system-prompt fragment.
-- Secret entries without a reveal condition activate on their keys like normal entries. Only chat lore-trigger highlighting excludes secret entries.
 - The activation preview resolves only the requested target and scans all supplied messages, so it does not reproduce live activation across session, template, world, character and global targets.
 
 ## Lorebook roadmap — WIP
@@ -49,7 +47,7 @@ The frontend does not assemble the provider prompt by injecting arbitrary lore i
 | LORE-R2 / P1 | Accurate budget/trace contract | Decide model-aware token accounting vs labeled estimates, the multi-book budget owner, the scan window and book order (see [current runtime behavior](#current-runtime-behavior)); compare trace with actual constructed prompt. Policy **TBD** |
 | LORE-R3 / P1 | PDF/extraction/assistant lifecycle | Profile unavailable, credentials reentry, retry, canceled/late result, CAS rejection and resource deletion do not duplicate or overwrite content |
 | LORE-R4 / P2 | Portable import/export | Supported formats, extension preservation and loss report **TBD**; explicit source/round-trip fixtures |
-| LORE-R5 / P2 | Expanded retrieval/reveal semantics | Product scope **TBD**; do not promise semantic retrieval or secret access control from keyword matching |
+| LORE-R5 / P2 | Expanded retrieval semantics | Product scope **TBD**; do not promise semantic retrieval from keyword matching |
 
 **Not carried forward:** the June proposal's staged AI drafts and visible diffs before apply are superseded by the shared assistant contract. The New Lorebook Wizard, extraction from cards/sessions/chat, dedicated key-suggest/rewrite/audit tools, the per-session latest-activation trace endpoint with an "active lore this turn" drawer (the trace is stored in turn metadata but cannot be viewed), and seeding entry keys from card triggers are not implemented; disposition **TBD**.
 

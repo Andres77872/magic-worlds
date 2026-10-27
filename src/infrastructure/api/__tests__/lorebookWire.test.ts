@@ -3,6 +3,7 @@ import type { Lorebook, LorebookResource } from '@/shared'
 import {
     serializeActivationPreview,
     serializeLorebookAttachment,
+    serializeLorebookEntry,
     serializeLorebookResource,
     serializeLorebookSnapshot,
 } from '../lorebookWire'
@@ -42,12 +43,9 @@ const lorebook: Lorebook = {
         secondaryKeys: [],
         selectiveLogic: 'any',
         enabled: true,
-        constant: false,
         caseSensitive: false,
         matchWholeWords: true,
         regex: false,
-        isSecret: false,
-        revealCondition: null,
         insertionOrder: 0,
         priority: 1,
         insertionPosition: 'before_context',
@@ -100,12 +98,9 @@ describe('lorebook wire serializers', () => {
                 secondaryKeys: [],
                 selectiveLogic: 'any',
                 enabled: true,
-                constant: false,
                 caseSensitive: false,
                 matchWholeWords: true,
                 regex: false,
-                isSecret: false,
-                revealCondition: null,
                 insertionOrder: 0,
                 priority: 1,
                 insertionPosition: 'before_context',
@@ -141,6 +136,14 @@ describe('lorebook wire serializers', () => {
             includePromptPreview: false,
             overrides: { lorebooks: [snapshot], includeDisabled: false },
         })
+    })
+
+    it('never sends retired constant/secret/reveal fields, even when a legacy entry still carries them', () => {
+        const legacy = { ...lorebook.entries[0], constant: true, isSecret: true, revealCondition: 'old gate' }
+        const wire = serializeLorebookEntry(legacy, { includeIdentity: true })
+        expect(wire).not.toHaveProperty('constant')
+        expect(wire).not.toHaveProperty('isSecret')
+        expect(wire).not.toHaveProperty('revealCondition')
     })
 
     it('preserves optional resource identity on create and omits it on update', () => {

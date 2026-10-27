@@ -52,12 +52,9 @@ export interface LorebookEntry {
     secondaryKeys: string[]
     selectiveLogic: LorebookSelectiveLogic
     enabled: boolean
-    constant: boolean
     caseSensitive: boolean
     matchWholeWords: boolean
     regex: boolean
-    isSecret: boolean
-    revealCondition?: string | null
     insertionOrder: number
     priority: number
     insertionPosition: LorebookInsertionPosition

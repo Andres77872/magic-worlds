@@ -117,12 +117,9 @@ export function blankEntryDraft(order: number): LorebookEntryDraft {
         secondaryKeys: [],
         selectiveLogic: 'any',
         enabled: true,
-        constant: false,
         caseSensitive: false,
         matchWholeWords: true,
         regex: false,
-        isSecret: false,
-        revealCondition: '',
         insertionOrder: order,
         priority: 0,
         insertionPosition: 'before_context',
@@ -143,12 +140,9 @@ export function normalizeLorebookEntry(raw: unknown, lorebookIdFallback = ''): L
         secondaryKeys: stringArray(item.secondaryKeys ?? item.secondary_keys),
         selectiveLogic: first(item.selectiveLogic ?? item.selective_logic, new Set<LorebookSelectiveLogic>(['any', 'all', 'and_any', 'and_all', 'not_any', 'not_all']), 'any'),
         enabled: boolValue(item.enabled, true),
-        constant: boolValue(item.constant, false),
         caseSensitive: boolValue(item.caseSensitive ?? item.case_sensitive, false),
         matchWholeWords: boolValue(item.matchWholeWords ?? item.match_whole_words, true),
         regex: boolValue(item.regex, false),
-        isSecret: boolValue(item.isSecret ?? item.is_secret, false),
-        revealCondition: maybeString(item.revealCondition ?? item.reveal_condition),
         insertionOrder: numberValue(item.insertionOrder ?? item.insertion_order, 0),
         priority: numberValue(item.priority, 0),
         insertionPosition: first(item.insertionPosition ?? item.insertion_position, new Set<LorebookInsertionPosition>(['before_context', 'after_context', 'author_note', 'system']), 'before_context'),
@@ -271,7 +265,6 @@ function entryMatchOptions(lorebook: Lorebook | LorebookDraft, entry: LorebookEn
 
 function evaluateEntryMatch(lorebook: Lorebook | LorebookDraft, entry: LorebookEntry | LorebookEntryDraft, sample: string): EntryMatch {
     if (!entry.enabled) return { active: false, matchedKeys: [], reason: 'Entry disabled.' }
-    if (entry.constant) return { active: true, matchedKeys: ['constant'] }
 
     const options = entryMatchOptions(lorebook, entry)
     const primary = matchedKeys(sample, entry.keys, options)
@@ -305,22 +298,9 @@ function evaluateEntryMatch(lorebook: Lorebook | LorebookDraft, entry: LorebookE
             break
     }
 
-    const matched = [...primary, ...secondary]
-    if (active && entry.isSecret && entry.revealCondition?.trim()) {
-        const revealed = matchKey(sample, entry.revealCondition, {
-            ...options,
-            regex: false,
-            matchWholeWords: false,
-        })
-        if (!revealed) {
-            return { active: false, matchedKeys: matched, reason: 'Reveal condition not met.' }
-        }
-        matched.push(entry.revealCondition)
-    }
-
     return {
         active,
-        matchedKeys: matched,
+        matchedKeys: [...primary, ...secondary],
         reason: active ? undefined : 'No key matched the sample text.',
     }
 }
@@ -380,8 +360,8 @@ export function validateLorebookLocally(lorebook: Lorebook | LorebookDraft): Lor
         if (!entry.content.trim()) {
             issues.push({ severity: 'error', code: 'entry_content_required', message: `${title} needs prompt content.`, messageParams: { title }, entryId })
         }
-        if (!entry.constant && entry.keys.length === 0) {
-            issues.push({ severity: 'warning', code: 'entry_keys_missing', message: `${title} needs activation keys or constant mode.`, messageParams: { title }, entryId })
+        if (entry.keys.length === 0) {
+            issues.push({ severity: 'warning', code: 'entry_keys_missing', message: `${title} needs activation keys.`, messageParams: { title }, entryId })
         }
         if (estimateTokens(entry.content) > 220) {
             issues.push({ severity: 'warning', code: 'entry_long', message: `${title} is long enough to pressure context budget.`, messageParams: { title }, entryId })
@@ -394,9 +374,6 @@ export function validateLorebookLocally(lorebook: Lorebook | LorebookDraft): Lor
                     issues.push({ severity: 'error', code: 'entry_regex_invalid', message: `"${key}" is not a valid regular expression.`, messageParams: { key }, entryId })
                 }
             }
-        }
-        if (entry.isSecret && !entry.revealCondition?.trim()) {
-            issues.push({ severity: 'warning', code: 'entry_reveal_missing', message: `${title} is secret but has no reveal condition.`, messageParams: { title }, entryId })
         }
         if (entry.tokenBudget !== null && entry.tokenBudget !== undefined && entry.tokenBudget < 1) {
             issues.push({ severity: 'error', code: 'entry_token_budget_invalid', message: `${title} has an invalid entry token cap.`, messageParams: { title }, entryId })

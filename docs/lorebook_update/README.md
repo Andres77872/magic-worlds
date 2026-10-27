@@ -23,6 +23,7 @@ This dossier records findings and proposed changes. Application code, schema, de
 | [09 — Reproductions and evidence](09_reproductions_and_evidence.md) | Local probe results and repeatable commands without application edits |
 | [10 — Acceptance and rollout](10_acceptance_and_rollout.md) | Acceptance criteria, migration safeguards, deployment checks, and rollback |
 | [11 — Decisions and tracking](11_decisions_and_tracking.md) | Unresolved policy decisions, finding-to-plan mapping, and status rules |
+| [12 — Validation and fix plan](12_validation_and_fix_plan.md) | 2026-10-26 re-validation of every finding, re-rated priorities, new issues N1–N8, recommended decision defaults, and a PR-sized fix plan |
 
 ## Executive assessment
 
@@ -63,3 +64,5 @@ Frontend source links are repository-relative. Backend links assume the document
 | Date | Change | Application implementation |
 |---|---|---|
 | 2026-10-19 | Preserved the read-only audit, research, findings, impact, gaps, design options, plan, and validation criteria | Not started by this documentation task |
+| 2026-10-26 | Re-validated all 17 findings against current source (all confirmed; F05 raised to P0, F07/F08 lowered), added N1–N8 and a PR-sized fix plan in [12](12_validation_and_fix_plan.md) | Not started |
+| 2026-10-26 | F04 closed by removing constant mode, the Secret flag and the reveal condition from both repos; D06 and PR9 dropped | Done (uncommitted) |

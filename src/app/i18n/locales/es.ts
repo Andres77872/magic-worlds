@@ -292,7 +292,6 @@ export const es = {
                 resources_one: '{{count}} recurso',
                 resources_other: '{{count}} recursos',
                 secondaryKeys: 'También',
-                constant: 'Siempre activa',
                 fromLorebook: 'De {{name}}',
             },
             loreTrigger: {
@@ -403,10 +402,6 @@ export const es = {
                             helper: 'Escribe hechos autónomos. Los títulos y las claves no forman parte del contenido del prompt.',
                             placeholder: 'El Mercado de Cristal es un bazar a la luz de la luna bajo el Puente Aureliano...',
                         },
-                        revealCondition: {
-                            label: 'Condición de revelación',
-                            placeholder: 'Revelar cuando se descubra el pacto',
-                        },
                     },
                     activation: {
                         heading: 'Activación',
@@ -433,10 +428,6 @@ export const es = {
                             label: 'Habilitada',
                             description: 'Las entradas deshabilitadas siguen visibles pero no se activan.',
                         },
-                        constant: {
-                            label: 'Constante',
-                            description: 'Incluye siempre esta entrada cuando el libro esté activo.',
-                        },
                         wholeWords: {
                             label: 'Palabras completas',
                             description: 'Evita coincidencias accidentales con partes de palabras.',
@@ -448,10 +439,6 @@ export const es = {
                         regex: {
                             label: 'Claves con regex',
                             description: 'Trata las claves como expresiones regulares.',
-                        },
-                        secret: {
-                            label: 'Secreto',
-                            description: 'Marca el contenido sensible para revisión solo del editor.',
                         },
                     },
                     placement: {
@@ -564,8 +551,6 @@ export const es = {
                     tokens: '{{count}} tokens',
                     badges: {
                         disabled: 'deshabilitada',
-                        constant: 'constante',
-                        secret: 'secreto',
                     },
                     deleteEntry: 'Eliminar {{title}}',
                     entryFallback: 'entrada',
@@ -695,7 +680,7 @@ export const es = {
                         name_required: 'Asigna un nombre al lorebook antes de guardar.',
                         empty_book: 'Agrega al menos una entrada para que el libro pueda activarse.',
                         entry_content_required: '{{title}} necesita contenido de prompt.',
-                        entry_keys_missing: '{{title}} necesita claves de activación o modo constante.',
+                        entry_keys_missing: '{{title}} necesita claves de activación.',
                         entry_long: '{{title}} es lo bastante largo como para presionar el presupuesto de contexto.',
                         entry_key_short: '"{{key}}" es probablemente demasiado amplio para ser una clave fiable.',
                         duplicate_key: '"{{key}}" lo comparten {{previous}} y {{title}}.',
@@ -1596,7 +1581,7 @@ export const es = {
                         },
                         lorebooks: {
                             title: 'Lorebooks',
-                            current: 'Están implementados la edición de entradas, los adjuntos, las vistas previas de activación y el asistente de lorebooks. Las entradas siempre activas y las entradas cuyas palabras clave aparecen en tu último mensaje se añaden a las respuestas de aventuras, chats y llamadas.',
+                            current: 'Están implementados la edición de entradas, los adjuntos, las vistas previas de activación y el asistente de lorebooks. Las entradas cuyas palabras clave aparecen en tu último mensaje se añaden a las respuestas de aventuras, chats y llamadas.',
                             next: 'Verificar qué entradas llegan a cada respuesta, los presupuestos de contexto y las reglas de adjuntos. La importación y exportación de lorebooks y la búsqueda por significado aún no están disponibles.',
                             decision: 'TBD: formatos de importación y exportación, alcance de la recuperación avanzada y aceptación para el lanzamiento.',
                         },
@@ -2837,8 +2822,6 @@ export const es = {
                     actionsAria: 'Acciones para {{name}}',
                     enabled: 'activo',
                     disabled: 'desactivado',
-                    secret_one: '{{count}} secreto',
-                    secret_other: '{{count}} secretos',
                     noDescription: 'Aún no hay descripción.',
                     entries: 'Entradas',
                     keys: 'Claves',

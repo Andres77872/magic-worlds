@@ -11,8 +11,8 @@ function lorebook(id: string, name: string, description: string, tags: string[])
     enabled: true,
     settings: {},
     entries: [
-      { id: `${id}-e1`, enabled: true, isSecret: false, keys: ['king', 'crown'] },
-      { id: `${id}-e2`, enabled: true, isSecret: true, keys: ['betrayal'] },
+      { id: `${id}-e1`, enabled: true, keys: ['king', 'crown'] },
+      { id: `${id}-e2`, enabled: true, keys: ['betrayal'] },
     ],
     attachments: [{ id: `${id}-a1` }],
   } as unknown as Lorebook

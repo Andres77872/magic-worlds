@@ -2,6 +2,8 @@
 
 **Revised 2026-10-25.** This replaces the 2026-10-24 plan (Phases 0–4, strategy A "v2 rebuild + ETL").
 
+> **Status 2026-10-26.** R1–R6 shipped as one bundled upgrade and were applied to `.90` on 2026-10-26 (126 → 120 tables). R0 is partial. Current state and what is still open: [README](README.md#execution-status-2026-10-26). §2 below is the 2026-10-25 starting point.
+
 **What changed:**
 - **Downtime is allowed.** Each upgrade runs while the API is stopped, so the online-change machinery is no longer needed:
   - no dual writes;

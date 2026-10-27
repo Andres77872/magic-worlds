@@ -31,8 +31,8 @@ const lorebook: Lorebook = {
     settings: {} as Lorebook['settings'], attachments: [],
     entries: [
         { id: 'e1', lorebookId: 'l1', title: 'Bell guild', entryType: 'faction', content: 'The guild keeps the harbor bells.', keys: ['bell', 'guild'],
-            secondaryKeys: [], selectiveLogic: 'and_any', enabled: true, constant: false, caseSensitive: false, matchWholeWords: true,
-            regex: false, isSecret: false, insertionOrder: 0, priority: 0, insertionPosition: 'before_context' } as Lorebook['entries'][number],
+            secondaryKeys: [], selectiveLogic: 'and_any', enabled: true, caseSensitive: false, matchWholeWords: true,
+            regex: false, insertionOrder: 0, priority: 0, insertionPosition: 'before_context' } as Lorebook['entries'][number],
     ],
 }
 const resource: LorebookResource = {

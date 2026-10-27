@@ -1,6 +1,6 @@
 import { useFeatureFlags } from '@/shared/hooks/useFeatureFlags'
 import { useRef, type KeyboardEvent, type MouseEvent } from 'react'
-import { BookOpen, EyeOff, FileText, KeyRound, Link2, ScrollText } from 'lucide-react'
+import { BookOpen, FileText, KeyRound, Link2, ScrollText } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { Lorebook } from '@/shared'
 import { isLorebookResourcesFeatureEnabled } from '@/shared/featureFlags'
@@ -24,7 +24,6 @@ export function LorebookCard({ lorebook, options, onClick, onTagClick, deleting 
     useFeatureFlags()
     const { t } = useTranslation()
     const enabledEntries = lorebook.entries.filter((entry) => entry.enabled).length
-    const secretEntries = lorebook.entries.filter((entry) => entry.isSecret).length
     const keyCount = lorebook.entries.reduce((sum, entry) => sum + entry.keys.length, 0)
     const resourceFeaturesEnabled = isLorebookResourcesFeatureEnabled()
     const resourceStats = resourceFeaturesEnabled ? lorebookResourceStats(lorebookResourcesFromMetadata(lorebook.metadata)) : null
@@ -88,13 +87,6 @@ export function LorebookCard({ lorebook, options, onClick, onTagClick, deleting 
                                 {lorebook.enabled ? t('lorebookGallery.card.enabled') : t('lorebookGallery.card.disabled')}
                             </Badge>
                         </span>
-                        {secretEntries > 0 && (
-                            <span className="hidden shrink-0 sm:inline-flex">
-                                <Badge tone="nsfw" icon={<Icon icon={EyeOff} size={11} />}>
-                                    {t('lorebookGallery.card.secret', { count: secretEntries })}
-                                </Badge>
-                            </span>
-                        )}
                     </div>
                     <p className="m-0 truncate font-narrative text-label leading-snug text-parchment-300">
                         {lorebook.description || t('lorebookGallery.card.noDescription')}
@@ -178,9 +170,6 @@ export function LorebookCard({ lorebook, options, onClick, onTagClick, deleting 
                 <div>
                     <div className="flex flex-wrap gap-2">
                         <Badge tone={lorebook.enabled ? 'live' : 'neutral'}>{lorebook.enabled ? t('lorebookGallery.card.enabled') : t('lorebookGallery.card.disabled')}</Badge>
-                        {secretEntries > 0 && (
-                            <Badge tone="nsfw" icon={<Icon icon={EyeOff} size={11} />}>{t('lorebookGallery.card.secret', { count: secretEntries })}</Badge>
-                        )}
                     </div>
                 </div>
             </div>

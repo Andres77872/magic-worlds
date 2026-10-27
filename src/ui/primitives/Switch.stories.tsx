@@ -62,7 +62,7 @@ export const Disabled: Story = {
 export const Rows: Story = {
   args: { checked: true, onChange: () => {}, 'aria-label': 'Enabled' },
   render: function Render() {
-    const [state, setState] = useState({ enabled: true, constant: false, secret: false })
+    const [state, setState] = useState({ enabled: true, wholeWords: true, caseSensitive: false })
     return (
       <div className="grid w-full max-w-md gap-3">
         <SwitchRow
@@ -72,16 +72,16 @@ export const Rows: Story = {
           onChange={(enabled) => setState((s) => ({ ...s, enabled }))}
         />
         <SwitchRow
-          label="Constant"
-          description="Always include this entry when the book is active."
-          checked={state.constant}
-          onChange={(constant) => setState((s) => ({ ...s, constant }))}
+          label="Whole words"
+          description="Avoid accidental partial-word matches."
+          checked={state.wholeWords}
+          onChange={(wholeWords) => setState((s) => ({ ...s, wholeWords }))}
         />
         <SwitchRow
-          label="Secret"
-          description="Mark sensitive lore for editor-only review."
-          checked={state.secret}
-          onChange={(secret) => setState((s) => ({ ...s, secret }))}
+          label="Case sensitive"
+          description="Require exact casing for key matches."
+          checked={state.caseSensitive}
+          onChange={(caseSensitive) => setState((s) => ({ ...s, caseSensitive }))}
         />
       </div>
     )
@@ -92,11 +92,11 @@ export const IntegratedSettings: Story = {
   args: { checked: true, onChange: () => {}, 'aria-label': 'Enabled' },
   render: function Render() {
     const [enabled, setEnabled] = useState(true)
-    const [constant, setConstant] = useState(false)
+    const [wholeWords, setWholeWords] = useState(true)
     return (
       <section aria-label="Entry settings" className="w-full max-w-md divide-y divide-line-faint">
         <SwitchRow variant="plain" label="Enabled" description="Include this entry when its keywords match." checked={enabled} onChange={setEnabled} />
-        <SwitchRow variant="plain" label="Always include" description="Keep this lore present throughout the story." checked={constant} onChange={setConstant} />
+        <SwitchRow variant="plain" label="Whole words" description="Avoid accidental partial-word matches." checked={wholeWords} onChange={setWholeWords} />
       </section>
     )
   },

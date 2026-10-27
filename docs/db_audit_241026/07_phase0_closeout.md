@@ -2,6 +2,8 @@
 
 **Date:** 2026-10-25, one day after the audit.
 
+> **Superseded 2026-10-26.** This is the pre-upgrade snapshot. The bundled upgrade was applied to `.90` on 2026-10-26. Current state: [README](README.md#execution-status-2026-10-26).
+
 **Scope:** each old Phase 0 step checked against its "Done when" line, the backend test baseline, and what R0 of the revised plan ([06](06_migration_plan.md)) still needs before R1.
 
 **Method:**

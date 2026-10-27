@@ -15,8 +15,8 @@ function character(card: Partial<Character> & Pick<Character, 'id' | 'name'>): C
 function entry(id: string, title: string, keys: string[]): LorebookEntry {
     return {
         id, lorebookId: 'l-resonance', title, entryType: 'rule', content: `${title} shapes every spell.`, keys,
-        secondaryKeys: [], selectiveLogic: 'and_any', enabled: true, constant: false, caseSensitive: false,
-        matchWholeWords: true, regex: false, isSecret: false, insertionOrder: 0, priority: 0, insertionPosition: 'before_context',
+        secondaryKeys: [], selectiveLogic: 'and_any', enabled: true, caseSensitive: false,
+        matchWholeWords: true, regex: false, insertionOrder: 0, priority: 0, insertionPosition: 'before_context',
     }
 }
 

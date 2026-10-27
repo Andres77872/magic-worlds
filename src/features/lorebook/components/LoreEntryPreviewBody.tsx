@@ -20,7 +20,6 @@ export function LoreEntryPreviewBody({ entry, sourceName, originLabel }: LoreEnt
         <div className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center gap-1.5">
                 <Tag>{entry.entryType}</Tag>
-                {entry.constant && <Tag>{t('floatingWindows.constant')}</Tag>}
             </div>
             {originLabel ? (
                 <p className="m-0 font-ui text-xs text-arcane-300">{originLabel}</p>

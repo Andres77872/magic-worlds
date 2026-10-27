@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { EyeOff, KeyRound, Route, ScrollText, Settings2, SlidersHorizontal } from 'lucide-react'
+import { KeyRound, Route, ScrollText, Settings2, SlidersHorizontal } from 'lucide-react'
 import type { LorebookEntry, LorebookEntryType, LorebookInsertionPosition, LorebookSelectiveLogic } from '@/shared'
 import { Button, Callout, Field, Icon, Input, Select, SwitchRow, Textarea, type SelectOption } from '@/ui/primitives'
 import { TriggersField } from '@/features/creation/common/components'
@@ -133,21 +133,10 @@ export function LoreEntryEditor({ entry, onChange, onDelete }: LoreEntryEditorPr
                     </div>
                     <div className="divide-y divide-parchment-50/10">
                         <SwitchRow variant="plain" label={t('lorebookStudio.entryEditor.switches.enabled.label')} description={t('lorebookStudio.entryEditor.switches.enabled.description')} checked={entry.enabled} onChange={(enabled) => patch({ enabled })} />
-                        <SwitchRow variant="plain" label={t('lorebookStudio.entryEditor.switches.constant.label')} description={t('lorebookStudio.entryEditor.switches.constant.description')} checked={entry.constant} onChange={(constant) => patch({ constant })} />
                         <SwitchRow variant="plain" label={t('lorebookStudio.entryEditor.switches.wholeWords.label')} description={t('lorebookStudio.entryEditor.switches.wholeWords.description')} checked={entry.matchWholeWords} onChange={(matchWholeWords) => patch({ matchWholeWords })} />
                         <SwitchRow variant="plain" label={t('lorebookStudio.entryEditor.switches.caseSensitive.label')} description={t('lorebookStudio.entryEditor.switches.caseSensitive.description')} checked={entry.caseSensitive} onChange={(caseSensitive) => patch({ caseSensitive })} />
                         <SwitchRow variant="plain" label={t('lorebookStudio.entryEditor.switches.regex.label')} description={t('lorebookStudio.entryEditor.switches.regex.description')} checked={entry.regex} onChange={(regex) => patch({ regex })} />
-                        <SwitchRow variant="plain" label={t('lorebookStudio.entryEditor.switches.secret.label')} description={t('lorebookStudio.entryEditor.switches.secret.description')} checked={entry.isSecret} onChange={(isSecret) => patch({ isSecret })} />
                     </div>
-                    {entry.isSecret && (
-                        <Field label={<span className="inline-flex items-center gap-2"><Icon icon={EyeOff} size={14} /> {t('lorebookStudio.entryEditor.fields.revealCondition.label')}</span>}>
-                            <Input
-                                value={entry.revealCondition ?? ''}
-                                onChange={(event) => patch({ revealCondition: event.target.value })}
-                                placeholder={t('lorebookStudio.entryEditor.fields.revealCondition.placeholder')}
-                            />
-                        </Field>
-                    )}
                 </div>
             </section>
 

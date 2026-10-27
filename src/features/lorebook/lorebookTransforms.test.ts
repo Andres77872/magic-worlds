@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Lorebook, LorebookResource } from '@/shared'
-import { entryToApiPayload, lorebookToApiPayload, previewLocally, validateLorebookLocally } from './lorebookTransforms'
+import { entryToApiPayload, lorebookToApiPayload, normalizeLorebook, previewLocally, validateLorebookLocally } from './lorebookTransforms'
 
 function book(overrides: Partial<Lorebook> = {}): Lorebook {
     return {
@@ -59,6 +59,35 @@ describe('lorebook transforms', () => {
         expect(entryToApiPayload({ id: 'draft-entry-1', title: 'Draft' })).not.toHaveProperty('id')
     })
 
+    it('drops retired constant/secret/reveal fields from legacy data and activates by keys only', () => {
+        const lorebook = normalizeLorebook({
+            id: 'book-1',
+            name: 'Legacy lore',
+            entries: [
+                { id: 'always', title: 'Always on', content: 'Keyless legacy constant entry.', keys: [], constant: true },
+                { id: 'hidden', title: 'Hidden pact', content: 'The pact binds the court.', keys: ['pact'], is_secret: true, reveal_condition: 'mirror oath' },
+            ],
+        })
+
+        for (const entry of lorebook.entries) {
+            expect(entry).not.toHaveProperty('constant')
+            expect(entry).not.toHaveProperty('isSecret')
+            expect(entry).not.toHaveProperty('revealCondition')
+        }
+        const payload = lorebookToApiPayload(lorebook)
+        for (const entry of payload.entries as Record<string, unknown>[]) {
+            expect(entry).not.toHaveProperty('constant')
+            expect(entry).not.toHaveProperty('isSecret')
+            expect(entry).not.toHaveProperty('revealCondition')
+        }
+
+        const preview = previewLocally(lorebook, 'They speak of the pact.')
+        expect(preview.results.find((result) => result.entryId === 'always')?.status).toBe('skipped')
+        expect(preview.results.find((result) => result.entryId === 'hidden')).toMatchObject({ status: 'activated', matchedKeys: ['pact'] })
+        expect(preview.issues.find((issue) => issue.code === 'entry_keys_missing')).toMatchObject({ entryId: 'always', message: 'Always on needs activation keys.' })
+        expect(preview.issues.some((issue) => issue.code === 'entry_reveal_missing')).toBe(false)
+    })
+
     it('evaluates secondary keys, case sensitivity, and whole-word matching in local preview', () => {
         const lorebook = book({
             entries: [
@@ -72,12 +101,9 @@ describe('lorebook transforms', () => {
                     secondaryKeys: ['mirror court'],
                     selectiveLogic: 'and_any',
                     enabled: true,
-                    constant: false,
                     caseSensitive: true,
                     matchWholeWords: true,
                     regex: false,
-                    isSecret: false,
-                    revealCondition: null,
                     insertionOrder: 0,
                     priority: 0,
                     insertionPosition: 'before_context',
@@ -111,12 +137,9 @@ describe('lorebook transforms', () => {
                     secondaryKeys: [],
                     selectiveLogic: 'any',
                     enabled: true,
-                    constant: false,
                     caseSensitive: false,
                     matchWholeWords: true,
                     regex: false,
-                    isSecret: false,
-                    revealCondition: null,
                     insertionOrder: 0,
                     priority: 0,
                     insertionPosition: 'before_context',
@@ -132,12 +155,9 @@ describe('lorebook transforms', () => {
                     secondaryKeys: [],
                     selectiveLogic: 'any',
                     enabled: true,
-                    constant: false,
                     caseSensitive: false,
                     matchWholeWords: true,
                     regex: false,
-                    isSecret: false,
-                    revealCondition: null,
                     insertionOrder: 1,
                     priority: 0,
                     insertionPosition: 'before_context',
@@ -164,12 +184,9 @@ describe('lorebook transforms', () => {
                     secondaryKeys: [],
                     selectiveLogic: 'any',
                     enabled: true,
-                    constant: false,
                     caseSensitive: false,
                     matchWholeWords: true,
                     regex: true,
-                    isSecret: false,
-                    revealCondition: null,
                     insertionOrder: 0,
                     priority: 0,
                     insertionPosition: 'before_context',

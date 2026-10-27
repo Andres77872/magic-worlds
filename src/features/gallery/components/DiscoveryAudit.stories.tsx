@@ -40,7 +40,7 @@ const cast = characters.map((card, index) => ({ ...card, role: 'character' as co
 const rawTemplates = templates.map(template => ({ ...template, name: template.scenario, description: template.scenario, world: template.world ? [template.world] : [] }))
 const items = [{ id: 'item-audit', name: 'Moonlit compass', type: 'relic', rarity: 'rare', description: 'Points toward the promise you have not yet kept.', effects: {}, requirements: {}, limitations: {}, triggers: ['journey'] }]
 const novels = [{ id: 'novel-audit', title: 'The last letter', description: 'A story of a lighthouse that remembers.', chapters: [{ id: 'chapter-audit', title: 'The harbor', body: 'The harbor slept while Wren read the last letter.', status: 'draft', order: 0 }], createdAt: '2026-09-17T18:00:00Z', updatedAt: '2026-09-19T05:00:00Z' }]
-const lorebooks = [{ id: 'lore-audit', name: 'Harbor secrets', description: 'Promises and people of the candlelit coast.', enabled: true, entries: [{ id: 'entry-audit', name: 'The ferryman', enabled: true, isSecret: false, keys: ['ferryman'], content: 'One coin buys a crossing.' }], tags: ['coast'], attachments: [], metadata: {} }]
+const lorebooks = [{ id: 'lore-audit', name: 'Harbor secrets', description: 'Promises and people of the candlelit coast.', enabled: true, entries: [{ id: 'entry-audit', name: 'The ferryman', enabled: true, keys: ['ferryman'], content: 'One coin buys a crossing.' }], tags: ['coast'], attachments: [], metadata: {} }]
 const fixtureError = new Error('The library could not be loaded. Please try again.')
 const never = () => new Promise<never>(() => {})
 

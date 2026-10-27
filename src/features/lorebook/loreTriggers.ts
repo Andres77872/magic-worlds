@@ -81,15 +81,15 @@ function optionsForEntry(entry: LorebookEntry): KeyMatchOptions {
 }
 
 /**
- * Precompile a scan index from session-attached entries. Skips entries that can't or
- * shouldn't be surfaced inline: disabled, secret (don't spoil hidden lore), and those
- * without primary keys (constant entries have no literal trigger to mark). Only
- * primary `keys` are marked — secondary keys gate selective logic, not triggering.
+ * Precompile a scan index from session-attached entries. Skips entries that can't be
+ * surfaced inline: disabled ones and those without primary keys (nothing literal to
+ * mark). Only primary `keys` are marked — secondary keys gate selective logic, not
+ * triggering.
  */
 export function buildTriggerMatcher(entries: SessionLoreEntry[]): TriggerMatcher {
     const keys: CompiledKey[] = []
     for (const { entry, lorebookName } of entries) {
-        if (!entry.enabled || entry.isSecret || entry.keys.length === 0) continue
+        if (!entry.enabled || entry.keys.length === 0) continue
         const options = optionsForEntry(entry)
         for (const key of entry.keys) {
             const regex = buildKeyRegex(key, options, { global: true })

@@ -62,11 +62,9 @@ const LOREBOOK: Lorebook = {
             secondaryKeys: [],
             selectiveLogic: 'any',
             enabled: true,
-            constant: false,
             caseSensitive: false,
             matchWholeWords: true,
             regex: false,
-            isSecret: true,
             insertionOrder: 0,
             priority: 0,
             insertionPosition: 'before_context',
@@ -130,7 +128,6 @@ describe('LorebookGalleryPage', () => {
         expect(setPage).toHaveBeenCalledWith('lorebook')
         expect(screen.getByText('Entries')).toBeInTheDocument()
         expect(screen.getByText('Resources')).toBeInTheDocument()
-        expect(screen.getByText('1 secret')).toBeInTheDocument()
     })
 
     it('renders signed-out without fetching and asks for login only on create', async () => {
@@ -164,7 +161,6 @@ describe('LorebookGalleryPage', () => {
         expect(await screen.findByText('Glass Courts')).toBeInTheDocument()
         expect(screen.getByText('Entradas')).toBeInTheDocument()
         expect(screen.getByText('Recursos')).toBeInTheDocument()
-        expect(screen.getByText('1 secreto')).toBeInTheDocument()
     })
 
     it('lists the new workspace from offset 0 and ignores a late page of the previous one', async () => {

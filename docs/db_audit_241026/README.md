@@ -37,11 +37,29 @@
 
 **Line references:** findings 02–05 cite the audit snapshot. The two later commits shifted some `models.py` references by about +12 to +50 lines, and references into deleted migration files are stale. The plan (06) and the status section of 02 cite `c056d82`.
 
-**Repo states:** SPA `8c7b556e`; BFF `f7229af` at the audit, `c056d82` at the revision. Schema marker `2026_10_voice_turn_metrics` (unchanged).
+**Repo states:** SPA `8c7b556e`; BFF `f7229af` at the audit, `c056d82` at the revision. Schema marker `2026_10_voice_turn_metrics` at the audit and the revision; `2026_10_db_refactor` since the 2026-10-26 apply (below).
 
 ## Execution status (2026-10-26)
 
-R1–R6 are implemented as **one bundled upgrade**, `2026_10_voice_turn_metrics` → `2026_10_db_refactor`, run by `scripts/upgrades/runner.py` in the BFF. **Not yet applied to `.90`.**
+R1–R6 are implemented as **one bundled upgrade**, `2026_10_voice_turn_metrics` → `2026_10_db_refactor`, run by `scripts/upgrades/runner.py` in the BFF and merged on BFF master (PR #2, `2fb958d`). **Applied to `.90` on 2026-10-26 at about 16:24 UTC.**
+
+**The table count is final at 120.** The "about 100" in [05](05_target_schema.md) §1–4 is the original long-term design. It was dropped as a target on 2026-10-25 ([06 §4](06_migration_plan.md#4-what-this-plan-does-not-do-deferred-from-05)) and is not planned. The priority is performance and operations, not the number of tables.
+
+**Live check on `.90`** (read-only, 2026-10-27 00:34 UTC):
+- Marker `2026_10_db_refactor`; 120 base tables.
+- `verify_mysql_schema` from BFF master `1902311` passes: live = `db.sql`.
+- The 8 removed tables are gone. `story_scene_text` and `story_assistant_terminal_receipt` exist.
+- The apply rebuilt 36 tables between 16:24:18 and 16:24:26 UTC (`information_schema.tables.create_time`). No runner report was found under `.dev/upgrades/` in the BFF checkouts.
+- `content_schema_revision.applied_at` still reads 2026-10-18 10:45:28, because the runner updates only `revision` (`scripts/upgrades/runner.py:195`). Use the table creation times, not `applied_at`, as the apply time.
+- `lorebook_entry` was rebuilt again at 00:23:55 UTC. BFF `1902311` drops `constant_entry`, `is_secret` and `reveal_condition` from `db.sql`, with no upgrade step and no marker bump. Under the same marker, any other database (production, or a restore upgraded by the runner) still has the 3 columns and fails the exact verifier against `1902311`.
+- Which BFF commit the API container on `.90` runs is not verified. Its pool connections were opened after the upgrade.
+
+**Still open after the apply** (performance and operations first):
+- Server: still the shared, default-sized MySQL 8.1.0 (buffer pool 128 MB). The dedicated 8.4 LTS instance (R0, D-8) is not done.
+- Slow log and deadlock logging are still off (`slow_query_log=0`, `innodb_print_all_deadlocks=0`).
+- The concurrent-admission deadlock (strict xfail) has a fix on BFF branch `fix/llm-admission-deadlock` (`c70bb50`). It is not merged, and it sits on the WIP snapshot `6801548`.
+- Production: no revision inventory or upgrade yet ([W-01](../workspace_r1/04_gaps_and_priorities.md)).
+- Not checked live: whether the R6 janitor is enabled on `.90`, and whether backups beyond the pre-refactor dump exist.
 
 **Backup and rehearsal**
 - The pre-refactor dump of `.90` is verified (sha256 recorded next to it).
@@ -75,9 +93,9 @@ R1–R6 are implemented as **one bundled upgrade**, `2026_10_voice_turn_metrics`
 | 02 | [Findings register](02_findings.md) | 40 findings with severity, evidence, impact and fix, a **status update at `c056d82`**, and 8 new findings from the revision |
 | 03 | [Story Studio data model](03_story_studio.md) | The 25 `story_*` tables: 73% of the bytes, and the largest write amplification |
 | 04 | [Feature preservation matrix](04_feature_preservation_matrix.md) | Every user feature → routes → tables, and what must be preserved |
-| 05 | [Target schema](05_target_schema.md) | **§0: the target for this refactor (126 → about 120).** §1–4: the original long-term design, kept for reference |
+| 05 | [Target schema](05_target_schema.md) | **§0: the target for this refactor (126 → 120), applied to `.90` on 2026-10-26.** §1–4: the original long-term design (about 100 tables), dropped as a target and kept for reference |
 | 06 | [Refactor plan](06_migration_plan.md) | Per-domain upgrades in maintenance windows (R0–R6), validation gates G1–G8, runbook, decisions, effort |
-| 07 | [Phase 0 closeout](07_phase0_closeout.md) | Live re-check on `.90` (2026-10-25). **HEAD is not deployed** there, and the stale schemas are already dropped. The backend unit suite is red (661 failures and 2 hanging files, all from before the audit), which blocks R0.4. Also holds the R0 status and the full test baseline. |
+| 07 | [Phase 0 closeout](07_phase0_closeout.md) | Pre-upgrade snapshot, superseded by the 2026-10-26 apply. Live re-check on `.90` (2026-10-25): **HEAD was not deployed** there, and the stale schemas are already dropped. The backend unit suite is red (661 failures and 2 hanging files, all from before the audit), which blocks R0.4. Also holds the R0 status and the full test baseline. |
 | — | [`evidence/`](evidence/) | Raw query outputs: exact row counts, top statements, scans, indexes, reference columns without an FK. No personal data. |
 
 ## Verdict
@@ -91,7 +109,7 @@ What is strong:
 - Most "redundant" indexes are deliberate composite-FK targets.
 - Dynamic SQL is clean: 551 interpolation sites checked.
 
-Already fixed in code since the audit (`fceaead`, `c056d82`). **None of it is deployed on `.90` yet** ([07](07_phase0_closeout.md)):
+Already fixed in code since the audit (`fceaead`, `c056d82`), now on BFF master. On 2026-10-25 none of it was deployed on `.90` ([07](07_phase0_closeout.md)). The schema has since been upgraded; whether the API process there runs this code is not verified:
 - UTC on every connection.
 - Read-first identity.
 - No provider download under a row lock.
@@ -100,9 +118,9 @@ Already fixed in code since the audit (`fceaead`, `c056d82`). **None of it is de
 - Smoke isolation.
 - The historical migration chain removed.
 
-What remains:
+What remained at the 2026-10-25 revision. Items 3–5 are addressed in code by R2–R4 and R6, now applied to `.90`. Item 2 is partly addressed: `REQUIRE_DB_TESTS=1` makes the DB tests run, and there is still no CI. Item 1 is still open ([Execution status](#execution-status-2026-10-26)):
 1. **Operations.**
-   - There are no backups or restore drills.
+   - There were no backups or restore drills. A verified pre-refactor dump and one restore rehearsal now exist; a managed, recurring backup is not verified.
    - The database runs on a shared, default-sized MySQL 8.1 (an out-of-support release).
    - Slow log and deadlock logging are off.
 2. **Validation is weaker than it looks.**
@@ -131,15 +149,15 @@ They are deferred or dropped.
 
 ## Plan at a glance ([06](06_migration_plan.md))
 
-| Release | What | Days |
-|---|---|---:|
-| R0 | Backups and restore drill; dedicated MySQL 8.4 LTS; commit the smoke work and **redeploy HEAD**; **validation gates G1–G8**; upgrade-script template | 6–8 |
-| R1 | Sweeper, list and JSON indexes; `voice_key` FKs; drop dead indexes; D-1; `/tasks` gate fix; stale SPA prefixes | 3–4 |
-| R2 | Story Studio: pointer receipts, no duplicate document, statistics columns, no term table, terminal receipt table | 11–14 |
-| R3 | Tasks drawer as one query; archive markers removed; batched lookups (optional `media_asset`) | 4–5 |
-| R4 | Erasure classification enforced by a test; profile tombstones; `effective_config` and file cleanup; D-4; usage-day boundary fix | 8–10 |
-| R5 | Card header/body merge; operation context → columns; session voice setting → columns; drop `tb_operation_receipt` | 7–8 |
-| R6 | Retention janitor for the FK-safe operational tables | 2.5 |
+| Release | What | Days | Status (2026-10-26) |
+|---|---|---:|---|
+| R0 | Backups and restore drill; dedicated MySQL 8.4 LTS; commit the smoke work and **redeploy HEAD**; **validation gates G1–G8**; upgrade-script template | 6–8 | **Partial.** Done: pre-refactor dump and restore rehearsal, smoke work and upgrade template on master, gates green. Open: MySQL 8.4, slow/deadlock logs, managed backups; redeploy unverified |
+| R1 | Sweeper, list and JSON indexes; `voice_key` FKs; drop dead indexes; D-1; `/tasks` gate fix; stale SPA prefixes | 3–4 | Applied to `.90` (bundled) |
+| R2 | Story Studio: pointer receipts, no duplicate document, statistics columns, no term table, terminal receipt table | 11–14 | Applied to `.90` (bundled) |
+| R3 | Tasks drawer as one query; archive markers removed; batched lookups (optional `media_asset`) | 4–5 | Applied to `.90` (bundled), without the optional R3b |
+| R4 | Erasure classification enforced by a test; profile tombstones; `effective_config` and file cleanup; D-4; usage-day boundary fix | 8–10 | Applied to `.90` (bundled) |
+| R5 | Card header/body merge; operation context → columns; session voice setting → columns; drop `tb_operation_receipt` | 7–8 | Applied to `.90` (bundled) |
+| R6 | Retention janitor for the FK-safe operational tables | 2.5 | In code; enabled state on `.90` unverified |
 
 Total: about 42–52 engineer-days. Each release passes the gates in [06 §3](06_migration_plan.md#3-validation-framework):
 - schema contract;

@@ -39,6 +39,3 @@ type Story = StoryObj<typeof meta>
 
 export const Default: Story = {}
 export const Empty: Story = { args: { entry: undefined } }
-export const Secret: Story = {
-    args: { entry: { ...entry, isSecret: true, revealCondition: 'The keeper receives a memory of the lost queen.' } },
-}

@@ -282,7 +282,6 @@ export const en = {
                 resources_one: '{{count}} resource',
                 resources_other: '{{count}} resources',
                 secondaryKeys: 'Also',
-                constant: 'Always on',
                 fromLorebook: 'From {{name}}',
             },
             loreTrigger: {
@@ -393,10 +392,6 @@ export const en = {
                             helper: 'Write standalone facts. Titles and keys are not prompt content.',
                             placeholder: 'The Glass Market is a moonlit bazaar beneath Aurelian Bridge...',
                         },
-                        revealCondition: {
-                            label: 'Reveal condition',
-                            placeholder: 'Reveal after the pact is discovered',
-                        },
                     },
                     activation: {
                         heading: 'Activation',
@@ -423,10 +418,6 @@ export const en = {
                             label: 'Enabled',
                             description: 'Disabled entries stay visible but do not activate.',
                         },
-                        constant: {
-                            label: 'Constant',
-                            description: 'Always include this entry when the book is active.',
-                        },
                         wholeWords: {
                             label: 'Whole words',
                             description: 'Avoid accidental partial-word matches.',
@@ -438,10 +429,6 @@ export const en = {
                         regex: {
                             label: 'Regex keys',
                             description: 'Treat keys as regular expressions.',
-                        },
-                        secret: {
-                            label: 'Secret',
-                            description: 'Mark sensitive lore for editor-only review.',
                         },
                     },
                     placement: {
@@ -554,8 +541,6 @@ export const en = {
                     tokens: '{{count}} tokens',
                     badges: {
                         disabled: 'disabled',
-                        constant: 'constant',
-                        secret: 'secret',
                     },
                     deleteEntry: 'Delete {{title}}',
                     entryFallback: 'entry',
@@ -685,7 +670,7 @@ export const en = {
                         name_required: 'Name the lorebook before saving.',
                         empty_book: 'Add at least one entry so the book can activate.',
                         entry_content_required: '{{title}} needs prompt content.',
-                        entry_keys_missing: '{{title}} needs activation keys or constant mode.',
+                        entry_keys_missing: '{{title}} needs activation keys.',
                         entry_long: '{{title}} is long enough to pressure context budget.',
                         entry_key_short: '"{{key}}" is likely too broad to be a reliable key.',
                         duplicate_key: '"{{key}}" is shared by {{previous}} and {{title}}.',
@@ -1586,7 +1571,7 @@ export const en = {
                         },
                         lorebooks: {
                             title: 'Lorebooks',
-                            current: 'Entry editing, attachments, activation previews and the lorebook assistant are implemented. Always-on entries and entries whose keywords appear in your latest message are added to adventure, chat and call replies.',
+                            current: 'Entry editing, attachments, activation previews and the lorebook assistant are implemented. Entries whose keywords appear in your latest message are added to adventure, chat and call replies.',
                             next: 'Verify which entries reach each reply, context budgets and attachment rules. Importing or exporting lorebooks and meaning-based lookup are not available yet.',
                             decision: 'TBD: import and export formats, advanced retrieval scope and release acceptance.',
                         },
@@ -2827,8 +2812,6 @@ export const en = {
                     actionsAria: 'Actions for {{name}}',
                     enabled: 'enabled',
                     disabled: 'disabled',
-                    secret_one: '{{count}} secret',
-                    secret_other: '{{count}} secret',
                     noDescription: 'No description yet.',
                     entries: 'Entries',
                     keys: 'Keys',

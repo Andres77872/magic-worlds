@@ -12,11 +12,9 @@ function entry(partial: Partial<LorebookEntry> & { keys: string[]; id?: string }
         secondaryKeys: [],
         selectiveLogic: 'any',
         enabled: true,
-        constant: false,
         caseSensitive: false,
         matchWholeWords: true,
         regex: false,
-        isSecret: false,
         insertionOrder: 0,
         priority: 0,
         insertionPosition: 'before_context',
@@ -64,10 +62,9 @@ describe('loreTriggers.scanText', () => {
         expect(scanText('color and colour', matcher)).toHaveLength(2)
     })
 
-    it('skips disabled, secret, and keyless entries', () => {
+    it('skips disabled and keyless entries', () => {
         const matcher = buildTriggerMatcher([
             session(entry({ id: 'off', keys: ['alpha'], enabled: false })),
-            session(entry({ id: 'secret', keys: ['beta'], isSecret: true })),
             session(entry({ id: 'empty', keys: [] })),
         ])
         expect(scanText('alpha beta gamma', matcher)).toHaveLength(0)

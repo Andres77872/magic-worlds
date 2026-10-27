@@ -2,8 +2,8 @@
 
 **Goal:** fewer parallel mechanisms, explicit relations, bounded growth and cheaper evolution, while keeping every feature in [04](04_feature_preservation_matrix.md).
 
-**Result:**
-- **126 → about 100 tables.**
+**Result (original long-term design, §1–4):**
+- **126 → about 100 tables.** Dropped as a target on 2026-10-25; the current refactor (§0) ends at 120.
 - The scope key in 67 tables drops from 3 columns to 1.
 - About **75% fewer bytes are written per novel autosave**.
 - Two kinds of binary payload move out of MySQL.
@@ -12,6 +12,8 @@
 This is a target to validate phase by phase ([06](06_migration_plan.md)), not a big-bang rewrite.
 
 > **Revised 2026-10-25.** §0 is the target for the current refactor ([06](06_migration_plan.md) R1–R6). §1–4 are the original long-term design, kept for reference. **Where they conflict, §0 wins.** The table count lands at about 120, not about 100.
+>
+> **Status 2026-10-26.** §0 is applied to `.90`: 120 tables, marker `2026_10_db_refactor` ([README](README.md#execution-status-2026-10-26)). The §1–4 consolidations are not planned. The priority is performance and operations, not the table count.
 
 ## 0. Target for this refactor (checked against backend `c056d82`)
 
@@ -44,7 +46,7 @@ This is a target to validate phase by phase ([06](06_migration_plan.md)), not a 
 | Voice | 29 → 27 | `voice_consent_record` dropped (D-1, R1). `session_voice_setting` → columns on `adventure_session` (R5). `voice_key` FKs on 6 columns (R1). `voice_quota_capacity`, `voice_call_metrics`, the voice reservation and the usage tables stay. |
 | Story Studio | 25 → 24 | Drop `story_scene_term`, `story_scene_statistics`, `story_novel_statistics`; add `story_scene_text` and a novel terminal-receipt table. Pointer receipts and no duplicate document (R2). `story_operation_receipt` and `story_export_job` stay. |
 | System | 1 → 1 | `content_schema_revision` stays. There is no `schema_migration`. |
-| **Total** | **126 → about 120** | |
+| **Total** | **126 → 120** (applied to `.90` on 2026-10-26) | |
 
 ### Corrections to §1–4
 

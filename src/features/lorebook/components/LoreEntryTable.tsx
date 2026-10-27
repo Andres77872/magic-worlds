@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { EyeOff, KeyRound, Plus, ScrollText, Trash2 } from 'lucide-react'
+import { KeyRound, Plus, ScrollText, Trash2 } from 'lucide-react'
 import type { LorebookEntry } from '@/shared'
 import { Badge, Button, Icon, IconButton, cx } from '@/ui/primitives'
 import { estimateTokens } from '../lorebookTransforms'
@@ -65,12 +65,6 @@ export function LoreEntryTable({ entries, selectedId, onSelect, onAdd, onDelete,
                                                 {entry.title || t('lorebookStudio.entryTable.untitled')}
                                             </span>
                                             {!entry.enabled && <Badge tone="neutral">{t('lorebookStudio.entryTable.badges.disabled')}</Badge>}
-                                            {entry.constant && <Badge tone="arcane">{t('lorebookStudio.entryTable.badges.constant')}</Badge>}
-                                            {entry.isSecret && (
-                                                <Badge tone="nsfw" icon={<Icon icon={EyeOff} size={11} />}>
-                                                    {t('lorebookStudio.entryTable.badges.secret')}
-                                                </Badge>
-                                            )}
                                         </div>
                                         <p className="mt-1 line-clamp-2 font-narrative text-sm leading-snug text-parchment-300">
                                             {entry.content || t('lorebookStudio.entryTable.noContent')}
